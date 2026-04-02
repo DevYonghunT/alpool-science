@@ -1,6 +1,6 @@
 import {
   curriculum, simulations, youtubePlaylists, youtubeVideos,
-  type TreeNode, type Simulation, type YouTubeVideo
+  type TreeNode, type Simulation
 } from './data'
 type Page = 'simulations' | 'blog' | 'youtube'
 
