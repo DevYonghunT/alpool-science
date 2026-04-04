@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단백질 형성 과정 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a1628;
+    --card: rgba(11, 23, 42, 0.84);
+    --stroke: rgba(255, 255, 255, 0.1);
+    --text: #f5f7ff;
+    --muted: rgba(245, 247, 255, 0.68);
+    --shadow: 0 22px 60px rgba(2, 7, 17, 0.38);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 18% 14%, rgba(101, 182, 255, 0.16), transparent 26%),
+      radial-gradient(circle at 82% 20%, rgba(120, 241, 204, 0.1), transparent 28%),
+      linear-gradient(180deg, #0a1628 0%, #07111d 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas { display: block; }
+  button, select { font: inherit; }
+
+  .overlay-card {
+    background: var(--card);
+    border: 1px solid var(--stroke);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    z-index: 18;
+    width: min(380px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 22px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(170, 214, 255, 0.82);
+  }
+
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 26px;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+  }
+
+  #mode-detail {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  #tab-bar {
+    position: fixed;
+    left: 50%;
+    top: 18px;
+    transform: translateX(-50%);
+    z-index: 19;
+    display: inline-flex;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 999px;
+  }
+
+  .tab-btn {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 10px 16px;
+    color: rgba(255, 255, 255, 0.82);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  }
+
+  .tab-btn:hover,
+  .tab-btn:focus-visible {
+    outline: none;
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .tab-btn.active {
+    color: #062038;
+    background: linear-gradient(135deg, #9edfff, #ffe48d);
+    border-color: rgba(255, 255, 255, 0.24);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    left: 50%;
+    top: 76px;
+    transform: translateX(-50%);
+    z-index: 20;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 8px 14px;
+    color: #fff;
+    background: rgba(10, 19, 36, 0.88);
+    cursor: pointer;
+    box-shadow: 0 16px 44px rgba(3, 8, 18, 0.28);
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    left: 50%;
+    top: 112px;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(520px, calc(100vw - 32px));
+    max-height: 56vh;
+    overflow: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    display: none;
+    line-height: 1.75;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    color: #d6eaff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    font-size: 13px;
+    color: #ffd687;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: #d9efff;
+  }
+
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.48);
+    font-size: 11px;
+  }
+
+  .value {
+    flex: 1;
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.94);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .mono {
+    margin-top: 4px;
+    font-family: 'SFMono-Regular', 'Menlo', monospace;
+    color: #f7f1ce;
+  }
+
+  #mode-tools {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .tool-panel { display: none; }
+  .tool-panel.active { display: block; }
+
+  .tool-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #d9efff;
+    margin-bottom: 12px;
+  }
+
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .tool-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .tool-field select {
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px 12px;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .action-btn {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 10px 14px;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  }
+
+  .action-btn:hover,
+  .action-btn:focus-visible {
+    outline: none;
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .action-btn.primary {
+    color: #062038;
+    background: linear-gradient(135deg, #9edfff, #ffe48d);
+    border-color: rgba(255, 255, 255, 0.24);
+    font-weight: 700;
+  }
+
+  .amino-buttons {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .amino-btn {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 10px 4px 9px;
+    color: #fff;
+    cursor: pointer;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .amino-btn small {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    opacity: 0.72;
+  }
+
+  .tool-note {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #sequence-panel,
+  #compare-panel,
+  #hint-chip {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 17;
+    border-radius: 22px;
+    padding: 14px 18px;
+    width: min(640px, calc(100vw - 32px));
+  }
+
+  #sequence-panel {
+    bottom: 20px;
+    display: none;
+  }
+
+  #compare-panel {
+    bottom: 20px;
+    display: none;
+  }
+
+  #hint-chip {
+    top: 122px;
+    padding: 8px 14px;
+    width: auto;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .panel-head strong {
+    font-size: 13px;
+    color: #dff1ff;
+  }
+
+  .panel-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  #sequence-display {
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.92);
+    word-break: keep-all;
+  }
+
+  #compare-panel p {
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .compare-flow {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+    color: #fbe7a0;
+  }
+
+  .compare-step {
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  #flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at center, rgba(255, 250, 184, 0.72), rgba(255, 244, 173, 0.1) 28%, transparent 58%);
+    opacity: 0;
+  }
+
+  .lil-gui.root {
+    z-index: 30;
+    margin-top: 12px;
+    margin-right: 6px;
+  }
+
+  @media (max-width: 1080px) {
+    #tab-bar {
+      top: auto;
+      bottom: 144px;
+      width: calc(100vw - 32px);
+      justify-content: center;
+      flex-wrap: wrap;
+      border-radius: 24px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 94px;
+    }
+
+    #hint-chip {
+      top: auto;
+      bottom: 238px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #title-card {
+      width: calc(100vw - 32px);
+      padding: 14px 16px;
+    }
+
+    #title-card h1 { font-size: 22px; }
+    #mode-detail { font-size: 12px; }
+
+    #formula-panel,
+    #mode-tools {
+      width: calc(100vw - 32px);
+    }
+
+    #mode-tools {
+      bottom: 220px;
+      right: 16px;
+    }
+
+    #sequence-panel,
+    #compare-panel {
+      bottom: 392px;
+    }
+
+    .amino-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tool-grid { grid-template-columns: 1fr; }
+    #guide-panel { top: 124px; max-height: 50vh; }
+  }
+</style>
+</head>
+<body>
+
+<div id="title-card" class="overlay-card">
+  <div class="eyebrow">통합과학1 · 물질과 규칙성</div>
+  <h1>단백질 형성 과정</h1>
+  <p id="mode-detail">단백질은 아미노산이 펩타이드결합으로 연결된 뒤 접히며 고유한 입체 구조를 갖습니다.</p>
+</div>
+
+<div id="tab-bar" class="overlay-card">
+  <button class="tab-btn active" data-mode="bond">아미노산 + 펩타이드결합</button>
+  <button class="tab-btn" data-mode="chain">폴리펩타이드 형성</button>
+  <button class="tab-btn" data-mode="compare">단백질 비교</button>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="overlay-card">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>단백질은 아미노산이 펩타이드결합으로 연결되어 형성됩니다. 아미노산은 약 20종류이지만, 종류와 배열의 조합에 따라 수없이 다양한 단백질이 만들어집니다.</p>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>아미노산 2개가 펩타이드결합으로 연결될 때 빠져나오는 물질은 무엇인가요? 답: H₂O</li>
+    <li>헤모글로빈과 케라틴의 기능이 다른 까닭은 무엇인가요? 답: 아미노산 종류와 배열이 다르기 때문</li>
+    <li>20가지 아미노산으로 10개짜리 폴리펩타이드를 만들 수 있는 조합은 몇 가지인가요? 답: 20¹⁰, 약 10조 가지</li>
+  </ul>
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>달걀 흰자의 알부민</li>
+    <li>근육 수축에 관여하는 액틴과 미오신</li>
+    <li>생체 반응을 촉진하는 효소</li>
+    <li>면역 반응에 관여하는 항체</li>
+  </ul>
+  <div class="textbook-ref">미래엔 통합과학1 II편 p82~83 — 단백질의 형성(그림 II-29), 헤모글로빈과 케라틴 비교</div>
+</div>
+
+<div id="formula-panel" class="overlay-card">
+  <h3>🧬 단백질 형성 과정</h3>
+  <div class="row"><span class="label">현재 모드:</span><span class="value" id="fp-mode">아미노산</span></div>
+  <div class="row"><span class="label">아미노산 수:</span><span class="value" id="fp-aa-count">2개</span></div>
+  <div class="row"><span class="label">펩타이드결합:</span><span class="value" id="fp-bond-count">0개</span></div>
+  <div class="row"><span class="label">방출된 H₂O:</span><span class="value" id="fp-water-count">0개</span></div>
+  <div class="row"><span class="label">현재 포인트:</span><span class="value" id="fp-focus">두 아미노산이 물 1개를 내보내며 결합합니다.</span></div>
+  <div class="formula-block">
+    <div>형성 과정:</div>
+    <div class="mono">아미노산 → (펩타이드결합) → 폴리펩타이드</div>
+    <div class="mono">→ (접힘) → 단백질 (고유한 입체 구조)</div>
+    <div style="margin-top:8px;">아미노산 종류: 약 20가지</div>
+    <div>다양한 단백질이 형성되는 까닭: 아미노산의 종류와 배열이 다르기 때문</div>
+  </div>
+</div>
+
+<div id="mode-tools" class="overlay-card">
+  <div id="tool-bond" class="tool-panel active">
+    <div class="tool-title">탭 1 · 대표 아미노산 선택</div>
+    <div class="tool-grid">
+      <div class="tool-field">
+        <label for="left-amino-select">아미노산 A</label>
+        <select id="left-amino-select"></select>
+      </div>
+      <div class="tool-field">
+        <label for="right-amino-select">아미노산 B</label>
+        <select id="right-amino-select"></select>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button id="replay-bond-btn" class="action-btn primary" style="flex:1;">펩타이드결합 재생</button>
+      <button id="swap-bond-btn" class="action-btn" style="flex:1;">좌우 바꾸기</button>
+    </div>
+    <div class="tool-note">글리신, 알라닌, 세린, 아스파르트산, 라이신을 바꿔 보며 결합 전후의 차이를 관찰해 보세요.</div>
+  </div>
+
+  <div id="tool-chain" class="tool-panel">
+    <div class="tool-title">탭 2 · 폴리펩타이드 만들기</div>
+    <div class="amino-buttons" id="amino-buttons"></div>
+    <div style="display:flex; gap:10px; margin-top:4px;">
+      <button id="random-chain-btn" class="action-btn primary" style="flex:1;">랜덤 생성</button>
+      <button id="fold-chain-btn" class="action-btn" style="flex:1;">접기</button>
+    </div>
+    <div class="tool-note">최대 15개까지 연결할 수 있습니다. 비극성 R기는 안쪽으로, 극성·전하 R기는 바깥쪽으로 향하도록 접힘을 강조합니다.</div>
+  </div>
+
+  <div id="tool-compare" class="tool-panel">
+    <div class="tool-title">탭 3 · 구조와 기능 비교</div>
+    <div class="tool-note">
+      헤모글로빈은 여러 서브유닛이 모여 산소를 운반하는 구형 단백질이고,
+      케라틴은 길게 꼬인 섬유형 단백질입니다. GUI의 "단백질 선택"으로 하나씩 집중해서 볼 수 있습니다.
+    </div>
+  </div>
+</div>
+
+<div id="sequence-panel" class="overlay-card">
+  <div class="panel-head">
+    <strong>현재 아미노산 서열</strong>
+    <span class="panel-sub" id="sequence-meta">0개 연결 · H₂O 0개</span>
+  </div>
+  <div id="sequence-display">아직 연결된 아미노산이 없습니다.</div>
+</div>
+
+<div id="compare-panel" class="overlay-card">
+  <div class="panel-head">
+    <strong>비교 포인트</strong>
+    <span class="panel-sub" id="compare-meta">헤모글로빈 + 케라틴</span>
+  </div>
+  <p>두 단백질 모두 아미노산으로 이루어져 있지만, 아미노산의 종류와 배열이 달라 서로 다른 입체 구조와 기능을 가집니다.</p>
+  <div class="compare-flow">
+    <span class="compare-step">아미노산 서열 차이</span>
+    <span>→</span>
+    <span class="compare-step">입체 구조 차이</span>
+    <span>→</span>
+    <span class="compare-step">기능 차이</span>
+  </div>
+</div>
+
+<div id="hint-chip" class="overlay-card">드래그로 회전 · 휠/핀치로 확대 · GUI와 버튼으로 탭과 애니메이션을 조절하세요.</div>
+<div id="flash-overlay"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const VIEW_MODES = {
+  bond: '아미노산+펩타이드결합',
+  chain: '폴리펩타이드 형성',
+  compare: '단백질 비교'
+};
+
+const AMINO_ACIDS = [
+  { key: 'Gly', code: 'Gly', name: '글리신', color: 0xcccccc, trait: '중성', foldRadius: 1.18, detail: '가장 작은 R기', sizeScale: 0.82, phase: 0.2 },
+  { key: 'Ala', code: 'Ala', name: '알라닌', color: 0x88cc44, trait: '비극성', foldRadius: 0.84, detail: '비극성', sizeScale: 0.94, phase: 1.0 },
+  { key: 'Ser', code: 'Ser', name: '세린', color: 0x44aaff, trait: '극성', foldRadius: 1.42, detail: '극성(OH기)', sizeScale: 0.96, phase: 2.1 },
+  { key: 'Asp', code: 'Asp', name: '아스파르트산', color: 0xff6644, trait: '음전하', foldRadius: 1.68, detail: '음전하', sizeScale: 1.02, phase: 3.0 },
+  { key: 'Lys', code: 'Lys', name: '라이신', color: 0xaa44ff, trait: '양전하', foldRadius: 1.78, detail: '양전하', sizeScale: 1.06, phase: 4.2 }
+];
+
+const AMINO_MAP = new Map(AMINO_ACIDS.map((amino) => [amino.key, amino]));
+const DEFAULT_CHAIN = ['Gly', 'Ala', 'Ser', 'Asp', 'Lys'];
+
+const CAMERA_POSES = {
+  bond: { position: new THREE.Vector3(0, 1.6, 8.6), target: new THREE.Vector3(0, 0.2, 0) },
+  chain: { position: new THREE.Vector3(0, 2.8, 11.6), target: new THREE.Vector3(0, 0.4, 0) },
+  compare: { position: new THREE.Vector3(0, 1.8, 14.4), target: new THREE.Vector3(0, 0.2, 0) }
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1628);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 220);
+camera.position.copy(CAMERA_POSES.bond.position);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 28;
+controls.target.copy(CAMERA_POSES.bond.target);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.65);
+directionalLight.position.set(6, 9, 7);
+scene.add(directionalLight);
+
+const fillLight = new THREE.PointLight(0x6dc0ff, 0.65, 20, 2);
+fillLight.position.set(-5, 2, 5);
+scene.add(fillLight);
+
+const starGeometry = new THREE.BufferGeometry();
+const starPositions = new Float32Array(900 * 3);
+for (let i = 0; i < 900; i++) {
+  starPositions[i * 3] = (Math.random() - 0.5) * 120;
+  starPositions[i * 3 + 1] = (Math.random() - 0.5) * 80;
+  starPositions[i * 3 + 2] = (Math.random() - 0.5) * 120;
+}
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({
+  color: 0xb8ddff,
+  size: 0.12,
+  transparent: true,
+  opacity: 0.65,
+  sizeAttenuation: true
+})));
+
+const glowPlane = new THREE.Mesh(
+  new THREE.CircleGeometry(8.6, 48),
+  new THREE.MeshBasicMaterial({ color: 0x153151, transparent: true, opacity: 0.18, side: THREE.DoubleSide })
+);
+glowPlane.rotation.x = -Math.PI / 2;
+glowPlane.position.y = -2.7;
+scene.add(glowPlane);
+
+const reusable = {
+  aminoBody: new THREE.BoxGeometry(0.8, 0.8, 0.8),
+  bigSphere: new THREE.SphereGeometry(0.25, 24, 24),
+  connector: new THREE.CylinderGeometry(0.045, 0.045, 0.52, 10),
+  panelBall: new THREE.SphereGeometry(0.62, 28, 28),
+  subBall: new THREE.SphereGeometry(0.34, 22, 22),
+  oxygen: new THREE.SphereGeometry(0.12, 18, 18),
+  iron: new THREE.SphereGeometry(0.1, 16, 16)
+};
+
+const dom = {
+  modeDetail: document.getElementById('mode-detail'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  flash: document.getElementById('flash-overlay'),
+  tabs: Array.from(document.querySelectorAll('.tab-btn')),
+  leftSelect: document.getElementById('left-amino-select'),
+  rightSelect: document.getElementById('right-amino-select'),
+  replayBondBtn: document.getElementById('replay-bond-btn'),
+  swapBondBtn: document.getElementById('swap-bond-btn'),
+  aminoButtons: document.getElementById('amino-buttons'),
+  randomChainBtn: document.getElementById('random-chain-btn'),
+  foldChainBtn: document.getElementById('fold-chain-btn'),
+  sequencePanel: document.getElementById('sequence-panel'),
+  sequenceMeta: document.getElementById('sequence-meta'),
+  sequenceDisplay: document.getElementById('sequence-display'),
+  comparePanel: document.getElementById('compare-panel'),
+  compareMeta: document.getElementById('compare-meta'),
+  fpMode: document.getElementById('fp-mode'),
+  fpAaCount: document.getElementById('fp-aa-count'),
+  fpBondCount: document.getElementById('fp-bond-count'),
+  fpWaterCount: document.getElementById('fp-water-count'),
+  fpFocus: document.getElementById('fp-focus'),
+  toolPanels: {
+    bond: document.getElementById('tool-bond'),
+    chain: document.getElementById('tool-chain'),
+    compare: document.getElementById('tool-compare')
+  }
+};
+
+const app = {
+  mode: 'bond',
+  bondSelection: { left: 'Gly', right: 'Ala' },
+  chainSequence: [...DEFAULT_CHAIN],
+  chainFolded: false,
+  proteinView: '둘 다',
+  autoRotate: false,
+  activeMode: null,
+  flashOpacity: 0,
+  guideOpen: false,
+  clock: new THREE.Clock()
+};
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function clamp01(value) {
+  return THREE.MathUtils.clamp(value, 0, 1);
+}
+
+function moveTowards(current, target, maxDelta) {
+  if (Math.abs(target - current) <= maxDelta) return target;
+  return current + Math.sign(target - current) * maxDelta;
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach(disposeMaterial);
+    return;
+  }
+  if (material.map) material.map.dispose();
+  if (material.alphaMap) material.alphaMap.dispose();
+  material.dispose();
+}
+
+function disposeObject(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) disposeMaterial(child.material);
+  });
+}
+
+function createLabel(text, scale = 0.42, color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const lines = String(text).split('\n');
+  canvas.width = 512;
+  canvas.height = 128;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 30px Pretendard, sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.92)';
+  ctx.shadowBlur = 10;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 + (index - (lines.length - 1) / 2) * 30;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale * 3, scale * 0.84 * lines.length, 1);
+  return sprite;
+}
+
+function placeCylinder(mesh, start, end) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = Math.max(direction.length(), 0.0001);
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+  mesh.scale.set(1, length, 1);
+}
+
+function createRod(start, end, radius, color, opacity = 1) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 1, 12),
+    new THREE.MeshStandardMaterial({
+      color,
+      transparent: opacity < 1,
+      opacity,
+      roughness: 0.3,
+      metalness: 0.18
+    })
+  );
+  placeCylinder(mesh, start, end);
+  return mesh;
+}
+
+function createWaterMolecule(scale = 1) {
+  const group = new THREE.Group();
+  const oxygen = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15 * scale, 20, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0x44aaff,
+      roughness: 0.2,
+      metalness: 0.02,
+      emissive: 0x113355,
+      emissiveIntensity: 0.7,
+      transparent: true,
+      opacity: 1
+    })
+  );
+  const hydrogenA = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08 * scale, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xf8f8ff, roughness: 0.1, transparent: true, opacity: 1 })
+  );
+  const hydrogenB = hydrogenA.clone();
+  hydrogenB.material = hydrogenA.material.clone();
+  hydrogenA.position.set(-0.18 * scale, -0.07 * scale, 0);
+  hydrogenB.position.set(0.18 * scale, -0.07 * scale, 0);
+  group.add(oxygen, hydrogenA, hydrogenB);
+  group.userData.core = oxygen;
+  return group;
+}
+
+function createAminoAcidModel(amino, options = {}) {
+  const {
+    compact = false,
+    labelScale = 0.42,
+    functionalScale = 0.24,
+    showFunctionalLabels = true
+  } = options;
+
+  const root = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    reusable.aminoBody,
+    new THREE.MeshStandardMaterial({ color: amino.color, roughness: 0.3, metalness: 0.06 })
+  );
+  body.scale.setScalar(amino.sizeScale || 1);
+  root.add(body);
+
+  const amine = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0x4488ff, roughness: 0.18, metalness: 0.02 })
+  );
+  amine.position.set(-0.96, 0, 0);
+  root.add(amine);
+
+  const carboxyl = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.18, metalness: 0.02 })
+  );
+  carboxyl.position.set(0.96, 0, 0);
+  root.add(carboxyl);
+
+  const leftConnector = new THREE.Mesh(
+    reusable.connector,
+    new THREE.MeshStandardMaterial({ color: 0xaeb5c2, roughness: 0.54 })
+  );
+  leftConnector.rotation.z = Math.PI / 2;
+  leftConnector.position.set(-0.52, 0, 0);
+  root.add(leftConnector);
+
+  const rightConnector = leftConnector.clone();
+  rightConnector.material = leftConnector.material.clone();
+  rightConnector.position.x = 0.52;
+  root.add(rightConnector);
+
+  const aminoLabel = createLabel(`${amino.name}\n${amino.code}`, labelScale, `#${amino.color.toString(16).padStart(6, '0')}`);
+  aminoLabel.position.set(0, compact ? 0.96 : 1.22, 0);
+  root.add(aminoLabel);
+
+  let nh2Label = null;
+  let coohLabel = null;
+  if (showFunctionalLabels) {
+    nh2Label = createLabel('NH₂', functionalScale, '#9fd4ff');
+    nh2Label.position.set(-0.96, -0.58, 0);
+    root.add(nh2Label);
+
+    coohLabel = createLabel('COOH', functionalScale, '#ffb4ad');
+    coohLabel.position.set(0.96, -0.58, 0);
+    root.add(coohLabel);
+  }
+
+  root.userData = {
+    amino,
+    body,
+    amine,
+    carboxyl,
+    aminoLabel,
+    nh2Label,
+    coohLabel,
+    amineAnchor: new THREE.Vector3(-0.96, 0, 0),
+    carboxylAnchor: new THREE.Vector3(0.96, 0, 0),
+    nitrogenAnchor: new THREE.Vector3(-0.58, 0, 0),
+    carbonAnchor: new THREE.Vector3(0.58, 0, 0)
+  };
+
+  return root;
+}
+
+function populateSelect(select, selectedKey) {
+  select.innerHTML = '';
+  AMINO_ACIDS.forEach((amino) => {
+    const option = document.createElement('option');
+    option.value = amino.key;
+    option.textContent = `${amino.name} (${amino.code})`;
+    if (amino.key === selectedKey) option.selected = true;
+    select.appendChild(option);
+  });
+}
+
+function updateTabButtons() {
+  dom.tabs.forEach((button) => button.classList.toggle('active', button.dataset.mode === app.mode));
+}
+
+function updateToolPanels() {
+  Object.entries(dom.toolPanels).forEach(([key, panel]) => panel.classList.toggle('active', key === app.mode));
+  dom.sequencePanel.style.display = app.mode === 'chain' ? 'block' : 'none';
+  dom.comparePanel.style.display = app.mode === 'compare' ? 'block' : 'none';
+}
+
+function updateFormulaPanel(data) {
+  dom.fpMode.textContent = data.mode;
+  dom.fpAaCount.textContent = data.aminoCount;
+  dom.fpBondCount.textContent = data.bondCount;
+  dom.fpWaterCount.textContent = data.waterCount;
+  dom.fpFocus.textContent = data.focus;
+  dom.modeDetail.textContent = data.detail;
+}
+
+function updateSequencePanel(sequence, foldProgress) {
+  const waterCount = Math.max(sequence.length - 1, 0);
+  dom.sequenceMeta.textContent = `${sequence.length}개 연결 · H₂O ${waterCount}개`;
+  dom.sequenceDisplay.textContent = sequence.length ? sequence.map((key) => AMINO_MAP.get(key).code).join(' - ') : '아직 연결된 아미노산이 없습니다.';
+  dom.foldChainBtn.textContent = foldProgress >= 0.98 ? '접힘 완료' : '접기';
+}
+
+function updateComparePanel() {
+  dom.compareMeta.textContent = app.proteinView;
+}
+
+function fillAminoButtons() {
+  dom.aminoButtons.innerHTML = '';
+  AMINO_ACIDS.forEach((amino) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'amino-btn';
+    button.style.background = `linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04)), #${amino.color.toString(16).padStart(6, '0')}33`;
+    button.innerHTML = `${amino.code}<small>${amino.name}</small>`;
+    button.addEventListener('click', () => {
+      if (app.mode !== 'chain' || !app.activeMode?.addResidue) return;
+      app.activeMode.addResidue(amino.key);
+    });
+    dom.aminoButtons.appendChild(button);
+  });
+}
+
+function applyCameraPose(mode) {
+  const pose = CAMERA_POSES[mode];
+  camera.position.copy(pose.position);
+  controls.target.copy(pose.target);
+  controls.update();
+}
+
+function createModeBaseShell(title, subtitle) {
+  const group = new THREE.Group();
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(2.7, 0.04, 16, 72),
+    new THREE.MeshBasicMaterial({ color: 0x3f7ab5, transparent: true, opacity: 0.4 })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -1.4;
+  group.add(ring);
+
+  const label = createLabel(`${title}\n${subtitle}`, 0.48, '#dff2ff');
+  label.position.set(0, 3.2, 0);
+  group.add(label);
+
+  return group;
+}
+
+function createBondMode() {
+  const root = createModeBaseShell('아미노산 구조', '펩타이드결합');
+  scene.add(root);
+  root.position.y = -0.2;
+
+  const midLight = new THREE.PointLight(0xfff0ac, 0, 8, 2);
+  root.add(midLight);
+
+  const water = createWaterMolecule(1);
+  const waterLabel = createLabel('H₂O 방출', 0.34, '#8ed2ff');
+  const bondLabel = createLabel('펩타이드결합', 0.36, '#ffe47e');
+  const flashHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.62, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0xfff2b1, transparent: true, opacity: 0 })
+  );
+  const hydroxyl = createWaterMolecule(0.62);
+  const hydrogen = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, transparent: true, opacity: 1 })
+  );
+
+  water.visible = false;
+  waterLabel.visible = false;
+  bondLabel.visible = false;
+  flashHalo.visible = false;
+  hydroxyl.visible = false;
+  hydrogen.visible = false;
+
+  root.add(water, waterLabel, bondLabel, flashHalo, hydroxyl, hydrogen);
+
+  let aminoLeft = null;
+  let aminoRight = null;
+  let peptideBond = null;
+  let elapsed = 0;
+  let playing = false;
+  let formed = false;
+
+  function removeCurrentMolecules() {
+    if (aminoLeft) {
+      root.remove(aminoLeft);
+      disposeObject(aminoLeft);
+      aminoLeft = null;
+    }
+    if (aminoRight) {
+      root.remove(aminoRight);
+      disposeObject(aminoRight);
+      aminoRight = null;
+    }
+    if (peptideBond) {
+      root.remove(peptideBond);
+      disposeObject(peptideBond);
+      peptideBond = null;
+    }
+  }
+
+  function rebuildMolecules() {
+    removeCurrentMolecules();
+    aminoLeft = createAminoAcidModel(AMINO_MAP.get(app.bondSelection.left), { labelScale: 0.4, functionalScale: 0.24 });
+    aminoRight = createAminoAcidModel(AMINO_MAP.get(app.bondSelection.right), { labelScale: 0.4, functionalScale: 0.24 });
+    root.add(aminoLeft, aminoRight);
+  }
+
+  function resetVisuals() {
+    elapsed = 0;
+    playing = false;
+    formed = false;
+    water.visible = false;
+    waterLabel.visible = false;
+    bondLabel.visible = false;
+    flashHalo.visible = false;
+    hydroxyl.visible = false;
+    hydrogen.visible = false;
+    midLight.intensity = 0;
+
+    rebuildMolecules();
+    aminoLeft.position.set(-1.5, 0, 0);
+    aminoRight.position.set(1.5, 0, 0);
+    aminoLeft.rotation.y = 0.18;
+    aminoRight.rotation.y = -0.18;
+    aminoLeft.userData.carboxyl.scale.setScalar(1);
+    aminoRight.userData.amine.scale.setScalar(1);
+    aminoLeft.userData.carboxyl.material.emissive = new THREE.Color(0x000000);
+    aminoRight.userData.amine.material.emissive = new THREE.Color(0x000000);
+
+    peptideBond = createRod(new THREE.Vector3(-0.2, 0, 0), new THREE.Vector3(0.2, 0, 0), 0.06, 0xffdd44, 0.96);
+    peptideBond.visible = false;
+    root.add(peptideBond);
+  }
+
+  function play() {
+    resetVisuals();
+    playing = true;
+  }
+
+  function update(dt) {
+    if (!playing) return;
+
+    elapsed = Math.min(elapsed + dt, 2.8);
+
+    const approach = clamp01(elapsed / 1);
+    const separation = THREE.MathUtils.lerp(1.5, 0.75, easeInOutCubic(approach));
+    aminoLeft.position.x = -separation;
+    aminoRight.position.x = separation;
+
+    const reaction = clamp01((elapsed - 1.0) / 0.45);
+    const waterRise = clamp01((elapsed - 1.35) / 1.05);
+    const revealBond = clamp01((elapsed - 1.1) / 0.25);
+
+    aminoLeft.userData.carboxyl.scale.setScalar(1 - 0.18 * reaction);
+    aminoRight.userData.amine.scale.setScalar(1 - 0.18 * reaction);
+    aminoLeft.userData.carboxyl.material.emissive = new THREE.Color(0x330800).multiplyScalar(reaction);
+    aminoRight.userData.amine.material.emissive = new THREE.Color(0x081433).multiplyScalar(reaction);
+
+    const carboxylPos = aminoLeft.position.clone().add(aminoLeft.userData.carboxylAnchor);
+    const aminePos = aminoRight.position.clone().add(aminoRight.userData.amineAnchor);
+    const carbonPos = aminoLeft.position.clone().add(aminoLeft.userData.carbonAnchor);
+    const nitrogenPos = aminoRight.position.clone().add(aminoRight.userData.nitrogenAnchor);
+    const midpoint = carbonPos.clone().add(nitrogenPos).multiplyScalar(0.5);
+
+    hydroxyl.visible = reaction > 0.02 && waterRise < 1;
+    hydrogen.visible = reaction > 0.02 && waterRise < 1;
+    water.visible = reaction > 0.08;
+    waterLabel.visible = reaction > 0.65;
+    bondLabel.visible = reaction > 0.58;
+    peptideBond.visible = revealBond > 0.02;
+    flashHalo.visible = reaction > 0.02 && reaction < 0.96;
+
+    const waterSpawn = midpoint.clone().add(new THREE.Vector3(0, 0.4, 0));
+    const waterTarget = midpoint.clone().add(new THREE.Vector3(0, 2.1, 0));
+    const hydroxylTarget = waterSpawn.clone().add(new THREE.Vector3(-0.08, 0.04, 0));
+    const hydrogenTarget = waterSpawn.clone().add(new THREE.Vector3(0.12, -0.02, 0));
+
+    hydroxyl.position.copy(carboxylPos.clone().lerp(hydroxylTarget, easeInOutCubic(reaction)));
+    hydrogen.position.copy(aminePos.clone().lerp(hydrogenTarget, easeInOutCubic(reaction)));
+    water.position.copy(waterSpawn.clone().lerp(waterTarget, easeInOutCubic(waterRise)));
+    water.rotation.y += dt * 2.4;
+    waterLabel.position.copy(water.position).add(new THREE.Vector3(0, 0.75, 0));
+    bondLabel.position.copy(midpoint).add(new THREE.Vector3(0, -0.72, 0));
+
+    placeCylinder(peptideBond, carbonPos, nitrogenPos);
+    peptideBond.material.opacity = 0.18 + revealBond * 0.78;
+    peptideBond.scale.x = 1 + revealBond * 0.2;
+    peptideBond.scale.z = 1 + revealBond * 0.2;
+
+    const flashStrength = Math.sin(reaction * Math.PI);
+    flashHalo.position.copy(midpoint);
+    flashHalo.material.opacity = flashStrength * 0.52;
+    flashHalo.scale.setScalar(0.8 + flashStrength * 0.9);
+    midLight.position.copy(midpoint);
+    midLight.intensity = flashStrength * 2.6;
+    app.flashOpacity = Math.max(app.flashOpacity, flashStrength * 0.28);
+
+    if (elapsed >= 2.8) {
+      formed = true;
+      playing = false;
+      water.position.copy(waterTarget);
+    }
+  }
+
+  resetVisuals();
+
+  return {
+    root,
+    play,
+    reset() {
+      play();
+    },
+    update,
+    rebuildFromSelection() {
+      play();
+    },
+    getFormulaData() {
+      return {
+        mode: '아미노산 + 펩타이드결합',
+        aminoCount: '2개',
+        bondCount: formed || elapsed > 1.15 ? '1개' : '0개',
+        waterCount: formed || elapsed > 1.15 ? '1개' : '0개',
+        focus: '이웃한 두 아미노산은 물 분자 1개가 빠져나가며 연결됩니다.',
+        detail: '대표 아미노산 두 개가 접근한 뒤 H₂O를 방출하며 펩타이드결합을 형성합니다.'
+      };
+    },
+    dispose() {
+      removeCurrentMolecules();
+      scene.remove(root);
+      disposeObject(root);
+    }
+  };
+}
+
+function createChainMode() {
+  const root = createModeBaseShell('폴리펩타이드 형성', '서열과 접힘');
+  scene.add(root);
+  root.position.y = -0.1;
+
+  const noteLabel = createLabel('아미노산의 종류와 배열에 따라\n고유한 입체 구조 형성!', 0.44, '#ffef9a');
+  noteLabel.position.set(0, 3.05, 0);
+  noteLabel.visible = false;
+  root.add(noteLabel);
+
+  const particles = [];
+  let chainGroup = new THREE.Group();
+  root.add(chainGroup);
+
+  const data = {
+    sequence: [...app.chainSequence],
+    foldProgress: app.chainFolded ? 1 : 0,
+    targetFold: app.chainFolded ? 1 : 0,
+    addPulseIndex: -1,
+    addPulseValue: 1,
+    randomQueue: [],
+    randomDelay: 0
+  };
+
+  function currentLinearPoints(sequence) {
+    const n = sequence.length;
+    if (!n) return [];
+    const spacing = n > 8 ? 0.72 : 0.92;
+    const centerOffset = ((n - 1) * spacing) / 2;
+    return sequence.map((key, index) => {
+      const x = index * spacing - centerOffset;
+      const y = Math.sin(index * 0.78) * 0.18;
+      const z = Math.cos(index * 0.64) * 0.28;
+      return new THREE.Vector3(x, y, z);
+    });
+  }
+
+  function foldedPoints(sequence) {
+    const n = sequence.length;
+    if (!n) return [];
+    return sequence.map((key, index) => {
+      const amino = AMINO_MAP.get(key);
+      const angle = index * 0.88 + amino.phase;
+      const x = Math.cos(angle) * amino.foldRadius + Math.sin(index * 0.42) * 0.24;
+      const z = Math.sin(angle) * amino.foldRadius + Math.cos(index * 0.66) * 0.22;
+      const y = (index - (n - 1) / 2) * 0.28 + Math.sin(index * 1.06 + amino.phase) * 0.24;
+      return new THREE.Vector3(x, y, z);
+    });
+  }
+
+  function layoutPoints() {
+    const unfolded = currentLinearPoints(data.sequence);
+    const folded = foldedPoints(data.sequence);
+    return unfolded.map((point, index) => point.clone().lerp(folded[index], easeInOutCubic(data.foldProgress)));
+  }
+
+  function spawnWater(position) {
+    const water = createWaterMolecule(0.68);
+    water.position.copy(position);
+    root.add(water);
+    particles.push({
+      mesh: water,
+      age: 0,
+      velocity: new THREE.Vector3((Math.random() - 0.5) * 0.18, 0.95 + Math.random() * 0.25, (Math.random() - 0.5) * 0.18)
+    });
+  }
+
+  function rebuildChain() {
+    root.remove(chainGroup);
+    disposeObject(chainGroup);
+    chainGroup = new THREE.Group();
+    root.add(chainGroup);
+
+    const points = layoutPoints();
+    if (points.length >= 2) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const backbone = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, Math.max(64, points.length * 24), 0.14, 14, false),
+        new THREE.MeshStandardMaterial({
+          color: 0xe8d9b4,
+          roughness: 0.24,
+          metalness: 0.06,
+          emissive: 0x3b2c11,
+          emissiveIntensity: 0.24
+        })
+      );
+      chainGroup.add(backbone);
+
+      const nLabel = createLabel('N-말단', 0.24, '#8fc6ff');
+      nLabel.position.copy(points[0]).add(new THREE.Vector3(-0.5, 0.6, 0));
+      chainGroup.add(nLabel);
+
+      const cLabel = createLabel('C-말단', 0.24, '#ffad9a');
+      cLabel.position.copy(points[points.length - 1]).add(new THREE.Vector3(0.5, 0.6, 0));
+      chainGroup.add(cLabel);
+    }
+
+    points.forEach((point, index) => {
+      const amino = AMINO_MAP.get(data.sequence[index]);
+      const residue = createAminoAcidModel(amino, { compact: true, labelScale: 0.22, showFunctionalLabels: false });
+      residue.position.copy(point);
+
+      const scale = index === data.addPulseIndex ? THREE.MathUtils.lerp(0.28, 1, easeInOutCubic(data.addPulseValue)) : 1;
+      residue.scale.setScalar(scale);
+
+      const tangent = index < points.length - 1
+        ? points[index + 1].clone().sub(point)
+        : point.clone().sub(points[Math.max(index - 1, 0)] || new THREE.Vector3(1, 0, 0));
+      if (tangent.lengthSq() > 0.0001) {
+        residue.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), tangent.normalize());
+      }
+      chainGroup.add(residue);
+
+      const aura = new THREE.Mesh(
+        new THREE.SphereGeometry(0.34, 14, 14),
+        new THREE.MeshBasicMaterial({
+          color: amino.color,
+          transparent: true,
+          opacity: amino.trait === '비극성' ? 0.08 : 0.12
+        })
+      );
+      aura.position.copy(point);
+      aura.scale.setScalar(amino.trait === '비극성' ? 1.1 : 1.28);
+      chainGroup.add(aura);
+    });
+
+    noteLabel.visible = data.foldProgress > 0.62 && data.sequence.length >= 3;
+    app.chainSequence = [...data.sequence];
+    app.chainFolded = data.foldProgress > 0.98;
+    updateSequencePanel(data.sequence, data.foldProgress);
+  }
+
+  function addResidue(key) {
+    if (data.sequence.length >= 15) return;
+    const priorPoints = currentLinearPoints(data.sequence);
+    if (priorPoints.length) {
+      spawnWater(priorPoints[priorPoints.length - 1].clone().add(new THREE.Vector3(0.38, 0.48, 0)));
+    }
+    data.sequence.push(key);
+    data.targetFold = 0;
+    data.foldProgress = 0;
+    data.addPulseIndex = data.sequence.length - 1;
+    data.addPulseValue = 0;
+    rebuildChain();
+  }
+
+  function randomGenerate() {
+    data.sequence = [];
+    data.foldProgress = 0;
+    data.targetFold = 0;
+    data.addPulseIndex = -1;
+    data.addPulseValue = 1;
+    data.randomQueue = Array.from({ length: 10 + Math.floor(Math.random() * 6) }, () => AMINO_ACIDS[Math.floor(Math.random() * AMINO_ACIDS.length)].key);
+    data.randomDelay = 0.08;
+    rebuildChain();
+  }
+
+  function fold() {
+    if (data.sequence.length < 3) return;
+    data.targetFold = 1;
+  }
+
+  function reset() {
+    data.sequence = [...DEFAULT_CHAIN];
+    data.foldProgress = 0;
+    data.targetFold = 0;
+    data.addPulseIndex = -1;
+    data.addPulseValue = 1;
+    data.randomQueue = [];
+    rebuildChain();
+  }
+
+  function update(dt) {
+    if (data.randomQueue.length) {
+      data.randomDelay -= dt;
+      if (data.randomDelay <= 0) {
+        addResidue(data.randomQueue.shift());
+        data.randomDelay = 0.12;
+      }
+    }
+
+    if (data.addPulseValue < 1) {
+      data.addPulseValue = Math.min(1, data.addPulseValue + dt / 0.5);
+      rebuildChain();
+      if (data.addPulseValue >= 1) data.addPulseIndex = -1;
+    }
+
+    if (data.foldProgress !== data.targetFold) {
+      data.foldProgress = moveTowards(data.foldProgress, data.targetFold, dt / 2);
+      rebuildChain();
+    }
+
+    particles.forEach((particle) => {
+      particle.age += dt;
+      particle.mesh.position.addScaledVector(particle.velocity, dt);
+      particle.mesh.rotation.y += dt * 2.5;
+      particle.mesh.scale.setScalar(1 + particle.age * 0.18);
+      particle.mesh.userData.core.material.opacity = Math.max(0, 1 - particle.age / 1.35);
+    });
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (particles[i].age > 1.35) {
+        const particle = particles[i];
+        root.remove(particle.mesh);
+        disposeObject(particle.mesh);
+        particles.splice(i, 1);
+      }
+    }
+  }
+
+  rebuildChain();
+
+  return {
+    root,
+    addResidue,
+    randomGenerate,
+    fold,
+    reset,
+    update,
+    getFormulaData() {
+      const count = data.sequence.length;
+      const bonds = Math.max(count - 1, 0);
+      return {
+        mode: '폴리펩타이드 형성',
+        aminoCount: `${count}개`,
+        bondCount: `${bonds}개`,
+        waterCount: `${bonds}개`,
+        focus: data.foldProgress > 0.62
+          ? '비극성 R기는 안쪽으로, 극성·전하 R기는 바깥쪽으로 드러나게 접힙니다.'
+          : '아미노산을 하나씩 추가하며 폴리펩타이드 사슬을 만들 수 있습니다.',
+        detail: 'CatmullRomCurve3 기반의 사슬이 길어지고, 접힘 버튼으로 단백질 입체 구조의 시작을 시각화합니다.'
+      };
+    },
+    dispose() {
+      particles.forEach((particle) => {
+        root.remove(particle.mesh);
+        disposeObject(particle.mesh);
+      });
+      root.remove(chainGroup, noteLabel);
+      disposeObject(chainGroup);
+      disposeObject(noteLabel);
+      scene.remove(root);
+      disposeObject(root);
+    }
+  };
+}
+
+class HelixCurve extends THREE.Curve {
+  constructor(phase = 0, superRadius = 0.72, strandRadius = 0.22, height = 5.6, turns = 5.4) {
+    super();
+    this.phase = phase;
+    this.superRadius = superRadius;
+    this.strandRadius = strandRadius;
+    this.height = height;
+    this.turns = turns;
+  }
+
+  getPoint(t, target = new THREE.Vector3()) {
+    const superAngle = t * Math.PI * 2 * 1.08 + this.phase;
+    const helixAngle = t * Math.PI * 2 * this.turns + this.phase;
+    const x = this.superRadius * Math.cos(superAngle) + this.strandRadius * Math.cos(helixAngle);
+    const y = (t - 0.5) * this.height;
+    const z = this.superRadius * Math.sin(superAngle) + this.strandRadius * Math.sin(helixAngle);
+    return target.set(x, y, z);
+  }
+}
+
+function createHemoglobinAssembly() {
+  const root = new THREE.Group();
+  const alphaColor = 0xff6644;
+  const betaColor = 0x4466ff;
+  const offsets = [
+    new THREE.Vector3(-0.95, 0.56, 0.12),
+    new THREE.Vector3(0.82, 0.64, -0.18),
+    new THREE.Vector3(-0.55, -0.62, -0.28),
+    new THREE.Vector3(1.02, -0.48, 0.26)
+  ];
+  const seeds = [
+    [new THREE.Vector3(0.32, 0.16, -0.06), new THREE.Vector3(-0.28, 0.26, 0.22), new THREE.Vector3(0.12, -0.3, 0.26), new THREE.Vector3(-0.22, -0.16, -0.24)],
+    [new THREE.Vector3(0.24, 0.22, 0.18), new THREE.Vector3(-0.34, 0.12, -0.2), new THREE.Vector3(0.18, -0.28, 0.26), new THREE.Vector3(-0.12, -0.24, 0.22)],
+    [new THREE.Vector3(0.28, 0.18, -0.16), new THREE.Vector3(-0.24, 0.28, 0.2), new THREE.Vector3(0.16, -0.24, -0.28), new THREE.Vector3(-0.18, -0.18, 0.22)],
+    [new THREE.Vector3(0.26, 0.16, 0.2), new THREE.Vector3(-0.3, 0.22, -0.24), new THREE.Vector3(0.14, -0.26, 0.24), new THREE.Vector3(-0.2, -0.2, -0.18)]
+  ];
+
+  const subunits = [];
+  const oxygenMolecules = [];
+
+  offsets.forEach((offset, index) => {
+    const group = new THREE.Group();
+    const color = index < 2 ? alphaColor : betaColor;
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.34,
+      metalness: 0.05,
+      emissive: new THREE.Color(color).multiplyScalar(0.08)
+    });
+
+    const core = new THREE.Mesh(reusable.panelBall, material.clone());
+    group.add(core);
+
+    seeds[index].forEach((seed) => {
+      const sphere = new THREE.Mesh(reusable.subBall, material.clone());
+      sphere.position.copy(seed);
+      group.add(sphere);
+    });
+
+    const iron = new THREE.Mesh(
+      reusable.iron,
+      new THREE.MeshStandardMaterial({
+        color: 0xaa4400,
+        roughness: 0.25,
+        metalness: 0.4,
+        emissive: 0x552200,
+        emissiveIntensity: 0.8
+      })
+    );
+    iron.position.set(0.18, -0.04, 0.24);
+    group.add(iron);
+
+    group.position.copy(offset);
+    root.add(group);
+
+    subunits.push({ group, ironMaterial: iron.material });
+
+    const oxygen = new THREE.Group();
+    const atomA = new THREE.Mesh(
+      reusable.oxygen,
+      new THREE.MeshStandardMaterial({ color: 0xff6464, roughness: 0.18, emissive: 0x441111, emissiveIntensity: 0.6 })
+    );
+    const atomB = atomA.clone();
+    atomB.material = atomA.material.clone();
+    atomA.position.x = -0.11;
+    atomB.position.x = 0.11;
+    const bond = createRod(new THREE.Vector3(-0.11, 0, 0), new THREE.Vector3(0.11, 0, 0), 0.035, 0xf5c1c1, 0.9);
+    oxygen.add(atomA, atomB, bond);
+    root.add(oxygen);
+    oxygenMolecules.push({
+      group: oxygen,
+      target: offset.clone().add(iron.position),
+      outside: offset.clone().multiplyScalar(1.8).add(new THREE.Vector3(index % 2 ? 0.7 : -0.7, index < 2 ? 0.55 : -0.55, (index - 1.5) * 0.4))
+    });
+  });
+
+  const title = createLabel('헤모글로빈\n산소 운반', 0.46, '#ffc8b0');
+  title.position.set(0, -2.8, 0);
+  root.add(title);
+
+  const caption = createLabel('Fe에 O₂ 결합', 0.28, '#ffd98a');
+  caption.position.set(0, 2.55, 0);
+  root.add(caption);
+
+  return {
+    root,
+    update(dt, elapsed) {
+      root.rotation.y += dt * 0.1;
+      oxygenMolecules.forEach((oxygen, index) => {
+        const cycle = 0.5 - 0.5 * Math.cos(elapsed * 1.15 + index * 0.95);
+        oxygen.group.position.copy(oxygen.outside).lerp(oxygen.target, cycle);
+        oxygen.group.rotation.y += dt * 2.3;
+        subunits[index].ironMaterial.emissiveIntensity = 0.6 + cycle * 1.05;
+      });
+    }
+  };
+}
+
+function createKeratinAssembly() {
+  const root = new THREE.Group();
+  const colors = [0xddaa44, 0xcc8833, 0xbb7722];
+
+  colors.forEach((color, index) => {
+    const curve = new HelixCurve((Math.PI * 2 * index) / 3);
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 240, 0.16, 16, false),
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.34,
+        metalness: 0.08,
+        emissive: new THREE.Color(color).multiplyScalar(0.08)
+      })
+    );
+    root.add(tube);
+  });
+
+  const topBand = new THREE.Mesh(
+    new THREE.TorusGeometry(0.78, 0.05, 10, 48),
+    new THREE.MeshStandardMaterial({ color: 0xe2bb70, roughness: 0.4, metalness: 0.1 })
+  );
+  topBand.rotation.x = Math.PI / 2;
+  topBand.position.y = 2.7;
+  root.add(topBand);
+
+  const bottomBand = topBand.clone();
+  bottomBand.position.y = -2.7;
+  bottomBand.material = topBand.material.clone();
+  root.add(bottomBand);
+
+  const title = createLabel('케라틴\n머리카락·손톱', 0.46, '#ffe0a8');
+  title.position.set(0, -3.02, 0);
+  root.add(title);
+
+  const caption = createLabel('3개의 α-helix가 꼬인 섬유형 구조', 0.3, '#ffdf8f');
+  caption.position.set(0, 2.98, 0);
+  root.add(caption);
+
+  return {
+    root,
+    update(dt) {
+      root.rotation.y -= dt * 0.12;
+      root.rotation.z = Math.sin(performance.now() * 0.00045) * 0.08;
+    }
+  };
+}
+
+function createCompareMode() {
+  const root = createModeBaseShell('단백질 입체 구조 비교', '헤모글로빈 vs 케라틴');
+  scene.add(root);
+  root.position.y = -0.1;
+
+  const hemoglobin = createHemoglobinAssembly();
+  const keratin = createKeratinAssembly();
+  root.add(hemoglobin.root, keratin.root);
+
+  const bridgeLabel = createLabel('아미노산 서열 차이 → 구조 차이 → 기능 차이', 0.38, '#cfe7ff');
+  bridgeLabel.position.set(0, -3.8, 0);
+  root.add(bridgeLabel);
+
+  function applyProteinView() {
+    const showBoth = app.proteinView === '둘 다';
+    hemoglobin.root.visible = app.proteinView !== '케라틴';
+    keratin.root.visible = app.proteinView !== '헤모글로빈';
+    hemoglobin.root.position.set(showBoth ? -4.7 : 0, 0, 0);
+    keratin.root.position.set(showBoth ? 4.7 : 0, 0, 0);
+  }
+
+  applyProteinView();
+
+  return {
+    root,
+    update(dt, elapsed) {
+      hemoglobin.update(dt, elapsed);
+      keratin.update(dt, elapsed);
+    },
+    applyProteinView,
+    reset() {
+      app.proteinView = '둘 다';
+      applyProteinView();
+      updateComparePanel();
+    },
+    getFormulaData() {
+      const detail = app.proteinView === '헤모글로빈'
+        ? '헤모글로빈은 여러 서브유닛이 모여 산소를 운반하는 구형 단백질입니다.'
+        : app.proteinView === '케라틴'
+          ? '케라틴은 길고 단단한 섬유형 구조로 머리카락과 손톱을 이룹니다.'
+          : '같은 아미노산 재료라도 배열과 접힘이 달라지면 구조와 기능이 달라집니다.';
+      return {
+        mode: '단백질 입체 구조 비교',
+        aminoCount: '많은 아미노산',
+        bondCount: '매우 많음',
+        waterCount: '형성 과정에서 다수',
+        focus: detail,
+        detail
+      };
+    },
+    dispose() {
+      root.remove(hemoglobin.root, keratin.root, bridgeLabel);
+      disposeObject(hemoglobin.root);
+      disposeObject(keratin.root);
+      disposeObject(bridgeLabel);
+      scene.remove(root);
+      disposeObject(root);
+    }
+  };
+}
+
+function updateGuiVisibility() {
+  bondFolder.domElement.style.display = app.mode === 'bond' ? '' : 'none';
+  chainFolder.domElement.style.display = app.mode === 'chain' ? '' : 'none';
+  compareFolder.domElement.style.display = app.mode === 'compare' ? '' : 'none';
+  guiState.mode = VIEW_MODES[app.mode];
+  guiState.proteinView = app.proteinView;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setMode(mode, force = false) {
+  if (app.mode === mode && app.activeMode && !force) return;
+
+  if (app.activeMode?.dispose) {
+    app.activeMode.dispose();
+    app.activeMode = null;
+  }
+
+  app.mode = mode;
+  applyCameraPose(mode);
+
+  if (mode === 'bond') {
+    app.activeMode = createBondMode();
+    app.activeMode.play();
+  } else if (mode === 'chain') {
+    app.activeMode = createChainMode();
+  } else {
+    app.activeMode = createCompareMode();
+  }
+
+  updateTabButtons();
+  updateToolPanels();
+  updateComparePanel();
+  updateGuiVisibility();
+  if (app.activeMode?.getFormulaData) updateFormulaPanel(app.activeMode.getFormulaData());
+}
+
+populateSelect(dom.leftSelect, app.bondSelection.left);
+populateSelect(dom.rightSelect, app.bondSelection.right);
+fillAminoButtons();
+updateSequencePanel(app.chainSequence, app.chainFolded ? 1 : 0);
+updateComparePanel();
+
+dom.guideToggle.addEventListener('click', () => {
+  app.guideOpen = !app.guideOpen;
+  dom.guidePanel.style.display = app.guideOpen ? 'block' : 'none';
+});
+
+dom.tabs.forEach((button) => {
+  button.addEventListener('click', () => setMode(button.dataset.mode));
+});
+
+dom.leftSelect.addEventListener('change', (event) => {
+  app.bondSelection.left = event.target.value;
+  if (app.mode === 'bond' && app.activeMode?.rebuildFromSelection) app.activeMode.rebuildFromSelection();
+});
+
+dom.rightSelect.addEventListener('change', (event) => {
+  app.bondSelection.right = event.target.value;
+  if (app.mode === 'bond' && app.activeMode?.rebuildFromSelection) app.activeMode.rebuildFromSelection();
+});
+
+dom.replayBondBtn.addEventListener('click', () => {
+  if (app.mode === 'bond' && app.activeMode?.play) app.activeMode.play();
+});
+
+dom.swapBondBtn.addEventListener('click', () => {
+  const nextLeft = app.bondSelection.right;
+  const nextRight = app.bondSelection.left;
+  app.bondSelection.left = nextLeft;
+  app.bondSelection.right = nextRight;
+  populateSelect(dom.leftSelect, app.bondSelection.left);
+  populateSelect(dom.rightSelect, app.bondSelection.right);
+  if (app.mode === 'bond' && app.activeMode?.rebuildFromSelection) app.activeMode.rebuildFromSelection();
+});
+
+dom.randomChainBtn.addEventListener('click', () => {
+  if (app.mode === 'chain' && app.activeMode?.randomGenerate) app.activeMode.randomGenerate();
+});
+
+dom.foldChainBtn.addEventListener('click', () => {
+  if (app.mode === 'chain' && app.activeMode?.fold) app.activeMode.fold();
+});
+
+const guiState = {
+  mode: VIEW_MODES.bond,
+  proteinView: app.proteinView,
+  autoRotate: false,
+  replayBond() {
+    if (app.mode === 'bond' && app.activeMode?.play) app.activeMode.play();
+  },
+  addGly() {
+    if (app.mode === 'chain' && app.activeMode?.addResidue) app.activeMode.addResidue('Gly');
+  },
+  addAla() {
+    if (app.mode === 'chain' && app.activeMode?.addResidue) app.activeMode.addResidue('Ala');
+  },
+  addSer() {
+    if (app.mode === 'chain' && app.activeMode?.addResidue) app.activeMode.addResidue('Ser');
+  },
+  addAsp() {
+    if (app.mode === 'chain' && app.activeMode?.addResidue) app.activeMode.addResidue('Asp');
+  },
+  addLys() {
+    if (app.mode === 'chain' && app.activeMode?.addResidue) app.activeMode.addResidue('Lys');
+  },
+  randomGenerate() {
+    if (app.mode === 'chain' && app.activeMode?.randomGenerate) app.activeMode.randomGenerate();
+  },
+  foldChain() {
+    if (app.mode === 'chain' && app.activeMode?.fold) app.activeMode.fold();
+  },
+  reset() {
+    if (app.mode === 'bond') {
+      if (app.activeMode?.reset) app.activeMode.reset();
+      return;
+    }
+    if (app.mode === 'chain') {
+      app.chainSequence = [...DEFAULT_CHAIN];
+      app.chainFolded = false;
+      setMode('chain', true);
+      return;
+    }
+    if (app.mode === 'compare') {
+      app.proteinView = '둘 다';
+      guiState.proteinView = app.proteinView;
+      setMode('compare', true);
+    }
+  }
+};
+
+const gui = new GUI({ title: '단백질 형성', width: 320 });
+gui.add(guiState, 'mode', Object.values(VIEW_MODES)).name('보기 모드').onChange((value) => {
+  const nextMode = Object.entries(VIEW_MODES).find(([, label]) => label === value)?.[0] || 'bond';
+  setMode(nextMode);
+});
+
+const bondFolder = gui.addFolder('탭 1');
+bondFolder.add(guiState, 'replayBond').name('펩타이드결합 재생');
+
+const chainFolder = gui.addFolder('탭 2');
+chainFolder.add(guiState, 'addGly').name('아미노산 추가 Gly');
+chainFolder.add(guiState, 'addAla').name('아미노산 추가 Ala');
+chainFolder.add(guiState, 'addSer').name('아미노산 추가 Ser');
+chainFolder.add(guiState, 'addAsp').name('아미노산 추가 Asp');
+chainFolder.add(guiState, 'addLys').name('아미노산 추가 Lys');
+chainFolder.add(guiState, 'randomGenerate').name('랜덤 생성');
+chainFolder.add(guiState, 'foldChain').name('접기');
+
+const compareFolder = gui.addFolder('탭 3');
+compareFolder.add(guiState, 'proteinView', ['헤모글로빈', '케라틴', '둘 다']).name('단백질 선택').onChange((value) => {
+  app.proteinView = value;
+  if (app.mode === 'compare' && app.activeMode?.applyProteinView) app.activeMode.applyProteinView();
+  updateComparePanel();
+  if (app.activeMode?.getFormulaData) updateFormulaPanel(app.activeMode.getFormulaData());
+});
+
+gui.add(guiState, 'autoRotate').name('자동 회전').onChange((value) => {
+  app.autoRotate = value;
+});
+gui.add(guiState, 'reset').name('초기화');
+
+if (window.innerWidth < 900) gui.close();
+
+setMode('bond', true);
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(app.clock.getDelta(), 0.05);
+  const elapsed = app.clock.elapsedTime;
+
+  if (app.activeMode?.update) app.activeMode.update(dt, elapsed);
+
+  if (app.autoRotate && app.activeMode?.root) {
+    app.activeMode.root.rotation.y += dt * 0.18;
+  }
+
+  app.flashOpacity = Math.max(0, app.flashOpacity - dt * 1.1);
+  dom.flash.style.opacity = app.flashOpacity.toFixed(3);
+
+  if (app.activeMode?.getFormulaData) updateFormulaPanel(app.activeMode.getFormulaData());
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 900) gui.close();
+});
+</script>
+</body>
+</html>

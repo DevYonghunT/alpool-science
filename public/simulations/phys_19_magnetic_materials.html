@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자성체의 종류와 활용 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep: rgba(7, 11, 24, 0.92);
+    --bg-panel: rgba(14, 20, 38, 0.78);
+    --bg-panel-strong: rgba(9, 15, 31, 0.9);
+    --border: rgba(255, 255, 255, 0.12);
+    --text-main: #f5f8ff;
+    --text-dim: rgba(245, 248, 255, 0.7);
+    --accent-green: #62f3a4;
+    --accent-red: #ff7676;
+    --accent-blue: #89a6ff;
+    --accent-gold: #ffdd9a;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(125, 149, 255, 0.14), transparent 22%),
+      radial-gradient(circle at 82% 10%, rgba(85, 255, 164, 0.12), transparent 18%),
+      linear-gradient(180deg, #11162b 0%, #171b34 45%, #1a1a2e 100%);
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #title-wrap {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 24;
+    pointer-events: none;
+  }
+
+  #title-wrap .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 255, 0.62);
+  }
+
+  #title-wrap h1 {
+    margin-top: 6px;
+    font-size: 28px;
+    font-weight: 800;
+    color: #f8fbff;
+    text-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  #title-wrap p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(223, 231, 255, 0.76);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 14, 28, 0.76);
+    color: #f4f8ff;
+    font-family: "Pretendard", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 40;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(7, 14, 28, 0.9);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 44px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+    z-index: 38;
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel.open { display: block; }
+  #guide-panel h3 { margin: 14px 0 6px; color: #9fd0ff; font-size: 15px; }
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #status-chip {
+    position: fixed;
+    top: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(760px, calc(100vw - 32px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: rgba(9, 16, 31, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+    z-index: 25;
+    text-align: center;
+  }
+
+  #status-chip .title {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  #status-chip .body {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.62;
+    color: var(--text-dim);
+  }
+
+  #drag-chip {
+    position: fixed;
+    top: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(28, 40, 76, 0.64);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(240, 245, 255, 0.9);
+    font-size: 11px;
+    z-index: 24;
+    pointer-events: none;
+    backdrop-filter: blur(12px);
+  }
+
+  #gui-mount {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 40;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(7, 14, 28, 0.88);
+    --title-background-color: rgba(16, 26, 48, 0.95);
+    --widget-color: #dfe8ff;
+    --text-color: #f5f8ff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --font-size: 12px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    box-shadow: 0 22px 42px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(16px);
+    z-index: 24;
+    line-height: 1.72;
+    font-size: 12px;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff1b9;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.97);
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #comparison-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(650px, calc(100vw - 32px));
+    padding: 14px 16px 16px;
+    border-radius: 22px;
+    background: var(--bg-panel-strong);
+    border: 1px solid var(--border);
+    box-shadow: 0 22px 42px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(16px);
+    z-index: 24;
+  }
+
+  #comparison-panel.hidden { display: none; }
+
+  #comparison-panel h2 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #f6fbff;
+  }
+
+  #comparison-panel p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  #comparison-panel .table-wrap {
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+
+  #comparison-panel table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  #comparison-panel th,
+  #comparison-panel td {
+    padding: 10px 9px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  #comparison-panel th:first-child,
+  #comparison-panel td:first-child {
+    text-align: left;
+    color: rgba(255, 255, 255, 0.82);
+    width: 110px;
+  }
+
+  #comparison-panel th {
+    color: #eef4ff;
+    font-weight: 700;
+  }
+
+  #comparison-panel td {
+    color: rgba(255, 255, 255, 0.74);
+    line-height: 1.5;
+  }
+
+  #comparison-panel .active {
+    background: rgba(98, 243, 164, 0.09);
+    color: #f8fcff;
+  }
+
+  #comparison-panel .active[data-id="diamagnet"] {
+    background: rgba(255, 118, 118, 0.1);
+  }
+
+  #application-note {
+    position: fixed;
+    right: 16px;
+    top: 250px;
+    width: min(300px, calc(100vw - 32px));
+    padding: 14px 15px;
+    border-radius: 20px;
+    background: rgba(8, 15, 29, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(244, 248, 255, 0.9);
+    font-size: 12px;
+    line-height: 1.68;
+    z-index: 24;
+    display: none;
+    box-shadow: 0 20px 36px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+  }
+
+  #application-note.show { display: block; }
+
+  @media (max-width: 980px) {
+    #status-chip {
+      width: calc(100vw - 24px);
+      top: 82px;
+    }
+
+    #drag-chip {
+      top: 154px;
+      width: calc(100vw - 32px);
+      text-align: center;
+    }
+
+    #comparison-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 250px;
+      width: min(360px, calc(100vw - 24px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-wrap h1 { font-size: 23px; }
+    #title-wrap p { width: min(90vw, 420px); margin-inline: auto; }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 228px;
+      width: auto;
+    }
+
+    #application-note {
+      top: auto;
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 460px;
+    }
+
+    #gui-mount {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-wrap">
+  <div class="eyebrow">Physics II Interactive Lab</div>
+  <h1>자성체의 종류와 활용</h1>
+  <p>막대 자석을 가까이 가져가며 강자성체, 상자성체, 반자성체의 반응과 자기 구역 정렬을 비교해 보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>물질은 외부 자기장에 대한 반응에 따라 <strong>강자성체</strong>, <strong>상자성체</strong>, <strong>반자성체</strong>로 분류됩니다. 강자성체는 자기 구역(domain)이 쉽게 정렬되어 강하게 자기화되고, 자기장을 제거해도 정렬이 유지될 수 있습니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>냉장고 문에 자석이 잘 붙는 까닭을 강자성체의 성질로 설명할 수 있을까요?</li>
+    <li>알루미늄 캔이 자석에 거의 붙지 않는 까닭은 무엇일까요?</li>
+    <li>강자성체를 높은 온도로 가열하면 자기화가 사라지는 이유는 무엇일까요? 힌트: 퀴리 온도</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>영구 자석과 전자석은 강자성체의 자기화 성질을 활용합니다.</li>
+    <li>하드디스크와 자기 기록 장치는 강자성체의 자기화 유지 성질을 이용합니다.</li>
+    <li>MRI, 자기 부상 열차, 초전도체 연구에서는 자기장과 물질의 반응 차이를 적극적으로 활용합니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>물리학 II편 p100~103</p>
+  <p>자성체의 종류, 자기 구역 정렬, 그리고 실생활 활용 사례를 비교할 수 있도록 구성했습니다.</p>
+</div>
+
+<div id="status-chip">
+  <div class="title" id="status-title">자석과 물질의 거리를 조절해 반응을 비교해 보세요.</div>
+  <div class="body" id="status-body">강자성체는 강하게 끌리고 정렬이 유지되며, 상자성체는 약하게 끌린 뒤 원래대로 돌아가고, 반자성체는 약하게 밀려납니다.</div>
+</div>
+
+<div id="drag-chip">자석을 직접 드래그하거나 오른쪽 슬라이더로 거리를 조절할 수 있습니다.</div>
+<div id="gui-mount"></div>
+<div id="formula-panel"></div>
+
+<div id="comparison-panel">
+  <h2>자성체 비교 표</h2>
+  <p>같은 자기장에서도 물질에 따라 반응의 크기와 자기화 유지 여부가 다릅니다.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th data-id="ferromagnet">강자성체</th>
+          <th data-id="paramagnet">상자성체</th>
+          <th data-id="diamagnet">반자성체</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>예시</td>
+          <td data-id="ferromagnet">철, 니켈, 코발트</td>
+          <td data-id="paramagnet">알루미늄, 백금</td>
+          <td data-id="diamagnet">구리, 금, 은</td>
+        </tr>
+        <tr>
+          <td>자석과 반응</td>
+          <td data-id="ferromagnet">강하게 끌림</td>
+          <td data-id="paramagnet">약하게 끌림</td>
+          <td data-id="diamagnet">약하게 밀림</td>
+        </tr>
+        <tr>
+          <td>자기장 제거 후</td>
+          <td data-id="ferromagnet">자기화 유지</td>
+          <td data-id="paramagnet">원래대로</td>
+          <td data-id="diamagnet">원래대로</td>
+        </tr>
+        <tr>
+          <td>내부 구역 정렬</td>
+          <td data-id="ferromagnet">강한 정렬</td>
+          <td data-id="paramagnet">약한 정렬</td>
+          <td data-id="diamagnet">반대 방향 정렬</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="application-note">
+  <strong>응용 보기</strong><br>
+  자기 부상 열차 장면은 자기장에 의한 반발과 부상 개념을 단순화해 보여 줍니다. 실제 초전도체의 마이스너 효과와 완전히 같지는 않지만, 자기력으로 물체를 떠오르게 할 수 있다는 생각을 연결해 볼 수 있습니다.
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const canvas = document.getElementById('scene-canvas');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const formulaPanelEl = document.getElementById('formula-panel');
+const comparisonPanelEl = document.getElementById('comparison-panel');
+const applicationNoteEl = document.getElementById('application-note');
+const guiMountEl = document.getElementById('gui-mount');
+
+const FOCUS_OPTIONS = {
+  '전체 비교': 'all',
+  '강자성체(철)': 'ferromagnet',
+  '상자성체(알루미늄)': 'paramagnet',
+  '반자성체(구리)': 'diamagnet'
+};
+
+const MATERIAL_CONFIGS = [
+  {
+    id: 'ferromagnet',
+    shortName: '철',
+    materialName: '철 (Fe)',
+    label: '철 (Fe)\n강자성체',
+    typeName: '강자성체',
+    color: 0xaaaaaa,
+    accent: 0x63d98d,
+    examples: '철, 니켈, 코발트',
+    reactionText: '강하게 끌림',
+    afterText: '자기화 유지',
+    domainText: '강한 정렬',
+    moveFactor: 1.85,
+    alignFactor: 1.22,
+    sign: 1,
+    memory: true
+  },
+  {
+    id: 'paramagnet',
+    shortName: '알루미늄',
+    materialName: '알루미늄 (Al)',
+    label: '알루미늄 (Al)\n상자성체',
+    typeName: '상자성체',
+    color: 0xddccaa,
+    accent: 0xa7d8ff,
+    examples: '알루미늄, 백금',
+    reactionText: '약하게 끌림',
+    afterText: '원래대로',
+    domainText: '약한 정렬',
+    moveFactor: 0.52,
+    alignFactor: 0.48,
+    sign: 1,
+    memory: false
+  },
+  {
+    id: 'diamagnet',
+    shortName: '구리',
+    materialName: '구리 (Cu)',
+    label: '구리 (Cu)\n반자성체',
+    typeName: '반자성체',
+    color: 0xcc6633,
+    accent: 0xff7676,
+    examples: '구리, 금, 은',
+    reactionText: '약하게 밀림',
+    afterText: '원래대로',
+    domainText: '반대 정렬',
+    moveFactor: 0.45,
+    alignFactor: 0.38,
+    sign: -1,
+    memory: false
+  }
+];
+
+const MAGNET_Y = 1.18;
+const BLOCK_Y = 0.7;
+const DOMAIN_PANEL_Y = 2.45;
+const DOMAIN_COUNT = 100;
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -MAGNET_Y);
+const dragPoint = new THREE.Vector3();
+const upVector = new THREE.Vector3(0, 1, 0);
+const tempObject = new THREE.Object3D();
+const tempVector = new THREE.Vector3();
+const tempVector2 = new THREE.Vector3();
+const tempColor = new THREE.Color();
+const clock = new THREE.Clock();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 16, 34);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+camera.position.set(0, 7.6, 14.2);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1.4, 0);
+controls.minDistance = 7.5;
+controls.maxDistance = 24;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(-7, 12, 9);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -16;
+directionalLight.shadow.camera.right = 16;
+directionalLight.shadow.camera.top = 16;
+directionalLight.shadow.camera.bottom = -16;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 40;
+directionalLight.shadow.bias = -0.00008;
+scene.add(directionalLight);
+
+const params = {
+  materialFocus: '전체 비교',
+  magnetDistance: 5,
+  fieldStrength: 0.5,
+  showDomains: true,
+  showFieldLines: true,
+  showTable: true,
+  showApplication: false,
+  reset: () => resetSimulation()
+};
+
+const runtime = {
+  guideOpen: false,
+  dragging: false,
+  hoveredMagnet: false,
+  time: 0,
+  gui: null
+};
+
+const magnet = {
+  root: new THREE.Group(),
+  draggable: null,
+  fieldLines: new THREE.Group()
+};
+
+const materialStates = [];
+const applicationGroup = new THREE.Group();
+
+buildEnvironment();
+buildMagnet();
+buildMaterials();
+buildApplication();
+buildGui();
+updatePanelVisibility();
+updateComparisonHighlight('all');
+resize();
+animate();
+
+guideToggleEl.addEventListener('click', () => {
+  runtime.guideOpen = !runtime.guideOpen;
+  guidePanelEl.classList.toggle('open', runtime.guideOpen);
+  guideToggleEl.textContent = runtime.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointermove', onPointerMove);
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointerleave', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerUp);
+window.addEventListener('resize', resize);
+
+function buildEnvironment() {
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 64),
+    new THREE.MeshStandardMaterial({ color: 0x242c47, roughness: 0.95, metalness: 0.02 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.02;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(6.8, 8.3, 72),
+    new THREE.MeshBasicMaterial({ color: 0x33446f, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.01;
+  scene.add(ring);
+
+  const grid = new THREE.GridHelper(18, 18, 0x3d4f80, 0x273456);
+  grid.position.y = 0.02;
+  grid.material.opacity = 0.28;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  const halo = new THREE.Mesh(
+    new THREE.CylinderGeometry(7.2, 7.2, 0.03, 56, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x5d76ff, transparent: true, opacity: 0.11, side: THREE.DoubleSide })
+  );
+  halo.position.y = 0.04;
+  scene.add(halo);
+
+  const particles = new THREE.BufferGeometry();
+  const particleCount = 180;
+  const positions = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount; i += 1) {
+    const radius = 10 + Math.random() * 9;
+    const angle = Math.random() * Math.PI * 2;
+    positions[i * 3] = Math.cos(angle) * radius;
+    positions[i * 3 + 1] = 2.5 + Math.random() * 6;
+    positions[i * 3 + 2] = Math.sin(angle) * radius * 0.9;
+  }
+  particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMaterial = new THREE.PointsMaterial({
+    color: 0x8eb3ff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  });
+  scene.add(new THREE.Points(particles, particleMaterial));
+}
+
+function buildMagnet() {
+  magnet.root.position.set(0, MAGNET_Y, params.magnetDistance);
+  scene.add(magnet.root);
+
+  const north = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.38, metalness: 0.22 })
+  );
+  north.position.z = 0.75;
+  north.castShadow = true;
+  north.receiveShadow = true;
+  magnet.root.add(north);
+
+  const south = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0x4444ff, roughness: 0.38, metalness: 0.22 })
+  );
+  south.position.z = -0.75;
+  south.castShadow = true;
+  south.receiveShadow = true;
+  magnet.root.add(south);
+
+  const seam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.52, 0.52, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x121624, roughness: 0.72, metalness: 0.08 })
+  );
+  magnet.root.add(seam);
+
+  const frame = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(0.56, 0.56, 3.08)),
+    new THREE.LineBasicMaterial({ color: 0xf0f5ff, transparent: true, opacity: 0.35 })
+  );
+  magnet.root.add(frame);
+
+  const northLabel = createTextSprite('N', {
+    color: '#ffffff',
+    background: 'rgba(255,68,68,0.8)',
+    border: 'rgba(255,255,255,0.18)',
+    scale: [0.42, 0.26]
+  });
+  northLabel.position.set(0, 0.48, 1.56);
+  magnet.root.add(northLabel);
+
+  const southLabel = createTextSprite('S', {
+    color: '#ffffff',
+    background: 'rgba(68,68,255,0.8)',
+    border: 'rgba(255,255,255,0.18)',
+    scale: [0.42, 0.26]
+  });
+  southLabel.position.set(0, 0.48, -1.56);
+  magnet.root.add(southLabel);
+
+  buildFieldLines();
+
+  magnet.draggable = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 1.4, 4.2),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  magnet.root.add(magnet.draggable);
+
+  const label = createTextSprite('막대 자석\n드래그 가능', {
+    color: '#eff6ff',
+    background: 'rgba(12,22,45,0.74)',
+    border: 'rgba(255,255,255,0.12)',
+    scale: [1.35, 0.44]
+  });
+  label.position.set(0, 1.1, 0);
+  magnet.root.add(label);
+}
+
+function buildFieldLines() {
+  const lineMaterial = new THREE.MeshBasicMaterial({
+    color: 0x44ff88,
+    transparent: true,
+    opacity: 0.45
+  });
+
+  const guideDirections = [
+    new THREE.Vector3(1.8, 0.5, 0),
+    new THREE.Vector3(-1.8, 0.5, 0),
+    new THREE.Vector3(1.2, 1.5, 0),
+    new THREE.Vector3(-1.2, 1.5, 0),
+    new THREE.Vector3(1.4, -0.8, 0),
+    new THREE.Vector3(-1.4, -0.8, 0)
+  ];
+
+  guideDirections.forEach((guide) => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 1.55),
+      new THREE.Vector3(guide.x * 0.45, guide.y * 0.55, 1.0),
+      new THREE.Vector3(guide.x, guide.y, 0),
+      new THREE.Vector3(guide.x * 0.45, guide.y * 0.55, -1.0),
+      new THREE.Vector3(0, 0, -1.55)
+    ]);
+
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.022, 10, false), lineMaterial);
+    magnet.fieldLines.add(tube);
+
+    const arrowHead = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.18, 10),
+      new THREE.MeshBasicMaterial({ color: 0x7fffb4, transparent: true, opacity: 0.72 })
+    );
+    const arrowPoint = curve.getPointAt(0.72);
+    const tangent = curve.getTangentAt(0.72).normalize();
+    arrowHead.position.copy(arrowPoint);
+    arrowHead.quaternion.setFromUnitVectors(upVector, tangent);
+    magnet.fieldLines.add(arrowHead);
+  });
+
+  magnet.root.add(magnet.fieldLines);
+}
+
+function buildMaterials() {
+  const positions = [-4.5, 0, 4.5];
+
+  MATERIAL_CONFIGS.forEach((config, index) => {
+    const state = {
+      config,
+      basePosition: new THREE.Vector3(positions[index], BLOCK_Y, 0),
+      group: new THREE.Group(),
+      cube: null,
+      label: null,
+      arrow: null,
+      domainGroup: null,
+      domainMesh: null,
+      domainSeedAngles: [],
+      domainThresholds: [],
+      retainedAlignment: 0,
+      retainedDirection: new THREE.Vector3(0, 0, 1),
+      currentAlignment: 0,
+      currentDirection: new THREE.Vector3(0, 0, 1),
+      influence: 0,
+      response: '',
+      lastFieldDirection: new THREE.Vector3(0, 0, 1)
+    };
+
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.18, 1.28, 0.32, 36),
+      new THREE.MeshStandardMaterial({ color: 0x2e385d, roughness: 0.82, metalness: 0.08 })
+    );
+    pedestal.position.copy(state.basePosition);
+    pedestal.position.y = 0.16;
+    pedestal.castShadow = true;
+    pedestal.receiveShadow = true;
+    state.group.add(pedestal);
+
+    const pedestalGlow = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.98, 0.98, 0.04, 36),
+      new THREE.MeshBasicMaterial({ color: config.accent, transparent: true, opacity: 0.22 })
+    );
+    pedestalGlow.position.set(state.basePosition.x, 0.34, state.basePosition.z);
+    state.group.add(pedestalGlow);
+
+    state.cube = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({
+        color: config.color,
+        roughness: 0.34,
+        metalness: 0.32,
+        transparent: true,
+        opacity: 1
+      })
+    );
+    state.cube.position.copy(state.basePosition);
+    state.cube.castShadow = true;
+    state.cube.receiveShadow = true;
+    state.group.add(state.cube);
+
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04, 1.04, 1.04)),
+      new THREE.LineBasicMaterial({ color: 0xf3f7ff, transparent: true, opacity: 0.34 })
+    );
+    outline.position.copy(state.basePosition);
+    state.group.add(outline);
+
+    state.label = createTextSprite(config.label, {
+      color: '#f5f8ff',
+      background: 'rgba(8,15,30,0.78)',
+      border: 'rgba(255,255,255,0.12)',
+      scale: [1.9, 0.54]
+    });
+    state.label.position.set(state.basePosition.x, 1.72, state.basePosition.z);
+    state.group.add(state.label);
+
+    state.arrow = new THREE.ArrowHelper(
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(state.basePosition.x, 1.28, state.basePosition.z),
+      0.4,
+      config.sign > 0 ? 0x63d98d : 0xff7676,
+      0.18,
+      0.1
+    );
+    state.arrow.visible = false;
+    state.group.add(state.arrow);
+
+    buildDomainPanel(state);
+
+    scene.add(state.group);
+    materialStates.push(state);
+  });
+}
+
+function buildDomainPanel(state) {
+  const group = new THREE.Group();
+  group.position.set(state.basePosition.x, DOMAIN_PANEL_Y, state.basePosition.z);
+
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(2.3, 0.08, 2.3),
+    new THREE.MeshStandardMaterial({
+      color: 0x192448,
+      roughness: 0.5,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.74
+    })
+  );
+  panel.receiveShadow = true;
+  group.add(panel);
+
+  const border = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(2.34, 0.1, 2.34)),
+    new THREE.LineBasicMaterial({ color: 0xbdd1ff, transparent: true, opacity: 0.28 })
+  );
+  group.add(border);
+
+  const caption = createTextSprite('자기 구역(domain)', {
+    color: '#edf6ff',
+    background: 'rgba(9,18,36,0.76)',
+    border: 'rgba(255,255,255,0.1)',
+    scale: [1.45, 0.34]
+  });
+  caption.position.set(0, 0.56, 0);
+  group.add(caption);
+
+  const domainMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8b93a7,
+    roughness: 0.32,
+    metalness: 0.12,
+    vertexColors: true
+  });
+
+  const domainGeometry = new THREE.ConeGeometry(0.06, 0.24, 9);
+  const domainMesh = new THREE.InstancedMesh(domainGeometry, domainMaterial, DOMAIN_COUNT);
+  domainMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  domainMesh.castShadow = false;
+  domainMesh.receiveShadow = false;
+
+  for (let row = 0; row < 10; row += 1) {
+    for (let col = 0; col < 10; col += 1) {
+      const index = row * 10 + col;
+      const x = -0.95 + col * 0.21;
+      const z = -0.95 + row * 0.21;
+      tempObject.position.set(x, 0.14, z);
+      tempObject.rotation.set(0, 0, 0);
+      tempObject.updateMatrix();
+      domainMesh.setMatrixAt(index, tempObject.matrix);
+      domainMesh.setColorAt(index, tempColor.set(0x8b93a7));
+      state.domainSeedAngles.push(Math.random() * Math.PI * 2);
+      state.domainThresholds.push(0.35 + Math.random() * 0.45);
+    }
+  }
+
+  group.add(domainMesh);
+  scene.add(group);
+
+  state.domainGroup = group;
+  state.domainMesh = domainMesh;
+}
+
+function buildApplication() {
+  applicationGroup.position.set(7.6, 0.38, -4.6);
+  applicationGroup.visible = false;
+  scene.add(applicationGroup);
+
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(5.3, 0.36, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0x354066, roughness: 0.82, metalness: 0.08 })
+  );
+  rail.castShadow = true;
+  rail.receiveShadow = true;
+  applicationGroup.add(rail);
+
+  const railGlow = new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 0.06, 1.58),
+    new THREE.MeshBasicMaterial({ color: 0x52f0c9, transparent: true, opacity: 0.16 })
+  );
+  railGlow.position.y = 0.24;
+  applicationGroup.add(railGlow);
+
+  const train = new THREE.Group();
+  train.name = 'maglevTrain';
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.74, 0.92),
+    new THREE.MeshStandardMaterial({ color: 0xf0f4ff, roughness: 0.34, metalness: 0.18 })
+  );
+  body.castShadow = true;
+  body.receiveShadow = true;
+  train.add(body);
+
+  const nose = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.28, 0.9, 6, 14),
+    new THREE.MeshStandardMaterial({ color: 0xd6e6ff, roughness: 0.28, metalness: 0.14 })
+  );
+  nose.rotation.z = Math.PI / 2;
+  nose.position.set(1.35, 0, 0);
+  nose.castShadow = true;
+  train.add(nose);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(2.15, 0.18, 0.74),
+    new THREE.MeshStandardMaterial({ color: 0x9ebcff, roughness: 0.2, metalness: 0.1 })
+  );
+  roof.position.set(-0.14, 0.32, 0);
+  train.add(roof);
+
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(2.3, 0.05, 0.88),
+    new THREE.MeshBasicMaterial({ color: 0x5df5c0, transparent: true, opacity: 0.36 })
+  );
+  glow.position.y = -0.47;
+  train.add(glow);
+
+  train.position.set(-1.1, 1.02, 0);
+  applicationGroup.add(train);
+
+  const label = createTextSprite('응용: 자기 부상 열차', {
+    color: '#f4f8ff',
+    background: 'rgba(10,18,37,0.78)',
+    border: 'rgba(255,255,255,0.12)',
+    scale: [1.95, 0.34]
+  });
+  label.position.set(0, 1.9, 0);
+  applicationGroup.add(label);
+}
+
+function buildGui() {
+  const gui = new GUI({ container: guiMountEl, title: '자성체 제어', width: 290 });
+  runtime.gui = gui;
+
+  gui.add(params, 'materialFocus', Object.keys(FOCUS_OPTIONS)).name('자성체').onChange(() => {
+    const focusId = FOCUS_OPTIONS[params.materialFocus];
+    updateComparisonHighlight(focusId);
+    updatePanelVisibility();
+  });
+  gui.add(params, 'magnetDistance', 1, 8, 0.01).name('자석 거리');
+  gui.add(params, 'fieldStrength', 0, 1, 0.01).name('자기장 세기 (T)');
+  gui.add(params, 'showDomains').name('자기 구역 표시').onChange(updatePanelVisibility);
+  gui.add(params, 'showFieldLines').name('자기력선 표시').onChange(updatePanelVisibility);
+  gui.add(params, 'showTable').name('비교 표').onChange(updatePanelVisibility);
+  gui.add(params, 'showApplication').name('자기 부상 응용').onChange(updatePanelVisibility);
+  gui.add(params, 'reset').name('초기화');
+
+  if (window.innerWidth < 760) {
+    gui.close();
+  }
+}
+
+function updatePanelVisibility() {
+  comparisonPanelEl.classList.toggle('hidden', !params.showTable);
+  applicationNoteEl.classList.toggle('show', params.showApplication);
+  magnet.fieldLines.visible = params.showFieldLines;
+  applicationGroup.visible = params.showApplication;
+
+  const focusId = FOCUS_OPTIONS[params.materialFocus];
+  materialStates.forEach((state) => {
+    const focused = focusId === 'all' || state.config.id === focusId;
+    state.domainGroup.visible = params.showDomains && focused;
+  });
+}
+
+function updateComparisonHighlight(activeId) {
+  comparisonPanelEl.querySelectorAll('[data-id]').forEach((cell) => {
+    cell.classList.toggle('active', activeId !== 'all' && cell.dataset.id === activeId);
+  });
+}
+
+function resetSimulation() {
+  params.materialFocus = '전체 비교';
+  params.magnetDistance = 5;
+  params.fieldStrength = 0.5;
+  params.showDomains = true;
+  params.showFieldLines = true;
+  params.showTable = true;
+  params.showApplication = false;
+  magnet.root.position.set(0, MAGNET_Y, params.magnetDistance);
+  materialStates.forEach((state) => {
+    state.cube.position.copy(state.basePosition);
+    state.retainedAlignment = 0;
+    state.currentAlignment = 0;
+    state.retainedDirection.set(0, 0, 1);
+    state.currentDirection.set(0, 0, 1);
+  });
+  updateComparisonHighlight('all');
+  updatePanelVisibility();
+  syncGuiDisplays();
+}
+
+function onPointerDown(event) {
+  setPointer(event);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(magnet.draggable, false);
+
+  if (hits.length === 0) {
+    return;
+  }
+
+  runtime.dragging = true;
+  controls.enabled = false;
+  canvas.style.cursor = 'grabbing';
+  canvas.setPointerCapture(event.pointerId);
+}
+
+function onPointerMove(event) {
+  setPointer(event);
+
+  if (runtime.dragging) {
+    raycaster.setFromCamera(pointer, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+      magnet.root.position.x = THREE.MathUtils.clamp(dragPoint.x, -5.6, 5.6);
+      magnet.root.position.z = THREE.MathUtils.clamp(dragPoint.z, 1, 8);
+      params.magnetDistance = magnet.root.position.z;
+      syncGuiDisplays();
+    }
+    return;
+  }
+
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(magnet.draggable, false);
+  runtime.hoveredMagnet = hits.length > 0;
+  canvas.style.cursor = runtime.hoveredMagnet ? 'grab' : 'default';
+}
+
+function onPointerUp(event) {
+  if (runtime.dragging && canvas.hasPointerCapture(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
+  runtime.dragging = false;
+  controls.enabled = true;
+  canvas.style.cursor = runtime.hoveredMagnet ? 'grab' : 'default';
+}
+
+function setPointer(event) {
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.05);
+  runtime.time += delta;
+
+  const focusId = FOCUS_OPTIONS[params.materialFocus];
+  const focusState = materialStates.find((state) => state.config.id === focusId);
+
+  if (!runtime.dragging) {
+    magnet.root.position.z = THREE.MathUtils.lerp(magnet.root.position.z, params.magnetDistance, 0.08);
+    if (focusState) {
+      magnet.root.position.x = THREE.MathUtils.lerp(magnet.root.position.x, focusState.basePosition.x, 0.06);
+    } else {
+      magnet.root.position.x = THREE.MathUtils.damp(magnet.root.position.x, magnet.root.position.x, 12, delta);
+    }
+  }
+
+  const targetX = focusState ? focusState.basePosition.x : 0;
+  controls.target.x = THREE.MathUtils.lerp(controls.target.x, targetX, 0.04);
+  controls.update();
+
+  updateApplication(delta);
+  updateMaterials(delta, focusId);
+  updatePanels(focusId);
+
+  renderer.render(scene, camera);
+}
+
+function updateApplication(delta) {
+  if (!params.showApplication) {
+    return;
+  }
+
+  const train = applicationGroup.getObjectByName('maglevTrain');
+  if (!train) {
+    return;
+  }
+
+  train.position.x = -1.1 + Math.sin(runtime.time * 0.65) * 1.25;
+  train.position.y = 1.02 + Math.sin(runtime.time * 1.9) * 0.08;
+  train.rotation.z = Math.sin(runtime.time * 1.3) * 0.01;
+}
+
+function updateMaterials(delta, focusId) {
+  let strongestState = materialStates[0];
+
+  materialStates.forEach((state) => {
+    const toMagnet = tempVector.copy(magnet.root.position).sub(state.basePosition);
+    const projected = tempVector2.set(toMagnet.x, 0, toMagnet.z);
+    const distance = Math.max(1, projected.length());
+    const fieldDirection = projected.lengthSq() > 0.0001 ? projected.normalize() : state.lastFieldDirection;
+    const fieldFactor = THREE.MathUtils.clamp((params.fieldStrength * 5.2) / (distance * distance + 0.9), 0, 1);
+    const forceDirection = fieldDirection.clone().multiplyScalar(state.config.sign);
+    const targetOffset = forceDirection.multiplyScalar(fieldFactor * state.config.moveFactor);
+
+    state.influence = fieldFactor;
+    state.lastFieldDirection.copy(fieldDirection);
+    state.response = describeResponse(state.config, fieldFactor);
+
+    state.cube.position.lerp(
+      tempVector.set(
+        state.basePosition.x + targetOffset.x,
+        state.basePosition.y + Math.sin(runtime.time * 2.2 + state.basePosition.x) * fieldFactor * 0.04,
+        state.basePosition.z + targetOffset.z
+      ),
+      0.08
+    );
+
+    const emissiveIntensity = 0.06 + fieldFactor * (state.config.id === 'ferromagnet' ? 0.18 : 0.08);
+    state.cube.material.emissive.setHex(state.config.accent);
+    state.cube.material.emissiveIntensity = emissiveIntensity;
+
+    const focused = focusId === 'all' || focusId === state.config.id;
+    state.cube.material.opacity = focused ? 1 : 0.28;
+    state.label.material.opacity = focused ? 1 : 0.36;
+
+    const arrowLength = THREE.MathUtils.clamp(0.18 + fieldFactor * state.config.moveFactor * 1.2, 0.18, 1.6);
+    state.arrow.position.copy(state.cube.position).add(new THREE.Vector3(0, 0.76, 0));
+    state.arrow.setDirection(new THREE.Vector3(forceDirection.x, 0, forceDirection.z).normalize());
+    state.arrow.setLength(arrowLength, 0.18, 0.1);
+    state.arrow.setColor(new THREE.Color(state.config.sign > 0 ? 0x63d98d : 0xff7676));
+    state.arrow.visible = focused && fieldFactor > 0.03;
+
+    updateDomainPanelState(state, delta, fieldDirection, fieldFactor, focusId);
+
+    if (state.influence > strongestState.influence) {
+      strongestState = state;
+    }
+  });
+
+  runtime.activeState = focusId === 'all'
+    ? strongestState
+    : materialStates.find((state) => state.config.id === focusId) || strongestState;
+}
+
+function updateDomainPanelState(state, delta, fieldDirection, fieldFactor, focusId) {
+  const stateDirection = fieldDirection.clone().multiplyScalar(state.config.sign);
+  let targetAlignment = THREE.MathUtils.clamp(fieldFactor * state.config.alignFactor, 0, 1);
+  let targetDirection = stateDirection;
+
+  if (state.config.memory) {
+    if (fieldFactor > 0.08) {
+      state.retainedAlignment = Math.max(state.retainedAlignment, targetAlignment);
+      state.retainedDirection.lerp(stateDirection, 0.16).normalize();
+    }
+    targetAlignment = fieldFactor > 0.03 ? Math.max(targetAlignment, state.retainedAlignment * 0.96) : state.retainedAlignment;
+    targetDirection = targetAlignment > 0.02 ? state.retainedDirection : stateDirection;
+  } else if (fieldFactor < 0.02) {
+    targetAlignment = 0;
+  }
+
+  state.currentAlignment = THREE.MathUtils.lerp(state.currentAlignment, targetAlignment, 0.12);
+  if (targetDirection.lengthSq() > 0.0001) {
+    state.currentDirection.lerp(targetDirection, 0.12).normalize();
+  }
+
+  const showPanel = params.showDomains && (focusId === 'all' || focusId === state.config.id);
+  state.domainGroup.visible = showPanel;
+  if (!showPanel) {
+    return;
+  }
+
+  for (let row = 0; row < 10; row += 1) {
+    for (let col = 0; col < 10; col += 1) {
+      const index = row * 10 + col;
+      const x = -0.95 + col * 0.21;
+      const z = -0.95 + row * 0.21;
+      const baseAngle = state.domainSeedAngles[index] + runtime.time * 0.18 * (1 - state.currentAlignment);
+      const baseVector = new THREE.Vector3(Math.cos(baseAngle), 0, Math.sin(baseAngle));
+      const localBlend = THREE.MathUtils.clamp(
+        state.currentAlignment * (0.76 + state.domainThresholds[index] * 0.34),
+        0,
+        1
+      );
+
+      tempVector.copy(baseVector).multiplyScalar(1 - localBlend);
+      tempVector.addScaledVector(state.currentDirection, localBlend).normalize();
+
+      tempObject.position.set(x, 0.16, z);
+      tempObject.quaternion.setFromUnitVectors(upVector, tempVector.lengthSq() > 0.0001 ? tempVector : upVector);
+      tempObject.scale.setScalar(1 + localBlend * 0.18);
+      tempObject.updateMatrix();
+      state.domainMesh.setMatrixAt(index, tempObject.matrix);
+
+      const aligned = localBlend > state.domainThresholds[index];
+      state.domainMesh.setColorAt(index, tempColor.set(aligned ? 0xff5555 : 0x8b93a7));
+    }
+  }
+
+  state.domainMesh.instanceMatrix.needsUpdate = true;
+  if (state.domainMesh.instanceColor) {
+    state.domainMesh.instanceColor.needsUpdate = true;
+  }
+}
+
+function updatePanels(focusId) {
+  const activeState = runtime.activeState || materialStates[0];
+  const config = activeState.config;
+
+  statusTitleEl.textContent = `${config.materialName} 관찰 중: ${activeState.response}`;
+  statusBodyEl.textContent = focusId === 'all'
+    ? '현재 자석에 가장 크게 반응하는 물질을 기준으로 안내합니다. 자석을 좌우로 움직여 세 물질 반응 차이를 비교해 보세요.'
+    : `${config.typeName}는 ${config.reactionText}을 보이며, 자기장 제거 후에는 ${config.afterText} 상태를 보입니다.`;
+
+  const distance = activeState.cube.position.distanceTo(magnet.root.position);
+  const domainSummary = config.memory && activeState.retainedAlignment > 0.1
+    ? '정렬 유지 중'
+    : activeState.influence > 0.12
+      ? config.domainText
+      : '무작위에 가까움';
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">🧲 자성체의 종류</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">현재 자성체</div><div class="value">${config.typeName}</div></div>
+    <div class="line"><div class="label">물질</div><div class="value">${config.materialName}</div></div>
+    <div class="line"><div class="label">외부 자기장</div><div class="value"><span class="mono">${formatNumber(params.fieldStrength, 2)} T</span></div></div>
+    <div class="line"><div class="label">자석 거리</div><div class="value"><span class="mono">${formatNumber(params.magnetDistance, 2)}</span> / 실제 블록 거리 <span class="mono">${formatNumber(distance, 2)}</span></div></div>
+    <div class="line"><div class="label">반응</div><div class="value">${activeState.response}</div></div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">강자성체</div><div class="value">자기화 강함, 제거 후 유지</div></div>
+    <div class="line"><div class="label">상자성체</div><div class="value">자기화 약함, 제거 후 소멸</div></div>
+    <div class="line"><div class="label">반자성체</div><div class="value">외부 자기장과 반대 방향 정렬</div></div>
+    <div class="highlight">
+      <strong>자기 구역(domain)</strong><br>
+      강자성체 내부의 미소 자석 영역이 외부 자기장에 따라 정렬됩니다.<br>
+      현재 도메인 상태: <strong>${domainSummary}</strong>
+    </div>
+  `;
+}
+
+function describeResponse(config, influence) {
+  if (influence < 0.04) {
+    return config.memory && config.retainedAlignment > 0.12 ? '자기화는 유지되지만 이동은 거의 없음' : '거의 반응하지 않음';
+  }
+
+  if (config.id === 'ferromagnet') {
+    return influence > 0.25 ? '강하게 끌려와 자기화됨' : '점차 끌리며 도메인이 정렬됨';
+  }
+
+  if (config.id === 'paramagnet') {
+    return influence > 0.14 ? '약하게 끌리며 부분 정렬' : '아주 약하게 끌림';
+  }
+
+  return influence > 0.14 ? '약하게 밀리며 반대 방향 정렬' : '아주 약하게 밀림';
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    color = '#ffffff',
+    background = 'rgba(8,15,30,0.82)',
+    border = 'rgba(255,255,255,0.12)',
+    scale = [1.2, 0.36]
+  } = options;
+
+  const lines = text.split('\n');
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = 512;
+  canvasEl.height = 192;
+  const context = canvasEl.getContext('2d');
+
+  context.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  drawRoundedRect(context, 18, 20, canvasEl.width - 36, canvasEl.height - 40, 26, background, border);
+
+  context.fillStyle = color;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.font = lines.length > 1 ? '700 42px Pretendard, sans-serif' : '800 56px Pretendard, sans-serif';
+
+  const lineGap = lines.length > 1 ? 46 : 0;
+  const startY = canvasEl.height / 2 - ((lines.length - 1) * lineGap) / 2;
+  lines.forEach((line, index) => {
+    context.fillText(line, canvasEl.width / 2, startY + index * lineGap);
+  });
+
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale[0], scale[1], 1);
+  return sprite;
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+}
+
+function syncGuiDisplays() {
+  if (runtime.gui) {
+    runtime.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function formatNumber(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+</body>
+</html>

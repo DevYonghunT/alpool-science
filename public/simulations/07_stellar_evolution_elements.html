@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>별의 진화와 원소 생성 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: 'Pretendard', sans-serif; background: #000008; color: #fff; }
+  canvas { display: block; }
+
+  /* 좌측 타임라인 */
+  #timeline {
+    position: fixed; left: 0; top: 0; width: 180px; height: 100vh;
+    background: rgba(5,5,15,0.88); backdrop-filter: blur(12px);
+    border-right: 1px solid rgba(255,255,255,0.06); z-index: 20;
+    display: flex; flex-direction: column; padding: 16px 10px;
+  }
+  #timeline h3 { font-size: 12px; color: #c8b6ff; margin-bottom: 14px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; }
+  .tl-item {
+    position: relative; cursor: pointer; padding: 8px 8px 8px 20px;
+    border-radius: 8px; margin-bottom: 4px; transition: all 0.3s;
+    opacity: 0.35; font-size: 11px; line-height: 1.4;
+  }
+  .tl-item::before {
+    content: ''; position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); transition: all 0.3s;
+  }
+  .tl-item.active { opacity: 1; background: rgba(255,255,255,0.06); }
+  .tl-item.active::before { background: #ffaa44; box-shadow: 0 0 8px #ffaa44; }
+  .tl-item.disabled { opacity: 0.15; pointer-events: none; }
+  .tl-item .tl-name { font-weight: 600; }
+  .tl-item .tl-desc { font-size: 9px; color: rgba(255,255,255,0.5); }
+
+  /* 단계 정보 */
+  #stage-info { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 15; pointer-events: none; }
+  #stage-name { font-size: 20px; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+  #stage-detail { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 3px; }
+
+  /* 온도 컬러 바 */
+  #temp-bar {
+    position: fixed; right: 200px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 200px; border-radius: 4px; z-index: 15;
+    background: linear-gradient(to top, #0044ff, #00aaff, #44ff44, #ffff00, #ff8800, #ff0000);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  #temp-marker {
+    position: absolute; left: -6px; width: 32px; height: 2px;
+    background: #fff; transition: bottom 0.5s;
+  }
+  #temp-label {
+    position: absolute; left: 28px; transform: translateY(-50%);
+    font-size: 10px; white-space: nowrap; font-weight: 600; color: #ffaa44;
+    transition: bottom 0.5s;
+  }
+
+  /* 수식 패널 */
+  #formula-panel {
+    position: fixed; left: 192px; bottom: 12px; width: 300px;
+    background: rgba(10,10,30,0.92); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    padding: 14px 16px; z-index: 20; font-size: 11px; line-height: 1.7;
+  }
+  #formula-panel h3 { font-size: 13px; margin-bottom: 8px; color: #ffcf7e; }
+  #formula-panel .row { display: flex; margin-bottom: 2px; }
+  #formula-panel .row .label { width: 85px; flex-shrink: 0; color: rgba(255,255,255,0.5); font-size: 10px; }
+  #formula-panel .row .value { flex: 1; font-size: 11px; }
+  .formula-reactions { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 9px; color: rgba(255,255,255,0.5); line-height: 1.5; }
+
+  /* 학습 가이드 */
+  #guide-toggle { position: fixed; left: 50%; top: 50px; transform: translateX(-50%); background: rgba(15,15,30,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 4px 12px; color: #fff; font-size: 11px; font-family: 'Pretendard', sans-serif; cursor: pointer; z-index: 35; }
+  #guide-panel { position: fixed; left: 50%; top: 80px; transform: translateX(-50%); width: 440px; max-height: 55vh; overflow-y: auto; background: rgba(10,10,30,0.95); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; z-index: 34; font-size: 12px; line-height: 1.8; display: none; }
+  #guide-panel h3 { font-size: 14px; margin-bottom: 8px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 12px; margin-top: 10px; margin-bottom: 4px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 16px; }
+  #guide-panel li { margin-bottom: 3px; }
+  .textbook-ref { margin-top: 10px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 10px; color: rgba(255,255,255,0.5); }
+
+  @media (max-width: 768px) {
+    #timeline { width: 60px; } .tl-item .tl-name { font-size: 9px; } .tl-item .tl-desc { display: none; }
+    #formula-panel { left: 72px; width: 220px; }
+    #guide-panel { width: calc(100vw - 40px); }
+    #temp-bar { right: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 좌측 타임라인 -->
+<div id="timeline">
+  <h3>⭐ 별의 진화</h3>
+  <div class="tl-item active" data-stage="0"><div class="tl-name">성운 → 원시별</div><div class="tl-desc">성간 물질이 모여듦</div></div>
+  <div class="tl-item" data-stage="1"><div class="tl-name">주계열성</div><div class="tl-desc">수소 → 헬륨 핵융합</div></div>
+  <div class="tl-item" data-stage="2"><div class="tl-name">적색 거성</div><div class="tl-desc">헬륨 → 탄소</div></div>
+  <div class="tl-item" data-stage="3"><div class="tl-name">초거성 (양파 구조)</div><div class="tl-desc">연속 핵융합 → 철</div></div>
+  <div class="tl-item" data-stage="4"><div class="tl-name">초신성 폭발</div><div class="tl-desc">Au, Ag, U 생성</div></div>
+</div>
+
+<!-- 단계 정보 -->
+<div id="stage-info">
+  <div id="stage-name">성운 → 원시별</div>
+  <div id="stage-detail">성간 물질이 모여 원시별 형성</div>
+</div>
+
+<!-- 온도 컬러 바 -->
+<div id="temp-bar">
+  <div id="temp-marker" style="bottom:5%;"></div>
+  <div id="temp-label" style="bottom:5%;">~1000 K</div>
+</div>
+
+<!-- 수식 패널 -->
+<div id="formula-panel">
+  <h3>⭐ 별의 진화와 원소 생성</h3>
+  <div class="row"><span class="label">현재 단계:</span><span class="value" id="fp-stage">성운 → 원시별</span></div>
+  <div class="row"><span class="label">별의 질량:</span><span class="value" id="fp-mass">대질량</span></div>
+  <div class="row"><span class="label">중심부 온도:</span><span class="value" id="fp-temp">~1000 K</span></div>
+  <div class="row"><span class="label">중심부 원소:</span><span class="value" id="fp-core">수소 가스</span></div>
+  <div class="row"><span class="label">생성된 원소:</span><span class="value" id="fp-elements">—</span></div>
+  <div class="formula-reactions" id="fp-reactions">
+    4¹H → ⁴He + 에너지 (T > 10⁷ K)<br>
+    3⁴He → ¹²C + 에너지 (T > 10⁸ K)<br>
+    ¹²C → ²⁰Ne, ²⁴Mg (T > 5×10⁸ K)<br>
+    ²⁸Si → ⁵⁶Fe + 에너지 (T > 3×10⁹ K)<br>
+    ⁵⁶Fe 이후: 초신성 폭발로 Au, Ag, U 등 생성
+  </div>
+</div>
+
+<!-- 학습 가이드 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>별의 중심부에서 핵융합 반응을 통해 가벼운 원소에서 무거운 원소가 차례로 만들어집니다. 철까지는 별 내부에서, 철보다 무거운 원소는 초신성 폭발 시 만들어집니다.</p>
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>태양과 비슷한 질량의 별과 대질량 별의 최종 생성 원소가 다른 까닭은 무엇인가요?</li>
+    <li>철 이후의 원소가 별 내부 핵융합이 아닌 초신성 폭발에서만 만들어지는 까닭은 무엇인가요? (힌트: 에너지)</li>
+    <li>우리 몸을 구성하는 탄소, 산소, 철 등은 어디에서 왔을까요?</li>
+  </ul>
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>금 장신구</strong>: 초신성 폭발에서 생성된 원소</li>
+    <li><strong>철 구조물</strong>: 별 내부 핵융합 산물</li>
+    <li><strong>태양</strong>: 현재 수소 핵융합 중인 주계열성</li>
+  </ul>
+  <div class="textbook-ref">📚 교과서 참고: 미래엔 통합과학1 II편 p54~56 — 별의 진화와 원소의 생성, 초신성 폭발</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 단계 데이터 ───
+const STAGES = [
+  { name: '성운 → 원시별', detail: '성간 물질이 모여 원시별 형성', temp: '~1,000 K', tempPct: 5, core: '수소 가스', elements: '—' },
+  { name: '주계열성 (수소 핵융합)', detail: 'T > 1000만 K → 수소 → 헬륨', temp: '~1.5×10⁷ K', tempPct: 30, core: '수소 → 헬륨', elements: 'H, He' },
+  { name: '적색 거성 (헬륨 핵융합)', detail: 'T > 1억 K → 헬륨 → 탄소', temp: '~10⁸ K', tempPct: 50, core: '헬륨 → 탄소', elements: 'H, He, C' },
+  { name: '초거성 (양파 구조)', detail: '연속 핵융합 → 철까지', temp: '~3×10⁹ K', tempPct: 85, core: '규소 → 철', elements: 'H, He, C, O, Ne, Mg, Si, S, Fe' },
+  { name: '초신성 폭발', detail: '철보다 무거운 원소 생성', temp: '~10¹⁰ K', tempPct: 98, core: '폭발', elements: '+ Au, Ag, U 등' }
+];
+
+// 양파 구조 층 데이터
+const ONION_LAYERS_GIANT = [
+  { name: '수소', color: 0xffdd66, rOuter: 5, rInner: 3 },
+  { name: '헬륨', color: 0xffaa33, rOuter: 3, rInner: 1.5 },
+  { name: '탄소', color: 0x888888, rOuter: 1.5, rInner: 0 }
+];
+
+const ONION_LAYERS_SUPER = [
+  { name: '수소', color: 0xffdd66, rOuter: 7, rInner: 5.5 },
+  { name: '헬륨', color: 0xffaa33, rOuter: 5.5, rInner: 4.2 },
+  { name: '탄소, 산소', color: 0xcc8844, rOuter: 4.2, rInner: 3.0 },
+  { name: '네온, 마그네슘', color: 0xaa6633, rOuter: 3.0, rInner: 2.0 },
+  { name: '규소, 황', color: 0x886622, rOuter: 2.0, rInner: 1.2 },
+  { name: '철 ⚠️', color: 0x666666, rOuter: 1.2, rInner: 0 }
+];
+
+// ─── Three.js 초기화 ───
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000008);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 200);
+camera.position.set(0, 3, 12);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// 조명
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
+scene.add(ambientLight);
+const centerLight = new THREE.PointLight(0xffffff, 0.5, 30);
+scene.add(centerLight);
+
+// 배경 별
+const starCount = 1000;
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  starPos[i*3] = (Math.random()-0.5)*100;
+  starPos[i*3+1] = (Math.random()-0.5)*100;
+  starPos[i*3+2] = (Math.random()-0.5)*100;
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.6 })));
+
+// ─── 상태 ───
+const state = {
+  stage: 0,
+  mass: 'massive',  // 'solar' | 'massive'
+  showInternal: true,
+  autoPlaying: false,
+  autoProgress: 0,
+  stageElapsed: 0,
+  sceneObjects: [],
+  animCallbacks: [],
+  clock: new THREE.Clock()
+};
+
+// ─── DOM ───
+const stageNameEl = document.getElementById('stage-name');
+const stageDetailEl = document.getElementById('stage-detail');
+const tempMarker = document.getElementById('temp-marker');
+const tempLabel = document.getElementById('temp-label');
+const fpStage = document.getElementById('fp-stage');
+const fpMass = document.getElementById('fp-mass');
+const fpTemp = document.getElementById('fp-temp');
+const fpCore = document.getElementById('fp-core');
+const fpElements = document.getElementById('fp-elements');
+
+let guideOpen = false;
+document.getElementById('guide-toggle').addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  document.getElementById('guide-panel').style.display = guideOpen ? 'block' : 'none';
+});
+
+// 타임라인 클릭
+document.querySelectorAll('.tl-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const s = parseInt(el.dataset.stage);
+    if (state.mass === 'solar' && s > 2) return;
+    switchStage(s);
+    params.진화단계 = s;
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  });
+});
+
+// ─── 헬퍼 ───
+function createLabel(text, scale, color) {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  c.width = 256; c.height = 64;
+  ctx.font = 'bold 22px Pretendard, sans-serif';
+  ctx.fillStyle = color || '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 6;
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sprite.scale.set(scale * 3, scale * 0.8, 1);
+  return sprite;
+}
+
+function disposeStage() {
+  state.animCallbacks = [];
+  state.sceneObjects.forEach(obj => {
+    obj.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    });
+    scene.remove(obj);
+  });
+  state.sceneObjects = [];
+}
+
+// ═══════════════════════════════════════
+//  단계 0: 성운 → 원시별
+// ═══════════════════════════════════════
+function setupStage0() {
+  const group = new THREE.Group();
+  centerLight.intensity = 0.2;
+
+  // 성운 파티클
+  const nebCount = 800;
+  const nebPos = new Float32Array(nebCount * 3);
+  const nebColors = new Float32Array(nebCount * 3);
+  const nebStartPos = new Float32Array(nebCount * 3);
+  for (let i = 0; i < nebCount; i++) {
+    const r = 3 + Math.random() * 5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    nebPos[i*3] = Math.sin(phi)*Math.cos(theta)*r;
+    nebPos[i*3+1] = Math.sin(phi)*Math.sin(theta)*r;
+    nebPos[i*3+2] = Math.cos(phi)*r;
+    nebStartPos[i*3] = nebPos[i*3]; nebStartPos[i*3+1] = nebPos[i*3+1]; nebStartPos[i*3+2] = nebPos[i*3+2];
+    // 보라+파랑 혼합
+    const isBlue = Math.random() > 0.5;
+    nebColors[i*3] = isBlue ? 0.27 : 0.4;
+    nebColors[i*3+1] = isBlue ? 0.4 : 0.27;
+    nebColors[i*3+2] = isBlue ? 0.8 : 0.67;
+  }
+  const nebGeo = new THREE.BufferGeometry();
+  nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+  nebGeo.setAttribute('color', new THREE.BufferAttribute(nebColors, 3));
+  const nebMat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.7 });
+  group.add(new THREE.Points(nebGeo, nebMat));
+
+  // 반투명 구름
+  for (let i = 0; i < 3; i++) {
+    const cloud = new THREE.Mesh(
+      new THREE.SphereGeometry(4 + i, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x6644aa, transparent: true, opacity: 0.04, side: THREE.DoubleSide })
+    );
+    group.add(cloud);
+  }
+
+  // 원시별 (처음에 투명)
+  const protoMat = new THREE.MeshStandardMaterial({ color: 0xff4422, emissive: 0xff2200, emissiveIntensity: 0.3, transparent: true, opacity: 0 });
+  const proto = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), protoMat);
+  group.add(proto);
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    const t = Math.min(state.stageElapsed / 3, 1); // 3초에 수축 완료
+    const positions = nebGeo.attributes.position.array;
+    for (let i = 0; i < nebCount; i++) {
+      positions[i*3] = nebStartPos[i*3] * (1 - t * 0.8);
+      positions[i*3+1] = nebStartPos[i*3+1] * (1 - t * 0.8);
+      positions[i*3+2] = nebStartPos[i*3+2] * (1 - t * 0.8);
+    }
+    nebGeo.attributes.position.needsUpdate = true;
+    centerLight.intensity = t * 2;
+    protoMat.opacity = Math.min(t * 1.5, 1);
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 1: 주계열성 — 수소 핵융합
+// ═══════════════════════════════════════
+function setupStage1() {
+  const group = new THREE.Group();
+  centerLight.intensity = 2.0;
+
+  // 별 외부
+  const starMat = new THREE.MeshStandardMaterial({ color: 0xffcc44, emissive: 0xffaa22, emissiveIntensity: 0.6 });
+  const star = new THREE.Mesh(new THREE.SphereGeometry(2, 32, 32), starMat);
+  group.add(star);
+
+  // 대기층
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(2.3, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.1, side: THREE.DoubleSide })
+  );
+  group.add(atmo);
+
+  if (state.showInternal) {
+    // 단면: 중심부 핵
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    group.add(core);
+    const coreLabel = createLabel('수소 → 헬륨\nT > 1000만 K', 0.3, '#ffffff');
+    coreLabel.position.set(0, -1.2, 2);
+    group.add(coreLabel);
+
+    // 중력-압력 균형 화살표 (라벨로 대체)
+    const balanceLabel = createLabel('중력 ↔ 내부 압력 (힘의 평형)', 0.3, '#88ccff');
+    balanceLabel.position.set(0, 3, 0);
+    group.add(balanceLabel);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    star.rotation.y += dt * 0.1;
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 2: 적색 거성 — 헬륨 → 탄소
+// ═══════════════════════════════════════
+function setupStage2() {
+  const group = new THREE.Group();
+  centerLight.intensity = 1.5;
+  centerLight.color.set(0xff6644);
+
+  // 별 외부 (큰, 붉은색)
+  const star = new THREE.Mesh(
+    new THREE.SphereGeometry(5, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff4422, emissive: 0xff2200, emissiveIntensity: 0.4 })
+  );
+  group.add(star);
+
+  if (state.showInternal) {
+    // 양파 구조 (적색 거성: 수소/헬륨/탄소)
+    ONION_LAYERS_GIANT.forEach((layer, i) => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(layer.rInner, layer.rOuter, 64),
+        new THREE.MeshBasicMaterial({ color: layer.color, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+      );
+      ring.position.z = 0.01 * i;
+      group.add(ring);
+
+      const label = createLabel(layer.name, 0.25, '#ffffff');
+      const mid = (layer.rOuter + layer.rInner) / 2;
+      label.position.set(mid, 0, 0.5);
+      group.add(label);
+    });
+
+    // 경계선
+    ONION_LAYERS_GIANT.forEach(layer => {
+      if (layer.rInner > 0) {
+        const boundary = new THREE.Mesh(
+          new THREE.RingGeometry(layer.rInner - 0.02, layer.rInner + 0.02, 64),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+        );
+        group.add(boundary);
+      }
+    });
+
+    const tempLabel = createLabel('T > 1억 K → 헬륨 → 탄소', 0.3, '#ffaa44');
+    tempLabel.position.set(0, -3, 2);
+    group.add(tempLabel);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+// ═══════════════════════════════════════
+//  단계 3: 초거성 — 양파 구조
+// ═══════════════════════════════════════
+function setupStage3() {
+  const group = new THREE.Group();
+  centerLight.intensity = 1.0;
+  centerLight.color.set(0xff4400);
+
+  // 별 외부
+  const star = new THREE.Mesh(
+    new THREE.SphereGeometry(7, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff1100, emissiveIntensity: 0.3 })
+  );
+  group.add(star);
+
+  if (state.showInternal) {
+    // 6층 양파 구조
+    ONION_LAYERS_SUPER.forEach((layer, i) => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(layer.rInner, layer.rOuter, 64),
+        new THREE.MeshBasicMaterial({ color: layer.color, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+      );
+      ring.position.z = 0.01 * i;
+      group.add(ring);
+
+      const label = createLabel(layer.name, 0.22, '#ffffff');
+      const mid = (layer.rOuter + layer.rInner) / 2;
+      label.position.set(mid, 0, 0.5);
+      group.add(label);
+    });
+
+    // 경계선
+    ONION_LAYERS_SUPER.forEach(layer => {
+      if (layer.rInner > 0) {
+        const boundary = new THREE.Mesh(
+          new THREE.RingGeometry(layer.rInner - 0.02, layer.rInner + 0.02, 64),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+        );
+        group.add(boundary);
+      }
+    });
+
+    // 철 핵 경고
+    const feLabel = createLabel('⚠️ 철 — 더 이상 에너지 발생 없음', 0.3, '#ff6666');
+    feLabel.position.set(0, -4, 2);
+    group.add(feLabel);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+// ═══════════════════════════════════════
+//  단계 4: 초신성 폭발
+// ═══════════════════════════════════════
+function setupStage4() {
+  const group = new THREE.Group();
+  centerLight.intensity = 0.5;
+  centerLight.color.set(0xffffff);
+
+  // 수축하는 별 (처음엔 r=7)
+  const starMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff1100, emissiveIntensity: 0.5 });
+  const star = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), starMat);
+  star.scale.setScalar(7);
+  group.add(star);
+
+  // 폭발 파티클
+  const expCount = 1000;
+  const expPos = new Float32Array(expCount * 3);
+  const expColors = new Float32Array(expCount * 3);
+  const expVels = [];
+  for (let i = 0; i < expCount; i++) {
+    expPos[i*3] = 0; expPos[i*3+1] = 0; expPos[i*3+2] = 0;
+    const sp = 3 + Math.random() * 10;
+    const th = Math.random()*Math.PI*2;
+    const ph = Math.acos(2*Math.random()-1);
+    expVels.push({ x: Math.sin(ph)*Math.cos(th)*sp, y: Math.sin(ph)*Math.sin(th)*sp, z: Math.cos(ph)*sp });
+    const t = Math.random();
+    expColors[i*3] = 1; expColors[i*3+1] = t < 0.3 ? 1 : t < 0.6 ? 0.7 : 0.3;
+    expColors[i*3+2] = t < 0.3 ? 0.8 : 0;
+  }
+  const expGeo = new THREE.BufferGeometry();
+  expGeo.setAttribute('position', new THREE.BufferAttribute(expPos, 3));
+  expGeo.setAttribute('color', new THREE.BufferAttribute(expColors, 3));
+  const expMat = new THREE.PointsMaterial({ size: 0.08, vertexColors: true, transparent: true, opacity: 0 });
+  const expPoints = new THREE.Points(expGeo, expMat);
+  group.add(expPoints);
+
+  // 무거운 원소 파티클
+  const heavyElements = [
+    { name: 'Au', color: 0xffd700, pos: [3, 2, 1] },
+    { name: 'Ag', color: 0xc0c0c0, pos: [-2, 3, -1] },
+    { name: 'U', color: 0x44aa44, pos: [1, -2, 3] }
+  ];
+  const heavyMeshes = [];
+  heavyElements.forEach(el => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), new THREE.MeshBasicMaterial({ color: el.color }));
+    mesh.position.set(...el.pos);
+    mesh.visible = false;
+    group.add(mesh);
+    const label = createLabel(el.name, 0.25, `#${el.color.toString(16).padStart(6, '0')}`);
+    label.position.set(el.pos[0], el.pos[1] + 0.4, el.pos[2]);
+    label.visible = false;
+    group.add(label);
+    heavyMeshes.push({ mesh, label });
+  });
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    const t = state.stageElapsed;
+
+    if (t < 1) {
+      // 수축
+      star.scale.setScalar(7 - t * 6);
+    } else if (t < 1.2) {
+      // 폭발 시작
+      star.visible = false;
+      expMat.opacity = 1;
+      centerLight.intensity = 5;
+      scene.background = new THREE.Color(0x222211);
+    } else {
+      // 파티클 확산
+      star.visible = false;
+      const positions = expGeo.attributes.position.array;
+      for (let i = 0; i < expCount; i++) {
+        positions[i*3] += expVels[i].x * dt * 0.5;
+        positions[i*3+1] += expVels[i].y * dt * 0.5;
+        positions[i*3+2] += expVels[i].z * dt * 0.5;
+      }
+      expGeo.attributes.position.needsUpdate = true;
+      expMat.opacity = Math.max(0.2, 1 - (t - 1.2) * 0.15);
+      centerLight.intensity = Math.max(0.3, 5 - (t - 1.2) * 1);
+      scene.background.lerp(new THREE.Color(0x000008), dt * 0.5);
+
+      // 무거운 원소 등장
+      if (t > 2.5) {
+        heavyMeshes.forEach(h => { h.mesh.visible = true; h.label.visible = true; });
+      }
+    }
+  });
+}
+
+// ─── 단계 전환 ───
+function switchStage(index) {
+  disposeStage();
+  state.stage = index;
+  state.stageElapsed = 0;
+  scene.background = new THREE.Color(0x000008);
+  centerLight.color.set(0xffffff);
+
+  switch (index) {
+    case 0: setupStage0(); break;
+    case 1: setupStage1(); break;
+    case 2: setupStage2(); break;
+    case 3: setupStage3(); break;
+    case 4: setupStage4(); break;
+  }
+
+  updateUI();
+  updateTimeline();
+}
+
+function updateUI() {
+  const s = STAGES[state.stage];
+  stageNameEl.textContent = s.name;
+  stageDetailEl.textContent = s.detail;
+  tempMarker.style.bottom = s.tempPct + '%';
+  tempLabel.style.bottom = s.tempPct + '%';
+  tempLabel.textContent = s.temp;
+  fpStage.textContent = s.name;
+  fpMass.textContent = state.mass === 'solar' ? '태양 질량' : '대질량';
+  fpTemp.textContent = s.temp;
+  fpCore.textContent = s.core;
+  fpElements.textContent = s.elements;
+}
+
+function updateTimeline() {
+  document.querySelectorAll('.tl-item').forEach(el => {
+    const s = parseInt(el.dataset.stage);
+    el.classList.toggle('active', s === state.stage);
+    el.classList.toggle('disabled', state.mass === 'solar' && s > 2);
+  });
+}
+
+// ─── lil-gui ───
+const gui = new GUI({ title: '별의 진화' });
+
+const STAGE_LABELS = { 0: '성운→원시별', 1: '주계열성', 2: '적색 거성', 3: '초거성', 4: '초신성' };
+
+const params = {
+  진화단계: 0,
+  별의질량: 'massive',
+  내부구조: true,
+  핵융합상세: () => { if (state.stage === 1) state.stageElapsed = 0; },
+  자동재생: () => startAutoPlay(),
+  초기화: () => resetAll()
+};
+
+gui.add(params, '진화단계', STAGE_LABELS).name('진화 단계').onChange(val => {
+  const idx = parseInt(val);
+  if (state.mass === 'solar' && idx > 2) return;
+  switchStage(idx);
+});
+
+gui.add(params, '별의질량', { '태양 질량': 'solar', '대질량': 'massive' }).name('별의 질량').onChange(val => {
+  state.mass = val;
+  if (val === 'solar' && state.stage > 2) {
+    state.stage = 2;
+    params.진화단계 = 2;
+    switchStage(2);
+  }
+  updateTimeline();
+  updateUI();
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+});
+
+gui.add(params, '내부구조').name('내부 구조 보기').onChange(val => {
+  state.showInternal = val;
+  switchStage(state.stage);
+});
+
+gui.add(params, '핵융합상세').name('🔬 핵융합 상세');
+gui.add(params, '자동재생').name('▶ 자동 재생');
+gui.add(params, '초기화').name('↩ 초기화');
+
+if (window.innerWidth < 768) gui.close();
+
+function startAutoPlay() {
+  state.autoPlaying = true;
+  state.autoProgress = 0;
+  switchStage(0);
+}
+
+function updateAutoPlay(dt) {
+  if (!state.autoPlaying) return;
+  state.autoProgress += dt;
+  const stageLen = 6;
+  const target = Math.floor(state.autoProgress / stageLen);
+  const maxStage = state.mass === 'solar' ? 2 : 4;
+  if (target !== state.stage && target <= maxStage) {
+    params.진화단계 = target;
+    switchStage(target);
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
+  if (target > maxStage) state.autoPlaying = false;
+}
+
+function resetAll() {
+  state.autoPlaying = false;
+  state.mass = 'massive';
+  state.showInternal = true;
+  params.진화단계 = 0;
+  params.별의질량 = 'massive';
+  params.내부구조 = true;
+  switchStage(0);
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 애니메이션 루프 ───
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(state.clock.getDelta(), 0.1);
+  state.stageElapsed += dt;
+  updateAutoPlay(dt);
+  state.animCallbacks.forEach(fn => fn(dt));
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─── 리사이즈 ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (window.innerWidth < 768) gui.close();
+});
+
+// ─── 시작 ───
+switchStage(0);
+animate();
+
+</script>
+</body>
+</html>

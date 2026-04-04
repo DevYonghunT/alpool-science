@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전기 에너지와 안전 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #f0ede8;
+    --glass: rgba(255, 255, 255, 0.74);
+    --glass-strong: rgba(255, 255, 255, 0.88);
+    --dark-panel: rgba(20, 28, 41, 0.9);
+    --dark-border: rgba(255, 255, 255, 0.12);
+    --text-main: #102033;
+    --text-sub: rgba(16, 32, 51, 0.68);
+    --text-light: #f6f8ff;
+    --text-light-dim: rgba(246, 248, 255, 0.72);
+    --accent-live: #ff4d4d;
+    --accent-neutral: #4a67ff;
+    --accent-earth: #58b65c;
+    --accent-current: #ffd54d;
+    --accent-safe: #2db56e;
+    --accent-warn: #ff6f61;
+    --accent-fire: #ff8b3d;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.85), transparent 22%),
+      radial-gradient(circle at 88% 14%, rgba(255, 180, 123, 0.28), transparent 24%),
+      linear-gradient(180deg, #f4f0ea 0%, #ece7df 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #scene-shell {
+    position: fixed;
+    inset: 0;
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  #hero-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 14;
+    width: min(760px, calc(100vw - 32px));
+    padding: 16px 18px 14px;
+    border-radius: 24px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(251, 247, 241, 0.8));
+    border: 1px solid rgba(16, 32, 51, 0.08);
+    box-shadow: 0 22px 44px rgba(81, 76, 68, 0.14);
+    backdrop-filter: blur(16px);
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(16, 32, 51, 0.42);
+    font-weight: 700;
+  }
+
+  #hero-card h1 {
+    margin-top: 5px;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.04;
+    letter-spacing: -0.05em;
+  }
+
+  #hero-card p {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-sub);
+  }
+
+  #wire-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(16, 32, 51, 0.05);
+    border: 1px solid rgba(16, 32, 51, 0.06);
+    font-size: 11px;
+    color: rgba(16, 32, 51, 0.78);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #status-card {
+    position: absolute;
+    top: 158px;
+    right: 16px;
+    z-index: 14;
+    width: min(320px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 24px;
+    background: rgba(18, 27, 38, 0.9);
+    color: var(--text-light);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 44px rgba(14, 16, 22, 0.2);
+    backdrop-filter: blur(18px);
+  }
+
+  #status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  #status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent-current);
+    box-shadow: 0 0 14px rgba(255, 213, 77, 0.48);
+  }
+
+  #status-card h2 {
+    margin-top: 12px;
+    font-size: 22px;
+    letter-spacing: -0.04em;
+  }
+
+  #status-message {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-light-dim);
+  }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .status-item {
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .status-item .label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.52);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .status-item .value {
+    margin-top: 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.03em;
+  }
+
+  .status-item .sub {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.66);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 18;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(16, 32, 51, 0.08);
+    background: rgba(255, 255, 255, 0.82);
+    color: rgba(16, 32, 51, 0.92);
+    cursor: pointer;
+    box-shadow: 0 14px 32px rgba(74, 69, 62, 0.12);
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 60px;
+    left: 16px;
+    z-index: 17;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 24px;
+    background: rgba(18, 27, 38, 0.92);
+    color: var(--text-light);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 42px rgba(9, 12, 20, 0.2);
+    backdrop-filter: blur(18px);
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #ffd58b;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #9ad4ff;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 5px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 14;
+    width: min(380px, calc(100vw - 32px));
+    padding: 18px;
+    border-radius: 24px;
+    background: rgba(16, 24, 36, 0.92);
+    color: var(--text-light);
+    border: 1px solid var(--dark-border);
+    box-shadow: 0 22px 44px rgba(9, 12, 20, 0.24);
+    backdrop-filter: blur(16px);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    color: #ffe3a1;
+    font-weight: 800;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .formula-label {
+    width: 74px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .formula-value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .formula-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .formula-box strong {
+    color: #9ad4ff;
+  }
+
+  #safety-table-panel {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 14;
+    width: min(420px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 24px;
+    background: var(--glass-strong);
+    border: 1px solid rgba(16, 32, 51, 0.08);
+    box-shadow: 0 22px 42px rgba(82, 76, 68, 0.14);
+    backdrop-filter: blur(14px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  #safety-table-panel.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+  }
+
+  #safety-table-panel h3 {
+    font-size: 18px;
+    letter-spacing: -0.04em;
+  }
+
+  #safety-table-panel p {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-sub);
+  }
+
+  table {
+    width: 100%;
+    margin-top: 12px;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 18px;
+  }
+
+  th,
+  td {
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(16, 32, 51, 0.08);
+    vertical-align: top;
+  }
+
+  thead th {
+    background: rgba(16, 32, 51, 0.06);
+    color: rgba(16, 32, 51, 0.92);
+    font-weight: 700;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody th {
+    width: 86px;
+    background: rgba(16, 32, 51, 0.03);
+    color: rgba(16, 32, 51, 0.88);
+    font-weight: 700;
+  }
+
+  #toast {
+    position: absolute;
+    top: 116px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    min-width: 220px;
+    max-width: min(520px, calc(100vw - 32px));
+    padding: 11px 14px;
+    border-radius: 999px;
+    background: rgba(17, 26, 39, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-light);
+    font-size: 12px;
+    text-align: center;
+    box-shadow: 0 16px 34px rgba(12, 14, 18, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .lil-gui.root {
+    z-index: 24 !important;
+    --background-color: rgba(16, 24, 36, 0.92);
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.13);
+    --focus-color: rgba(96, 194, 255, 0.25);
+    --number-color: #ffd58b;
+    --string-color: #96d1ff;
+  }
+
+  @media (max-width: 1100px) {
+    #hero-card {
+      top: 64px;
+    }
+
+    #toast {
+      top: 22px;
+    }
+
+    #status-card {
+      top: auto;
+      bottom: 280px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    #hero-card {
+      width: calc(100vw - 24px);
+      padding: 14px 16px 13px;
+    }
+
+    #status-card {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 272px;
+    }
+
+    .status-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    #formula-panel,
+    #safety-table-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+    }
+
+    #formula-panel {
+      bottom: 12px;
+    }
+
+    #safety-table-panel {
+      bottom: 250px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #hero-card {
+      top: 58px;
+    }
+
+    #hero-card p {
+      font-size: 12px;
+    }
+
+    #status-card {
+      bottom: 298px;
+      padding: 14px 15px;
+    }
+
+    .status-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #formula-panel {
+      padding: 15px;
+      font-size: 11px;
+    }
+
+    .formula-row {
+      gap: 8px;
+    }
+
+    .formula-label {
+      width: 64px;
+    }
+
+    #safety-table-panel {
+      bottom: 278px;
+      padding: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="scene-shell">
+    <canvas id="scene-canvas"></canvas>
+
+    <button id="guide-toggle">📖 학습 가이드</button>
+    <div id="guide-panel">
+      <h3>핵심 원리</h3>
+      <p>전기를 안전하게 사용하려면 접지, 누전 차단기, 과전류 차단기 같은 안전장치를 함께 사용해야 합니다. 누전은 감전의 원인이 되고, 합선은 매우 큰 전류를 일으켜 화재의 원인이 됩니다.</p>
+      <h4>탐구 질문</h4>
+      <ul>
+        <li>접지는 왜 인체보다 먼저 전류가 흐르도록 만들어 누전을 더 안전하게 만들까요?</li>
+        <li>문어발 콘센트나 손상된 전선이 합선 위험을 키우는 이유는 무엇일까요?</li>
+        <li>젖은 손이 마른 손보다 감전 위험이 더 큰 까닭을 저항과 연결해 설명할 수 있나요?</li>
+      </ul>
+      <h4>실생활 예시</h4>
+      <ul>
+        <li>세탁기와 전자레인지의 3핀 플러그는 접지선을 포함합니다.</li>
+        <li>욕실이나 주방 분전반에는 누전 차단기가 설치되는 경우가 많습니다.</li>
+        <li>퓨즈는 과전류가 흐르면 녹아 회로를 끊도록 설계됩니다.</li>
+      </ul>
+      <div class="textbook-ref">물리학 II편 p86~91 연계: 전기 안전, 누전, 합선, 접지, 차단기</div>
+    </div>
+
+    <div id="hero-card">
+      <div class="eyebrow">Physics II · Electric Safety</div>
+      <h1>전기 에너지와 안전</h1>
+      <p>분전반, 세탁기, 전기 히터, 인체를 하나의 가정 회로로 묶어 정상 상태와 누전, 합선을 비교합니다. 전류가 어디로 흐르는지와 안전장치가 언제 회로를 끊는지 함께 확인해 보세요.</p>
+      <div id="wire-legend">
+        <span class="legend-chip"><span class="legend-dot" style="background:#ff4d4d"></span>활선 L</span>
+        <span class="legend-chip"><span class="legend-dot" style="background:#4a67ff"></span>중성선 N</span>
+        <span class="legend-chip"><span class="legend-dot" style="background:#58b65c"></span>접지선 E</span>
+        <span class="legend-chip"><span class="legend-dot" style="background:#ffd54d"></span>전류 파티클</span>
+      </div>
+    </div>
+
+    <div id="status-card">
+      <div id="status-badge"><span id="status-dot"></span><span id="status-badge-text">대기</span></div>
+      <h2 id="status-title">전류 대기 중</h2>
+      <p id="status-message">시뮬레이션 시작을 누르면 활선, 중성선, 접지선 위에 전류 경로가 나타납니다.</p>
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="label">시나리오</div>
+          <div class="value" id="scenario-chip">정상 작동</div>
+          <div class="sub" id="scenario-sub">가전제품 내부를 거쳐 중성선으로 복귀합니다.</div>
+        </div>
+        <div class="status-item">
+          <div class="label">접지</div>
+          <div class="value" id="ground-chip">ON</div>
+          <div class="sub" id="ground-sub">세탁기 외함이 대지와 연결되어 있습니다.</div>
+        </div>
+        <div class="status-item">
+          <div class="label">누전 차단기</div>
+          <div class="value" id="leak-chip">ON</div>
+          <div class="sub" id="leak-sub">활선과 중성선 전류 차이를 감지합니다.</div>
+        </div>
+        <div class="status-item">
+          <div class="label">과전류 차단기</div>
+          <div class="value" id="over-chip">ON</div>
+          <div class="sub" id="over-sub">과전류가 커지면 자동으로 회로를 끊습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="formula-panel">
+      <div class="panel-title">🔌 전기 에너지와 안전</div>
+      <div class="divider"></div>
+      <div class="formula-row"><span class="formula-label">시나리오</span><span class="formula-value" id="formula-scenario">정상 작동</span></div>
+      <div class="formula-row"><span class="formula-label">접지</span><span class="formula-value" id="formula-ground">ON</span></div>
+      <div class="formula-row"><span class="formula-label">차단기</span><span class="formula-value" id="formula-breakers">누전 ON / 과전류 ON</span></div>
+      <div class="formula-row"><span class="formula-label">상태</span><span class="formula-value" id="formula-state">대기</span></div>
+      <div class="divider"></div>
+      <div class="formula-row"><span class="formula-label">전류 경로</span><span class="formula-value" id="formula-route">활선 → 가전제품 → 중성선</span></div>
+      <div class="formula-box"><strong>안전장치</strong><br><span id="formula-protection">접지는 누전 시 전류를 대지로 유도하고, 차단기는 이상 전류를 감지하면 회로를 끊습니다.</span></div>
+    </div>
+
+    <div id="safety-table-panel">
+      <h3>안전장치 설명</h3>
+      <p>아래 장치는 서로 보완적으로 작동합니다. 하나만으로 모든 위험을 해결하는 것은 아닙니다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>장치</th>
+            <th>역할</th>
+            <th>원리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>접지</th>
+            <td>누전 시 전류를 대지로 유도</td>
+            <td>인체보다 저항이 작은 경로를 제공해 외함 전위를 낮춥니다.</td>
+          </tr>
+          <tr>
+            <th>누전 차단기</th>
+            <td>누전을 감지하면 회로 차단</td>
+            <td>활선과 중성선 전류 차이가 생기면 즉시 스위치를 내립니다.</td>
+          </tr>
+          <tr>
+            <th>과전류 차단기</th>
+            <td>과전류 시 차단</td>
+            <td>허용 전류를 넘는 순간 열·전자식 장치가 작동합니다.</td>
+          </tr>
+          <tr>
+            <th>퓨즈</th>
+            <td>과전류에서 녹아 끊어짐</td>
+            <td>얇은 금속이 가열되어 회로를 물리적으로 끊습니다.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const canvas = document.getElementById('scene-canvas');
+    const guideToggleEl = document.getElementById('guide-toggle');
+    const guidePanelEl = document.getElementById('guide-panel');
+    const safetyTableEl = document.getElementById('safety-table-panel');
+    const toastEl = document.getElementById('toast');
+
+    const statusDotEl = document.getElementById('status-dot');
+    const statusBadgeTextEl = document.getElementById('status-badge-text');
+    const statusTitleEl = document.getElementById('status-title');
+    const statusMessageEl = document.getElementById('status-message');
+    const scenarioChipEl = document.getElementById('scenario-chip');
+    const scenarioSubEl = document.getElementById('scenario-sub');
+    const groundChipEl = document.getElementById('ground-chip');
+    const groundSubEl = document.getElementById('ground-sub');
+    const leakChipEl = document.getElementById('leak-chip');
+    const leakSubEl = document.getElementById('leak-sub');
+    const overChipEl = document.getElementById('over-chip');
+    const overSubEl = document.getElementById('over-sub');
+
+    const formulaScenarioEl = document.getElementById('formula-scenario');
+    const formulaGroundEl = document.getElementById('formula-ground');
+    const formulaBreakersEl = document.getElementById('formula-breakers');
+    const formulaStateEl = document.getElementById('formula-state');
+    const formulaRouteEl = document.getElementById('formula-route');
+    const formulaProtectionEl = document.getElementById('formula-protection');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0ede8);
+    scene.fog = new THREE.Fog(0xf0ede8, 10, 28);
+
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+    camera.position.set(7.2, 5.2, 9.1);
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.target.set(0.9, 1.8, -0.8);
+    controls.minDistance = 5.5;
+    controls.maxDistance = 16;
+    controls.maxPolarAngle = Math.PI * 0.46;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    const directionalLight = new THREE.DirectionalLight(0xfffcf3, 0.6);
+    directionalLight.position.set(6, 9, 7);
+    scene.add(directionalLight);
+
+    const clock = new THREE.Clock();
+
+    const world = new THREE.Group();
+    scene.add(world);
+
+    const dynamicRoot = new THREE.Group();
+    scene.add(dynamicRoot);
+
+    const scenarioOptions = {
+      '정상 작동': {
+        id: 'normal',
+        route: '활선 → 가전제품 → 중성선',
+        summary: '닫힌 회로를 따라 전류가 흐르며 세탁기와 히터가 정상 작동합니다.'
+      },
+      '누전(접지 없음)': {
+        id: 'leak-human',
+        route: '활선 → 외함 → 인체 → 대지',
+        summary: '손상된 피복 때문에 금속 외함과 인체가 전류 통로가 됩니다.'
+      },
+      '누전(접지 있음)': {
+        id: 'leak-ground',
+        route: '활선 → 외함 → 접지선 → 대지',
+        summary: '접지선이 인체보다 먼저 전류를 대지로 우회시킵니다.'
+      },
+      '합선': {
+        id: 'short',
+        route: '활선 → 직접 → 중성선',
+        summary: '저항이 거의 없는 경로가 생겨 매우 큰 전류가 흐릅니다.'
+      }
+    };
+
+    const settings = {
+      scenario: '정상 작동',
+      ground: true,
+      leakBreaker: true,
+      overcurrentBreaker: true,
+      showCurrentPath: true,
+      showSafetyTable: true
+    };
+
+    const runtime = {
+      started: false,
+      elapsed: 0,
+      guideOpen: false,
+      toastUntil: 0,
+      leakTripAnnounced: false,
+      shortTripAnnounced: false
+    };
+
+    const refs = {
+      breakerVisuals: {},
+      washer: {
+        drum: null,
+        bodyMaterial: null,
+        accentMaterial: null,
+        groundClamp: null,
+        loosePlug: null,
+        faultSleeve: null
+      },
+      heater: {
+        coil: null,
+        coilMaterial: null,
+        shortBridge: null,
+        caseMaterial: null
+      },
+      person: {
+        materials: []
+      },
+      wires: {
+        earth: null
+      },
+      groundRod: {
+        material: null
+      },
+      leakSpark: null,
+      shortSpark: null
+    };
+
+    const anchors = {
+      board: {
+        liveWasher: new THREE.Vector3(-4.06, 3.18, -5.14),
+        neutralWasher: new THREE.Vector3(-4.25, 2.96, -5.14),
+        earthWasher: new THREE.Vector3(-4.44, 2.74, -5.14),
+        liveHeater: new THREE.Vector3(-3.76, 3.18, -5.14),
+        neutralHeater: new THREE.Vector3(-3.95, 2.96, -5.14)
+      },
+      washer: {
+        liveIn: new THREE.Vector3(0.9, 0.95, -1.8),
+        neutralIn: new THREE.Vector3(1.01, 0.84, -1.82),
+        drum: new THREE.Vector3(1.15, 0.8, -0.95),
+        leakPoint: new THREE.Vector3(1.47, 1.2, -1.01),
+        caseTouch: new THREE.Vector3(1.48, 0.86, -0.97),
+        groundLug: new THREE.Vector3(1.56, 0.72, -1.72)
+      },
+      heater: {
+        liveIn: new THREE.Vector3(2.88, 0.78, 1.04),
+        neutralIn: new THREE.Vector3(2.98, 0.7, 1.04),
+        coilTop: new THREE.Vector3(3.08, 0.7, 1.2),
+        coilBottom: new THREE.Vector3(3.08, 0.34, 1.2),
+        shortPoint: new THREE.Vector3(2.75, 1.02, -0.12)
+      },
+      person: {
+        hand: new THREE.Vector3(0.82, 1.0, -0.98),
+        torso: new THREE.Vector3(0.28, 0.96, -0.74),
+        feet: new THREE.Vector3(0.18, 0.04, -0.72)
+      },
+      ground: {
+        top: new THREE.Vector3(1.72, 0.76, -2.56),
+        floor: new THREE.Vector3(1.72, 0.02, -2.56)
+      }
+    };
+
+    const staticCurves = {
+      liveWasher: [
+        anchors.board.liveWasher,
+        new THREE.Vector3(-4.02, 1.78, -5.02),
+        new THREE.Vector3(-0.32, 1.62, -4.54),
+        new THREE.Vector3(0.66, 1.2, -2.86),
+        anchors.washer.liveIn
+      ],
+      neutralWasher: [
+        anchors.board.neutralWasher,
+        new THREE.Vector3(-4.18, 1.56, -4.98),
+        new THREE.Vector3(-0.46, 1.4, -4.4),
+        new THREE.Vector3(0.76, 1.08, -2.72),
+        anchors.washer.neutralIn
+      ],
+      earthWasher: [
+        anchors.board.earthWasher,
+        new THREE.Vector3(-4.34, 1.38, -4.86),
+        new THREE.Vector3(-0.14, 1.28, -4.24),
+        new THREE.Vector3(1.2, 0.96, -3.22),
+        anchors.ground.top
+      ],
+      liveHeater: [
+        anchors.board.liveHeater,
+        new THREE.Vector3(-3.72, 1.94, -4.94),
+        new THREE.Vector3(0.82, 1.92, -4.1),
+        new THREE.Vector3(2.4, 1.28, -1.4),
+        anchors.heater.liveIn
+      ],
+      neutralHeater: [
+        anchors.board.neutralHeater,
+        new THREE.Vector3(-3.9, 1.7, -4.9),
+        new THREE.Vector3(0.62, 1.66, -3.82),
+        new THREE.Vector3(2.54, 1.12, -1.2),
+        anchors.heater.neutralIn
+      ]
+    };
+
+    const effectState = {
+      flows: [],
+      smoke: [],
+      fire: [],
+      glowMeshes: []
+    };
+
+    function makeStandardMaterial(color, extra = {}) {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.62,
+        metalness: 0.14,
+        ...extra
+      });
+    }
+
+    function createTube(points, color, radius = 0.035, materialOptions = {}) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const geometry = new THREE.TubeGeometry(curve, 84, radius, 12, false);
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.45,
+        metalness: 0.12,
+        ...materialOptions
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      return { curve, mesh };
+    }
+
+    function createGlowTube(points, color, radius = 0.055, opacity = 0.28) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const geometry = new THREE.TubeGeometry(curve, 72, radius, 12, false);
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      return { curve, mesh };
+    }
+
+    function disposeMaterial(material) {
+      if (!material) return;
+      if (Array.isArray(material)) {
+        material.forEach(disposeMaterial);
+        return;
+      }
+      material.dispose();
+    }
+
+    function disposeObject(object) {
+      object.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) disposeMaterial(child.material);
+      });
+    }
+
+    function createBreaker(name, position, accent = 0x9cd0ff, isLeakBreaker = false) {
+      const group = new THREE.Group();
+      group.position.copy(position);
+
+      const housing = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.27, 0.12),
+        makeStandardMaterial(0xf3f5f8, { roughness: 0.82, metalness: 0.05 })
+      );
+      group.add(housing);
+
+      const switchMat = makeStandardMaterial(0x33363f, { roughness: 0.58, metalness: 0.14 });
+      const lever = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.05), switchMat);
+      lever.position.set(0, 0.04, 0.085);
+      group.add(lever);
+
+      const ledMat = new THREE.MeshStandardMaterial({
+        color: 0x27c466,
+        emissive: 0x27c466,
+        emissiveIntensity: 0.6,
+        roughness: 0.35,
+        metalness: 0.02
+      });
+      const led = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 16), ledMat);
+      led.position.set(0.055, -0.08, 0.09);
+      group.add(led);
+
+      const accentTag = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.03, 0.012),
+        makeStandardMaterial(accent, { emissive: accent, emissiveIntensity: 0.16 })
+      );
+      accentTag.position.set(0, 0.11, 0.07);
+      group.add(accentTag);
+
+      let testButton = null;
+      if (isLeakBreaker) {
+        testButton = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.018, 0.018, 0.035, 18),
+          makeStandardMaterial(0xffd88f, { roughness: 0.45, metalness: 0.12 })
+        );
+        testButton.rotation.x = Math.PI / 2;
+        testButton.position.set(-0.055, -0.085, 0.088);
+        group.add(testButton);
+      }
+
+      refs.breakerVisuals[name] = { group, lever, ledMat, switchMat, testButton };
+      return group;
+    }
+
+    function setBreakerVisual(name, state) {
+      const breaker = refs.breakerVisuals[name];
+      if (!breaker) return;
+
+      if (state === 'trip') {
+        breaker.lever.position.y = -0.035;
+        breaker.lever.rotation.z = -0.42;
+        breaker.ledMat.color.setHex(0xff5757);
+        breaker.ledMat.emissive.setHex(0xff5757);
+        breaker.ledMat.emissiveIntensity = 0.78;
+        breaker.switchMat.color.setHex(0x4a2323);
+      } else if (state === 'bypass') {
+        breaker.lever.position.y = 0.005;
+        breaker.lever.rotation.z = -0.18;
+        breaker.ledMat.color.setHex(0xffb347);
+        breaker.ledMat.emissive.setHex(0xffb347);
+        breaker.ledMat.emissiveIntensity = 0.44;
+        breaker.switchMat.color.setHex(0x5b5140);
+      } else {
+        breaker.lever.position.y = 0.04;
+        breaker.lever.rotation.z = 0;
+        breaker.ledMat.color.setHex(0x27c466);
+        breaker.ledMat.emissive.setHex(0x27c466);
+        breaker.ledMat.emissiveIntensity = 0.62;
+        breaker.switchMat.color.setHex(0x2f343a);
+      }
+    }
+
+    function createRoom() {
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(18, 14),
+        makeStandardMaterial(0xd8cdbf, { roughness: 0.96, metalness: 0 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      world.add(floor);
+
+      const rug = new THREE.Mesh(
+        new THREE.PlaneGeometry(6, 3.6),
+        makeStandardMaterial(0xe7dfd0, { roughness: 1, metalness: 0 })
+      );
+      rug.rotation.x = -Math.PI / 2;
+      rug.position.set(1.6, 0.01, -0.2);
+      world.add(rug);
+
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(16, 6.4, 0.2),
+        makeStandardMaterial(0xf6f2ec, { roughness: 0.95, metalness: 0 })
+      );
+      wall.position.set(0, 3.2, -5.8);
+      world.add(wall);
+
+      const baseboard = new THREE.Mesh(
+        new THREE.BoxGeometry(16, 0.18, 0.12),
+        makeStandardMaterial(0xcdb99a, { roughness: 0.88 })
+      );
+      baseboard.position.set(0, 0.09, -5.64);
+      world.add(baseboard);
+
+      const cabinet = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 1.0, 0.46),
+        makeStandardMaterial(0xe3d8ca, { roughness: 0.85, metalness: 0.03 })
+      );
+      cabinet.position.set(3.85, 0.5, -4.7);
+      world.add(cabinet);
+
+      const shelfTop = new THREE.Mesh(
+        new THREE.BoxGeometry(1.62, 0.08, 0.54),
+        makeStandardMaterial(0xb8956f, { roughness: 0.8 })
+      );
+      shelfTop.position.set(3.85, 1.03, -4.72);
+      world.add(shelfTop);
+    }
+
+    function createDistributionBoard() {
+      const group = new THREE.Group();
+      group.position.set(-4.38, 3.04, -5.36);
+      world.add(group);
+
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.98, 1.2, 0.18),
+        makeStandardMaterial(0xd9dee4, { roughness: 0.84, metalness: 0.04 })
+      );
+      group.add(frame);
+
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.82, 1.02, 0.08),
+        makeStandardMaterial(0x303746, { roughness: 0.62, metalness: 0.12 })
+      );
+      panel.position.z = 0.06;
+      group.add(panel);
+
+      const doorPivot = new THREE.Group();
+      doorPivot.position.set(-0.42, 0.02, 0.12);
+      group.add(doorPivot);
+
+      const door = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 1.0, 0.06),
+        makeStandardMaterial(0xeeeeee, { roughness: 0.85, metalness: 0.03 })
+      );
+      door.position.set(0.4, 0, 0);
+      doorPivot.add(door);
+      doorPivot.rotation.y = 0.92;
+
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.012, 0.012, 0.16, 18),
+        makeStandardMaterial(0xa6adb6, { roughness: 0.4, metalness: 0.55 })
+      );
+      handle.rotation.z = Math.PI / 2;
+      handle.position.set(0.66, 0, 0.04);
+      doorPivot.add(handle);
+
+      const labelPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.58, 0.08, 0.01),
+        makeStandardMaterial(0xfff3d2, { emissive: 0xfff3d2, emissiveIntensity: 0.06 })
+      );
+      labelPlate.position.set(0, 0.48, 0.11);
+      group.add(labelPlate);
+
+      group.add(createBreaker('main', new THREE.Vector3(-0.2, 0.18, 0.11), 0xa7cff6));
+      group.add(createBreaker('leak', new THREE.Vector3(0, -0.06, 0.11), 0x9df5b5, true));
+      group.add(createBreaker('over', new THREE.Vector3(0.2, -0.3, 0.11), 0xffd494));
+
+      const terminalColors = [0xff4d4d, 0x4a67ff, 0x58b65c, 0xff4d4d, 0x4a67ff];
+      [
+        anchors.board.liveWasher,
+        anchors.board.neutralWasher,
+        anchors.board.earthWasher,
+        anchors.board.liveHeater,
+        anchors.board.neutralHeater
+      ].forEach((point, index) => {
+        const terminal = new THREE.Mesh(
+          new THREE.SphereGeometry(0.028, 14, 14),
+          new THREE.MeshStandardMaterial({
+            color: terminalColors[index],
+            emissive: terminalColors[index],
+            emissiveIntensity: 0.36,
+            roughness: 0.28,
+            metalness: 0.1
+          })
+        );
+        terminal.position.copy(point);
+        world.add(terminal);
+      });
+    }
+
+    function createWasher() {
+      const group = new THREE.Group();
+      group.position.set(1.15, 0.62, -1.34);
+      world.add(group);
+
+      const bodyMat = makeStandardMaterial(0xeff2ff, { roughness: 0.75, metalness: 0.08 });
+      const accentMat = new THREE.MeshStandardMaterial({
+        color: 0xbfc6d8,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        roughness: 0.36,
+        metalness: 0.54
+      });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 0.8), bodyMat);
+      group.add(body);
+
+      const topPanel = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.1, 0.76), makeStandardMaterial(0xe2e7f1, { roughness: 0.52 }));
+      topPanel.position.y = 0.56;
+      group.add(topPanel);
+
+      const controlStrip = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.06), makeStandardMaterial(0xa5b0c2, { roughness: 0.5, metalness: 0.18 }));
+      controlStrip.position.set(0, 0.32, 0.37);
+      group.add(controlStrip);
+
+      const doorFrame = new THREE.Mesh(
+        new THREE.TorusGeometry(0.28, 0.05, 18, 44),
+        accentMat
+      );
+      doorFrame.position.set(0, -0.02, 0.41);
+      group.add(doorFrame);
+
+      const doorGlass = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.06, 32),
+        new THREE.MeshStandardMaterial({
+          color: 0x9cc2e6,
+          transparent: true,
+          opacity: 0.42,
+          roughness: 0.08,
+          metalness: 0.05
+        })
+      );
+      doorGlass.rotation.x = Math.PI / 2;
+      doorGlass.position.set(0, -0.02, 0.4);
+      group.add(doorGlass);
+
+      const drum = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, 0.22, 28, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: 0x7d8a9f,
+          emissive: 0x12233a,
+          emissiveIntensity: 0.18,
+          roughness: 0.34,
+          metalness: 0.52
+        })
+      );
+      drum.rotation.x = Math.PI / 2;
+      drum.position.set(0, -0.02, 0.22);
+      group.add(drum);
+
+      const drumCap = new THREE.Mesh(
+        new THREE.CircleGeometry(0.2, 28),
+        makeStandardMaterial(0x65758d, { roughness: 0.32, metalness: 0.54 })
+      );
+      drumCap.position.set(0, -0.02, 0.11);
+      group.add(drumCap);
+
+      for (let i = -1; i <= 1; i += 1) {
+        const foot = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.04, 0.04, 0.1, 18),
+          makeStandardMaterial(0x5a5e66, { roughness: 0.6, metalness: 0.2 })
+        );
+        foot.position.set(i * 0.32, -0.65, 0.22);
+        group.add(foot);
+      }
+
+      const groundClamp = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.08, 0.05),
+        makeStandardMaterial(0x58b65c, { emissive: 0x2c582d, emissiveIntensity: 0.22, roughness: 0.4 })
+      );
+      groundClamp.position.set(0.38, -0.02, -0.29);
+      group.add(groundClamp);
+
+      const loosePlug = new THREE.Group();
+      loosePlug.position.set(0.7, 0.08, -0.3);
+      const plugBody = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.06), makeStandardMaterial(0x58b65c, { roughness: 0.45 }));
+      const plugStem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 12), makeStandardMaterial(0x4b596e, { roughness: 0.48, metalness: 0.24 }));
+      plugStem.rotation.z = Math.PI / 2;
+      plugStem.position.x = -0.09;
+      loosePlug.add(plugBody, plugStem);
+      group.add(loosePlug);
+
+      const faultSleeve = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.032, 0.032, 0.18, 14),
+        makeStandardMaterial(0xaa1f1f, { emissive: 0xaa1f1f, emissiveIntensity: 0.18, roughness: 0.42 })
+      );
+      faultSleeve.rotation.z = 0.4;
+      faultSleeve.position.set(0.33, 0.56, -0.22);
+      group.add(faultSleeve);
+
+      refs.washer.drum = drum;
+      refs.washer.bodyMaterial = bodyMat;
+      refs.washer.accentMaterial = accentMat;
+      refs.washer.groundClamp = groundClamp;
+      refs.washer.loosePlug = loosePlug;
+      refs.washer.faultSleeve = faultSleeve;
+    }
+
+    function createHeater() {
+      const group = new THREE.Group();
+      group.position.set(3.08, 0.48, 1.24);
+      world.add(group);
+
+      const caseMaterial = makeStandardMaterial(0xc44f46, { roughness: 0.55, metalness: 0.12 });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.3), caseMaterial);
+      group.add(body);
+
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.84, 0.08), makeStandardMaterial(0x8d2a2a, { roughness: 0.48, metalness: 0.18 }));
+      frame.position.z = 0.11;
+      group.add(frame);
+
+      for (let i = -2; i <= 2; i += 1) {
+        const grill = new THREE.Mesh(
+          new THREE.BoxGeometry(0.48, 0.02, 0.02),
+          makeStandardMaterial(0x5c1b1b, { roughness: 0.5, metalness: 0.22 })
+        );
+        grill.position.set(0, i * 0.12, 0.16);
+        group.add(grill);
+      }
+
+      const helixPoints = [];
+      for (let i = 0; i <= 64; i += 1) {
+        const t = (i / 64) * Math.PI * 4.6;
+        helixPoints.push(new THREE.Vector3(
+          Math.sin(t) * 0.13,
+          0.28 - (i / 64) * 0.56,
+          Math.cos(t) * 0.02
+        ));
+      }
+
+      const coilCurve = new THREE.CatmullRomCurve3(helixPoints);
+      const coilMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf6b25c,
+        emissive: 0x5a2300,
+        emissiveIntensity: 0.15,
+        roughness: 0.28,
+        metalness: 0.25
+      });
+      const coil = new THREE.Mesh(
+        new THREE.TubeGeometry(coilCurve, 120, 0.022, 10, false),
+        coilMaterial
+      );
+      coil.position.z = 0.12;
+      group.add(coil);
+
+      const shortBridge = new THREE.Mesh(
+        new THREE.TorusGeometry(0.1, 0.02, 10, 20, Math.PI * 1.25),
+        new THREE.MeshStandardMaterial({
+          color: 0xff6b4a,
+          emissive: 0xff6b4a,
+          emissiveIntensity: 0.3,
+          roughness: 0.38,
+          metalness: 0.18
+        })
+      );
+      shortBridge.position.set(-0.28, 0.46, -1.36);
+      shortBridge.rotation.z = 1.1;
+      world.add(shortBridge);
+
+      refs.heater.coil = coil;
+      refs.heater.coilMaterial = coilMaterial;
+      refs.heater.shortBridge = shortBridge;
+      refs.heater.caseMaterial = caseMaterial;
+    }
+
+    function createPerson() {
+      const group = new THREE.Group();
+      group.position.set(0.18, 0, -0.72);
+      world.add(group);
+
+      const skin = new THREE.MeshStandardMaterial({
+        color: 0xddccbb,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        roughness: 0.82,
+        metalness: 0.02
+      });
+      const clothing = new THREE.MeshStandardMaterial({
+        color: 0x7a93b0,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        roughness: 0.72,
+        metalness: 0.05
+      });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.78, 0.24), clothing);
+      torso.position.set(0, 0.95, 0);
+      group.add(torso);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.22), skin);
+      head.position.set(0, 1.5, 0.02);
+      group.add(head);
+
+      const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.68, 0.14), clothing);
+      leftLeg.position.set(-0.1, 0.34, 0);
+      group.add(leftLeg);
+
+      const rightLeg = leftLeg.clone();
+      rightLeg.position.x = 0.1;
+      group.add(rightLeg);
+
+      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.12), skin);
+      leftArm.position.set(-0.26, 1.02, 0.02);
+      leftArm.rotation.z = 0.2;
+      group.add(leftArm);
+
+      const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.72, 0.12), skin);
+      rightArm.position.set(0.36, 1.02, -0.06);
+      rightArm.rotation.z = -1.05;
+      rightArm.rotation.y = -0.25;
+      group.add(rightArm);
+
+      refs.person.materials.push(skin, clothing);
+    }
+
+    function createGroundRod() {
+      const group = new THREE.Group();
+      group.position.set(1.72, 0, -2.56);
+      world.add(group);
+
+      const rodMaterial = new THREE.MeshStandardMaterial({
+        color: 0x5c8a4f,
+        emissive: 0x203d16,
+        emissiveIntensity: 0.12,
+        roughness: 0.5,
+        metalness: 0.12
+      });
+
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.88, 20), rodMaterial);
+      rod.position.y = 0.44;
+      group.add(rod);
+
+      const groundBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.28, 0.08, 20),
+        makeStandardMaterial(0x8c7358, { roughness: 0.94, metalness: 0 })
+      );
+      groundBase.position.y = 0.04;
+      group.add(groundBase);
+
+      refs.groundRod.material = rodMaterial;
+    }
+
+    function createWires() {
+      const liveWasher = createTube(staticCurves.liveWasher, 0xff4d4d, 0.03);
+      const neutralWasher = createTube(staticCurves.neutralWasher, 0x4a67ff, 0.03);
+      const earthWasher = createTube(staticCurves.earthWasher, 0x58b65c, 0.03);
+      const liveHeater = createTube(staticCurves.liveHeater, 0xff4d4d, 0.03);
+      const neutralHeater = createTube(staticCurves.neutralHeater, 0x4a67ff, 0.03);
+
+      world.add(liveWasher.mesh, neutralWasher.mesh, earthWasher.mesh, liveHeater.mesh, neutralHeater.mesh);
+      refs.wires.earth = earthWasher.mesh;
+
+      const leakSpark = new THREE.Mesh(
+        new THREE.SphereGeometry(0.055, 18, 18),
+        new THREE.MeshStandardMaterial({
+          color: 0xff6b4a,
+          emissive: 0xff6b4a,
+          emissiveIntensity: 0.55,
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      leakSpark.position.copy(anchors.washer.leakPoint);
+      world.add(leakSpark);
+      refs.leakSpark = leakSpark;
+
+      const shortSpark = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 18, 18),
+        new THREE.MeshStandardMaterial({
+          color: 0xff7c39,
+          emissive: 0xff7c39,
+          emissiveIntensity: 0.48,
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      shortSpark.position.copy(anchors.heater.shortPoint);
+      world.add(shortSpark);
+      refs.shortSpark = shortSpark;
+    }
+
+    function buildStaticScene() {
+      createRoom();
+      createDistributionBoard();
+      createWasher();
+      createHeater();
+      createPerson();
+      createGroundRod();
+      createWires();
+    }
+
+    function showToast(message) {
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      runtime.toastUntil = clock.getElapsedTime() + 2.1;
+    }
+
+    function hideToast() {
+      toastEl.classList.remove('show');
+    }
+
+    function isLeakTrip() {
+      if (!runtime.started || !settings.leakBreaker) return false;
+      const scenarioId = scenarioOptions[settings.scenario].id;
+      if (scenarioId === 'leak-ground') return runtime.elapsed >= 0.9;
+      if (scenarioId === 'leak-human') return runtime.elapsed >= 1.35;
+      return false;
+    }
+
+    function isOverTrip() {
+      if (!runtime.started || !settings.overcurrentBreaker) return false;
+      return scenarioOptions[settings.scenario].id === 'short' && runtime.elapsed >= 0.78;
+    }
+
+    function clearDynamicEffects() {
+      while (dynamicRoot.children.length) {
+        const child = dynamicRoot.children[0];
+        dynamicRoot.remove(child);
+        disposeObject(child);
+      }
+      effectState.flows = [];
+      effectState.smoke = [];
+      effectState.fire = [];
+      effectState.glowMeshes = [];
+    }
+
+    function addFlow(points, { color, count, speed, size = 0.06, cutoff = Infinity, label }) {
+      const flowGroup = new THREE.Group();
+      dynamicRoot.add(flowGroup);
+
+      const glow = createGlowTube(points, color, size + 0.02, 0.24);
+      flowGroup.add(glow.mesh);
+      effectState.glowMeshes.push(glow.mesh);
+
+      const curve = new THREE.CatmullRomCurve3(points);
+      const particles = [];
+      for (let i = 0; i < count; i += 1) {
+        const material = new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: color === 0xffd54d ? 0.5 : 0.72,
+          roughness: 0.24,
+          metalness: 0.06
+        });
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 14), material);
+        sphere.scale.setScalar(size / 0.06);
+        flowGroup.add(sphere);
+        particles.push({
+          mesh: sphere,
+          progress: i / count
+        });
+      }
+
+      effectState.flows.push({
+        label,
+        curve,
+        particles,
+        speed,
+        cutoff,
+        group: flowGroup
+      });
+    }
+
+    function addSmokeParticles(origin, count = 8) {
+      for (let i = 0; i < count; i += 1) {
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x5f6269,
+          transparent: true,
+          opacity: 0.32,
+          depthWrite: false
+        });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), material);
+        mesh.position.copy(origin);
+        dynamicRoot.add(mesh);
+        effectState.smoke.push({
+          mesh,
+          drift: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.3,
+            0.28 + Math.random() * 0.18,
+            (Math.random() - 0.5) * 0.24
+          ),
+          seed: Math.random() * Math.PI * 2,
+          age: Math.random()
+        });
+      }
+    }
+
+    function addFireParticles(origin, count = 6) {
+      for (let i = 0; i < count; i += 1) {
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xff8b3d,
+          transparent: true,
+          opacity: 0.7,
+          depthWrite: false
+        });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), material);
+        mesh.position.copy(origin);
+        dynamicRoot.add(mesh);
+        effectState.fire.push({
+          mesh,
+          drift: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.18,
+            0.22 + Math.random() * 0.12,
+            (Math.random() - 0.5) * 0.18
+          ),
+          age: Math.random()
+        });
+      }
+    }
+
+    function buildScenarioEffects() {
+      clearDynamicEffects();
+      if (!runtime.started) return;
+
+      const scenarioId = scenarioOptions[settings.scenario].id;
+
+      if (scenarioId === 'normal') {
+        addFlow([
+          anchors.board.liveWasher,
+          new THREE.Vector3(-3.8, 1.98, -4.88),
+          new THREE.Vector3(0.16, 1.72, -4.1),
+          anchors.washer.liveIn,
+          new THREE.Vector3(1.1, 0.94, -1.24),
+          anchors.washer.drum,
+          new THREE.Vector3(1.04, 0.88, -1.54),
+          anchors.washer.neutralIn,
+          new THREE.Vector3(0.22, 1.46, -4.02),
+          new THREE.Vector3(-3.96, 1.7, -4.82),
+          anchors.board.neutralWasher
+        ], { color: 0xffd54d, count: 12, speed: 0.14, label: 'washer' });
+
+        addFlow([
+          anchors.board.liveHeater,
+          new THREE.Vector3(-3.42, 2.08, -4.74),
+          new THREE.Vector3(1.06, 2.02, -3.78),
+          new THREE.Vector3(2.6, 1.26, -1.08),
+          anchors.heater.liveIn,
+          anchors.heater.coilTop,
+          anchors.heater.coilBottom,
+          anchors.heater.neutralIn,
+          new THREE.Vector3(2.52, 1.2, -0.96),
+          new THREE.Vector3(0.92, 1.78, -3.5),
+          new THREE.Vector3(-3.6, 1.82, -4.62),
+          anchors.board.neutralHeater
+        ], { color: 0xffd54d, count: 10, speed: 0.18, label: 'heater' });
+      } else if (scenarioId === 'leak-human') {
+        addFlow([
+          anchors.board.liveWasher,
+          new THREE.Vector3(-3.84, 1.92, -4.9),
+          new THREE.Vector3(0.1, 1.58, -4.1),
+          anchors.washer.liveIn,
+          anchors.washer.leakPoint,
+          anchors.washer.caseTouch,
+          anchors.person.hand,
+          anchors.person.torso,
+          anchors.person.feet,
+          new THREE.Vector3(0.02, 0.02, -1.06)
+        ], {
+          color: 0xff5b57,
+          count: 16,
+          speed: 0.22,
+          cutoff: settings.leakBreaker ? 1.35 : Infinity,
+          label: 'humanLeak'
+        });
+      } else if (scenarioId === 'leak-ground') {
+        addFlow([
+          anchors.board.liveWasher,
+          new THREE.Vector3(-3.84, 1.92, -4.9),
+          new THREE.Vector3(0.1, 1.58, -4.1),
+          anchors.washer.liveIn,
+          anchors.washer.leakPoint,
+          anchors.washer.caseTouch,
+          anchors.washer.groundLug,
+          anchors.ground.top,
+          anchors.ground.floor
+        ], {
+          color: 0xff5b57,
+          count: 14,
+          speed: 0.24,
+          cutoff: settings.leakBreaker ? 0.9 : Infinity,
+          label: 'groundLeak'
+        });
+      } else if (scenarioId === 'short') {
+        addFlow([
+          anchors.board.liveHeater,
+          new THREE.Vector3(-3.46, 2.06, -4.76),
+          new THREE.Vector3(1.1, 1.92, -3.66),
+          anchors.heater.shortPoint,
+          new THREE.Vector3(1.84, 1.56, -2.6),
+          new THREE.Vector3(-3.1, 1.72, -4.68),
+          anchors.board.neutralHeater
+        ], {
+          color: 0xff6652,
+          count: 24,
+          speed: 0.44,
+          cutoff: settings.overcurrentBreaker ? 0.78 : Infinity,
+          label: 'short'
+        });
+        addSmokeParticles(anchors.heater.shortPoint, 8);
+        if (!settings.overcurrentBreaker) {
+          addFireParticles(anchors.heater.shortPoint, 6);
+        }
+      }
+    }
+
+    function updateParticleFlows(delta) {
+      const currentVisible = settings.showCurrentPath;
+      for (const flow of effectState.flows) {
+        const active = runtime.started && runtime.elapsed <= flow.cutoff;
+        flow.group.visible = currentVisible;
+        for (const particle of flow.particles) {
+          particle.mesh.visible = currentVisible && active;
+          if (!active) continue;
+          particle.progress = (particle.progress + delta * flow.speed) % 1;
+          particle.mesh.position.copy(flow.curve.getPointAt(particle.progress));
+        }
+      }
+    }
+
+    function updateSmoke(delta, time) {
+      effectState.smoke.forEach((item) => {
+        item.age = (item.age + delta * 0.34) % 1;
+        const height = item.age * 1.2;
+        item.mesh.position.set(
+          anchors.heater.shortPoint.x + Math.sin(time * 1.6 + item.seed) * 0.08 + item.drift.x * item.age,
+          anchors.heater.shortPoint.y + height,
+          anchors.heater.shortPoint.z + Math.cos(time * 1.2 + item.seed) * 0.05 + item.drift.z * item.age
+        );
+        const scale = 0.7 + item.age * 2.2;
+        item.mesh.scale.setScalar(scale);
+        item.mesh.material.opacity = 0.32 * (1 - item.age);
+      });
+
+      effectState.fire.forEach((item) => {
+        item.age = (item.age + delta * 0.92) % 1;
+        item.mesh.position.set(
+          anchors.heater.shortPoint.x + item.drift.x * Math.sin(item.age * Math.PI * 2),
+          anchors.heater.shortPoint.y + item.age * 0.82,
+          anchors.heater.shortPoint.z + item.drift.z * Math.cos(item.age * Math.PI * 2)
+        );
+        const scale = 0.7 + (1 - item.age) * 1.4;
+        item.mesh.scale.setScalar(scale);
+        item.mesh.material.opacity = 0.78 * (1 - item.age * 0.7);
+      });
+    }
+
+    function updateFaultVisuals(time) {
+      const scenarioId = scenarioOptions[settings.scenario].id;
+      const leakTrip = isLeakTrip();
+      const overTrip = isOverTrip();
+
+      refs.wires.earth.visible = settings.ground;
+      refs.washer.groundClamp.visible = settings.ground;
+      refs.washer.loosePlug.visible = !settings.ground;
+      refs.washer.faultSleeve.visible = scenarioId === 'leak-human' || scenarioId === 'leak-ground';
+      refs.heater.shortBridge.visible = scenarioId === 'short';
+
+      const leakActive = runtime.started && (scenarioId === 'leak-human' || scenarioId === 'leak-ground') && !leakTrip;
+      const shortActive = runtime.started && scenarioId === 'short' && !overTrip;
+      const shortFire = shortActive && !settings.overcurrentBreaker;
+      const normalActive = runtime.started && scenarioId === 'normal';
+
+      refs.leakSpark.visible = leakActive;
+      refs.shortSpark.visible = shortActive;
+
+      if (refs.leakSpark.visible) {
+        const pulse = 1 + Math.sin(time * 14) * 0.3;
+        refs.leakSpark.scale.setScalar(pulse);
+        refs.leakSpark.material.emissiveIntensity = 0.48 + Math.sin(time * 18) * 0.12;
+      }
+
+      if (refs.shortSpark.visible) {
+        const pulse = 1 + Math.sin(time * 22) * 0.35;
+        refs.shortSpark.scale.setScalar(pulse);
+        refs.shortSpark.material.emissiveIntensity = 0.46 + Math.sin(time * 20) * 0.22;
+      }
+
+      refs.washer.bodyMaterial.emissive.setHex(leakActive ? 0x441111 : 0x000000);
+      refs.washer.bodyMaterial.emissiveIntensity = leakActive ? 0.18 : 0;
+      refs.washer.accentMaterial.emissive.setHex(leakActive ? 0xff5b57 : 0x000000);
+      refs.washer.accentMaterial.emissiveIntensity = leakActive ? 0.32 : 0;
+
+      refs.heater.caseMaterial.emissive.setHex(shortActive ? 0x4d1c10 : 0x000000);
+      refs.heater.caseMaterial.emissiveIntensity = shortActive ? 0.22 : 0;
+      refs.heater.coilMaterial.emissive.setHex(normalActive ? 0xff8b3d : shortFire ? 0xff5e2f : 0x5a2300);
+      refs.heater.coilMaterial.emissiveIntensity = normalActive
+        ? 0.36 + Math.sin(time * 4.2) * 0.12
+        : shortFire
+          ? 0.55 + Math.sin(time * 10) * 0.18
+          : 0.14;
+
+      if (refs.washer.drum) {
+        refs.washer.drum.rotation.z += normalActive ? 0.045 : 0;
+      }
+
+      refs.groundRod.material.emissive.setHex(leakActive && scenarioId === 'leak-ground' ? 0x3f7e31 : 0x203d16);
+      refs.groundRod.material.emissiveIntensity = leakActive && scenarioId === 'leak-ground' ? 0.42 : 0.12;
+
+      const personShock = runtime.started && scenarioId === 'leak-human' && !leakTrip;
+      refs.person.materials.forEach((material) => {
+        material.emissive.setHex(personShock ? 0xa11818 : 0x000000);
+        material.emissiveIntensity = personShock ? 0.36 + Math.sin(time * 16) * 0.12 : 0;
+      });
+    }
+
+    function getUiState() {
+      const scenario = scenarioOptions[settings.scenario];
+      const leakTrip = isLeakTrip();
+      const overTrip = isOverTrip();
+      const scenarioId = scenario.id;
+
+      let state = '대기';
+      let tone = '#ffd54d';
+      let title = '전류 대기 중';
+      let message = '시뮬레이션 시작을 누르면 활선, 중성선, 접지선 위에 전류 경로가 나타납니다.';
+      let protection = '접지는 누전 시 전류를 대지로 유도하고, 차단기는 이상 전류를 감지하면 회로를 끊습니다.';
+
+      if (runtime.started) {
+        if (scenarioId === 'normal') {
+          state = '안전';
+          tone = '#2db56e';
+          title = '정상 회로 유지';
+          message = '활선에서 들어온 전류가 세탁기와 히터를 지나 중성선으로 되돌아갑니다. 가전제품은 정상 작동하고 인체는 안전합니다.';
+          protection = '정상 상태에서는 활선과 중성선의 전류가 같아 차단기가 작동하지 않습니다.';
+        } else if (scenarioId === 'leak-human') {
+          state = '감전 위험';
+          tone = '#ff6f61';
+          title = leakTrip ? '누전 차단 후 정지' : '외함에 누전 발생';
+          message = leakTrip
+            ? '누전 차단기가 뒤늦게 회로를 끊었지만, 접지가 없으면 차단 전까지 인체가 전류 경로가 될 수 있습니다.'
+            : '전선 피복 손상으로 활선이 금속 외함에 닿아 인체를 통해 대지로 전류가 흐릅니다.';
+          protection = settings.leakBreaker
+            ? '누전 차단기가 전류 불균형을 감지해 회로를 차단하지만, 접지가 없으면 인체를 통한 누전이 먼저 생길 수 있습니다.'
+            : '누전 차단기가 꺼져 있으면 누전이 계속되어 감전 위험이 매우 커집니다.';
+        } else if (scenarioId === 'leak-ground') {
+          state = '안전';
+          tone = leakTrip ? '#2db56e' : '#78c56f';
+          title = leakTrip ? '접지가 인체를 보호함' : '접지를 통한 누전 우회';
+          message = leakTrip
+            ? '접지선이 누전 전류를 대지로 우회시키고, 누전 차단기가 곧바로 회로를 차단했습니다.'
+            : '누전 전류가 인체 대신 접지선으로 흐르며 누전 차단기가 작동할 준비를 합니다.';
+          protection = settings.leakBreaker
+            ? '접지와 누전 차단기가 함께 작동해 외함 누전을 빠르게 차단합니다.'
+            : '접지가 인체를 보호하지만, 누전 차단기가 꺼져 있으면 외함 누전이 계속 남아 있을 수 있습니다.';
+        } else if (scenarioId === 'short') {
+          state = overTrip ? '안전' : '화재 위험';
+          tone = overTrip ? '#2db56e' : '#ff8b3d';
+          title = overTrip ? '과전류 차단 완료' : '합선으로 과전류 발생';
+          message = overTrip
+            ? '과전류 차단기가 빠르게 내려가 전선 과열이 더 커지기 전에 회로를 끊었습니다.'
+            : '활선과 중성선이 직접 연결되어 매우 큰 전류가 흐르며 전선 과열과 화재 위험이 커집니다.';
+          protection = settings.overcurrentBreaker
+            ? '과전류 차단기는 허용 전류를 넘는 순간 차단되어 화재를 예방합니다.'
+            : '과전류 차단기가 꺼져 있으면 열이 계속 쌓여 연기와 화재로 이어질 수 있습니다.';
+        }
+      }
+
+      return {
+        scenario,
+        state,
+        tone,
+        title,
+        message,
+        protection,
+        leakTrip,
+        overTrip
+      };
+    }
+
+    function updateBreakersFromState(uiState) {
+      setBreakerVisual('main', 'on');
+      setBreakerVisual('leak', uiState.leakTrip ? 'trip' : settings.leakBreaker ? 'on' : 'bypass');
+      setBreakerVisual('over', uiState.overTrip ? 'trip' : settings.overcurrentBreaker ? 'on' : 'bypass');
+    }
+
+    function updatePanels() {
+      const uiState = getUiState();
+      updateBreakersFromState(uiState);
+
+      statusDotEl.style.background = uiState.tone;
+      statusDotEl.style.boxShadow = `0 0 14px ${uiState.tone}88`;
+      statusBadgeTextEl.textContent = uiState.state;
+      statusTitleEl.textContent = uiState.title;
+      statusMessageEl.textContent = uiState.message;
+
+      scenarioChipEl.textContent = settings.scenario;
+      scenarioSubEl.textContent = uiState.scenario.summary;
+      groundChipEl.textContent = settings.ground ? 'ON' : 'OFF';
+      groundSubEl.textContent = settings.ground
+        ? '세탁기 외함이 대지와 연결되어 있습니다.'
+        : '외함이 대지에서 분리되어 감전 위험이 커집니다.';
+      leakChipEl.textContent = uiState.leakTrip ? 'TRIP' : settings.leakBreaker ? 'ON' : 'OFF';
+      leakSubEl.textContent = uiState.leakTrip
+        ? '활선/중성선 불균형을 감지해 회로를 차단했습니다.'
+        : settings.leakBreaker
+          ? '활선과 중성선 전류 차이를 감지합니다.'
+          : '누전 차단 기능이 비활성화되어 있습니다.';
+      overChipEl.textContent = uiState.overTrip ? 'TRIP' : settings.overcurrentBreaker ? 'ON' : 'OFF';
+      overSubEl.textContent = uiState.overTrip
+        ? '과전류가 허용값을 넘어 자동으로 회로를 끊었습니다.'
+        : settings.overcurrentBreaker
+          ? '과전류가 생기면 자동으로 차단합니다.'
+          : '과전류 차단 기능이 비활성화되어 있습니다.';
+
+      formulaScenarioEl.textContent = settings.scenario;
+      formulaGroundEl.textContent = settings.ground ? 'ON' : 'OFF';
+      formulaBreakersEl.textContent = `누전 ${uiState.leakTrip ? 'TRIP' : settings.leakBreaker ? 'ON' : 'OFF'} / 과전류 ${uiState.overTrip ? 'TRIP' : settings.overcurrentBreaker ? 'ON' : 'OFF'}`;
+      formulaStateEl.textContent = uiState.state;
+      formulaRouteEl.textContent = uiState.scenario.route;
+      formulaProtectionEl.textContent = uiState.protection;
+
+      safetyTableEl.classList.toggle('hidden', !settings.showSafetyTable);
+    }
+
+    function syncScenarioFromGround() {
+      const current = scenarioOptions[settings.scenario].id;
+      if (current === 'leak-human' && settings.ground) {
+        settings.scenario = '누전(접지 있음)';
+      } else if (current === 'leak-ground' && !settings.ground) {
+        settings.scenario = '누전(접지 없음)';
+      }
+    }
+
+    function syncGroundFromScenario() {
+      const current = scenarioOptions[settings.scenario].id;
+      if (current === 'leak-human') settings.ground = false;
+      if (current === 'leak-ground') settings.ground = true;
+    }
+
+    function syncGui() {
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+
+    function startSimulation() {
+      runtime.started = true;
+      runtime.elapsed = 0;
+      runtime.leakTripAnnounced = false;
+      runtime.shortTripAnnounced = false;
+      buildScenarioEffects();
+      updatePanels();
+      syncGui();
+    }
+
+    function resetSimulation() {
+      runtime.started = false;
+      runtime.elapsed = 0;
+      runtime.leakTripAnnounced = false;
+      runtime.shortTripAnnounced = false;
+      clearDynamicEffects();
+      hideToast();
+      updatePanels();
+      syncGui();
+    }
+
+    const gui = new GUI({ title: '전기 안전 제어판', width: 320 });
+    gui.domElement.style.position = 'fixed';
+    gui.domElement.style.top = '16px';
+    gui.domElement.style.right = '16px';
+
+    const actions = {
+      '시뮬레이션 시작': startSimulation,
+      '초기화': resetSimulation
+    };
+
+    gui.add(settings, 'scenario', Object.keys(scenarioOptions)).name('시나리오').onChange(() => {
+      syncGroundFromScenario();
+      if (runtime.started) {
+        startSimulation();
+      } else {
+        clearDynamicEffects();
+        updatePanels();
+      }
+      syncGui();
+    });
+
+    gui.add(settings, 'ground').name('접지').onChange(() => {
+      syncScenarioFromGround();
+      if (runtime.started) {
+        startSimulation();
+      } else {
+        updatePanels();
+      }
+      syncGui();
+    });
+
+    gui.add(settings, 'leakBreaker').name('누전 차단기').onChange(() => {
+      if (runtime.started) {
+        startSimulation();
+      } else {
+        updatePanels();
+      }
+      syncGui();
+    });
+
+    gui.add(settings, 'overcurrentBreaker').name('과전류 차단기').onChange(() => {
+      if (runtime.started) {
+        startSimulation();
+      } else {
+        updatePanels();
+      }
+      syncGui();
+    });
+
+    gui.add(settings, 'showCurrentPath').name('전류 경로 표시').onChange(updatePanels);
+    gui.add(settings, 'showSafetyTable').name('안전장치 표').onChange(updatePanels);
+    gui.add(actions, '시뮬레이션 시작');
+    gui.add(actions, '초기화');
+
+    guideToggleEl.addEventListener('click', () => {
+      runtime.guideOpen = !runtime.guideOpen;
+      guidePanelEl.classList.toggle('open', runtime.guideOpen);
+      guideToggleEl.textContent = runtime.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+    });
+
+    function handleTrips() {
+      if (isLeakTrip() && !runtime.leakTripAnnounced) {
+        runtime.leakTripAnnounced = true;
+        showToast('딸깍! 누전 차단기가 회로를 차단했습니다.');
+      }
+      if (isOverTrip() && !runtime.shortTripAnnounced) {
+        runtime.shortTripAnnounced = true;
+        showToast('딸깍! 과전류 차단기가 합선을 차단했습니다.');
+      }
+    }
+
+    function resize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+      if (runtime.started) {
+        runtime.elapsed += delta;
+      }
+
+      handleTrips();
+      updateParticleFlows(delta);
+      updateSmoke(delta, time);
+      updateFaultVisuals(time);
+      updatePanels();
+
+      if (runtime.toastUntil && time > runtime.toastUntil) {
+        hideToast();
+        runtime.toastUntil = 0;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    buildStaticScene();
+    syncGroundFromScenario();
+    resize();
+    updatePanels();
+    animate();
+
+    window.addEventListener('resize', resize);
+  </script>
+</body>
+</html>

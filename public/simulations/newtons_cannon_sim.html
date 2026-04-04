@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뉴턴의 대포 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --panel-bg: rgba(8, 14, 30, 0.82);
+    --panel-border: rgba(170, 205, 255, 0.18);
+    --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    --text-main: #f5f9ff;
+    --text-sub: #b5c5df;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000011;
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    color: var(--text-main);
+  }
+
+  body {
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 20;
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #trajectory-pill {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 220px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(10, 18, 38, 0.76);
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    pointer-events: none;
+  }
+
+  #status-banner {
+    top: 74px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 11px 18px;
+    border-radius: 999px;
+    background: rgba(6, 12, 26, 0.72);
+    font-weight: 700;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.28s ease;
+    pointer-events: none;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: var(--panel-bg);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  #formula-panel .title {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(114, 216, 255, 0.6), rgba(114, 216, 255, 0));
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--text-sub);
+  }
+
+  .info-row strong {
+    color: var(--text-main);
+    font-weight: 700;
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.045);
+    font-family: "SFMono-Regular", "Consolas", monospace;
+    white-space: pre-line;
+    color: #dce6f9;
+  }
+
+  .formula-footnote {
+    margin-top: 10px;
+    color: #96a7c5;
+    font-size: 12px;
+  }
+
+  #concept-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(84, 176, 255, 0.11);
+    color: #dff3ff;
+    font-size: 12.5px;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 30;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(12, 24, 52, 0.82);
+    color: var(--text-main);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(18, 34, 68, 0.92);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(72vh, 680px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: rgba(9, 18, 38, 0.9);
+    color: var(--text-main);
+    display: none;
+    z-index: 29;
+  }
+
+  #guide-panel h3 {
+    margin: 12px 0 6px;
+    color: #8ee4ff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: #d8e6fb;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #moon-note {
+    right: 16px;
+    bottom: 16px;
+    width: min(350px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(10, 18, 34, 0.78);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: #dfe9fb;
+  }
+
+  #moon-note strong {
+    color: #ffffff;
+  }
+
+  #moon-note .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #aeddff;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  .lil-gui {
+    --width: 310px;
+    z-index: 40 !important;
+  }
+
+  @media (max-width: 900px) {
+    #trajectory-pill {
+      top: 12px;
+      min-width: 180px;
+      font-size: 13px;
+      padding: 8px 14px;
+    }
+
+    #status-banner {
+      top: 54px;
+      font-size: 12px;
+      padding: 9px 14px;
+      max-width: calc(100vw - 24px);
+      text-align: center;
+    }
+
+    #guide-panel {
+      top: 52px;
+      max-height: 54vh;
+    }
+
+    #formula-panel {
+      bottom: 12px;
+      left: 12px;
+      width: calc(100vw - 24px);
+      padding: 14px 16px;
+      font-size: 12px;
+    }
+
+    #moon-note {
+      right: 12px;
+      bottom: auto;
+      top: 116px;
+      width: calc(100vw - 24px);
+    }
+
+    .lil-gui {
+      --width: min(280px, calc(100vw - 24px));
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" aria-expanded="false">학습 포인트</button>
+
+<div id="guide-panel" class="overlay">
+  <h3>핵심 원리</h3>
+  <p>지구가 둥글기 때문에 물체를 충분히 빠르게 수평 발사하면, 떨어지는 동안 지표면도 함께 휘어져 내려가서 물체가 지표면에 닿지 않고 지구 둘레를 계속 돕니다. 이것이 인공위성의 기본 원리입니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>인공위성에 중력이 작용하는데 왜 지구로 떨어지지 않을까요?</li>
+    <li>달도 인공위성과 같은 원리로 지구 둘레를 도는 것일까요?</li>
+    <li>발사 속력을 11.2 km/s보다 더 크게 하면 어떤 일이 일어날까요?</li>
+  </ul>
+
+  <h3>관찰 포인트</h3>
+  <ul>
+    <li>빨간 화살표는 언제나 지구 중심을 향하는 중력 방향입니다.</li>
+    <li>초록 화살표는 포탄의 운동 방향입니다.</li>
+    <li>원 궤도에서는 가속도 방향과 중력 방향이 같아집니다.</li>
+  </ul>
+
+  <h3>교과서 연결</h3>
+  <p>미래엔 통합과학1 III편 p129~131의 뉴턴 사고 실험(그림 III-18), 달의 공전(그림 III-19), 인공위성 설명(그림 III-21)에 해당합니다.</p>
+</div>
+
+<div id="trajectory-pill" class="overlay"></div>
+<div id="status-banner" class="overlay"></div>
+
+<div id="formula-panel" class="overlay">
+  <div class="title">뉴턴의 대포</div>
+  <div>발사 속력에 따라 포탄은 낙하, 원 궤도, 탈출로 나뉩니다.</div>
+  <div class="divider"></div>
+
+  <div class="info-row"><span>발사 속력</span><strong id="speed-value">3.0 km/s</strong></div>
+  <div class="info-row"><span>궤적 유형</span><strong id="trajectory-value">짧은 포물선 낙하</strong></div>
+  <div class="info-row"><span>달 상태</span><strong id="moon-value">표시 중</strong></div>
+  <div class="info-row"><span>관찰 시점</span><strong id="camera-value">외부 관찰</strong></div>
+
+  <div class="formula-block">원 궤도 조건: v = √(GM/r)
+= √(3.986×10¹⁴ / 6.371×10⁶)
+≈ 7.9 km/s (제1우주속도)
+
+탈출 속도: v = √(2GM/r)
+≈ 11.2 km/s
+
+구심력 = 중력
+mv²/r = GMm/r²</div>
+
+  <div id="concept-note">인공위성의 가속도 방향은 항상 지구 중심 방향이며, 그 방향이 바로 중력 방향입니다.</div>
+  <div class="formula-footnote">장면의 크기는 학습용 축척이며, 속력 표시는 교과서 개념값을 기준으로 해석합니다.</div>
+</div>
+
+<div id="moon-note" class="overlay">
+  <div class="badge">달의 운동 연결</div>
+  <div><strong>달이 지구로 떨어지지 않는 까닭</strong></div>
+  <div>달도 지구 중심 방향의 중력을 받지만, 옆 방향 속력을 가지고 있어 계속 지구 둘레를 원운동합니다. 뉴턴은 이 생각으로 달의 공전을 설명했습니다.</div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const EARTH_RADIUS = 5.0;
+const MOUNTAIN_HEIGHT = 0.8;
+const FIXED_DT = 0.01;
+const STEPS_PER_FRAME = 10;
+const ESCAPE_DISTANCE = 50;
+const MAX_TRAIL_POINTS = 2000;
+const ORBIT_SPEED_KMPS = 7.9;
+const ESCAPE_SPEED_KMPS = 11.2;
+const SPEED_TO_SCENE = 0.052;
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const trajectoryPill = document.getElementById('trajectory-pill');
+const statusBanner = document.getElementById('status-banner');
+const speedValueEl = document.getElementById('speed-value');
+const trajectoryValueEl = document.getElementById('trajectory-value');
+const moonValueEl = document.getElementById('moon-value');
+const cameraValueEl = document.getElementById('camera-value');
+const conceptNoteEl = document.getElementById('concept-note');
+const moonNoteEl = document.getElementById('moon-note');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000011);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 220);
+camera.position.set(0, 8, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 7;
+controls.maxDistance = 40;
+controls.target.set(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.6);
+sunLight.position.set(10, 10, 5);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 50;
+sunLight.shadow.camera.left = -12;
+sunLight.shadow.camera.right = 12;
+sunLight.shadow.camera.top = 12;
+sunLight.shadow.camera.bottom = -12;
+scene.add(sunLight);
+
+const earthCoreLight = new THREE.PointLight(0x224488, 0.3, 20);
+earthCoreLight.position.set(0, 0, 0);
+scene.add(earthCoreLight);
+
+function makeCanvas(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function randomSeeded(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const lines = text.split('\n');
+  const fontSize = options.fontSize ?? 42;
+  const paddingX = options.paddingX ?? 28;
+  const paddingY = options.paddingY ?? 18;
+  const canvas = makeCanvas(32, 32);
+  const ctx = canvas.getContext('2d');
+  const fontFamily = '"Pretendard Variable", "Pretendard", sans-serif';
+  ctx.font = `700 ${fontSize}px ${fontFamily}`;
+  const maxLineWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+
+  canvas.width = Math.ceil(maxLineWidth + paddingX * 2);
+  canvas.height = Math.ceil(lines.length * fontSize * 1.28 + paddingY * 2);
+  ctx.font = `700 ${fontSize}px ${fontFamily}`;
+
+  roundedRect(ctx, 0, 0, canvas.width, canvas.height, 28);
+  ctx.fillStyle = options.background ?? 'rgba(8, 14, 30, 0.75)';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = options.border ?? 'rgba(170, 205, 255, 0.45)';
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = options.color ?? '#ffffff';
+
+  const totalHeight = (lines.length - 1) * fontSize * 1.28;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 - totalHeight / 2 + index * fontSize * 1.28;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? 1.1;
+  sprite.scale.set(scale * canvas.width / canvas.height, scale, 1);
+  sprite.renderOrder = 50;
+  return sprite;
+}
+
+function drawBlob(ctx, cx, cy, rx, ry, rotation, color, wobble = 0.14) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  for (let i = 0; i <= 80; i++) {
+    const angle = (i / 80) * Math.PI * 2;
+    const mod = 1 + wobble * Math.sin(angle * 3 + cx * 0.01) + wobble * 0.55 * Math.cos(angle * 5 + cy * 0.02);
+    const x = Math.cos(angle) * rx * mod;
+    const y = Math.sin(angle) * ry * mod;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+function createEarthTexture() {
+  const canvas = makeCanvas(1024, 512);
+  const ctx = canvas.getContext('2d');
+  const oceanGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  oceanGradient.addColorStop(0, '#3d79c9');
+  oceanGradient.addColorStop(0.48, '#1e5cb8');
+  oceanGradient.addColorStop(1, '#103470');
+  ctx.fillStyle = oceanGradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 14; i++) {
+    const y = canvas.height * (i / 14);
+    ctx.strokeStyle = `rgba(255,255,255,${0.02 + randomSeeded(i * 7) * 0.035})`;
+    ctx.lineWidth = 10 + randomSeeded(i * 11) * 18;
+    ctx.beginPath();
+    ctx.moveTo(0, y + Math.sin(i) * 12);
+    for (let x = 0; x <= canvas.width; x += 24) {
+      const wave = Math.sin(x * 0.012 + i * 0.9) * 8 + Math.cos(x * 0.019 + i * 0.6) * 4;
+      ctx.lineTo(x, y + wave);
+    }
+    ctx.stroke();
+  }
+
+  drawBlob(ctx, 202, 165, 92, 78, -0.2, '#689d5a');
+  drawBlob(ctx, 268, 315, 54, 92, 0.22, '#5e8e4d');
+  drawBlob(ctx, 540, 168, 178, 90, 0.06, '#739e55');
+  drawBlob(ctx, 564, 270, 70, 104, -0.04, '#6c8f46');
+  drawBlob(ctx, 766, 328, 64, 42, 0.08, '#7ea45f');
+  drawBlob(ctx, 364, 92, 42, 28, -0.1, '#89b56f');
+  drawBlob(ctx, 545, 232, 58, 42, 0.1, 'rgba(214, 194, 112, 0.8)', 0.08);
+  drawBlob(ctx, 612, 126, 110, 34, 0.02, 'rgba(145, 125, 96, 0.45)', 0.07);
+  drawBlob(ctx, 213, 143, 52, 34, -0.1, 'rgba(97, 122, 80, 0.55)', 0.08);
+  drawBlob(ctx, 256, 292, 34, 50, 0.18, 'rgba(50, 114, 58, 0.5)', 0.08);
+
+  ctx.fillStyle = 'rgba(235, 244, 255, 0.84)';
+  ctx.beginPath();
+  ctx.ellipse(512, 26, 340, 24, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(512, 486, 360, 38, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 28; i++) {
+    drawBlob(
+      ctx,
+      randomSeeded(i * 13.1) * canvas.width,
+      randomSeeded(i * 17.3) * canvas.height,
+      32 + randomSeeded(i * 19.1) * 74,
+      10 + randomSeeded(i * 7.3) * 22,
+      randomSeeded(i * 11.9) * Math.PI,
+      'rgba(255,255,255,0.09)',
+      0.12
+    );
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createMoonMaps() {
+  const diffuse = makeCanvas(512, 512);
+  const bump = makeCanvas(512, 512);
+  const dCtx = diffuse.getContext('2d');
+  const bCtx = bump.getContext('2d');
+
+  dCtx.fillStyle = '#bcbcbc';
+  dCtx.fillRect(0, 0, diffuse.width, diffuse.height);
+  bCtx.fillStyle = '#808080';
+  bCtx.fillRect(0, 0, bump.width, bump.height);
+
+  for (let i = 0; i < 120; i++) {
+    const x = randomSeeded(i * 9.17) * diffuse.width;
+    const y = randomSeeded(i * 13.31) * diffuse.height;
+    const r = 8 + randomSeeded(i * 7.29) * 44;
+
+    const crater = dCtx.createRadialGradient(x - r * 0.2, y - r * 0.2, r * 0.1, x, y, r);
+    crater.addColorStop(0, 'rgba(240,240,240,0.8)');
+    crater.addColorStop(0.55, 'rgba(182,182,182,0.78)');
+    crater.addColorStop(1, 'rgba(96,96,96,0.95)');
+    dCtx.fillStyle = crater;
+    dCtx.beginPath();
+    dCtx.arc(x, y, r, 0, Math.PI * 2);
+    dCtx.fill();
+
+    const rim = bCtx.createRadialGradient(x - r * 0.18, y - r * 0.18, r * 0.05, x, y, r);
+    rim.addColorStop(0, 'rgba(240,240,240,0.82)');
+    rim.addColorStop(0.45, 'rgba(150,150,150,0.65)');
+    rim.addColorStop(1, 'rgba(42,42,42,0.95)');
+    bCtx.fillStyle = rim;
+    bCtx.beginPath();
+    bCtx.arc(x, y, r, 0, Math.PI * 2);
+    bCtx.fill();
+  }
+
+  for (let i = 0; i < 9000; i++) {
+    const x = randomSeeded(i * 0.73) * diffuse.width;
+    const y = randomSeeded(i * 0.97) * diffuse.height;
+    const alpha = 0.03 + randomSeeded(i * 1.31) * 0.05;
+    dCtx.fillStyle = `rgba(255,255,255,${alpha})`;
+    dCtx.fillRect(x, y, 1, 1);
+    bCtx.fillStyle = `rgba(255,255,255,${0.05 + alpha})`;
+    bCtx.fillRect(x, y, 1, 1);
+  }
+
+  const diffuseTexture = new THREE.CanvasTexture(diffuse);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  const bumpTexture = new THREE.CanvasTexture(bump);
+  return { diffuseTexture, bumpTexture };
+}
+
+function createStarField() {
+  const count = 1500;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const colorChoices = [
+    new THREE.Color(0xffffff),
+    new THREE.Color(0xffffdd),
+    new THREE.Color(0xfff6cc)
+  ];
+
+  for (let i = 0; i < count; i++) {
+    const radius = 50 + Math.random() * 50;
+    const u = Math.random() * 2 - 1;
+    const theta = Math.random() * Math.PI * 2;
+    const root = Math.sqrt(1 - u * u);
+
+    positions[i * 3] = radius * root * Math.cos(theta);
+    positions[i * 3 + 1] = radius * u;
+    positions[i * 3 + 2] = radius * root * Math.sin(theta);
+
+    const color = colorChoices[Math.floor(Math.random() * colorChoices.length)].clone();
+    color.offsetHSL((Math.random() - 0.5) * 0.02, 0, (Math.random() - 0.5) * 0.08);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+    sizes[i] = 0.5 + Math.random() * 1.5;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: { uPixelRatio: { value: renderer.getPixelRatio() } },
+    vertexShader: `
+      attribute vec3 aColor;
+      attribute float aSize;
+      varying vec3 vColor;
+      uniform float uPixelRatio;
+      void main() {
+        vColor = aColor;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        float dist = max(length(mvPosition.xyz), 1.0);
+        gl_PointSize = aSize * uPixelRatio * (180.0 / dist);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main() {
+        float dist = length(gl_PointCoord - vec2(0.5));
+        float alpha = 1.0 - smoothstep(0.18, 0.5, dist);
+        gl_FragColor = vec4(vColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+
+  const stars = new THREE.Points(geometry, material);
+  scene.add(stars);
+  return stars;
+}
+
+const stars = createStarField();
+const earthTexture = createEarthTexture();
+const { diffuseTexture: moonTexture, bumpTexture: moonBumpTexture } = createMoonMaps();
+
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_RADIUS, 64, 64),
+  new THREE.MeshStandardMaterial({
+    map: earthTexture,
+    roughness: 0.92,
+    metalness: 0.03,
+    emissive: 0x0a1326,
+    emissiveIntensity: 0.2
+  })
+);
+earth.castShadow = true;
+earth.receiveShadow = true;
+scene.add(earth);
+
+const atmosphere = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_RADIUS * 1.035, 48, 48),
+  new THREE.MeshBasicMaterial({
+    color: 0x6bbcff,
+    transparent: true,
+    opacity: 0.09,
+    side: THREE.BackSide
+  })
+);
+scene.add(atmosphere);
+
+function latLonToVector(radius, latitudeDeg, longitudeDeg) {
+  const lat = THREE.MathUtils.degToRad(latitudeDeg);
+  const lon = THREE.MathUtils.degToRad(longitudeDeg);
+  const cosLat = Math.cos(lat);
+  return new THREE.Vector3(
+    radius * cosLat * Math.cos(lon),
+    radius * Math.sin(lat),
+    radius * cosLat * Math.sin(lon)
+  );
+}
+
+const surfacePoint = latLonToVector(EARTH_RADIUS, 45, 0);
+const surfaceNormal = surfacePoint.clone().normalize();
+const tangentForward = new THREE.Vector3(0, 0, 1);
+const tangentRight = new THREE.Vector3().crossVectors(surfaceNormal, tangentForward).normalize();
+
+const launchSite = new THREE.Group();
+launchSite.position.copy(surfacePoint);
+launchSite.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(tangentRight, surfaceNormal, tangentForward));
+scene.add(launchSite);
+
+const mountain = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.1, 0.5, MOUNTAIN_HEIGHT, 8),
+  new THREE.MeshStandardMaterial({ color: 0x886644, roughness: 0.9 })
+);
+mountain.position.y = MOUNTAIN_HEIGHT * 0.5;
+mountain.castShadow = true;
+mountain.receiveShadow = true;
+launchSite.add(mountain);
+
+const snowCap = new THREE.Mesh(
+  new THREE.SphereGeometry(0.15, 16, 16),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86 })
+);
+snowCap.position.y = MOUNTAIN_HEIGHT - 0.02;
+snowCap.castShadow = true;
+launchSite.add(snowCap);
+
+const cannonGroup = new THREE.Group();
+cannonGroup.position.set(0, MOUNTAIN_HEIGHT + 0.1, 0.06);
+launchSite.add(cannonGroup);
+
+const cannonBarrel = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.08, 0.08, 0.5, 16),
+  new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.7, roughness: 0.3 })
+);
+cannonBarrel.rotation.x = Math.PI / 2;
+cannonBarrel.position.set(0, 0.03, 0.1);
+cannonBarrel.castShadow = true;
+cannonGroup.add(cannonBarrel);
+
+const cannonMuzzle = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16),
+  new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7, roughness: 0.35 })
+);
+cannonMuzzle.rotation.x = Math.PI / 2;
+cannonMuzzle.position.set(0, 0.03, 0.35);
+cannonMuzzle.castShadow = true;
+cannonGroup.add(cannonMuzzle);
+
+const cannonBase = new THREE.Mesh(
+  new THREE.BoxGeometry(0.3, 0.15, 0.2),
+  new THREE.MeshStandardMaterial({ color: 0x553322, roughness: 0.84 })
+);
+cannonBase.position.set(0, -0.07, -0.02);
+cannonBase.castShadow = true;
+cannonBase.receiveShadow = true;
+cannonGroup.add(cannonBase);
+
+const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x443322, roughness: 0.86 });
+for (const side of [-1, 1]) {
+  const wheel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16),
+    wheelMaterial
+  );
+  wheel.rotation.z = Math.PI / 2;
+  wheel.position.set(side * 0.14, -0.11, -0.02);
+  wheel.castShadow = true;
+  wheel.receiveShadow = true;
+  cannonGroup.add(wheel);
+}
+
+const muzzleMarker = new THREE.Object3D();
+muzzleMarker.position.set(0, 0.03, 0.4);
+cannonGroup.add(muzzleMarker);
+
+const launchWorldPosition = new THREE.Vector3();
+muzzleMarker.getWorldPosition(launchWorldPosition);
+const MU_SCENE = Math.pow(ORBIT_SPEED_KMPS * SPEED_TO_SCENE, 2) * launchWorldPosition.length();
+
+const moonOrbitGroup = new THREE.Group();
+moonOrbitGroup.rotation.z = 0.35;
+scene.add(moonOrbitGroup);
+
+const moonOrbitRing = new THREE.Mesh(
+  new THREE.TorusGeometry(20, 0.01, 8, 128),
+  new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.2 })
+);
+moonOrbitRing.rotation.x = Math.PI / 2;
+moonOrbitGroup.add(moonOrbitRing);
+
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(0.8, 32, 32),
+  new THREE.MeshStandardMaterial({
+    map: moonTexture,
+    bumpMap: moonBumpTexture,
+    bumpScale: 0.05,
+    color: 0xcccccc,
+    roughness: 0.9
+  })
+);
+moon.position.set(20, 0, 0);
+moon.castShadow = true;
+moon.receiveShadow = true;
+moonOrbitGroup.add(moon);
+
+const moonGravityArrow = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 2, 0xff4444, 0.3, 0.18);
+scene.add(moonGravityArrow);
+
+const moonGravityLabel = createTextSprite('달도\n중력 방향 가속도', {
+  color: '#ffd7d7',
+  border: 'rgba(255, 140, 140, 0.4)',
+  scale: 1.35,
+  fontSize: 34
+});
+scene.add(moonGravityLabel);
+
+let activeShell = null;
+const completedTrails = [];
+const smokeBursts = [];
+const explosions = [];
+let moonAngle = 0;
+let statusTimer = null;
+
+const gravityArrow = new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), new THREE.Vector3(), 1.5, 0xff4444, 0.24, 0.12);
+gravityArrow.visible = false;
+scene.add(gravityArrow);
+
+const velocityArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.5, 0x44ff66, 0.24, 0.12);
+velocityArrow.visible = false;
+scene.add(velocityArrow);
+
+const gravityLabel = createTextSprite('중력', {
+  color: '#ffc5c5',
+  border: 'rgba(255, 108, 108, 0.38)',
+  scale: 0.78,
+  fontSize: 34
+});
+gravityLabel.visible = false;
+scene.add(gravityLabel);
+
+const velocityLabel = createTextSprite('운동 방향', {
+  color: '#c8ffd0',
+  border: 'rgba(119, 255, 143, 0.35)',
+  scale: 0.96,
+  fontSize: 34
+});
+velocityLabel.visible = false;
+scene.add(velocityLabel);
+
+const orbitLabel = createTextSprite('인공위성 궤도!', {
+  color: '#e6ffcb',
+  border: 'rgba(120, 255, 120, 0.35)',
+  scale: 1.18,
+  fontSize: 38
+});
+orbitLabel.visible = false;
+scene.add(orbitLabel);
+
+const accelLabel = createTextSprite('가속도 = 중력 방향', {
+  color: '#f4ffd5',
+  border: 'rgba(161, 255, 161, 0.32)',
+  scale: 1.48,
+  fontSize: 34
+});
+accelLabel.visible = false;
+scene.add(accelLabel);
+
+const params = {
+  발사속력: 3.0,
+  궤적유형: '짧은 포물선 낙하',
+  발사() {
+    launchShell();
+  },
+  화살표표시: true,
+  이전궤적유지: false,
+  달표시: true,
+  시점: '외부 관찰',
+  슬로모션: 1.0,
+  초기화() {
+    resetSimulation();
+  }
+};
+
+const gui = new GUI({ title: '뉴턴의 대포 조작 패널' });
+gui.domElement.style.zIndex = '40';
+gui.add(params, '발사속력', 0, 12, 0.1).name('발사 속력 (km/s)').onChange(() => updateTrajectoryReadout());
+gui.add(params, '발사').name('발사');
+gui.add(params, '궤적유형').name('궤적 유형 표시').listen();
+gui.add(params, '화살표표시').name('중력/속도 화살표').onChange(updateAuxiliaryVisibility);
+gui.add(params, '이전궤적유지').name('이전 궤적 유지');
+gui.add(params, '달표시').name('달 표시').onChange(updateMoonVisibility);
+gui.add(params, '시점', ['외부 관찰', '포탄 추적']).name('시점');
+gui.add(params, '슬로모션', 0.1, 5, 0.1).name('슬로모션');
+gui.add(params, '초기화').name('초기화');
+
+if (window.innerWidth < 900) {
+  gui.close();
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function classifySpeed(speedKmps) {
+  if (speedKmps < 3) {
+    return {
+      key: 'short-drop',
+      label: '짧은 포물선 낙하',
+      pill: '포물선 낙하 · 가까운 곳에 낙하',
+      color: 0xff4444,
+      concept: '중력이 우세하여 포탄이 비교적 빨리 지표면에 충돌합니다.',
+      status: '짧은 포물선 궤적'
+    };
+  }
+  if (speedKmps < 5) {
+    return {
+      key: 'long-drop',
+      label: '긴 포물선 낙하',
+      pill: '포물선 낙하 · 더 멀리 날아감',
+      color: 0xff8844,
+      concept: '속력이 커져 더 멀리 날아가지만 아직 지구 둘레를 돌 만큼은 아닙니다.',
+      status: '긴 포물선 궤적'
+    };
+  }
+  if (speedKmps < 7.6) {
+    return {
+      key: 'very-long-drop',
+      label: '매우 긴 포물선 낙하',
+      pill: '매우 긴 포물선 · 지구 반대편 쪽까지',
+      color: 0xffcc44,
+      concept: '지표면이 계속 휘어지기 때문에 훨씬 멀리 날아가지만 결국 다시 떨어집니다.',
+      status: '아주 긴 포물선 궤적'
+    };
+  }
+  if (speedKmps < 8.2) {
+    return {
+      key: 'orbit',
+      label: '원 궤도(인공위성)',
+      pill: '원 궤도 · 인공위성',
+      color: 0x44ff44,
+      concept: '중력이 항상 중심 방향 가속도를 제공하여 포탄이 지구 둘레를 원운동합니다.',
+      status: '인공위성 궤도 도달'
+    };
+  }
+  if (speedKmps < ESCAPE_SPEED_KMPS) {
+    return {
+      key: 'ellipse',
+      label: '타원 궤도',
+      pill: '타원 궤도 · 탈출 전',
+      color: 0x4488ff,
+      concept: '원 궤도보다 빨라져 더 길게 늘어난 타원 궤도를 그립니다.',
+      status: '타원 궤도 진입'
+    };
+  }
+  return {
+    key: 'escape',
+    label: '탈출 궤도',
+    pill: '탈출 · 지구 중력권 이탈',
+    color: 0xaa44ff,
+    concept: '탈출 속도보다 빨라져 지구 중력권을 벗어납니다.',
+    status: '탈출 속도 도달'
+  };
+}
+
+function gravityAt(position) {
+  const r = Math.max(position.length(), 0.0001);
+  return position.clone().multiplyScalar(-MU_SCENE / (r * r * r));
+}
+
+function speedKmpsToScene(speedKmps) {
+  return speedKmps * SPEED_TO_SCENE;
+}
+
+function createTrailLine(color) {
+  const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()]);
+  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.92 });
+  const line = new THREE.Line(geometry, material);
+  line.frustumCulled = false;
+  scene.add(line);
+  return line;
+}
+
+function disposeObject(object) {
+  if (!object) return;
+  scene.remove(object);
+  if (object.geometry) object.geometry.dispose();
+  if (object.material) {
+    if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
+    else object.material.dispose();
+  }
+}
+
+function clearTrails() {
+  while (completedTrails.length) {
+    disposeObject(completedTrails.pop());
+  }
+  if (activeShell?.line) {
+    disposeObject(activeShell.line);
+    activeShell.line = null;
+  }
+}
+
+function setStatus(text, color = '#ffffff') {
+  statusBanner.textContent = text;
+  statusBanner.style.color = color;
+  statusBanner.style.opacity = '1';
+  if (statusTimer) window.clearTimeout(statusTimer);
+  statusTimer = window.setTimeout(() => {
+    statusBanner.style.opacity = '0';
+  }, 1800);
+}
+
+function updateTrajectoryReadout() {
+  const type = classifySpeed(params.발사속력);
+  params.궤적유형 = type.label;
+  speedValueEl.textContent = `${params.발사속력.toFixed(1)} km/s`;
+  trajectoryValueEl.textContent = type.label;
+  trajectoryPill.textContent = type.pill;
+  trajectoryPill.style.color = `#${type.color.toString(16).padStart(6, '0')}`;
+  trajectoryPill.style.borderColor = `#${type.color.toString(16).padStart(6, '0')}55`;
+  conceptNoteEl.textContent = type.key === 'orbit'
+    ? '인공위성의 원운동에서는 가속도 방향과 중력 방향이 항상 지구 중심을 향합니다.'
+    : type.key === 'escape'
+      ? '탈출 속도를 넘으면 지구의 중력으로도 다시 붙잡지 못해 먼 우주로 나아갑니다.'
+      : type.concept;
+  moonValueEl.textContent = params.달표시 ? '표시 중' : '숨김';
+  cameraValueEl.textContent = params.시점;
+  syncGui();
+}
+
+function updateMoonVisibility() {
+  moonOrbitGroup.visible = params.달표시;
+  moonGravityArrow.visible = params.달표시 && params.화살표표시;
+  moonGravityLabel.visible = params.달표시 && params.화살표표시;
+  moonNoteEl.style.display = params.달표시 ? 'block' : 'none';
+  moonValueEl.textContent = params.달표시 ? '표시 중' : '숨김';
+  syncGui();
+}
+
+function updateAuxiliaryVisibility() {
+  const hasShell = Boolean(activeShell);
+  gravityArrow.visible = hasShell && params.화살표표시;
+  velocityArrow.visible = hasShell && params.화살표표시;
+  gravityLabel.visible = hasShell && params.화살표표시;
+  velocityLabel.visible = hasShell && params.화살표표시;
+  orbitLabel.visible = hasShell && params.화살표표시 && activeShell?.type.key === 'orbit';
+  accelLabel.visible = hasShell && params.화살표표시 && activeShell?.type.key === 'orbit';
+  moonGravityArrow.visible = params.달표시 && params.화살표표시;
+  moonGravityLabel.visible = params.달표시 && params.화살표표시;
+}
+
+function makeParticleEffect(origin, velocities, color, size, lifetime, opacity = 1) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(velocities.length * 3);
+  for (let i = 0; i < velocities.length; i++) {
+    positions[i * 3] = origin.x;
+    positions[i * 3 + 1] = origin.y;
+    positions[i * 3 + 2] = origin.z;
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color,
+    size,
+    transparent: true,
+    opacity,
+    depthWrite: false
+  });
+  const points = new THREE.Points(geometry, material);
+  scene.add(points);
+  return { points, positions, velocities, material, life: 0, lifetime };
+}
+
+function spawnSmoke(origin, direction) {
+  const velocities = [];
+  for (let i = 0; i < 20; i++) {
+    const random = new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 0.5, (Math.random() - 0.5) * 0.8);
+    velocities.push(direction.clone().multiplyScalar(0.35 + Math.random() * 0.15).add(random.multiplyScalar(0.18)));
+  }
+  smokeBursts.push(makeParticleEffect(origin, velocities, 0xcccccc, 0.22, 0.5, 0.75));
+}
+
+function spawnExplosion(origin) {
+  const velocities = [];
+  for (let i = 0; i < 28; i++) {
+    velocities.push(new THREE.Vector3((Math.random() - 0.5) * 1.8, (Math.random() - 0.2) * 1.6, (Math.random() - 0.5) * 1.8));
+  }
+  explosions.push(makeParticleEffect(origin, velocities, 0xffaa33, 0.26, 0.85, 0.96));
+}
+
+function updateParticleEffects(list, delta, drag) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const effect = list[i];
+    effect.life += delta;
+    effect.material.opacity = Math.max(0, 1 - effect.life / effect.lifetime);
+    for (let j = 0; j < effect.velocities.length; j++) {
+      const velocity = effect.velocities[j];
+      velocity.multiplyScalar(1 - drag * delta);
+      effect.positions[j * 3] += velocity.x * delta;
+      effect.positions[j * 3 + 1] += velocity.y * delta;
+      effect.positions[j * 3 + 2] += velocity.z * delta;
+    }
+    effect.points.geometry.attributes.position.needsUpdate = true;
+    if (effect.life >= effect.lifetime) {
+      disposeObject(effect.points);
+      list.splice(i, 1);
+    }
+  }
+}
+
+function removeActiveShell(keepLine) {
+  if (!activeShell) return;
+  if (activeShell.mesh) disposeObject(activeShell.mesh);
+  if (activeShell.line) {
+    if (keepLine) completedTrails.push(activeShell.line);
+    else disposeObject(activeShell.line);
+  }
+  activeShell = null;
+  updateAuxiliaryVisibility();
+}
+
+function launchShell() {
+  if (!params.이전궤적유지) {
+    clearTrails();
+    removeActiveShell(false);
+  } else {
+    removeActiveShell(true);
+  }
+
+  const type = classifySpeed(params.발사속력);
+  const origin = new THREE.Vector3();
+  muzzleMarker.getWorldPosition(origin);
+  const direction = tangentForward.clone().normalize();
+  const shellVelocity = direction.multiplyScalar(speedKmpsToScene(params.발사속력));
+
+  const shell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 16, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xffdd44,
+      metalness: 0.5,
+      roughness: 0.3,
+      emissive: 0x443300
+    })
+  );
+  shell.position.copy(origin);
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  scene.add(shell);
+
+  const trailLine = createTrailLine(type.color);
+
+  activeShell = {
+    mesh: shell,
+    position: origin.clone(),
+    velocity: shellVelocity,
+    type,
+    line: trailLine,
+    trailPoints: [origin.clone()],
+    previousRadial: origin.clone().normalize(),
+    accumulatedAngle: 0,
+    trailFrozen: false
+  };
+
+  spawnSmoke(origin, tangentForward);
+  updateAuxiliaryVisibility();
+  setStatus(type.status, `#${type.color.toString(16).padStart(6, '0')}`);
+}
+
+function updateShellPhysics() {
+  if (!activeShell) return;
+  const dt = FIXED_DT * params.슬로모션;
+
+  for (let i = 0; i < STEPS_PER_FRAME; i++) {
+    const a0 = gravityAt(activeShell.position);
+    const displacement = activeShell.velocity.clone().multiplyScalar(dt).add(a0.clone().multiplyScalar(0.5 * dt * dt));
+    activeShell.position.add(displacement);
+    const a1 = gravityAt(activeShell.position);
+    activeShell.velocity.add(a0.add(a1).multiplyScalar(0.5 * dt));
+    activeShell.mesh.position.copy(activeShell.position);
+
+    if (activeShell.position.length() < EARTH_RADIUS) {
+      const hitPoint = activeShell.position.clone().normalize().multiplyScalar(EARTH_RADIUS + 0.02);
+      activeShell.mesh.position.copy(hitPoint);
+      spawnExplosion(hitPoint);
+      setStatus('지표면 충돌', '#ffb36b');
+      removeActiveShell(true);
+      return;
+    }
+
+    if (activeShell.position.length() > ESCAPE_DISTANCE) {
+      spawnSmoke(activeShell.position.clone(), activeShell.velocity.clone().normalize());
+      setStatus('지구 중력 탈출!', '#d9a6ff');
+      removeActiveShell(true);
+      return;
+    }
+  }
+
+  if (!activeShell) return;
+
+  const radial = activeShell.position.clone().normalize();
+  activeShell.accumulatedAngle += activeShell.previousRadial.angleTo(radial);
+  activeShell.previousRadial.copy(radial);
+
+  if (!activeShell.trailFrozen) {
+    activeShell.trailPoints.push(activeShell.position.clone());
+    if (activeShell.trailPoints.length > MAX_TRAIL_POINTS) {
+      activeShell.trailPoints.shift();
+    }
+    activeShell.line.geometry.dispose();
+    activeShell.line.geometry = new THREE.BufferGeometry().setFromPoints(activeShell.trailPoints);
+  }
+
+  if (activeShell.type.key === 'orbit' && activeShell.accumulatedAngle >= Math.PI * 2) {
+    activeShell.trailFrozen = true;
+    setStatus('1바퀴 완주: 인공위성 궤도 유지', '#aefb98');
+  }
+}
+
+function updateShellIndicators() {
+  if (!activeShell || !params.화살표표시) {
+    gravityArrow.visible = false;
+    velocityArrow.visible = false;
+    gravityLabel.visible = false;
+    velocityLabel.visible = false;
+    orbitLabel.visible = false;
+    accelLabel.visible = false;
+    return;
+  }
+
+  const radial = activeShell.position.clone().normalize();
+  const gravityDir = radial.clone().multiplyScalar(-1);
+  const velocityDir = activeShell.velocity.clone().normalize();
+
+  gravityArrow.visible = true;
+  gravityArrow.position.copy(activeShell.position);
+  gravityArrow.setDirection(gravityDir);
+  gravityArrow.setLength(1.5, 0.24, 0.12);
+  gravityLabel.visible = true;
+  gravityLabel.position.copy(activeShell.position.clone().add(gravityDir.multiplyScalar(1.8)));
+
+  velocityArrow.visible = true;
+  velocityArrow.position.copy(activeShell.position);
+  velocityArrow.setDirection(velocityDir);
+  velocityArrow.setLength(1.5, 0.24, 0.12);
+  velocityLabel.visible = true;
+  velocityLabel.position.copy(activeShell.position.clone().add(velocityDir.multiplyScalar(1.9)));
+
+  const showOrbitText = activeShell.type.key === 'orbit';
+  orbitLabel.visible = showOrbitText;
+  accelLabel.visible = showOrbitText;
+  if (showOrbitText) {
+    const orbitNormal = activeShell.position.clone().cross(activeShell.velocity).normalize();
+    orbitLabel.position.copy(activeShell.position.clone().add(radial.clone().multiplyScalar(0.85)).add(orbitNormal.clone().multiplyScalar(0.5)));
+    accelLabel.position.copy(activeShell.position.clone().add(radial.clone().multiplyScalar(1.55)));
+  }
+}
+
+function updateMoon() {
+  if (!params.달표시) {
+    moonGravityArrow.visible = false;
+    moonGravityLabel.visible = false;
+    return;
+  }
+
+  moonAngle += 0.001;
+  moonOrbitGroup.rotation.y = moonAngle;
+  moon.rotation.y += 0.003;
+
+  const moonWorldPosition = new THREE.Vector3();
+  moon.getWorldPosition(moonWorldPosition);
+  const direction = moonWorldPosition.clone().normalize().multiplyScalar(-1);
+
+  moonGravityArrow.position.copy(moonWorldPosition);
+  moonGravityArrow.setDirection(direction);
+  moonGravityArrow.setLength(2, 0.3, 0.18);
+  moonGravityArrow.visible = params.화살표표시;
+
+  moonGravityLabel.position.copy(moonWorldPosition.clone().add(direction.clone().multiplyScalar(2.4)));
+  moonGravityLabel.visible = params.화살표표시;
+}
+
+function updateCamera() {
+  cameraValueEl.textContent = params.시점;
+  if (params.시점 === '포탄 추적' && activeShell) {
+    controls.enabled = false;
+    const radial = activeShell.position.clone().normalize();
+    const velocityDir = activeShell.velocity.clone().normalize();
+    const desiredPosition = activeShell.position.clone().add(radial.multiplyScalar(1.8)).add(velocityDir.multiplyScalar(-2.8));
+    camera.position.lerp(desiredPosition, 0.08);
+    camera.lookAt(activeShell.position);
+    return;
+  }
+
+  controls.enabled = true;
+  controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.08);
+  controls.update();
+}
+
+function resetSimulation() {
+  params.발사속력 = 3.0;
+  params.화살표표시 = true;
+  params.이전궤적유지 = false;
+  params.달표시 = true;
+  params.시점 = '외부 관찰';
+  params.슬로모션 = 1.0;
+  params.궤적유형 = classifySpeed(params.발사속력).label;
+
+  clearTrails();
+  removeActiveShell(false);
+
+  while (smokeBursts.length) disposeObject(smokeBursts.pop().points);
+  while (explosions.length) disposeObject(explosions.pop().points);
+
+  moonAngle = 0;
+  moonOrbitGroup.rotation.y = 0;
+  camera.position.set(0, 8, 15);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  updateTrajectoryReadout();
+  updateMoonVisibility();
+  updateAuxiliaryVisibility();
+  setStatus('시뮬레이션 초기화', '#d7e7ff');
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  const starMaterial = stars.material;
+  if (starMaterial.uniforms?.uPixelRatio) {
+    starMaterial.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+  }
+}
+
+function cleanup() {
+  window.removeEventListener('resize', onResize);
+  renderer.dispose();
+  gui.destroy();
+}
+
+guideToggle.addEventListener('click', () => {
+  const isOpen = guidePanel.style.display === 'block';
+  guidePanel.style.display = isOpen ? 'none' : 'block';
+  guideToggle.setAttribute('aria-expanded', String(!isOpen));
+});
+
+window.addEventListener('resize', onResize);
+window.addEventListener('pagehide', cleanup, { once: true });
+
+updateTrajectoryReadout();
+updateMoonVisibility();
+updateAuxiliaryVisibility();
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  atmosphere.rotation.y += delta * 0.03;
+  updateShellPhysics();
+  updateShellIndicators();
+  updateMoon();
+  updateParticleEffects(smokeBursts, delta, 0.9);
+  updateParticleEffects(explosions, delta, 0.4);
+  updateCamera();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

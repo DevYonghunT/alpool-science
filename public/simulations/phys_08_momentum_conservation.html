@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>운동량 보존 법칙 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --panel-bg: rgba(9, 20, 36, 0.84);
+    --panel-soft: rgba(255, 255, 255, 0.07);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.72);
+    --text-dark: #14263b;
+    --accent-red: #ff5d5d;
+    --accent-red-soft: #ff9f95;
+    --accent-blue: #4d7dff;
+    --accent-blue-soft: #88a9ff;
+    --accent-gold: #ffcf6a;
+    --accent-green: #65d6a3;
+    --accent-amber: #ffb45f;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 10%, rgba(255, 222, 143, 0.24), transparent 18%),
+      radial-gradient(circle at 84% 14%, rgba(108, 163, 255, 0.22), transparent 20%),
+      linear-gradient(180deg, #eef0f5 0%, #dde4ef 52%, #cfd9ea 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body { position: relative; }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 20;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  #guide-toggle {
+    top: 14px;
+    left: 14px;
+    border: 1px solid rgba(15, 33, 55, 0.12);
+    border-radius: 999px;
+    padding: 10px 15px;
+    background: rgba(8, 22, 40, 0.86);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 42;
+  }
+
+  #guide-panel {
+    top: 54px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    display: none;
+    border: 1px solid var(--panel-border);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    background: rgba(6, 18, 36, 0.92);
+    box-shadow: 0 18px 42px rgba(6, 18, 36, 0.22);
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #9fd3ff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: rgba(247, 251, 255, 0.9);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  #mode-pill {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 250px;
+    max-width: min(82vw, 460px);
+    border: 1px solid rgba(15, 33, 55, 0.1);
+    border-radius: 999px;
+    padding: 12px 22px;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: 0 14px 30px rgba(18, 36, 58, 0.14);
+    text-align: center;
+    color: var(--text-dark);
+    pointer-events: none;
+  }
+
+  #mode-pill .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(20, 38, 59, 0.54);
+  }
+
+  #mode-pill h1 {
+    margin-top: 4px;
+    font-size: 23px;
+    font-weight: 800;
+  }
+
+  #mode-pill p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(20, 38, 59, 0.7);
+  }
+
+  #status-banner {
+    top: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 32px));
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 20px;
+    padding: 14px 16px;
+    background: rgba(10, 20, 36, 0.84);
+    box-shadow: 0 18px 36px rgba(10, 20, 36, 0.2);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-banner .title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #status-banner .body {
+    margin-top: 5px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  #status-banner.blue { box-shadow: 0 18px 36px rgba(60, 118, 255, 0.18); }
+  #status-banner.green { box-shadow: 0 18px 36px rgba(78, 186, 140, 0.2); }
+  #status-banner.amber { box-shadow: 0 18px 36px rgba(255, 171, 84, 0.2); }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    left: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100vw - 32px));
+    border: 1px solid var(--panel-border);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    background: var(--panel-bg);
+    box-shadow: 0 22px 44px rgba(8, 18, 32, 0.22);
+    font-size: 12px;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff7dc;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 208, 119, 0.65), rgba(255, 208, 119, 0));
+  }
+
+  #formula-panel .mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  #formula-panel .section-title {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    color: #9fd3ff;
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  #formula-panel .formula-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 5px;
+    line-height: 1.7;
+  }
+
+  #formula-panel .label {
+    flex: 0 0 108px;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .formula-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.07);
+    line-height: 1.72;
+  }
+
+  #formula-panel .formula-box strong {
+    color: #fff6bf;
+  }
+
+  #formula-panel .mono {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  #formula-panel .note {
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.76);
+    line-height: 1.72;
+  }
+
+  #chart-panel {
+    right: 16px;
+    bottom: 16px;
+    width: min(560px, calc(100vw - 32px));
+    border: 1px solid var(--panel-border);
+    border-radius: 24px;
+    padding: 16px 16px 14px;
+    background: rgba(8, 18, 34, 0.82);
+    box-shadow: 0 22px 44px rgba(8, 18, 34, 0.24);
+  }
+
+  #chart-panel.hidden {
+    display: none;
+  }
+
+  #chart-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  #chart-head h3 {
+    font-size: 17px;
+    font-weight: 800;
+  }
+
+  #chart-head p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #chart-equality {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  #chart-area {
+    position: relative;
+    height: 228px;
+    margin-top: 14px;
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #chart-baseline {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 50%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  #chart-columns {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px 12px 14px;
+  }
+
+  .bar-column {
+    position: relative;
+  }
+
+  .bar-track {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 68px;
+    height: calc(100% - 52px);
+  }
+
+  .bar {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 52px;
+    border-radius: 16px 16px 10px 10px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 10px 18px rgba(0, 0, 0, 0.14);
+  }
+
+  .bar.negative {
+    border-radius: 10px 10px 16px 16px;
+  }
+
+  .bar-value {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 74px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .bar-caption {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 0;
+    padding: 8px 6px 7px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+  }
+
+  .bar-caption .title {
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .bar-caption .subtitle {
+    margin-top: 3px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  #total-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .total-card {
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .total-card .label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  .total-card strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 15px;
+    color: #ffffff;
+  }
+
+  #example-panel {
+    right: 16px;
+    top: 16px;
+    width: min(300px, calc(100vw - 32px));
+    border: 1px solid rgba(15, 33, 55, 0.11);
+    border-radius: 22px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: 0 18px 34px rgba(18, 36, 58, 0.12);
+    color: var(--text-dark);
+  }
+
+  #example-panel h3 {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #example-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(20, 38, 59, 0.72);
+    line-height: 1.6;
+  }
+
+  .example-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .example-btn {
+    width: 100%;
+    border: 1px solid rgba(20, 38, 59, 0.1);
+    border-radius: 16px;
+    padding: 11px 12px;
+    background: rgba(255, 255, 255, 0.7);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+
+  .example-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(20, 38, 59, 0.18);
+    box-shadow: 0 10px 20px rgba(20, 38, 59, 0.08);
+  }
+
+  .example-btn strong {
+    display: block;
+    font-size: 13px;
+    color: #13253a;
+  }
+
+  .example-btn span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(20, 38, 59, 0.72);
+  }
+
+  .example-btn.active {
+    border-color: rgba(79, 132, 255, 0.34);
+    background: linear-gradient(135deg, rgba(103, 168, 255, 0.18), rgba(255, 214, 117, 0.14));
+  }
+
+  .legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.62);
+    font-size: 11px;
+    color: rgba(20, 38, 59, 0.84);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 1100px) {
+    #example-panel {
+      top: 158px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    #status-banner {
+      top: 102px;
+    }
+
+    #example-panel {
+      top: auto;
+      bottom: 312px;
+      width: min(340px, calc(100vw - 32px));
+    }
+
+    #formula-panel {
+      bottom: 286px;
+    }
+
+    #chart-panel {
+      right: 12px;
+      left: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #mode-pill h1 {
+      font-size: 20px;
+    }
+
+    #status-banner {
+      top: 96px;
+      padding: 12px 14px;
+    }
+
+    #example-panel {
+      left: 12px;
+      right: 12px;
+      top: 188px;
+      bottom: auto;
+      width: auto;
+      max-height: 144px;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 176px;
+      max-height: min(22vh, 148px);
+      padding: 14px 14px 12px;
+      font-size: 11px;
+    }
+
+    #chart-area {
+      height: 176px;
+      margin-top: 12px;
+    }
+
+    #chart-panel {
+      padding: 14px 14px 12px;
+    }
+
+    #total-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .bar-track {
+      width: 58px;
+    }
+
+    .bar {
+      width: 42px;
+    }
+
+    .bar-value {
+      min-width: 60px;
+      font-size: 10px;
+    }
+
+    .bar-caption .title {
+      font-size: 10px;
+    }
+
+    .bar-caption .subtitle {
+      font-size: 9px;
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" class="overlay">📖 학습 가이드</button>
+
+<div id="guide-panel" class="overlay">
+  <h3>핵심 원리</h3>
+  <p>운동량은 질량과 속도의 곱인 <strong>p = mv</strong>이며 방향까지 가진 벡터량입니다. 외부에서 힘이 작용하지 않으면 두 물체의 <strong>충돌 전 총운동량</strong>과 <strong>충돌 후 총운동량</strong>은 같습니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>두 수레의 충돌 전후 총운동량이 실제로 같은지 막대그래프와 수식 패널을 바탕으로 확인해 보세요.</li>
+    <li>완전 비탄성 충돌에서는 운동에너지가 왜 줄어들까요? 사라진 에너지는 어디로 전환될까요?</li>
+    <li>폭발 모드에서 질량이 큰 수레가 더 느리게 움직이는 이유를 운동량 보존으로 설명해 보세요.</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>당구에서 움직이던 공이 정지한 공과 충돌하면 총운동량이 보존됩니다.</li>
+    <li>스케이트를 탄 두 사람이 서로 밀면 반대 방향으로 멀어지며, 가벼운 사람이 더 빠르게 움직입니다.</li>
+    <li>로켓은 연소 가스를 뒤로 분출하여 앞으로 나아갑니다. 이때 로켓과 가스의 총운동량은 보존됩니다.</li>
+    <li>교통사고 분석에서는 충돌 전후 차량들의 운동량을 비교해 사고 상황을 역추적하기도 합니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>물리학 I편 p42~47의 운동량, 운동량 보존 법칙, 수레 충돌 실험, 작용 반작용 내용을 기반으로 재구성했습니다.</p>
+</div>
+
+<div id="mode-pill" class="overlay">
+  <div class="eyebrow">Physics I · Momentum Conservation</div>
+  <h1 id="mode-title">운동량 보존 법칙</h1>
+  <p id="mode-subtitle">레일 위 두 수레의 충돌과 분리를 통해 총운동량 보존을 확인합니다.</p>
+</div>
+
+<div id="status-banner" class="overlay blue">
+  <div class="title" id="status-title">실험 준비 완료</div>
+  <div class="body" id="status-body">질량과 속도를 조절한 뒤 충돌을 시작해 보세요. 운동량 막대그래프가 충돌 전후를 바로 비교해 줍니다.</div>
+</div>
+
+<div id="example-panel" class="overlay">
+  <h3>실생활 시나리오</h3>
+  <p>빠르게 프리셋을 적용해 당구, 스케이트, 로켓 상황을 같은 운동량 보존 법칙으로 연결해 보세요.</p>
+  <div class="example-list">
+    <button class="example-btn active" data-example="billiard">
+      <strong>당구</strong>
+      <span>질량이 같은 공 하나가 정지한 공과 탄성 충돌합니다.</span>
+    </button>
+    <button class="example-btn" data-example="skate">
+      <strong>스케이트 밀기</strong>
+      <span>서로 밀고 떨어질 때 가벼운 사람이 더 빠르게 움직입니다.</span>
+    </button>
+    <button class="example-btn" data-example="rocket">
+      <strong>로켓 추진</strong>
+      <span>가스를 뒤로 밀어내며 본체는 반대 방향으로 이동합니다.</span>
+    </button>
+  </div>
+  <div class="legend">
+    <div class="legend-chip"><span class="legend-dot" style="background:#ff5d5d;"></span>수레 1</div>
+    <div class="legend-chip"><span class="legend-dot" style="background:#4d7dff;"></span>수레 2</div>
+  </div>
+</div>
+
+<div id="formula-panel" class="overlay"></div>
+
+<div id="chart-panel" class="overlay">
+  <div id="chart-head">
+    <div>
+      <h3>운동량 막대그래프</h3>
+      <p id="chart-summary">충돌 전후 각 수레의 운동량과 총합을 동시에 비교합니다.</p>
+    </div>
+    <div id="chart-equality">보존 확인 중...</div>
+  </div>
+  <div id="chart-area">
+    <div id="chart-baseline"></div>
+    <div id="chart-columns">
+      <div class="bar-column" data-key="before1">
+        <div class="bar-track">
+          <div class="bar"></div>
+          <div class="bar-value"></div>
+        </div>
+        <div class="bar-caption">
+          <div class="title">수레 1 전</div>
+          <div class="subtitle">p₁ = m₁v₁</div>
+        </div>
+      </div>
+      <div class="bar-column" data-key="before2">
+        <div class="bar-track">
+          <div class="bar"></div>
+          <div class="bar-value"></div>
+        </div>
+        <div class="bar-caption">
+          <div class="title">수레 2 전</div>
+          <div class="subtitle">p₂ = m₂v₂</div>
+        </div>
+      </div>
+      <div class="bar-column" data-key="after1">
+        <div class="bar-track">
+          <div class="bar"></div>
+          <div class="bar-value"></div>
+        </div>
+        <div class="bar-caption">
+          <div class="title">수레 1 후</div>
+          <div class="subtitle">p₁' = m₁v₁'</div>
+        </div>
+      </div>
+      <div class="bar-column" data-key="after2">
+        <div class="bar-track">
+          <div class="bar"></div>
+          <div class="bar-value"></div>
+        </div>
+        <div class="bar-caption">
+          <div class="title">수레 2 후</div>
+          <div class="subtitle">p₂' = m₂v₂'</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="total-grid">
+    <div class="total-card">
+      <div class="label">충돌 전 총운동량</div>
+      <strong id="total-before">0 kg·m/s</strong>
+    </div>
+    <div class="total-card">
+      <div class="label">충돌 후 총운동량</div>
+      <strong id="total-after">0 kg·m/s</strong>
+    </div>
+    <div class="total-card">
+      <div class="label">차이 |Δp|</div>
+      <strong id="total-diff">0</strong>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MODE_ELASTIC = '탄성 충돌';
+const MODE_INELASTIC = '완전 비탄성(합체)';
+const MODE_EXPLOSION = '폭발(분리)';
+const MODES = [MODE_ELASTIC, MODE_INELASTIC, MODE_EXPLOSION];
+
+const TRACK_LENGTH = 14;
+const TRACK_START = -TRACK_LENGTH / 2;
+const TRACK_END = TRACK_LENGTH / 2;
+const RAIL_MIN = -6.25;
+const RAIL_MAX = 6.25;
+const CART_LENGTH = 1;
+const CART_HALF = CART_LENGTH / 2;
+const COUPLED_SPACING = 1.04;
+const COLLISION_DURATION = 0.3;
+const EXPLOSION_CHARGE_DURATION = 0.4;
+const WHEEL_RADIUS = 0.13;
+
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const formulaPanelEl = document.getElementById('formula-panel');
+const chartPanelEl = document.getElementById('chart-panel');
+const chartSummaryEl = document.getElementById('chart-summary');
+const chartEqualityEl = document.getElementById('chart-equality');
+const totalBeforeEl = document.getElementById('total-before');
+const totalAfterEl = document.getElementById('total-after');
+const totalDiffEl = document.getElementById('total-diff');
+const statusBannerEl = document.getElementById('status-banner');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const modeTitleEl = document.getElementById('mode-title');
+const modeSubtitleEl = document.getElementById('mode-subtitle');
+const exampleButtons = Array.from(document.querySelectorAll('.example-btn'));
+
+const chartColumns = Array.from(document.querySelectorAll('.bar-column')).map((column) => ({
+  key: column.dataset.key,
+  column,
+  track: column.querySelector('.bar-track'),
+  bar: column.querySelector('.bar'),
+  value: column.querySelector('.bar-value')
+}));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 18, 36);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 6.3, 13.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1.2, 0);
+controls.minDistance = 7;
+controls.maxDistance = 24;
+controls.maxPolarAngle = Math.PI * 0.46;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(-8, 14, 10);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -18;
+directionalLight.shadow.camera.right = 18;
+directionalLight.shadow.camera.top = 16;
+directionalLight.shadow.camera.bottom = -16;
+directionalLight.shadow.camera.near = 1;
+directionalLight.shadow.camera.far = 40;
+directionalLight.shadow.bias = -0.00015;
+scene.add(directionalLight);
+
+const clock = new THREE.Clock();
+
+const params = {
+  mode: MODE_ELASTIC,
+  m1: 1,
+  v1: 3,
+  m2: 1,
+  v2: 0,
+  speedScale: 1,
+  showGraph: true
+};
+
+const runtime = {
+  phase: 'ready',
+  lastExplosionDriver: 'v1',
+  collisionTimer: 0,
+  chargeTimer: 0,
+  collisionPoint: 0,
+  coupledCenter: 0,
+  activeExample: 'billiard',
+  cart1Velocity: 0,
+  cart2Velocity: 0,
+  particles: []
+};
+
+const materials = {
+  rail: createMaterial(0xaaaaaa, { roughness: 0.38, metalness: 0.55 }),
+  railDark: createMaterial(0x707887, { roughness: 0.5, metalness: 0.3 }),
+  platform: createMaterial(0xd7dee8, { roughness: 0.9, metalness: 0.02 }),
+  red: createMaterial(0xff4444, { roughness: 0.38, metalness: 0.12 }),
+  blue: createMaterial(0x4444ff, { roughness: 0.38, metalness: 0.12 }),
+  wheel: createMaterial(0x333333, { roughness: 0.82, metalness: 0.15 }),
+  weight: createMaterial(0xff8844, { roughness: 0.42, metalness: 0.22 }),
+  spring: createMaterial(0xdde6f7, { roughness: 0.28, metalness: 0.85 }),
+  velcro: createMaterial(0x888844, { roughness: 0.88, metalness: 0.05 }),
+  wood: createMaterial(0xc7b39a, { roughness: 0.9, metalness: 0.02 })
+};
+const weightGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.12, 24);
+
+createEnvironment();
+createRail();
+
+const cart1 = createCart({
+  color: 0xff4444,
+  accent: '#ffb1ab',
+  lineColor: 0xff4444,
+  massLabel: 'm₁',
+  frontSide: 1,
+  labelScale: [2.55, 1.04]
+});
+
+const cart2 = createCart({
+  color: 0x4444ff,
+  accent: '#b8c6ff',
+  lineColor: 0x4444ff,
+  massLabel: 'm₂',
+  frontSide: -1,
+  labelScale: [2.55, 1.04]
+});
+
+scene.add(cart1.group, cart2.group);
+
+const gui = new GUI({ title: '실험 제어', width: 306 });
+gui.domElement.style.zIndex = '45';
+
+const controllers = {
+  mode: gui.add(params, 'mode', MODES).name('충돌 모드'),
+  m1: gui.add(params, 'm1', 0.5, 5, 0.5).name('m₁ 질량'),
+  v1: gui.add(params, 'v1', -5, 5, 0.1).name('v₁ 속도'),
+  m2: gui.add(params, 'm2', 0.5, 5, 0.5).name('m₂ 질량'),
+  v2: gui.add(params, 'v2', -5, 5, 0.1).name('v₂ 속도'),
+  start: gui.add({ start: startSimulation }, 'start').name('충돌 시작'),
+  speedScale: gui.add(params, 'speedScale', 0.2, 2, 0.1).name('속도 배율'),
+  showGraph: gui.add(params, 'showGraph').name('운동량 그래프'),
+  reset: gui.add({ reset: resetSimulation }, 'reset').name('초기화')
+};
+
+controllers.mode.onChange(() => {
+  runtime.activeExample = 'custom';
+  if (params.mode === MODE_EXPLOSION) {
+    syncExplosionPair(runtime.lastExplosionDriver, true);
+  }
+  syncGui();
+  resetSimulation();
+});
+
+controllers.m1.onChange(() => {
+  if (params.mode === MODE_EXPLOSION) syncExplosionPair(runtime.lastExplosionDriver, true);
+  syncGui();
+  updateAfterParameterChange();
+});
+
+controllers.m2.onChange(() => {
+  if (params.mode === MODE_EXPLOSION) syncExplosionPair(runtime.lastExplosionDriver, true);
+  syncGui();
+  updateAfterParameterChange();
+});
+
+controllers.v1.onChange(() => {
+  runtime.lastExplosionDriver = 'v1';
+  if (params.mode === MODE_EXPLOSION) {
+    syncExplosionPair('v1');
+    syncGui();
+  }
+  updateAfterParameterChange();
+});
+
+controllers.v2.onChange(() => {
+  runtime.lastExplosionDriver = 'v2';
+  if (params.mode === MODE_EXPLOSION) {
+    syncExplosionPair('v2');
+    syncGui();
+  }
+  updateAfterParameterChange();
+});
+
+controllers.speedScale.onChange(() => {
+  updatePanels();
+});
+
+controllers.showGraph.onChange(() => {
+  updateChartVisibility();
+});
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.style.display = guidePanelEl.style.display === 'block' ? 'none' : 'block';
+});
+
+exampleButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    applyExample(button.dataset.example);
+  });
+});
+
+window.addEventListener('resize', onResize);
+
+updateChartVisibility();
+resetSimulation();
+animate();
+
+function createMaterial(color, options = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: options.roughness ?? 0.55,
+    metalness: options.metalness ?? 0.08,
+    transparent: options.transparent ?? false,
+    opacity: options.opacity ?? 1
+  });
+}
+
+function formatNumber(value, digits = 2) {
+  const safeDigits = Math.abs(value) >= 10 ? Math.min(digits, 1) : digits;
+  return value.toLocaleString('ko-KR', {
+    minimumFractionDigits: Math.abs(value) > 0 && Math.abs(value) < 1 ? Math.min(safeDigits, 2) : 0,
+    maximumFractionDigits: safeDigits
+  });
+}
+
+function formatMomentum(value) {
+  return `${formatNumber(value, 2)} kg·m/s`;
+}
+
+function formatVelocity(value) {
+  return `${formatNumber(value, 2)} m/s`;
+}
+
+function setStatus(title, body, tone = 'blue') {
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+  statusBannerEl.className = `overlay ${tone}`;
+}
+
+function syncGui() {
+  if (typeof gui.controllersRecursive === 'function') {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function syncExplosionPair(source = 'v1', allowDefault = false) {
+  if (allowDefault && Math.abs(params.v1) < 0.01 && Math.abs(params.v2) < 0.01) {
+    params.v1 = 3;
+  }
+
+  if (source === 'v1') {
+    const maxDriver = Math.min(5, (5 * params.m2) / params.m1);
+    params.v1 = THREE.MathUtils.clamp(params.v1, -maxDriver, maxDriver);
+    params.v2 = -(params.m1 / params.m2) * params.v1;
+  } else {
+    const maxDriver = Math.min(5, (5 * params.m1) / params.m2);
+    params.v2 = THREE.MathUtils.clamp(params.v2, -maxDriver, maxDriver);
+    params.v1 = -(params.m2 / params.m1) * params.v2;
+  }
+}
+
+function getSnapshot() {
+  const m1 = params.m1;
+  const m2 = params.m2;
+  let beforeV1 = params.v1;
+  let beforeV2 = params.v2;
+  let afterV1 = 0;
+  let afterV2 = 0;
+  let principle = '';
+  let energyNote = '';
+
+  if (params.mode === MODE_ELASTIC) {
+    afterV1 = (((m1 - m2) * params.v1) + 2 * m2 * params.v2) / (m1 + m2);
+    afterV2 = (((m2 - m1) * params.v2) + 2 * m1 * params.v1) / (m1 + m2);
+    principle = '탄성 충돌에서는 총운동량과 운동에너지가 모두 보존됩니다.';
+    energyNote = '운동에너지도 보존';
+  } else if (params.mode === MODE_INELASTIC) {
+    afterV1 = (m1 * params.v1 + m2 * params.v2) / (m1 + m2);
+    afterV2 = afterV1;
+    principle = '완전 비탄성 충돌에서는 수레가 붙어서 함께 움직이며 총운동량만 보존됩니다.';
+    energyNote = '운동에너지는 감소';
+  } else {
+    beforeV1 = 0;
+    beforeV2 = 0;
+    afterV1 = params.v1;
+    afterV2 = params.v2;
+    principle = '분리 전 총운동량이 0이라면 분리 후에도 두 수레의 운동량 합은 0입니다.';
+    energyNote = '내부 에너지가 운동에너지로 전환';
+  }
+
+  const beforeP1 = m1 * beforeV1;
+  const beforeP2 = m2 * beforeV2;
+  const afterP1 = m1 * afterV1;
+  const afterP2 = m2 * afterV2;
+  const totalBefore = beforeP1 + beforeP2;
+  const totalAfter = afterP1 + afterP2;
+  const diff = Math.abs(totalBefore - totalAfter);
+  const keBefore = 0.5 * m1 * beforeV1 * beforeV1 + 0.5 * m2 * beforeV2 * beforeV2;
+  const keAfter = 0.5 * m1 * afterV1 * afterV1 + 0.5 * m2 * afterV2 * afterV2;
+
+  return {
+    m1,
+    m2,
+    beforeV1,
+    beforeV2,
+    afterV1,
+    afterV2,
+    beforeP1,
+    beforeP2,
+    afterP1,
+    afterP2,
+    totalBefore,
+    totalAfter,
+    diff,
+    keBefore,
+    keAfter,
+    principle,
+    energyNote,
+    conserved: diff < 0.02
+  };
+}
+
+function updatePanels() {
+  const snapshot = getSnapshot();
+  updateFormulaPanel(snapshot);
+  updateChart(snapshot);
+  updateModeHeader(snapshot);
+}
+
+function updateModeHeader(snapshot) {
+  const subtitleMap = {
+    [MODE_ELASTIC]: '스프링처럼 튕겨 나가며 총운동량과 운동에너지까지 함께 비교합니다.',
+    [MODE_INELASTIC]: '붙어서 함께 이동하며 총운동량 보존과 운동에너지 감소를 확인합니다.',
+    [MODE_EXPLOSION]: '정지 상태에서 분리되며 반대 방향 운동량이 정확히 상쇄되는지 확인합니다.'
+  };
+
+  modeTitleEl.textContent = params.mode;
+  modeSubtitleEl.textContent = subtitleMap[params.mode];
+  chartSummaryEl.textContent = `${snapshot.principle} 총운동량 차이 |Δp| = ${formatNumber(snapshot.diff, 3)} kg·m/s`;
+}
+
+function updateFormulaPanel(snapshot) {
+  const modeText = params.mode;
+  const formulaMain = params.mode === MODE_EXPLOSION
+    ? `m₁v₁' + m₂v₂' = 0`
+    : `m₁v₁ + m₂v₂ = m₁v₁' + m₂v₂'`;
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">💥 운동량 보존 법칙</div>
+    <div class="divider"></div>
+    <div class="mode-chip">충돌 모드: ${modeText}</div>
+
+    <div class="section-title">충돌 전</div>
+    <div class="formula-line"><div class="label">p₁</div><div class="value mono">${formatNumber(snapshot.m1, 1)} × ${formatNumber(snapshot.beforeV1, 2)} = ${formatNumber(snapshot.beforeP1, 2)}</div></div>
+    <div class="formula-line"><div class="label">p₂</div><div class="value mono">${formatNumber(snapshot.m2, 1)} × ${formatNumber(snapshot.beforeV2, 2)} = ${formatNumber(snapshot.beforeP2, 2)}</div></div>
+    <div class="formula-line"><div class="label">총 운동량</div><div class="value"><strong>${formatMomentum(snapshot.totalBefore)}</strong></div></div>
+
+    <div class="section-title">충돌 후</div>
+    <div class="formula-line"><div class="label">p₁'</div><div class="value mono">${formatNumber(snapshot.m1, 1)} × ${formatNumber(snapshot.afterV1, 2)} = ${formatNumber(snapshot.afterP1, 2)}</div></div>
+    <div class="formula-line"><div class="label">p₂'</div><div class="value mono">${formatNumber(snapshot.m2, 1)} × ${formatNumber(snapshot.afterV2, 2)} = ${formatNumber(snapshot.afterP2, 2)}</div></div>
+    <div class="formula-line"><div class="label">총 운동량</div><div class="value"><strong>${formatMomentum(snapshot.totalAfter)}</strong></div></div>
+
+    <div class="formula-box">
+      <strong>운동량 보존:</strong> 충돌 전 = 충돌 후 ${snapshot.conserved ? '✅' : '⚠️'}<br>
+      <span class="mono">${formulaMain}</span><br>
+      운동에너지: <span class="mono">${formatNumber(snapshot.keBefore, 2)} J → ${formatNumber(snapshot.keAfter, 2)} J</span><br>
+      해석: ${snapshot.energyNote}
+    </div>
+    <div class="note">${snapshot.principle}</div>
+  `;
+}
+
+function updateChart(snapshot) {
+  const values = {
+    before1: snapshot.beforeP1,
+    before2: snapshot.beforeP2,
+    after1: snapshot.afterP1,
+    after2: snapshot.afterP2
+  };
+
+  const colors = {
+    before1: ['#ff5d5d', '#ff8c8c'],
+    before2: ['#4d7dff', '#77a1ff'],
+    after1: ['#ff9b8d', '#ffc2bc'],
+    after2: ['#90b0ff', '#c2d2ff']
+  };
+
+  const maxMagnitude = Math.max(1, ...Object.values(values).map((value) => Math.abs(value)));
+
+  chartColumns.forEach(({ key, track, bar, value }) => {
+    const momentum = values[key];
+    const trackHeight = track.clientHeight || 160;
+    const maxBarHeight = Math.max(40, trackHeight * 0.42);
+    const height = Math.abs(momentum) < 0.001 ? 0 : Math.max(12, (Math.abs(momentum) / maxMagnitude) * maxBarHeight);
+    const baseline = trackHeight / 2;
+    const [startColor, endColor] = colors[key];
+
+    bar.style.background = `linear-gradient(180deg, ${startColor}, ${endColor})`;
+    bar.style.height = `${height}px`;
+    bar.classList.toggle('negative', momentum < 0);
+    bar.style.display = height === 0 ? 'none' : 'block';
+    bar.style.top = momentum >= 0 ? `${Math.max(0, baseline - height)}px` : `${baseline}px`;
+    value.textContent = formatNumber(momentum, 2);
+    value.style.display = 'block';
+    value.style.top = height === 0
+      ? `${baseline - 10}px`
+      : momentum >= 0
+        ? `${Math.max(2, baseline - height - 20)}px`
+        : `${Math.min(trackHeight - 18, baseline + height + 2)}px`;
+  });
+
+  totalBeforeEl.textContent = formatMomentum(snapshot.totalBefore);
+  totalAfterEl.textContent = formatMomentum(snapshot.totalAfter);
+  totalDiffEl.textContent = `${formatNumber(snapshot.diff, 3)} kg·m/s`;
+  chartEqualityEl.textContent = snapshot.conserved ? '총운동량 보존 ✅' : '수치 오차 확인';
+  chartEqualityEl.style.color = snapshot.conserved ? '#8ff0bd' : '#ffd67a';
+}
+
+function updateChartVisibility() {
+  chartPanelEl.classList.toggle('hidden', !params.showGraph);
+  updatePanels();
+}
+
+function updateAfterParameterChange() {
+  runtime.activeExample = 'custom';
+  resetSimulation();
+}
+
+function updateCartLabels(snapshot) {
+  const line1 = `m₁ = ${formatNumber(snapshot.m1, 1)} kg`;
+  const line2 = params.mode === MODE_EXPLOSION
+    ? `분리 후 v₁' = ${formatNumber(snapshot.afterV1, 2)} m/s`
+    : `초기 v₁ = ${formatNumber(snapshot.beforeV1, 2)} m/s`;
+
+  const line3 = `m₂ = ${formatNumber(snapshot.m2, 1)} kg`;
+  const line4 = params.mode === MODE_EXPLOSION
+    ? `분리 후 v₂' = ${formatNumber(snapshot.afterV2, 2)} m/s`
+    : `초기 v₂ = ${formatNumber(snapshot.beforeV2, 2)} m/s`;
+
+  cart1.label.userData.redraw([line1, line2], { accent: '#ffb1ab' });
+  cart2.label.userData.redraw([line3, line4], { accent: '#b8c6ff' });
+}
+
+function resetSimulation(showReadyMessage = true) {
+  runtime.phase = 'ready';
+  runtime.collisionTimer = 0;
+  runtime.chargeTimer = 0;
+  runtime.collisionPoint = 0;
+  runtime.coupledCenter = 0;
+  clearParticles();
+
+  const snapshot = getSnapshot();
+
+  if (params.mode === MODE_EXPLOSION) {
+    cart1.group.position.x = -COUPLED_SPACING / 2;
+    cart2.group.position.x = COUPLED_SPACING / 2;
+    runtime.cart1Velocity = 0;
+    runtime.cart2Velocity = 0;
+    runtime.coupledCenter = 0;
+  } else {
+    cart1.group.position.x = -4.5;
+    cart2.group.position.x = 4.5;
+    runtime.cart1Velocity = 0;
+    runtime.cart2Velocity = 0;
+  }
+
+  cart1.group.position.y = 0.38;
+  cart2.group.position.y = 0.38;
+  cart1.group.position.z = 0;
+  cart2.group.position.z = 0;
+
+  cart1.spring.scale.x = 1;
+  cart2.spring.scale.x = 1;
+
+  updateCartMass(cart1, snapshot.m1);
+  updateCartMass(cart2, snapshot.m2);
+  updateAttachmentMode();
+  updateCartLabels(snapshot);
+  updateArrow(cart1.arrow, params.mode === MODE_EXPLOSION ? 0 : snapshot.beforeV1, 0xff4444);
+  updateArrow(cart2.arrow, params.mode === MODE_EXPLOSION ? 0 : snapshot.beforeV2, 0x4444ff);
+  updatePanels();
+  updateExampleButtons();
+
+  if (showReadyMessage) {
+    if (params.mode === MODE_EXPLOSION) {
+      setStatus('분리 준비 완료', '폭발 모드에서는 수레가 붙어 정지한 상태에서 출발합니다. 한쪽 속도를 바꾸면 다른 쪽 속도는 운동량 보존에 맞게 자동 조정됩니다.', 'amber');
+    } else if (params.mode === MODE_INELASTIC) {
+      setStatus('합체 충돌 준비 완료', '두 수레가 만나면 붙어서 같은 속도로 이동합니다. 운동량은 보존되지만 운동에너지는 줄어듭니다.', 'blue');
+    } else {
+      setStatus('탄성 충돌 준비 완료', '두 수레의 총운동량과 운동에너지를 함께 확인해 보세요. 스프링이 압축되었다가 다시 펴지며 튕겨 나갑니다.', 'blue');
+    }
+  }
+}
+
+function startSimulation() {
+  const snapshot = getSnapshot();
+
+  clearParticles();
+  updatePanels();
+
+  if (params.mode !== MODE_EXPLOSION && snapshot.beforeV1 <= snapshot.beforeV2) {
+    runtime.phase = 'ready';
+    setStatus('충돌 조건을 먼저 맞춰 주세요', '왼쪽 수레가 오른쪽 수레를 따라잡아야 충돌이 일어납니다. 현재는 v₁ > v₂ 가 되도록 조정하는 것이 좋습니다.', 'amber');
+    return;
+  }
+
+  resetSimulation(false);
+
+  if (params.mode === MODE_EXPLOSION) {
+    runtime.phase = 'charging';
+    runtime.cart1Velocity = 0;
+    runtime.cart2Velocity = 0;
+    setStatus('폭발 장치 충전', '붙어 있던 두 수레가 내부 에너지로 분리됩니다. 총운동량 0을 유지하려면 더 가벼운 수레가 더 빠르게 움직여야 합니다.', 'amber');
+  } else {
+    runtime.phase = 'moving';
+    runtime.cart1Velocity = snapshot.beforeV1;
+    runtime.cart2Velocity = snapshot.beforeV2;
+    setStatus('충돌 진행 중', '두 수레가 레일 위에서 접근하고 있습니다. 막대그래프가 충돌 전후의 운동량을 미리 계산해 보여 줍니다.', 'blue');
+  }
+}
+
+function updateSimulation(dt) {
+  const snapshot = getSnapshot();
+
+  if (runtime.phase === 'ready') {
+    updateArrow(cart1.arrow, params.mode === MODE_EXPLOSION ? 0 : snapshot.beforeV1, 0xff4444);
+    updateArrow(cart2.arrow, params.mode === MODE_EXPLOSION ? 0 : snapshot.beforeV2, 0x4444ff);
+    return;
+  }
+
+  if (runtime.phase === 'charging') {
+    runtime.chargeTimer += dt;
+    const t = Math.min(runtime.chargeTimer / EXPLOSION_CHARGE_DURATION, 1);
+    const compression = 1 - 0.45 * Math.sin(Math.PI * t);
+    cart1.spring.scale.x = compression;
+    cart2.spring.scale.x = compression;
+    cart1.group.position.x = -COUPLED_SPACING / 2 + 0.05 * Math.sin(Math.PI * t);
+    cart2.group.position.x = COUPLED_SPACING / 2 - 0.05 * Math.sin(Math.PI * t);
+
+    if (t >= 1) {
+      runtime.phase = 'post';
+      runtime.cart1Velocity = snapshot.afterV1;
+      runtime.cart2Velocity = snapshot.afterV2;
+      cart1.spring.scale.x = 1;
+      cart2.spring.scale.x = 1;
+      spawnParticles(0, 0.62, 0);
+      setStatus('폭발 분리 완료', `분리 후 속도는 ${formatVelocity(snapshot.afterV1)} 와 ${formatVelocity(snapshot.afterV2)} 입니다. 무거운 수레가 더 느리게 움직이는지 확인해 보세요.`, 'green');
+    }
+    updateArrow(cart1.arrow, runtime.cart1Velocity, 0xff4444);
+    updateArrow(cart2.arrow, runtime.cart2Velocity, 0x4444ff);
+    return;
+  }
+
+  if (runtime.phase === 'moving') {
+    cart1.group.position.x += runtime.cart1Velocity * dt;
+    cart2.group.position.x += runtime.cart2Velocity * dt;
+
+    if (cart1.group.position.x + CART_HALF >= cart2.group.position.x - CART_HALF) {
+      runtime.collisionPoint = (cart1.group.position.x + cart2.group.position.x) / 2;
+      cart1.group.position.x = runtime.collisionPoint - CART_HALF;
+      cart2.group.position.x = runtime.collisionPoint + CART_HALF;
+
+      if (params.mode === MODE_ELASTIC) {
+        runtime.phase = 'colliding';
+        runtime.collisionTimer = 0;
+        runtime.cart1Velocity = 0;
+        runtime.cart2Velocity = 0;
+        setStatus('스프링 압축 중', '탄성 충돌에서는 수레가 잠깐 압축된 뒤 다시 튕겨 나갑니다. 운동량과 운동에너지가 모두 보존됩니다.', 'amber');
+      } else {
+        runtime.phase = 'post';
+        runtime.coupledCenter = runtime.collisionPoint;
+        runtime.cart1Velocity = snapshot.afterV1;
+        runtime.cart2Velocity = snapshot.afterV2;
+        spawnParticles(runtime.collisionPoint, 0.62, 0);
+        setStatus('합체 완료', `붙은 뒤 두 수레는 ${formatVelocity(snapshot.afterV1)} 로 함께 이동합니다. 총운동량은 같지만 운동에너지는 줄어듭니다.`, 'green');
+      }
+    }
+  } else if (runtime.phase === 'colliding') {
+    runtime.collisionTimer += dt;
+    const t = Math.min(runtime.collisionTimer / COLLISION_DURATION, 1);
+    const compression = 1 - 0.5 * Math.sin(Math.PI * t);
+    cart1.spring.scale.x = compression;
+    cart2.spring.scale.x = compression;
+    cart1.group.position.x = runtime.collisionPoint - CART_HALF;
+    cart2.group.position.x = runtime.collisionPoint + CART_HALF;
+
+    if (t >= 1) {
+      cart1.spring.scale.x = 1;
+      cart2.spring.scale.x = 1;
+      runtime.phase = 'post';
+      runtime.cart1Velocity = snapshot.afterV1;
+      runtime.cart2Velocity = snapshot.afterV2;
+      setStatus('탄성 충돌 완료', `충돌 후 속도는 ${formatVelocity(snapshot.afterV1)} 와 ${formatVelocity(snapshot.afterV2)} 입니다. 막대그래프에서 총운동량이 같은지 확인해 보세요.`, 'green');
+    }
+  } else if (runtime.phase === 'post') {
+    if (params.mode === MODE_INELASTIC) {
+      runtime.coupledCenter += runtime.cart1Velocity * dt;
+      runtime.coupledCenter = THREE.MathUtils.clamp(runtime.coupledCenter, RAIL_MIN + COUPLED_SPACING / 2, RAIL_MAX - COUPLED_SPACING / 2);
+      cart1.group.position.x = runtime.coupledCenter - COUPLED_SPACING / 2;
+      cart2.group.position.x = runtime.coupledCenter + COUPLED_SPACING / 2;
+    } else {
+      cart1.group.position.x += runtime.cart1Velocity * dt;
+      cart2.group.position.x += runtime.cart2Velocity * dt;
+      applyBounds();
+    }
+  }
+
+  if (runtime.phase === 'post' && params.mode !== MODE_INELASTIC) {
+    applyBounds();
+  }
+
+  if (runtime.phase === 'moving') {
+    applyBounds();
+  }
+
+  updateArrow(cart1.arrow, runtime.phase === 'post' || runtime.phase === 'moving' ? runtime.cart1Velocity : 0, 0xff4444);
+  updateArrow(cart2.arrow, runtime.phase === 'post' || runtime.phase === 'moving' ? runtime.cart2Velocity : 0, 0x4444ff);
+}
+
+function applyBounds() {
+  if (cart1.group.position.x < RAIL_MIN) {
+    cart1.group.position.x = RAIL_MIN;
+    runtime.cart1Velocity = 0;
+  }
+  if (cart1.group.position.x > RAIL_MAX) {
+    cart1.group.position.x = RAIL_MAX;
+    runtime.cart1Velocity = 0;
+  }
+  if (cart2.group.position.x < RAIL_MIN) {
+    cart2.group.position.x = RAIL_MIN;
+    runtime.cart2Velocity = 0;
+  }
+  if (cart2.group.position.x > RAIL_MAX) {
+    cart2.group.position.x = RAIL_MAX;
+    runtime.cart2Velocity = 0;
+  }
+}
+
+function updateArrow(arrow, velocity, color) {
+  const magnitude = Math.abs(velocity);
+  arrow.visible = magnitude > 0.03;
+  if (!arrow.visible) return;
+
+  arrow.setDirection(new THREE.Vector3(Math.sign(velocity) || 1, 0, 0));
+  arrow.setLength(0.65 + Math.min(2.7, magnitude * 0.4), 0.18, 0.14);
+  arrow.setColor(new THREE.Color(color));
+}
+
+function updateCartMass(cart, mass) {
+  while (cart.weightGroup.children.length > 0) {
+    cart.weightGroup.remove(cart.weightGroup.children[0]);
+  }
+  const weightCount = Math.max(0, Math.round((mass - 0.5) / 0.9));
+
+  for (let index = 0; index < weightCount; index += 1) {
+    const disc = new THREE.Mesh(
+      weightGeometry,
+      materials.weight
+    );
+    disc.castShadow = true;
+    disc.receiveShadow = true;
+    disc.rotation.x = Math.PI / 2;
+    const row = Math.floor(index / 3);
+    const col = index % 3;
+    disc.position.set((col - 1) * 0.18, row * 0.13, 0);
+    cart.weightGroup.add(disc);
+  }
+}
+
+function updateAttachmentMode() {
+  const useSpring = params.mode === MODE_ELASTIC || params.mode === MODE_EXPLOSION;
+  cart1.spring.visible = useSpring;
+  cart2.spring.visible = useSpring;
+  cart1.velcro.visible = !useSpring;
+  cart2.velcro.visible = !useSpring;
+}
+
+function applyExample(example) {
+  runtime.activeExample = example;
+
+  if (example === 'billiard') {
+    params.mode = MODE_ELASTIC;
+    params.m1 = 1;
+    params.v1 = 3.4;
+    params.m2 = 1;
+    params.v2 = 0;
+  } else if (example === 'skate') {
+    params.mode = MODE_EXPLOSION;
+    params.m1 = 1.5;
+    params.m2 = 3;
+    params.v1 = -4;
+    syncExplosionPair('v1');
+  } else if (example === 'rocket') {
+    params.mode = MODE_EXPLOSION;
+    params.m1 = 4;
+    params.m2 = 1;
+    params.v2 = 4;
+    syncExplosionPair('v2');
+  }
+
+  syncGui();
+  resetSimulation();
+}
+
+function updateExampleButtons() {
+  exampleButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.example === runtime.activeExample);
+  });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05) * params.speedScale;
+
+  updateSimulation(dt);
+  updateParticles(dt);
+  updateWheelSpin(cart1, dt, runtime.cart1Velocity);
+  updateWheelSpin(cart2, dt, runtime.cart2Velocity);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  updatePanels();
+}
+
+function updateWheelSpin(cart, dt, velocity) {
+  const angle = -(velocity * dt) / WHEEL_RADIUS;
+  cart.wheels.forEach((wheel) => {
+    wheel.rotation.x += angle;
+  });
+}
+
+function createCart({ color, accent, lineColor, massLabel, frontSide, labelScale }) {
+  const group = new THREE.Group();
+  group.position.y = 0.38;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 0.6), createMaterial(color, { roughness: 0.34, metalness: 0.12 }));
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const sidePanel = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.18, 0.62), createMaterial(0xf2f6ff, { roughness: 0.9, metalness: 0 }));
+  sidePanel.position.y = 0.06;
+  group.add(sidePanel);
+
+  const topPanel = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.46), createMaterial(0xffffff, { roughness: 0.9, metalness: 0 }));
+  topPanel.position.y = 0.24;
+  group.add(topPanel);
+
+  const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.4), createMaterial(0xe6edf8, { roughness: 0.5, metalness: 0.2 }));
+  bumper.position.x = frontSide * 0.54;
+  group.add(bumper);
+
+  const wheelPositions = [
+    [-0.3, -0.22],
+    [0.3, -0.22],
+    [-0.3, 0.22],
+    [0.3, 0.22]
+  ];
+
+  const wheels = wheelPositions.map(([x, z]) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 24), materials.wheel);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x, -0.28, z);
+    wheel.castShadow = true;
+    wheel.receiveShadow = true;
+    group.add(wheel);
+    return wheel;
+  });
+
+  const weightGroup = new THREE.Group();
+  weightGroup.position.set(0, 0.33, 0);
+  group.add(weightGroup);
+
+  const spring = createSpringMesh();
+  spring.position.set(frontSide * 0.62, 0.02, 0);
+  if (frontSide < 0) spring.rotation.y = Math.PI;
+  group.add(spring);
+
+  const velcro = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.34, 0.36), materials.velcro);
+  velcro.position.set(frontSide * 0.62, 0.02, 0);
+  velcro.castShadow = true;
+  velcro.receiveShadow = true;
+  group.add(velcro);
+
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0.56, 0), 1.2, lineColor, 0.18, 0.14);
+  arrow.visible = false;
+  group.add(arrow);
+
+  const label = createLabelSprite([`${massLabel} = 1.0 kg`, `v = 0.0 m/s`], {
+    accent,
+    scaleX: labelScale[0],
+    scaleY: labelScale[1]
+  });
+  label.position.set(0, 1.1, 0);
+  group.add(label);
+
+  return { group, body, wheels, weightGroup, spring, velcro, arrow, label };
+}
+
+function createEnvironment() {
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(28, 18),
+    createMaterial(0xdfe6ee, { roughness: 0.98, metalness: 0.02 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.12;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(28, 10),
+    createMaterial(0xe7edf5, { roughness: 1, metalness: 0 })
+  );
+  backWall.position.set(0, 4.8, -5);
+  backWall.receiveShadow = true;
+  scene.add(backWall);
+
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(14.8, 0.14, 2.2),
+    materials.wood
+  );
+  board.position.set(0, -0.08, 0);
+  board.receiveShadow = true;
+  scene.add(board);
+
+  const strip = new THREE.Mesh(
+    new THREE.BoxGeometry(13.8, 0.02, 1.6),
+    createMaterial(0xc8d2e2, { roughness: 1, metalness: 0 })
+  );
+  strip.position.set(0, 0.01, 0);
+  strip.receiveShadow = true;
+  scene.add(strip);
+}
+
+function createRail() {
+  const railGroup = new THREE.Group();
+
+  const railBase = new THREE.Mesh(
+    new THREE.BoxGeometry(14, 0.1, 0.5),
+    materials.rail
+  );
+  railBase.position.y = 0.08;
+  railBase.castShadow = true;
+  railBase.receiveShadow = true;
+  railGroup.add(railBase);
+
+  const railGuide1 = new THREE.Mesh(new THREE.BoxGeometry(14, 0.06, 0.06), materials.railDark);
+  railGuide1.position.set(0, 0.16, -0.14);
+  railGuide1.castShadow = true;
+  railGuide1.receiveShadow = true;
+  railGroup.add(railGuide1);
+
+  const railGuide2 = railGuide1.clone();
+  railGuide2.position.z = 0.14;
+  railGroup.add(railGuide2);
+
+  for (let meter = 0; meter <= 14; meter += 1) {
+    const x = TRACK_START + meter;
+    const mark = new THREE.Mesh(
+      new THREE.BoxGeometry(meter % 2 === 0 ? 0.04 : 0.03, meter % 2 === 0 ? 0.2 : 0.12, 0.06),
+      createMaterial(0x5a6370, { roughness: 0.85, metalness: 0.1 })
+    );
+    mark.position.set(x, 0.21, 0.33);
+    mark.castShadow = true;
+    railGroup.add(mark);
+
+    const label = createTickLabel(String(meter));
+    label.position.set(x, 0.47, 0.6);
+    railGroup.add(label);
+  }
+
+  for (let index = 0; index < 7; index += 1) {
+    const support = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.26, 0.72),
+      materials.railDark
+    );
+    support.position.set(TRACK_START + 1 + index * 2, -0.08, 0);
+    support.castShadow = true;
+    support.receiveShadow = true;
+    railGroup.add(support);
+  }
+
+  scene.add(railGroup);
+}
+
+function createTickLabel(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '700 28px Pretendard, sans-serif';
+  ctx.fillStyle = 'rgba(34, 50, 74, 0.78)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  sprite.scale.set(0.46, 0.23, 1);
+  return sprite;
+}
+
+function createLabelSprite(lines, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(options.scaleX ?? 2.5, options.scaleY ?? 1, 1);
+
+  function draw(nextLines, drawOptions = {}) {
+    const accent = drawOptions.accent ?? options.accent ?? '#9fd3ff';
+    const background = drawOptions.background ?? options.background ?? 'rgba(6, 18, 36, 0.82)';
+    const border = drawOptions.border ?? options.border ?? 'rgba(255,255,255,0.12)';
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    roundRect(ctx, 18, 18, canvas.width - 36, canvas.height - 36, 28);
+    ctx.fillStyle = background;
+    ctx.fill();
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = accent;
+    ctx.font = '700 26px Pretendard, sans-serif';
+    ctx.fillText(nextLines[0] ?? '', 40, 72);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.font = '600 19px Pretendard, sans-serif';
+    ctx.fillText(nextLines[1] ?? '', 40, 118);
+    texture.needsUpdate = true;
+  }
+
+  sprite.userData.redraw = draw;
+  draw(lines, options);
+  return sprite;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function createSpringMesh() {
+  const path = new (class extends THREE.Curve {
+    constructor(length, radius, turns) {
+      super();
+      this.length = length;
+      this.radius = radius;
+      this.turns = turns;
+    }
+
+    getPoint(t) {
+      const angle = this.turns * Math.PI * 2 * t;
+      const x = this.length * t;
+      const y = Math.cos(angle) * this.radius;
+      const z = Math.sin(angle) * this.radius;
+      return new THREE.Vector3(x, y, z);
+    }
+  })(0.36, 0.075, 5);
+  const geometry = new THREE.TubeGeometry(path, 90, 0.015, 12, false);
+  const spring = new THREE.Mesh(geometry, materials.spring);
+  spring.position.x = -0.18;
+  spring.castShadow = true;
+  spring.receiveShadow = true;
+  return spring;
+}
+
+function spawnParticles(x, y, z) {
+  for (let index = 0; index < 14; index += 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.04, 12, 12),
+      new THREE.MeshStandardMaterial({
+        color: index % 2 === 0 ? 0xffc46a : 0xffffff,
+        emissive: index % 2 === 0 ? 0xff8a3c : 0x5577ff,
+        emissiveIntensity: 0.45,
+        transparent: true,
+        opacity: 0.92
+      })
+    );
+
+    const angle = (index / 14) * Math.PI * 2;
+    const speed = 0.8 + Math.random() * 0.9;
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    runtime.particles.push({
+      mesh,
+      life: 0.8 + Math.random() * 0.3,
+      velocity: new THREE.Vector3(
+        Math.cos(angle) * speed,
+        0.6 + Math.random() * 0.8,
+        Math.sin(angle) * 0.35
+      )
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let index = runtime.particles.length - 1; index >= 0; index -= 1) {
+    const particle = runtime.particles[index];
+    particle.life -= dt;
+    particle.velocity.y -= dt * 1.8;
+    particle.mesh.position.addScaledVector(particle.velocity, dt);
+    particle.mesh.material.opacity = Math.max(0, particle.life / 1.1);
+    particle.mesh.scale.setScalar(0.75 + particle.life * 0.5);
+
+    if (particle.life <= 0) {
+      scene.remove(particle.mesh);
+      particle.mesh.geometry.dispose();
+      particle.mesh.material.dispose();
+      runtime.particles.splice(index, 1);
+    }
+  }
+}
+
+function clearParticles() {
+  runtime.particles.forEach((particle) => {
+    scene.remove(particle.mesh);
+    particle.mesh.geometry.dispose();
+    particle.mesh.material.dispose();
+  });
+  runtime.particles.length = 0;
+}
+</script>
+</body>
+</html>

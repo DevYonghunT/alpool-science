@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지구시스템의 상호작용 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --panel-bg: rgba(9, 18, 32, 0.86);
+    --panel-stroke: rgba(255, 255, 255, 0.1);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --accent: #ffd58a;
+    --accent-soft: #a5d8ff;
+    --danger: #ff6d57;
+    --warn: #c48bff;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 20% 18%, rgba(81, 138, 255, 0.18), transparent 30%),
+      radial-gradient(circle at 82% 16%, rgba(117, 245, 198, 0.1), transparent 28%),
+      linear-gradient(180deg, #0f1f2f 0%, #07111d 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  canvas { display: block; }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 23px;
+    font-weight: 700;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.28);
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-stroke);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  }
+
+  #balance-pill {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 32;
+    min-width: 230px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #balance-pill strong {
+    color: #fff1bf;
+  }
+
+  #chain-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 124px;
+    transform: translateX(-50%);
+    z-index: 32;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(720px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 22px;
+  }
+
+  .chain-step {
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .chain-step.active {
+    background: rgba(255, 122, 95, 0.18);
+    border-color: rgba(255, 140, 107, 0.38);
+    color: #fff4d2;
+    transform: translateY(-1px);
+  }
+
+  .chain-arrow {
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 12px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: 348px;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    z-index: 35;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .info-row .label {
+    width: 88px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .panel-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .panel-box strong {
+    color: #9ed7ff;
+  }
+
+  #interaction-list {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .interaction-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .interaction-row.active {
+    background: rgba(123, 191, 255, 0.12);
+    border-color: rgba(165, 216, 255, 0.34);
+    transform: translateX(4px);
+  }
+
+  .interaction-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+
+  .interaction-copy {
+    flex: 1;
+  }
+
+  .interaction-copy .name {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .interaction-copy .desc {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.62);
+    line-height: 1.5;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(8, 15, 27, 0.84);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 45;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    right: 14px;
+    width: min(410px, calc(100vw - 28px));
+    max-height: 66vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    z-index: 44;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #b6e2ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffc08f;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 10px;
+  }
+
+  #interaction-popup {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 38;
+    width: min(360px, calc(100vw - 32px));
+    min-height: 120px;
+    padding: 16px 16px 14px;
+    border-radius: 18px;
+    display: none;
+  }
+
+  #popup-title {
+    font-size: 14px;
+    color: #bce3ff;
+    margin-bottom: 8px;
+  }
+
+  #popup-body {
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.88);
+    white-space: pre-line;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    max-width: 336px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(8, 15, 27, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 10px;
+    line-height: 1.45;
+    backdrop-filter: blur(10px);
+    z-index: 26;
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    z-index: 50 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 960px) {
+    #formula-panel {
+      width: min(360px, calc(100vw - 28px));
+      max-height: 48vh;
+      overflow-y: auto;
+    }
+
+    #chain-strip {
+      bottom: 156px;
+    }
+
+    #hint-chip {
+      left: 14px;
+      right: 14px;
+      max-width: none;
+      border-radius: 14px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #title-card p {
+      max-width: 300px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #balance-pill {
+      top: 96px;
+      width: calc(100vw - 28px);
+      min-width: 0;
+      border-radius: 18px;
+    }
+
+    #guide-panel {
+      top: 52px;
+      max-height: 54vh;
+    }
+
+    #interaction-popup {
+      bottom: 124px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="title-card">
+  <div class="eyebrow">통합과학1 · 지구시스템</div>
+  <h1>지구시스템의 상호작용</h1>
+  <p>기권, 수권, 지권, 생물권이 어떻게 연결되고, 불균형이 어떻게 연쇄적으로 번지는지 탐구합니다.</p>
+</div>
+
+<div id="balance-pill" class="glass">
+  <strong id="status-text">균형 유지</strong>
+  <span id="status-detail">4개 권역이 끊임없이 상호작용하며 지구시스템의 균형을 이룹니다.</span>
+</div>
+
+<div id="chain-strip" class="glass"></div>
+
+<div id="formula-panel" class="glass">
+  <h3>🌍 지구시스템의 상호작용</h3>
+  <div class="info-row"><span class="label">현재 상태:</span><span class="value" id="info-state">균형</span></div>
+  <div class="info-row"><span class="label">선택 상호작용:</span><span class="value" id="info-selection">전체</span></div>
+
+  <div class="panel-box">
+    <strong>4개 권역</strong><br>
+    기권, 수권, 지권, 생물권
+  </div>
+
+  <div id="interaction-list"></div>
+
+  <div class="panel-box">
+    <strong>핵심</strong>: 한 권역의 변화 → 다른 권역에 연쇄 영향
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>지구시스템의 4개 권역은 끊임없이 상호작용하며 균형을 이루고 있습니다. 인간의 활동으로 이 균형이 깨지면 지구 환경과 생명체의 존속이 위협받습니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>광합성은 어느 권역 사이의 상호작용인가요? 답: 기권↔생물권</li>
+    <li>파도에 의해 바닷가의 바위가 깎이는 것은 어느 권역 사이의 상호작용일까요? 답: 수권↔지권</li>
+    <li>지구 온난화가 수권에 미치는 영향을 설명해 보세요.</li>
+  </ul>
+
+  <div class="textbook-ref">📚 교과서 연계: 미래엔 통합과학1 III편 p110~111 — 지구시스템의 상호작용과 균형(그림 III-9)</div>
+</div>
+
+<div id="interaction-popup" class="glass">
+  <div id="popup-title">상호작용 상세</div>
+  <div id="popup-body"></div>
+</div>
+
+<div id="hint-chip">곡선 화살표를 클릭하거나 GUI에서 상호작용을 선택해 보세요. 드래그로 전체 다이어그램을 회전해서 입체적으로 관찰할 수 있습니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DOMAIN_SPECS = [
+  {
+    key: 'atmosphere',
+    label: '기권',
+    position: new THREE.Vector3(0, 4, 0),
+    color: 0x88ccee,
+    scenarioColor: { warming: 0xff5750, ozone: 0xba79ff }
+  },
+  {
+    key: 'hydrosphere',
+    label: '수권',
+    position: new THREE.Vector3(4, 0, 0),
+    color: 0x2266aa,
+    scenarioColor: { warming: 0x79d6ff, ozone: 0x38959a }
+  },
+  {
+    key: 'geosphere',
+    label: '지권',
+    position: new THREE.Vector3(0, -4, 0),
+    color: 0x886644,
+    scenarioColor: { warming: 0xa17564, ozone: 0x886644 }
+  },
+  {
+    key: 'biosphere',
+    label: '생물권',
+    position: new THREE.Vector3(-4, 0, 0),
+    color: 0x228b22,
+    scenarioColor: { warming: 0xc88c3f, ozone: 0xb77a4c }
+  }
+];
+
+const INTERACTION_SPECS = [
+  {
+    key: 'atm-hydro',
+    label: '기권↔수권',
+    pair: ['atmosphere', 'hydrosphere'],
+    color: 0x4488ff,
+    description: '강수/증발, 해류',
+    popup: '기권→수권: 강수, 바람에 의한 해류 형성\n수권→기권: 증발, 수증기 공급\n교과서 근거: p110~111',
+    warmingWeight: 1.0,
+    ozoneWeight: 0.55
+  },
+  {
+    key: 'atm-bio',
+    label: '기권↔생물권',
+    pair: ['atmosphere', 'biosphere'],
+    color: 0x44aa44,
+    description: '호흡/광합성',
+    popup: '기권→생물권: 꽃가루 이동, 대기 조성 변화\n생물권→기권: 호흡, 광합성에 따른 기체 교환\n교과서 근거: p110~111',
+    warmingWeight: 0.9,
+    ozoneWeight: 1.0
+  },
+  {
+    key: 'atm-geo',
+    label: '기권↔지권',
+    pair: ['atmosphere', 'geosphere'],
+    color: 0xff6644,
+    description: '풍화/침식, 화산 활동',
+    popup: '기권→지권: 바람에 의한 풍화·침식\n지권→기권: 화산 가스, 화산재 분출\n교과서 근거: p110~111',
+    warmingWeight: 0.7,
+    ozoneWeight: 0.2
+  },
+  {
+    key: 'hydro-bio',
+    label: '수권↔생물권',
+    pair: ['hydrosphere', 'biosphere'],
+    color: 0x22aacc,
+    description: '수분 공급, 해양 생태계',
+    popup: '수권→생물권: 수분 공급, 서식 환경 제공\n생물권→수권: 해양 생태계 활동, 유기물 순환\n교과서 근거: p110~111',
+    warmingWeight: 0.85,
+    ozoneWeight: 0.7
+  },
+  {
+    key: 'hydro-geo',
+    label: '수권↔지권',
+    pair: ['hydrosphere', 'geosphere'],
+    color: 0xaa8844,
+    description: '풍화/침식(파도), 하천 퇴적',
+    popup: '수권→지권: 파도, 하천에 의한 풍화·침식\n지권→수권: 지형 변화와 퇴적물 공급\n교과서 근거: p110~111',
+    warmingWeight: 0.6,
+    ozoneWeight: 0.15
+  },
+  {
+    key: 'bio-geo',
+    label: '생물권↔지권',
+    pair: ['biosphere', 'geosphere'],
+    color: 0x88aa44,
+    description: '토양 형성, 뿌리 풍화',
+    popup: '생물권→지권: 뿌리에 의한 풍화, 유기물 축적\n지권→생물권: 토양 제공, 서식지 형성\n교과서 근거: p110~111',
+    warmingWeight: 0.55,
+    ozoneWeight: 0.1
+  }
+];
+
+const SCENARIOS = {
+  '정상': {
+    steps: [],
+    detail: '4개 권역이 상호작용하며 균형을 유지하고 있습니다.'
+  },
+  '지구 온난화': {
+    steps: [
+      '기권: CO₂ 증가 → 온도 상승',
+      '수권: 빙하 감소 · 해수면 상승',
+      '생물권: 서식지 변화',
+      '지권: 영구동토 해빙'
+    ],
+    detail: '기권의 변화가 수권, 생물권, 지권으로 연쇄적으로 번지며 불균형을 키웁니다.'
+  },
+  '오존층 파괴': {
+    steps: [
+      '기권: 오존층 약화',
+      '생물권: 자외선 피해 증가',
+      '수권: 해양 플랑크톤 감소'
+    ],
+    detail: '기권의 오존층이 약해지면 생물권과 수권이 연쇄적으로 영향을 받습니다.'
+  }
+};
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusText: document.getElementById('status-text'),
+  statusDetail: document.getElementById('status-detail'),
+  infoState: document.getElementById('info-state'),
+  infoSelection: document.getElementById('info-selection'),
+  interactionList: document.getElementById('interaction-list'),
+  popup: document.getElementById('interaction-popup'),
+  popupTitle: document.getElementById('popup-title'),
+  popupBody: document.getElementById('popup-body'),
+  chainStrip: document.getElementById('chain-strip')
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1f2f);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 0.5, 14);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.03;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minDistance = 8;
+controls.maxDistance = 22;
+controls.target.set(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const centerLight = new THREE.PointLight(0xffffff, 1.0, 22);
+centerLight.position.set(0, 0, 2);
+scene.add(centerLight);
+
+const diagramGroup = new THREE.Group();
+scene.add(diagramGroup);
+
+const starCount = 600;
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  starPositions[i * 3] = (Math.random() - 0.5) * 90;
+  starPositions[i * 3 + 1] = (Math.random() - 0.5) * 70;
+  starPositions[i * 3 + 2] = (Math.random() - 0.5) * 90;
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+scene.add(new THREE.Points(
+  starGeo,
+  new THREE.PointsMaterial({
+    color: 0xd5e8ff,
+    size: 0.12,
+    transparent: true,
+    opacity: 0.65,
+    sizeAttenuation: true
+  })
+));
+
+const orbitRing = new THREE.Mesh(
+  new THREE.TorusGeometry(4, 0.035, 16, 96),
+  new THREE.MeshBasicMaterial({ color: 0x3c5f83, transparent: true, opacity: 0.46 })
+);
+diagramGroup.add(orbitRing);
+
+const centerHalo = new THREE.Mesh(
+  new THREE.CircleGeometry(1.15, 48),
+  new THREE.MeshBasicMaterial({
+    color: 0x18344d,
+    transparent: true,
+    opacity: 0.42,
+    side: THREE.DoubleSide
+  })
+);
+diagramGroup.add(centerHalo);
+
+const domains = new Map();
+const interactionObjects = [];
+const interactionHitMeshes = [];
+const rowMap = new Map();
+
+const shared = {
+  labelScale: 0.34,
+  particleCount: 4
+};
+
+const appState = {
+  selectedInteraction: '전체',
+  equilibriumState: '균형',
+  preparedScenario: '정상',
+  activeScenario: '정상',
+  scenarioPlaying: false,
+  scenarioTime: 0,
+  particleFlow: true,
+  labelsVisible: true,
+  guideOpen: false,
+  clock: new THREE.Clock()
+};
+
+function createLabel(text, scale = 0.34, color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 320;
+  canvas.height = 96;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 26px Pretendard, sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale * 3.2, scale * 0.88, 1);
+  return sprite;
+}
+
+function createWaveSphere(radius) {
+  const geometry = new THREE.SphereGeometry(radius, 30, 30);
+  const position = geometry.attributes.position;
+  const vector = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    vector.fromBufferAttribute(position, i);
+    const wave = Math.sin(vector.y * 7.2) * Math.cos(vector.x * 5.8) * 0.06;
+    vector.normalize().multiplyScalar(radius * (1 + wave));
+    position.setXYZ(i, vector.x, vector.y, vector.z);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createAtmosphereIcon(spec) {
+  const group = new THREE.Group();
+  const shellMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.18,
+    metalness: 0.04,
+    transparent: true,
+    opacity: 0.55,
+    emissive: 0x112744,
+    emissiveIntensity: 0.25
+  });
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 32), shellMaterial);
+  group.add(shell);
+
+  const heatGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff5555,
+    transparent: true,
+    opacity: 0
+  });
+  const heatGlow = new THREE.Mesh(new THREE.SphereGeometry(1.04, 24, 24), heatGlowMaterial);
+  group.add(heatGlow);
+
+  const cloudMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+  [
+    [-0.26, 0.15, 0.18, 0.22],
+    [0.0, 0.22, 0.12, 0.26],
+    [0.28, 0.14, 0.05, 0.2]
+  ].forEach(([x, y, z, r]) => {
+    const cloud = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 18), cloudMaterial);
+    cloud.position.set(x, y, z);
+    group.add(cloud);
+  });
+
+  const ozoneMaterial = new THREE.MeshBasicMaterial({
+    color: 0xaa66ff,
+    transparent: true,
+    opacity: 0.72
+  });
+  const ozoneRing = new THREE.Mesh(new THREE.TorusGeometry(1.06, 0.032, 10, 56), ozoneMaterial);
+  ozoneRing.rotation.x = Math.PI / 2;
+  group.add(ozoneRing);
+
+  return {
+    group,
+    primaryMaterials: [shellMaterial],
+    labelOffset: new THREE.Vector3(0, -1.26, 0),
+    shell,
+    heatGlow,
+    ozoneRing
+  };
+}
+
+function createHydrosphereIcon(spec) {
+  const group = new THREE.Group();
+  const waterMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.22,
+    metalness: 0.06,
+    emissive: 0x0e2444,
+    emissiveIntensity: 0.25
+  });
+  const water = new THREE.Mesh(createWaveSphere(0.8), waterMaterial);
+  group.add(water);
+
+  const waveMaterial = new THREE.MeshStandardMaterial({
+    color: 0x84d8ff,
+    roughness: 0.2,
+    metalness: 0.03,
+    transparent: true,
+    opacity: 0.82
+  });
+  const waves = [];
+  [-0.18, 0, 0.18].forEach((y, index) => {
+    const wave = new THREE.Mesh(new THREE.TorusGeometry(0.54 + index * 0.05, 0.022, 8, 48), waveMaterial.clone());
+    wave.rotation.x = Math.PI / 2;
+    wave.position.y = y;
+    group.add(wave);
+    waves.push(wave);
+  });
+
+  const iceMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe6f8ff,
+    roughness: 0.72,
+    transparent: true,
+    opacity: 0.88
+  });
+  const iceGroup = new THREE.Group();
+  const northIce = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), iceMaterial);
+  northIce.position.set(0, 0.78, 0);
+  northIce.scale.set(1.2, 0.48, 1.2);
+  iceGroup.add(northIce);
+  const southIce = northIce.clone();
+  southIce.material = iceMaterial.clone();
+  southIce.position.y = -0.78;
+  iceGroup.add(southIce);
+  group.add(iceGroup);
+
+  return {
+    group,
+    primaryMaterials: [waterMaterial, ...waves.map((wave) => wave.material)],
+    labelOffset: new THREE.Vector3(0, -1.26, 0),
+    waves,
+    iceGroup
+  };
+}
+
+function createGeosphereIcon(spec) {
+  const group = new THREE.Group();
+  const rockMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.78,
+    metalness: 0.04,
+    emissive: 0x2b1d15,
+    emissiveIntensity: 0.22
+  });
+  const mountain = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.05, 6), rockMaterial);
+  mountain.position.y = 0.06;
+  group.add(mountain);
+
+  const peak = new THREE.Mesh(
+    new THREE.ConeGeometry(0.16, 0.28, 6),
+    new THREE.MeshStandardMaterial({ color: 0xc89a70, roughness: 0.86 })
+  );
+  peak.position.y = 0.58;
+  group.add(peak);
+
+  const rocks = [];
+  [
+    [-0.36, -0.38, 0.12],
+    [0.32, -0.34, -0.06],
+    [0.06, -0.42, 0.24]
+  ].forEach(([x, y, z], index) => {
+    const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12 + index * 0.015, 0), rockMaterial.clone());
+    rock.position.set(x, y, z);
+    group.add(rock);
+    rocks.push(rock);
+  });
+
+  return {
+    group,
+    primaryMaterials: [rockMaterial, ...rocks.map((rock) => rock.material)],
+    labelOffset: new THREE.Vector3(0, -1.2, 0),
+    rocks
+  };
+}
+
+function createBiosphereIcon(spec) {
+  const group = new THREE.Group();
+  const canopyMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.62,
+    metalness: 0.02,
+    emissive: 0x0f3514,
+    emissiveIntensity: 0.2
+  });
+  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.82 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.46, 12), trunkMaterial);
+  trunk.position.y = -0.12;
+  group.add(trunk);
+
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 24), canopyMaterial);
+  canopy.position.y = 0.28;
+  group.add(canopy);
+
+  const sideCanopy = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 20), canopyMaterial.clone());
+  sideCanopy.position.set(0.24, 0.15, 0.18);
+  group.add(sideCanopy);
+
+  const animalMaterial = new THREE.MeshStandardMaterial({ color: 0xf3d7a3, roughness: 0.72 });
+  const animal = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), animalMaterial);
+  animal.position.set(-0.22, -0.28, 0.15);
+  animal.scale.set(1.35, 0.9, 0.8);
+  group.add(animal);
+
+  return {
+    group,
+    primaryMaterials: [canopyMaterial, sideCanopy.material],
+    labelOffset: new THREE.Vector3(0, -1.18, 0)
+  };
+}
+
+function createDomainObject(spec) {
+  let icon;
+  if (spec.key === 'atmosphere') icon = createAtmosphereIcon(spec);
+  else if (spec.key === 'hydrosphere') icon = createHydrosphereIcon(spec);
+  else if (spec.key === 'geosphere') icon = createGeosphereIcon(spec);
+  else icon = createBiosphereIcon(spec);
+
+  icon.group.position.copy(spec.position);
+
+  const halo = new THREE.Mesh(
+    new THREE.CircleGeometry(1.18, 36),
+    new THREE.MeshBasicMaterial({
+      color: spec.color,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide
+    })
+  );
+  halo.position.z = -0.12;
+  icon.group.add(halo);
+
+  const label = createLabel(spec.label, shared.labelScale, '#ffffff');
+  label.position.copy(icon.labelOffset);
+  icon.group.add(label);
+
+  diagramGroup.add(icon.group);
+
+  domains.set(spec.key, {
+    ...icon,
+    key: spec.key,
+    label: spec.label,
+    position: spec.position.clone(),
+    baseColor: new THREE.Color(spec.color),
+    targetColor: new THREE.Color(spec.color),
+    currentColor: new THREE.Color(spec.color),
+    scenarioColor: {
+      warming: new THREE.Color(spec.scenarioColor.warming),
+      ozone: new THREE.Color(spec.scenarioColor.ozone)
+    },
+    labelSprite: label,
+    halo,
+    scaleCurrent: 1,
+    scaleTarget: 1,
+    heatOpacity: 0,
+    heatTarget: 0,
+    ozoneOpacity: 0.72,
+    ozoneTarget: 0.72,
+    iceScale: 1,
+    iceTarget: 1
+  });
+}
+
+DOMAIN_SPECS.forEach(createDomainObject);
+
+function createInteractionRow(spec) {
+  const row = document.createElement('div');
+  row.className = 'interaction-row';
+  row.dataset.key = spec.key;
+  row.innerHTML = `
+    <span class="interaction-dot" style="background:#${spec.color.toString(16).padStart(6, '0')}"></span>
+    <div class="interaction-copy">
+      <span class="name">${spec.label}</span>
+      <span class="desc">${spec.description}</span>
+    </div>
+  `;
+  dom.interactionList.appendChild(row);
+  rowMap.set(spec.key, row);
+}
+
+INTERACTION_SPECS.forEach(createInteractionRow);
+
+function createCurve(start, end, offset) {
+  const mid = start.clone().add(end).multiplyScalar(0.5);
+  const control = mid.clone().normalize().multiplyScalar(5.0);
+  control.z += offset;
+  return new THREE.QuadraticBezierCurve3(start, control, end);
+}
+
+function createDirectionalPath(spec, reverse, offset) {
+  const startDomain = domains.get(reverse ? spec.pair[1] : spec.pair[0]);
+  const endDomain = domains.get(reverse ? spec.pair[0] : spec.pair[1]);
+  const start = startDomain.position.clone();
+  const end = endDomain.position.clone();
+  const curve = createCurve(start, end, offset);
+
+  const tubeMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.25,
+    metalness: 0.12,
+    transparent: true,
+    opacity: 0.72,
+    emissive: spec.color,
+    emissiveIntensity: 0.18
+  });
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.045, 10, false), tubeMaterial);
+
+  const arrowMaterial = new THREE.MeshStandardMaterial({
+    color: spec.color,
+    roughness: 0.26,
+    metalness: 0.12,
+    transparent: true,
+    opacity: 0.8,
+    emissive: spec.color,
+    emissiveIntensity: 0.22
+  });
+  const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 12), arrowMaterial);
+  const endPoint = curve.getPointAt(1);
+  const tangent = curve.getTangentAt(0.995).normalize();
+  arrowHead.position.copy(endPoint);
+  arrowHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+
+  const hitMesh = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 24, 0.18, 8, false),
+    new THREE.MeshBasicMaterial({
+      color: spec.color,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  hitMesh.userData.interactionKey = spec.key;
+
+  const particleGeometry = new THREE.BufferGeometry();
+  const particlePositions = new Float32Array(shared.particleCount * 3);
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+  const particleMaterial = new THREE.PointsMaterial({
+    color: spec.color,
+    size: 0.14,
+    transparent: true,
+    opacity: 0.92,
+    sizeAttenuation: true
+  });
+  const particles = new THREE.Points(particleGeometry, particleMaterial);
+
+  const group = new THREE.Group();
+  group.add(tube, arrowHead, particles, hitMesh);
+  diagramGroup.add(group);
+
+  interactionHitMeshes.push(hitMesh);
+
+  return {
+    group,
+    curve,
+    tube,
+    tubeMaterial,
+    arrowHead,
+    arrowMaterial,
+    particles,
+    particleGeometry,
+    particleMaterial,
+    baseColor: new THREE.Color(spec.color),
+    offsets: Array.from({ length: shared.particleCount }, (_, index) => index / shared.particleCount),
+    reverse,
+    phase: Math.random()
+  };
+}
+
+function createInteractionObject(spec) {
+  const outbound = createDirectionalPath(spec, false, -0.48);
+  const inbound = createDirectionalPath(spec, true, 0.48);
+  interactionObjects.push({
+    ...spec,
+    outbound,
+    inbound,
+    currentAlert: 0
+  });
+}
+
+INTERACTION_SPECS.forEach(createInteractionObject);
+
+function setPopup(spec) {
+  if (!spec) {
+    dom.popup.style.display = 'none';
+    return;
+  }
+  dom.popup.style.display = 'block';
+  dom.popupTitle.textContent = spec.label;
+  dom.popupBody.textContent = spec.popup;
+}
+
+function updateSelectionUI() {
+  dom.infoSelection.textContent = appState.selectedInteraction;
+  rowMap.forEach((row, key) => {
+    row.classList.toggle('active', appState.selectedInteraction !== '전체' && key === getSelectedInteractionSpec()?.key);
+  });
+}
+
+function getInteractionSpecByLabel(label) {
+  return INTERACTION_SPECS.find((spec) => spec.label === label) || null;
+}
+
+function getSelectedInteractionSpec() {
+  return getInteractionSpecByLabel(appState.selectedInteraction);
+}
+
+function setSelectedInteraction(label, syncGui = true) {
+  appState.selectedInteraction = label;
+  const spec = getSelectedInteractionSpec();
+  setPopup(spec);
+  updateSelectionUI();
+  if (syncGui) {
+    guiState['상호작용 선택'] = label;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function updateStatusPanel() {
+  const stateText = appState.activeScenario === '정상' && !appState.scenarioPlaying ? '균형' : '불균형';
+  dom.infoState.textContent = stateText;
+
+  if (stateText === '균형') {
+    dom.statusText.textContent = '균형 유지';
+    dom.statusDetail.textContent = SCENARIOS['정상'].detail;
+  } else if (appState.activeScenario === '지구 온난화') {
+    dom.statusText.textContent = '불균형! 지구 온난화';
+    dom.statusDetail.textContent = SCENARIOS['지구 온난화'].detail;
+  } else if (appState.activeScenario === '오존층 파괴') {
+    dom.statusText.textContent = '불균형! 오존층 파괴';
+    dom.statusDetail.textContent = SCENARIOS['오존층 파괴'].detail;
+  } else if (appState.preparedScenario !== '정상') {
+    dom.statusText.textContent = `시나리오 준비: ${appState.preparedScenario}`;
+    dom.statusDetail.textContent = SCENARIOS[appState.preparedScenario].detail;
+  } else {
+    dom.statusText.textContent = '균형 유지';
+    dom.statusDetail.textContent = SCENARIOS['정상'].detail;
+  }
+}
+
+function renderChainStrip() {
+  const steps = appState.activeScenario !== '정상' ? SCENARIOS[appState.activeScenario].steps : [];
+  if (!steps.length) {
+    dom.chainStrip.style.display = 'none';
+    dom.chainStrip.innerHTML = '';
+    return;
+  }
+  const currentIndex = Math.min(Math.floor(appState.scenarioTime / 2), steps.length - 1);
+  dom.chainStrip.style.display = 'flex';
+  dom.chainStrip.innerHTML = '';
+  steps.forEach((step, index) => {
+    const chip = document.createElement('span');
+    chip.className = `chain-step${index <= currentIndex ? ' active' : ''}`;
+    chip.textContent = step;
+    dom.chainStrip.appendChild(chip);
+    if (index < steps.length - 1) {
+      const arrow = document.createElement('span');
+      arrow.className = 'chain-arrow';
+      arrow.textContent = '→';
+      dom.chainStrip.appendChild(arrow);
+    }
+  });
+}
+
+function setScenario(name, syncGui = true) {
+  appState.preparedScenario = name;
+  if (name === '정상') {
+    restoreBalance(syncGui);
+    return;
+  }
+  if (!appState.scenarioPlaying) {
+    appState.activeScenario = '정상';
+    appState.scenarioTime = 0;
+    renderChainStrip();
+    updateStatusPanel();
+  }
+  if (syncGui) {
+    guiState['시나리오'] = name;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function playScenario() {
+  if (appState.preparedScenario === '정상') return;
+  appState.activeScenario = appState.preparedScenario;
+  appState.scenarioPlaying = true;
+  appState.scenarioTime = 0;
+  renderChainStrip();
+  updateStatusPanel();
+}
+
+function restoreBalance(syncGui = true) {
+  appState.activeScenario = '정상';
+  appState.preparedScenario = '정상';
+  appState.scenarioPlaying = false;
+  appState.scenarioTime = 0;
+  renderChainStrip();
+  updateStatusPanel();
+  if (syncGui) {
+    guiState['시나리오'] = '정상';
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function setLabelVisibility(visible) {
+  appState.labelsVisible = visible;
+  domains.forEach((domain) => {
+    domain.labelSprite.visible = visible;
+  });
+}
+
+function resetCamera() {
+  camera.position.set(0, 0.5, 14);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
+
+function resetAll() {
+  setSelectedInteraction('전체', false);
+  restoreBalance(false);
+  guiState['상호작용 선택'] = '전체';
+  guiState['시나리오'] = '정상';
+  guiState['파티클 흐름 표시'] = true;
+  guiState['권역 라벨'] = true;
+  params['파티클 흐름 표시'] = true;
+  params['권역 라벨'] = true;
+  setLabelVisibility(true);
+  appState.particleFlow = true;
+  resetCamera();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function getScenarioProgress(index) {
+  return THREE.MathUtils.clamp((appState.scenarioTime - index * 2) / 2, 0, 1);
+}
+
+function updateScenarioTargets() {
+  domains.forEach((domain) => {
+    domain.targetColor.copy(domain.baseColor);
+    domain.scaleTarget = 1;
+    domain.heatTarget = 0;
+    domain.ozoneTarget = 0.72;
+    domain.iceTarget = 1;
+  });
+
+  if (appState.activeScenario === '지구 온난화') {
+    const p0 = getScenarioProgress(0);
+    const p1 = getScenarioProgress(1);
+    const p2 = getScenarioProgress(2);
+    const p3 = getScenarioProgress(3);
+
+    const atmosphere = domains.get('atmosphere');
+    const hydrosphere = domains.get('hydrosphere');
+    const biosphere = domains.get('biosphere');
+    const geosphere = domains.get('geosphere');
+
+    atmosphere.targetColor.copy(atmosphere.baseColor).lerp(atmosphere.scenarioColor.warming, p0);
+    atmosphere.heatTarget = 0.42 * p0;
+    atmosphere.scaleTarget = 1 + p0 * 0.06;
+
+    hydrosphere.targetColor.copy(hydrosphere.baseColor).lerp(hydrosphere.scenarioColor.warming, p1 * 0.85);
+    hydrosphere.iceTarget = 1 - p1 * 0.72;
+    hydrosphere.scaleTarget = 1 + p1 * 0.05;
+
+    biosphere.targetColor.copy(biosphere.baseColor).lerp(biosphere.scenarioColor.warming, p2);
+    biosphere.scaleTarget = 1 - p2 * 0.04;
+
+    geosphere.targetColor.copy(geosphere.baseColor).lerp(geosphere.scenarioColor.warming, p3 * 0.9);
+    geosphere.scaleTarget = 1 + p3 * 0.05;
+  } else if (appState.activeScenario === '오존층 파괴') {
+    const p0 = getScenarioProgress(0);
+    const p1 = getScenarioProgress(1);
+    const p2 = getScenarioProgress(2);
+
+    const atmosphere = domains.get('atmosphere');
+    const hydrosphere = domains.get('hydrosphere');
+    const biosphere = domains.get('biosphere');
+
+    atmosphere.targetColor.copy(atmosphere.baseColor).lerp(atmosphere.scenarioColor.ozone, p0 * 0.6);
+    atmosphere.ozoneTarget = 0.72 * (1 - p0 * 0.82);
+    atmosphere.scaleTarget = 1 + p0 * 0.04;
+
+    biosphere.targetColor.copy(biosphere.baseColor).lerp(biosphere.scenarioColor.ozone, p1);
+    biosphere.scaleTarget = 1 - p1 * 0.05;
+
+    hydrosphere.targetColor.copy(hydrosphere.baseColor).lerp(hydrosphere.scenarioColor.ozone, p2 * 0.95);
+    hydrosphere.iceTarget = 1 - p2 * 0.22;
+  }
+}
+
+function getInteractionAlert(spec) {
+  if (appState.activeScenario === '지구 온난화') {
+    const maxStep = Math.min(getScenarioProgress(3), 1);
+    return maxStep * spec.warmingWeight;
+  }
+  if (appState.activeScenario === '오존층 파괴') {
+    const maxStep = Math.min(getScenarioProgress(2), 1);
+    return maxStep * spec.ozoneWeight;
+  }
+  return 0;
+}
+
+function updateDomainVisuals(delta) {
+  domains.forEach((domain) => {
+    domain.currentColor.lerp(domain.targetColor, delta * 3.5);
+    domain.primaryMaterials.forEach((material) => {
+      material.color.copy(domain.currentColor);
+      if (material.emissive) material.emissive.copy(domain.currentColor).multiplyScalar(0.16);
+    });
+
+    domain.scaleCurrent = THREE.MathUtils.lerp(domain.scaleCurrent, domain.scaleTarget, delta * 3.5);
+    domain.group.scale.setScalar(domain.scaleCurrent);
+    domain.halo.material.opacity = 0.08 + Math.abs(domain.scaleCurrent - 1) * 0.8;
+
+    if (domain.heatGlow) {
+      domain.heatOpacity = THREE.MathUtils.lerp(domain.heatOpacity, domain.heatTarget, delta * 3.5);
+      domain.heatGlow.material.opacity = domain.heatOpacity;
+      domain.heatGlow.scale.setScalar(1 + domain.heatOpacity * 0.4);
+    }
+
+    if (domain.ozoneRing) {
+      domain.ozoneOpacity = THREE.MathUtils.lerp(domain.ozoneOpacity, domain.ozoneTarget, delta * 3.5);
+      domain.ozoneRing.material.opacity = domain.ozoneOpacity;
+      domain.ozoneRing.rotation.z += delta * 0.35;
+    }
+
+    if (domain.iceGroup) {
+      domain.iceScale = THREE.MathUtils.lerp(domain.iceScale, domain.iceTarget, delta * 3.5);
+      domain.iceGroup.scale.setScalar(Math.max(0.05, domain.iceScale));
+      domain.iceGroup.visible = domain.iceScale > 0.06;
+    }
+
+    if (domain.waves) {
+      domain.waves.forEach((wave, index) => {
+        wave.rotation.z += delta * (0.4 + index * 0.08);
+      });
+    }
+  });
+}
+
+function updateInteractionVisuals(elapsed) {
+  const selected = getSelectedInteractionSpec();
+  const alertColor = appState.activeScenario === '오존층 파괴'
+    ? new THREE.Color(0xb985ff)
+    : new THREE.Color(0xff5f4d);
+
+  interactionObjects.forEach((interaction, index) => {
+    const alert = getInteractionAlert(interaction);
+    const isSelected = selected ? selected.key === interaction.key : true;
+    const opacity = selected ? (isSelected ? 1 : 0.1) : 0.72;
+    const emissive = selected ? (isSelected ? 0.72 : 0.04) : 0.18;
+
+    [interaction.outbound, interaction.inbound].forEach((path, pathIndex) => {
+      const displayColor = path.baseColor.clone().lerp(alertColor, alert);
+      path.tubeMaterial.color.copy(displayColor);
+      path.tubeMaterial.emissive.copy(displayColor);
+      path.tubeMaterial.opacity = opacity;
+      path.tubeMaterial.emissiveIntensity = emissive + alert * 0.52;
+
+      path.arrowMaterial.color.copy(displayColor);
+      path.arrowMaterial.emissive.copy(displayColor);
+      path.arrowMaterial.opacity = opacity;
+      path.arrowMaterial.emissiveIntensity = emissive + alert * 0.56;
+
+      path.particleMaterial.color.copy(displayColor);
+      path.particleMaterial.opacity = appState.particleFlow ? (selected ? (isSelected ? 0.96 : 0.08) : 0.88) : 0;
+      path.particles.visible = appState.particleFlow;
+
+      const positionAttr = path.particleGeometry.attributes.position;
+      for (let i = 0; i < shared.particleCount; i++) {
+        const t = (elapsed / 3 + path.phase + path.offsets[i] + pathIndex * 0.15 + index * 0.03) % 1;
+        const point = path.curve.getPointAt(t);
+        positionAttr.setXYZ(i, point.x, point.y, point.z);
+      }
+      positionAttr.needsUpdate = true;
+    });
+  });
+}
+
+function updateScenario(delta) {
+  if (appState.scenarioPlaying) {
+    appState.scenarioTime += delta;
+    const totalDuration = SCENARIOS[appState.activeScenario].steps.length * 2;
+    if (appState.scenarioTime >= totalDuration) {
+      appState.scenarioTime = totalDuration;
+      appState.scenarioPlaying = false;
+    }
+  }
+  updateScenarioTargets();
+  renderChainStrip();
+}
+
+function buildChainStrip() {
+  dom.chainStrip.innerHTML = '';
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  appState.guideOpen = !appState.guideOpen;
+  dom.guidePanel.style.display = appState.guideOpen ? 'block' : 'none';
+});
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const intersections = raycaster.intersectObjects(interactionHitMeshes, false);
+  if (!intersections.length) return;
+  const hitKey = intersections[0].object.userData.interactionKey;
+  const spec = INTERACTION_SPECS.find((item) => item.key === hitKey);
+  if (!spec) return;
+  setSelectedInteraction(spec.label);
+});
+
+const guiState = {
+  '상호작용 선택': '전체',
+  '시나리오': '정상',
+  '연쇄 반응 재생'() {
+    playScenario();
+  },
+  '균형 복원'() {
+    restoreBalance();
+  },
+  '파티클 흐름 표시': true,
+  '권역 라벨': true,
+  '초기화'() {
+    resetAll();
+  }
+};
+
+const params = guiState;
+
+const gui = new GUI({ title: '지구시스템 상호작용', width: 330 });
+gui.add(guiState, '상호작용 선택', ['전체', ...INTERACTION_SPECS.map((spec) => spec.label)]).name('상호작용 선택').onChange((value) => {
+  setSelectedInteraction(value, false);
+});
+gui.add(guiState, '시나리오', ['정상', '지구 온난화', '오존층 파괴']).name('시나리오').onChange((value) => {
+  setScenario(value, false);
+});
+gui.add(guiState, '연쇄 반응 재생').name('연쇄 반응 재생');
+gui.add(guiState, '균형 복원').name('균형 복원');
+gui.add(guiState, '파티클 흐름 표시').name('파티클 흐름 표시').onChange((value) => {
+  appState.particleFlow = value;
+});
+gui.add(guiState, '권역 라벨').name('권역 라벨').onChange((value) => {
+  setLabelVisibility(value);
+});
+gui.add(guiState, '초기화').name('초기화');
+
+if (window.innerWidth < 900) gui.close();
+
+setLabelVisibility(true);
+setSelectedInteraction('전체', false);
+updateStatusPanel();
+buildChainStrip();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(appState.clock.getDelta(), 0.05);
+  const elapsed = appState.clock.elapsedTime;
+
+  updateScenario(delta);
+  updateStatusPanel();
+  updateDomainVisuals(delta);
+  updateInteractionVisuals(elapsed);
+
+  if (appState.activeScenario === '지구 온난화') {
+    centerLight.color.set(0xffd2a8);
+    centerLight.intensity = 1.0 + getScenarioProgress(3) * 0.35;
+  } else if (appState.activeScenario === '오존층 파괴') {
+    centerLight.color.set(0xc8b3ff);
+    centerLight.intensity = 1.0 + getScenarioProgress(2) * 0.22;
+  } else {
+    centerLight.color.set(0xffffff);
+    centerLight.intensity = 1.0;
+  }
+
+  diagramGroup.rotation.z = Math.sin(elapsed * 0.12) * 0.06;
+  orbitRing.rotation.z += delta * 0.04;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 900) gui.close();
+});
+</script>
+</body>
+</html>

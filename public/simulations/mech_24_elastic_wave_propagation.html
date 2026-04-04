@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탄성파의 전파 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel: rgba(9, 16, 28, 0.88);
+    --panel-soft: rgba(255, 255, 255, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.22);
+    --text-main: #f6fbff;
+    --text-dim: rgba(246, 251, 255, 0.74);
+    --text-dark: rgba(17, 33, 51, 0.92);
+    --cool: #4488ff;
+    --cool-soft: #44ff88;
+    --cool-track: #ff5f66;
+    --warm: #ff8a4d;
+    --warm-soft: #ffc46a;
+    --warm-track: #ff5f66;
+    --green: #38c97c;
+    --amber: #ffd25a;
+    --shadow: 0 18px 40px rgba(7, 16, 28, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text-main);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.7), transparent 18%),
+      radial-gradient(circle at 83% 12%, rgba(68, 136, 255, 0.1), transparent 18%),
+      linear-gradient(180deg, #f5f7fb 0%, #eef0f5 48%, #e3e8f1 100%);
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  #scene-header,
+  #status-pill,
+  .caption-card,
+  .graph-card {
+    pointer-events: none;
+  }
+
+  #scene-header {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(760px, calc(100vw - 380px));
+    z-index: 24;
+    text-align: center;
+  }
+
+  #scene-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(18, 46, 74, 0.58);
+  }
+
+  #scene-header h1 {
+    margin-top: 6px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: rgba(13, 32, 50, 0.96);
+    text-shadow: 0 10px 18px rgba(255, 255, 255, 0.62);
+  }
+
+  #scene-header p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(27, 55, 82, 0.7);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 42;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 999px;
+    background: rgba(10, 18, 32, 0.82);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 28px rgba(6, 15, 26, 0.22);
+  }
+
+  #guide-panel,
+  #formula-panel,
+  #control-dock,
+  #status-pill,
+  .caption-card,
+  .graph-card {
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 60px;
+    left: 16px;
+    z-index: 41;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 16, 28, 0.92);
+    display: none;
+    line-height: 1.7;
+  }
+
+  #guide-panel.show {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9fd6ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: rgba(246, 251, 255, 0.88);
+    font-size: 13px;
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    padding-left: 18px;
+  }
+
+  #guide-panel .textbook-ref {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(246, 251, 255, 0.72);
+    font-size: 11px;
+  }
+
+  #status-pill {
+    position: fixed;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 22;
+    width: min(820px, calc(100vw - 420px));
+    min-height: 72px;
+    padding: 14px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.62);
+    color: rgba(14, 36, 58, 0.92);
+    font-size: 13px;
+    line-height: 1.62;
+    text-align: center;
+  }
+
+  #viewport-divider {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: calc(50% - 1px);
+    height: 2px;
+    z-index: 11;
+    background: linear-gradient(90deg, transparent, rgba(31, 65, 99, 0.32), transparent);
+    pointer-events: none;
+  }
+
+  .caption-card {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(620px, calc(100vw - 420px));
+    padding: 14px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.52);
+    color: rgba(16, 35, 53, 0.92);
+  }
+
+  .caption-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(68, 136, 255, 0.12);
+    color: rgba(35, 79, 151, 0.92);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .caption-tag.warm {
+    background: rgba(255, 138, 77, 0.12);
+    color: rgba(156, 77, 33, 0.94);
+  }
+
+  .caption-card p {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .caption-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .caption-chips span {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(52, 96, 168, 0.08);
+    color: rgba(24, 55, 102, 0.92);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .caption-chips.warm span {
+    background: rgba(179, 90, 41, 0.09);
+    color: rgba(127, 64, 28, 0.95);
+  }
+
+  .graph-card {
+    position: fixed;
+    left: 16px;
+    z-index: 17;
+    width: min(320px, calc(100vw - 32px));
+    padding: 14px 14px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(9, 16, 28, 0.88);
+  }
+
+  .graph-card.warm {
+    background: rgba(34, 17, 11, 0.82);
+  }
+
+  .graph-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(246, 251, 255, 0.5);
+  }
+
+  .graph-card h3 {
+    margin-top: 4px;
+    font-size: 15px;
+    color: #d5ebff;
+  }
+
+  .graph-card.warm h3 {
+    color: #ffe0cc;
+  }
+
+  .graph-card canvas {
+    width: 100%;
+    height: 112px;
+    margin-top: 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 88px;
+    z-index: 23;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(26vh, 240px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 16, 28, 0.9);
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #bfe5ff;
+  }
+
+  #formula-panel p {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  #formula-text {
+    margin-top: 14px;
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(244, 248, 255, 0.96);
+  }
+
+  #control-dock {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 39;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: min(760px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.58);
+  }
+
+  .dock-btn {
+    border: 1px solid rgba(19, 44, 70, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.76);
+    color: rgba(19, 44, 70, 0.94);
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+  }
+
+  .dock-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .dock-btn.active {
+    background: rgba(68, 136, 255, 0.12);
+    color: rgba(24, 57, 122, 0.96);
+    border-color: rgba(68, 136, 255, 0.24);
+  }
+
+  .dock-btn.accent {
+    background: rgba(56, 201, 124, 0.14);
+    color: rgba(19, 102, 60, 0.96);
+    border-color: rgba(56, 201, 124, 0.24);
+  }
+
+  .lil-gui.root {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 43;
+    max-height: min(72vh, 720px);
+    overflow-y: auto;
+    --background-color: rgba(9, 16, 28, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.13);
+    --focus-color: rgba(255, 255, 255, 0.18);
+    --text-color: #eff6ff;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --number-color: #9bd4ff;
+  }
+
+  .lil-gui .title {
+    font-weight: 800;
+  }
+
+  @media (max-width: 1100px) {
+    #scene-header,
+    #status-pill,
+    .caption-card {
+      width: min(620px, calc(100vw - 340px));
+    }
+  }
+
+  @media (max-width: 900px) {
+    #scene-header,
+    #status-pill,
+    .caption-card {
+      width: calc(100vw - 32px);
+    }
+
+    #scene-header {
+      top: 74px;
+    }
+
+    #status-pill {
+      top: 150px;
+    }
+
+    .caption-card {
+      left: 16px;
+      right: 16px;
+      transform: none;
+      width: auto;
+    }
+
+    #formula-panel {
+      width: min(380px, calc(100vw - 32px));
+    }
+
+    .graph-card {
+      width: min(280px, calc(100vw - 32px));
+    }
+
+    .lil-gui.root {
+      top: auto;
+      bottom: 92px;
+      right: 12px;
+      max-height: 38vh;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+    }
+
+    #scene-header {
+      top: 64px;
+      width: calc(100vw - 24px);
+    }
+
+    #scene-header h1 {
+      font-size: 24px;
+    }
+
+    #status-pill {
+      top: 140px;
+      width: calc(100vw - 24px);
+      font-size: 12px;
+      padding: 12px 14px;
+    }
+
+    .graph-card {
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 96px;
+      width: auto;
+      max-height: 24vh;
+    }
+
+    #control-dock {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      width: auto;
+      border-radius: 26px;
+      padding: 10px;
+      gap: 8px;
+    }
+
+    .dock-btn {
+      flex: 1 1 30%;
+      min-width: 94px;
+      padding: 10px 12px;
+    }
+
+    .lil-gui.root {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 154px;
+      max-height: 30vh;
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+<section id="guide-panel" aria-label="학습 가이드">
+  <h3>핵심 원리</h3>
+  <p>탄성파는 매질의 탄성에 의해 전파됩니다. 횡파는 진동 방향이 진행 방향에 수직이고, 종파는 진동 방향이 진행 방향과 나란합니다. 파동 속력은 v = fλ이며 같은 속력에서 진동수가 커질수록 파장은 짧아집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ol>
+    <li>횡파와 종파에서 매질의 입자는 각각 어느 방향으로 진동하나요?</li>
+    <li>종파에서 붉은 띠로 보이는 밀한 부분과 푸른 띠로 보이는 소한 부분은 무엇을 의미하나요?</li>
+    <li>지진 발생 시 P파가 S파보다 먼저 감지되는 까닭은 무엇인가요?</li>
+  </ol>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>횡파: 기타줄의 진동, 전자기파(빛), 지진 S파</li>
+    <li>종파: 공기 중 음파, 용수철 파동, 지진 P파</li>
+    <li>초음파 검사: 종파 성질을 이용해 인체 내부를 탐지합니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>역학과 에너지 III편 p100~107의 탄성파, 종파와 횡파 단원을 장면 비교와 실시간 그래프로 재구성했습니다.</p>
+
+  <div class="textbook-ref">지진파 도착 비유: P파(종파, 빠름) → S파(횡파, 느림) 순서로 지진계에 기록됩니다.</div>
+</section>
+
+<header id="scene-header">
+  <div class="eyebrow">Mechanics &amp; Energy</div>
+  <h1>탄성파의 전파</h1>
+  <p>횡파와 종파를 비교하며 입자 진동 방향, 밀·소 구간, 그리고 v = fλ = λ/T 관계를 한 화면에서 탐구합니다.</p>
+</header>
+
+<div id="status-pill" aria-live="polite"></div>
+<div id="viewport-divider" aria-hidden="true"></div>
+
+<section id="transverse-caption" class="caption-card">
+  <div class="caption-tag">횡파</div>
+  <p>파동은 x축으로 진행하지만 입자는 y축으로만 위아래 진동합니다. 붉은 입자를 따라가며 y-t 그래프를 확인하세요.</p>
+  <div class="caption-chips">
+    <span>진행 방향 x →</span>
+    <span>진동 방향 y ↑↓</span>
+    <span>예: 기타줄 · 전자기파 · S파</span>
+  </div>
+</section>
+
+<section id="longitudinal-caption" class="caption-card">
+  <div class="caption-tag warm">종파</div>
+  <p>파동과 입자 진동이 모두 x축 방향입니다. 붉은 띠는 밀, 푸른 띠는 소를 뜻하며 x-t 그래프로 추적 입자의 변위를 볼 수 있습니다.</p>
+  <div class="caption-chips warm">
+    <span>진행 방향 x →</span>
+    <span>진동 방향 x ↔</span>
+    <span>예: 음파 · 용수철파 · P파</span>
+  </div>
+</section>
+
+<section id="transverse-graph-card" class="graph-card">
+  <div class="graph-eyebrow">입자 추적</div>
+  <h3>횡파 y-t 그래프</h3>
+  <canvas id="transverse-graph"></canvas>
+</section>
+
+<section id="longitudinal-graph-card" class="graph-card warm">
+  <div class="graph-eyebrow">입자 추적</div>
+  <h3>종파 x-t 그래프</h3>
+  <canvas id="longitudinal-graph"></canvas>
+</section>
+
+<canvas id="scene-canvas"></canvas>
+
+<section id="formula-panel" aria-live="polite">
+  <h2>🌊 탄성파의 전파 (종파와 횡파)</h2>
+  <p>현재 설정의 파동 물리량과 추적 입자의 변위를 실시간으로 표시합니다.</p>
+  <pre id="formula-text"></pre>
+</section>
+
+<div id="control-dock">
+  <button class="dock-btn mode active" data-mode="compare" type="button">비교</button>
+  <button class="dock-btn mode" data-mode="transverse" type="button">횡파</button>
+  <button class="dock-btn mode" data-mode="longitudinal" type="button">종파</button>
+  <button id="play-toggle" class="dock-btn accent" type="button">일시정지</button>
+  <button id="reset-button" class="dock-btn" type="button">초기화</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const TAU = Math.PI * 2;
+  const PARTICLE_COUNT = 30;
+  const TRACK_INDEX = 10;
+  const REST_MIN_X = -8;
+  const REST_MAX_X = 8;
+  const HISTORY_WINDOW = 6;
+  const restPositions = Array.from({ length: PARTICLE_COUNT }, (_, index) =>
+    THREE.MathUtils.lerp(REST_MIN_X, REST_MAX_X, index / (PARTICLE_COUNT - 1))
+  );
+
+  const sceneCanvas = document.getElementById('scene-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const statusPill = document.getElementById('status-pill');
+  const formulaText = document.getElementById('formula-text');
+  const transverseCaption = document.getElementById('transverse-caption');
+  const longitudinalCaption = document.getElementById('longitudinal-caption');
+  const divider = document.getElementById('viewport-divider');
+  const transverseGraphCard = document.getElementById('transverse-graph-card');
+  const longitudinalGraphCard = document.getElementById('longitudinal-graph-card');
+  const transverseGraphCanvas = document.getElementById('transverse-graph');
+  const longitudinalGraphCanvas = document.getElementById('longitudinal-graph');
+  const playToggle = document.getElementById('play-toggle');
+  const resetButton = document.getElementById('reset-button');
+  const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
+
+  const state = {
+    waveMode: 'compare',
+    frequency: 1,
+    wavelength: 5,
+    amplitude: 0.5,
+    velocity: 5,
+    trackParticle: true,
+    showWaveCurve: true,
+    showDensity: true,
+    playing: true,
+    time: 0,
+    driver: 'frequency'
+  };
+
+  const defaults = { ...state };
+  const histories = {
+    transverse: [],
+    longitudinal: []
+  };
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: sceneCanvas,
+    antialias: true,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xeef0f5, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.autoClear = false;
+
+  const transverseScene = new THREE.Scene();
+  const longitudinalScene = new THREE.Scene();
+  transverseScene.background = new THREE.Color(0xf4f7fc);
+  longitudinalScene.background = new THREE.Color(0xf8f5f2);
+
+  const transverseCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  transverseCamera.position.set(0, 2.8, 13.6);
+  const longitudinalCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  longitudinalCamera.position.copy(transverseCamera.position);
+
+  const transverseControls = new OrbitControls(transverseCamera, renderer.domElement);
+  transverseControls.enableDamping = true;
+  transverseControls.enablePan = false;
+  transverseControls.minDistance = 7;
+  transverseControls.maxDistance = 24;
+  transverseControls.maxPolarAngle = Math.PI * 0.48;
+  transverseControls.target.set(0, 0, 0);
+
+  const longitudinalControls = new OrbitControls(longitudinalCamera, renderer.domElement);
+  longitudinalControls.enableDamping = true;
+  longitudinalControls.enablePan = false;
+  longitudinalControls.minDistance = 7;
+  longitudinalControls.maxDistance = 24;
+  longitudinalControls.maxPolarAngle = Math.PI * 0.48;
+  longitudinalControls.target.set(0, 0, 0);
+  longitudinalControls.enabled = false;
+
+  addSceneLighting(transverseScene, new THREE.Vector3(7, 10, 8));
+  addSceneLighting(longitudinalScene, new THREE.Vector3(6, 10, 8));
+
+  const transverseSystem = createTransverseSystem();
+  const longitudinalSystem = createLongitudinalSystem();
+
+  const gui = new GUI({ title: '탄성파 제어', width: 304 });
+  const guiControllers = {
+    waveMode: gui.add(state, 'waveMode', { 횡파: 'transverse', 종파: 'longitudinal', 비교: 'compare' }).name('파동 종류'),
+    frequency: gui.add(state, 'frequency', 0.5, 5, 0.5).name('진동수 f (Hz)'),
+    wavelength: gui.add(state, 'wavelength', 2, 10, 0.1).name('파장 λ (m)'),
+    amplitude: gui.add(state, 'amplitude', 0.1, 1.5, 0.1).name('진폭 A (m)'),
+    velocity: gui.add(state, 'velocity', 1, 10, 0.5).name('파동 속력 v (m/s)'),
+    trackParticle: gui.add(state, 'trackParticle').name('입자 추적'),
+    showWaveCurve: gui.add(state, 'showWaveCurve').name('파형 곡선'),
+    showDensity: gui.add(state, 'showDensity').name('밀/소 표시')
+  };
+
+  const guiActions = {
+    toggleSimulation() {
+      state.playing = !state.playing;
+      syncDock();
+      updateStatus();
+    },
+    reset() {
+      resetSimulation(true);
+    }
+  };
+
+  gui.add(guiActions, 'toggleSimulation').name('시뮬레이션 시작 / 정지');
+  gui.add(guiActions, 'reset').name('초기화');
+
+  guiControllers.waveMode.onChange(() => {
+    synchronizeControlsForMode();
+    resetSimulation(false);
+  });
+
+  guiControllers.frequency.onChange(() => {
+    state.driver = 'frequency';
+    state.frequency = snap(state.frequency, 0.5);
+    state.wavelength = roundTo(state.velocity / state.frequency, 2);
+    constrainDerivedValues();
+    clearHistories();
+    syncUi();
+  });
+
+  guiControllers.wavelength.onChange(() => {
+    state.driver = 'wavelength';
+    state.wavelength = clamp(roundTo(state.wavelength, 1), 2, 10);
+    state.frequency = roundTo(state.velocity / state.wavelength, 2);
+    constrainDerivedValues();
+    clearHistories();
+    syncUi();
+  });
+
+  guiControllers.amplitude.onChange(() => {
+    state.amplitude = clamp(roundTo(state.amplitude, 1), 0.1, 1.5);
+    syncUi();
+  });
+
+  guiControllers.velocity.onChange(() => {
+    state.velocity = clamp(snap(state.velocity, 0.5), 1, 10);
+    if (state.driver === 'wavelength') {
+      state.frequency = roundTo(state.velocity / state.wavelength, 2);
+    } else {
+      state.wavelength = roundTo(state.velocity / state.frequency, 2);
+    }
+    constrainDerivedValues();
+    clearHistories();
+    syncUi();
+  });
+
+  guiControllers.trackParticle.onChange(() => {
+    clearHistories();
+    syncUi();
+  });
+
+  guiControllers.showWaveCurve.onChange(syncUi);
+  guiControllers.showDensity.onChange(syncUi);
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('show');
+    guideToggle.textContent = guidePanel.classList.contains('show') ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      state.waveMode = button.dataset.mode;
+      synchronizeControlsForMode();
+      resetSimulation(false);
+    });
+  });
+
+  playToggle.addEventListener('click', () => {
+    state.playing = !state.playing;
+    syncDock();
+    updateStatus();
+  });
+
+  resetButton.addEventListener('click', () => {
+    resetSimulation(true);
+  });
+
+  window.addEventListener('resize', handleResize);
+
+  let lastTime = performance.now();
+  let graphAccumulator = 0;
+
+  handleResize();
+  syncUi();
+  animate();
+
+  function addSceneLighting(scene, lightPosition) {
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.copy(lightPosition);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.22);
+    rimLight.position.set(-6, 4, 7);
+    scene.add(ambientLight, directionalLight, rimLight);
+  }
+
+  function createBackdropGrid(width, height, xDivisions, yDivisions, color, opacity) {
+    const positions = [];
+    for (let index = 0; index <= xDivisions; index += 1) {
+      const x = THREE.MathUtils.lerp(-width / 2, width / 2, index / xDivisions);
+      positions.push(x, -height / 2, 0, x, height / 2, 0);
+    }
+    for (let index = 0; index <= yDivisions; index += 1) {
+      const y = THREE.MathUtils.lerp(-height / 2, height / 2, index / yDivisions);
+      positions.push(-width / 2, y, 0, width / 2, y, 0);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity })
+    );
+  }
+
+  function createBidirectionalArrow(color) {
+    const group = new THREE.Group();
+    const positive = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, color, 0.28, 0.14);
+    const negative = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 1, color, 0.28, 0.14);
+    group.add(positive, negative);
+    group.userData = { positive, negative };
+    return group;
+  }
+
+  function setBidirectionalArrow(arrow, start, end) {
+    const delta = new THREE.Vector3().subVectors(end, start);
+    const length = delta.length() * 0.5;
+    arrow.visible = length > 0.02;
+    if (!arrow.visible) return;
+
+    const direction = delta.normalize();
+    const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+    const headLength = Math.min(0.38, Math.max(0.14, length * 0.34));
+    const headWidth = Math.min(0.2, Math.max(0.08, length * 0.18));
+
+    arrow.position.copy(midpoint);
+    arrow.userData.positive.setDirection(direction);
+    arrow.userData.negative.setDirection(direction.clone().multiplyScalar(-1));
+    arrow.userData.positive.setLength(length, headLength, headWidth);
+    arrow.userData.negative.setLength(length, headLength, headWidth);
+  }
+
+  function createAxisLine(color, y = 0) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([REST_MIN_X - 0.8, y, 0, REST_MAX_X + 0.8, y, 0], 3)
+    );
+    return new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
+    );
+  }
+
+  function createTransverseSystem() {
+    const group = new THREE.Group();
+    transverseScene.add(group);
+
+    const backdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 10),
+      new THREE.MeshBasicMaterial({ color: 0xf6fbff, transparent: true, opacity: 0.96 })
+    );
+    backdrop.position.set(0, 0, -3.2);
+    group.add(backdrop);
+
+    const grid = createBackdropGrid(20, 6, 12, 8, 0x9fc2f7, 0.15);
+    grid.position.z = -3.1;
+    group.add(grid);
+
+    const baseAxis = createAxisLine(0x9aabc4, 0);
+    group.add(baseAxis);
+
+    const particleGeometry = new THREE.SphereGeometry(0.12, 18, 18);
+    const particleMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.28,
+      metalness: 0.08
+    });
+    const particles = new THREE.InstancedMesh(particleGeometry, particleMaterial, PARTICLE_COUNT);
+    group.add(particles);
+
+    const supportGeometry = new THREE.BufferGeometry();
+    supportGeometry.setAttribute('position', new THREE.Float32BufferAttribute(PARTICLE_COUNT * 3, 3));
+    const supportLine = new THREE.Line(
+      supportGeometry,
+      new THREE.LineBasicMaterial({ color: 0xaaaacc, transparent: true, opacity: 0.78 })
+    );
+    group.add(supportLine);
+
+    const waveCurveGeometry = new THREE.BufferGeometry();
+    waveCurveGeometry.setAttribute('position', new THREE.Float32BufferAttribute(180 * 3, 3));
+    const waveCurve = new THREE.Line(
+      waveCurveGeometry,
+      new THREE.LineBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.95 })
+    );
+    group.add(waveCurve);
+
+    const wavelengthArrow = createBidirectionalArrow(0x38c97c);
+    const amplitudeArrow = createBidirectionalArrow(0xffd25a);
+    const trackArrow = createBidirectionalArrow(0xff5f66);
+    const progressionArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(4.8, -1.7, 0),
+      3.4,
+      0x34b973,
+      0.44,
+      0.2
+    );
+
+    group.add(wavelengthArrow, amplitudeArrow, trackArrow, progressionArrow);
+
+    return {
+      group,
+      particles,
+      supportGeometry,
+      waveCurveGeometry,
+      waveCurve,
+      wavelengthArrow,
+      amplitudeArrow,
+      trackArrow
+    };
+  }
+
+  function createLongitudinalSystem() {
+    const group = new THREE.Group();
+    longitudinalScene.add(group);
+
+    const backdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 10),
+      new THREE.MeshBasicMaterial({ color: 0xfffaf6, transparent: true, opacity: 0.97 })
+    );
+    backdrop.position.set(0, 0, -3.2);
+    group.add(backdrop);
+
+    const grid = createBackdropGrid(20, 6, 12, 8, 0xf0b28c, 0.12);
+    grid.position.z = -3.1;
+    group.add(grid);
+
+    const baseAxis = createAxisLine(0xc9a38d, 0);
+    group.add(baseAxis);
+
+    const bands = [];
+    const bandWidth = (REST_MAX_X - REST_MIN_X + 1.2) / 18;
+    for (let index = 0; index < 18; index += 1) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffd0c0,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide
+      });
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(bandWidth * 1.02, 2.7), material);
+      band.position.z = -1.4;
+      group.add(band);
+      bands.push(band);
+    }
+
+    const particleGeometry = new THREE.SphereGeometry(0.12, 18, 18);
+    const particleMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.26,
+      metalness: 0.06
+    });
+    const particles = new THREE.InstancedMesh(particleGeometry, particleMaterial, PARTICLE_COUNT);
+    group.add(particles);
+
+    const supportGeometry = new THREE.BufferGeometry();
+    supportGeometry.setAttribute('position', new THREE.Float32BufferAttribute(PARTICLE_COUNT * 3, 3));
+    const supportLine = new THREE.Line(
+      supportGeometry,
+      new THREE.LineBasicMaterial({ color: 0xffbb88, transparent: true, opacity: 0.76 })
+    );
+    group.add(supportLine);
+
+    const pressureGeometry = new THREE.BufferGeometry();
+    pressureGeometry.setAttribute('position', new THREE.Float32BufferAttribute(180 * 3, 3));
+    const pressureCurve = new THREE.Line(
+      pressureGeometry,
+      new THREE.LineBasicMaterial({ color: 0xffb36d, transparent: true, opacity: 0.92 })
+    );
+    group.add(pressureCurve);
+
+    const wavelengthArrow = createBidirectionalArrow(0x38c97c);
+    const trackArrow = createBidirectionalArrow(0xff5f66);
+    const progressionArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(4.8, -1.0, 0),
+      3.4,
+      0x34b973,
+      0.44,
+      0.2
+    );
+
+    group.add(wavelengthArrow, trackArrow, progressionArrow);
+
+    return {
+      group,
+      bands,
+      particles,
+      supportGeometry,
+      pressureGeometry,
+      pressureCurve,
+      wavelengthArrow,
+      trackArrow
+    };
+  }
+
+  function handleResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    updateOverlayLayout();
+  }
+
+  function synchronizeControlsForMode() {
+    if (state.waveMode === 'longitudinal') {
+      longitudinalCamera.position.copy(transverseCamera.position);
+      longitudinalCamera.quaternion.copy(transverseCamera.quaternion);
+      longitudinalControls.target.copy(transverseControls.target);
+    } else {
+      transverseCamera.position.copy(longitudinalCamera.position);
+      transverseCamera.quaternion.copy(longitudinalCamera.quaternion);
+      transverseControls.target.copy(longitudinalControls.target);
+    }
+  }
+
+  function constrainDerivedValues() {
+    state.frequency = clamp(state.frequency, 0.5, 5);
+    state.wavelength = clamp(state.wavelength, 2, 10);
+    state.velocity = clamp(state.velocity, 1, 10);
+
+    const expectedVelocity = state.frequency * state.wavelength;
+    if (Math.abs(expectedVelocity - state.velocity) > 0.12) {
+      if (state.driver === 'wavelength') {
+        state.frequency = roundTo(state.velocity / state.wavelength, 2);
+        state.frequency = clamp(state.frequency, 0.5, 5);
+        state.wavelength = roundTo(state.velocity / state.frequency, 2);
+      } else {
+        state.wavelength = roundTo(state.velocity / state.frequency, 2);
+        state.wavelength = clamp(state.wavelength, 2, 10);
+        state.frequency = roundTo(state.velocity / state.wavelength, 2);
+      }
+    }
+
+    state.frequency = clamp(state.frequency, 0.5, 5);
+    state.wavelength = clamp(state.wavelength, 2, 10);
+    state.velocity = roundTo(state.frequency * state.wavelength, 2);
+    state.velocity = clamp(state.velocity, 1, 10);
+  }
+
+  function clearHistories() {
+    histories.transverse.length = 0;
+    histories.longitudinal.length = 0;
+    graphAccumulator = 0;
+  }
+
+  function resetSimulation(startPlaying) {
+    state.time = 0;
+    if (startPlaying) state.playing = true;
+    clearHistories();
+    syncUi();
+  }
+
+  function syncDock() {
+    modeButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.mode === state.waveMode);
+    });
+    playToggle.textContent = state.playing ? '일시정지' : '재생';
+    playToggle.classList.toggle('accent', state.playing);
+  }
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function updateOverlayLayout() {
+    const mobile = window.innerWidth <= 720;
+    const captionTop = mobile ? '200px' : window.innerWidth <= 900 ? '214px' : '184px';
+    const graphTop = mobile ? '312px' : window.innerWidth <= 900 ? '326px' : '278px';
+
+    if (state.waveMode === 'compare') {
+      divider.style.display = 'block';
+      transverseCaption.style.display = 'block';
+      longitudinalCaption.style.display = 'block';
+      transverseGraphCard.style.display = 'block';
+      longitudinalGraphCard.style.display = 'block';
+      transverseCaption.style.top = captionTop;
+      longitudinalCaption.style.top = mobile ? 'calc(50% + 14px)' : 'calc(50% + 18px)';
+      transverseGraphCard.style.top = mobile ? 'calc(50% - 142px)' : 'calc(50% - 150px)';
+      longitudinalGraphCard.style.top = mobile ? 'calc(50% + 154px)' : 'calc(50% + 18px)';
+    } else if (state.waveMode === 'transverse') {
+      divider.style.display = 'none';
+      transverseCaption.style.display = 'block';
+      longitudinalCaption.style.display = 'none';
+      transverseGraphCard.style.display = 'block';
+      longitudinalGraphCard.style.display = 'none';
+      transverseCaption.style.top = captionTop;
+      transverseGraphCard.style.top = graphTop;
+    } else {
+      divider.style.display = 'none';
+      transverseCaption.style.display = 'none';
+      longitudinalCaption.style.display = 'block';
+      transverseGraphCard.style.display = 'none';
+      longitudinalGraphCard.style.display = 'block';
+      longitudinalCaption.style.top = captionTop;
+      longitudinalGraphCard.style.top = graphTop;
+    }
+  }
+
+  function updateStatus() {
+    const modeText =
+      state.waveMode === 'compare'
+        ? '비교 모드: 위는 횡파, 아래는 종파입니다.'
+        : state.waveMode === 'transverse'
+          ? '횡파 모드: 입자는 y축으로만 진동합니다.'
+          : '종파 모드: 입자와 파동이 모두 x축 방향으로 움직입니다.';
+
+    const motionText = state.playing
+      ? '현재 파동이 진행 중이며 붉은 입자 추적과 수식 패널이 함께 갱신됩니다.'
+      : '현재 일시정지 상태입니다. 제어 패널 또는 하단 버튼으로 다시 재생할 수 있습니다.';
+
+    const earthquakeText =
+      '지진계 비유: P파(종파, 빠름) → S파(횡파, 느림) 순서로 도착합니다.';
+
+    statusPill.textContent = `${modeText} ${motionText} ${earthquakeText}`;
+  }
+
+  function syncUi() {
+    constrainDerivedValues();
+    updateOverlayLayout();
+    syncDock();
+    updateStatus();
+    syncGui();
+  }
+
+  function updateTransverseScene() {
+    const dummy = new THREE.Object3D();
+    const positions = transverseSystem.supportGeometry.attributes.position.array;
+    const curvePositions = transverseSystem.waveCurveGeometry.attributes.position.array;
+    const amplitude = state.amplitude;
+    const k = TAU / state.wavelength;
+    const omega = TAU * state.frequency;
+
+    let trackedY = 0;
+
+    for (let index = 0; index < PARTICLE_COUNT; index += 1) {
+      const x = restPositions[index];
+      const y = amplitude * Math.sin(k * x - omega * state.time);
+      if (index === TRACK_INDEX) trackedY = y;
+
+      dummy.position.set(x, y, 0);
+      const scale = state.trackParticle && index === TRACK_INDEX ? 1.38 : 1;
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      transverseSystem.particles.setMatrixAt(index, dummy.matrix);
+      transverseSystem.particles.setColorAt(
+        index,
+        new THREE.Color(state.trackParticle && index === TRACK_INDEX ? 0xff5f66 : 0x4488ff)
+      );
+
+      positions[index * 3] = x;
+      positions[index * 3 + 1] = y;
+      positions[index * 3 + 2] = 0;
+    }
+
+    transverseSystem.particles.instanceMatrix.needsUpdate = true;
+    if (transverseSystem.particles.instanceColor) {
+      transverseSystem.particles.instanceColor.needsUpdate = true;
+    }
+    transverseSystem.supportGeometry.attributes.position.needsUpdate = true;
+
+    for (let index = 0; index < 180; index += 1) {
+      const t = index / 179;
+      const x = THREE.MathUtils.lerp(REST_MIN_X, REST_MAX_X, t);
+      const y = amplitude * Math.sin(k * x - omega * state.time);
+      curvePositions[index * 3] = x;
+      curvePositions[index * 3 + 1] = y;
+      curvePositions[index * 3 + 2] = 0.02;
+    }
+    transverseSystem.waveCurveGeometry.attributes.position.needsUpdate = true;
+    transverseSystem.waveCurve.visible = state.showWaveCurve;
+
+    setBidirectionalArrow(
+      transverseSystem.wavelengthArrow,
+      new THREE.Vector3(-6.5, -1.55, 0),
+      new THREE.Vector3(-6.5 + state.wavelength, -1.55, 0)
+    );
+    setBidirectionalArrow(
+      transverseSystem.amplitudeArrow,
+      new THREE.Vector3(-7.1, 0, 0),
+      new THREE.Vector3(-7.1, amplitude, 0)
+    );
+    setBidirectionalArrow(
+      transverseSystem.trackArrow,
+      new THREE.Vector3(restPositions[TRACK_INDEX], -amplitude, 0),
+      new THREE.Vector3(restPositions[TRACK_INDEX], amplitude, 0)
+    );
+    transverseSystem.trackArrow.visible = state.trackParticle;
+
+    return { trackedY };
+  }
+
+  function updateLongitudinalScene() {
+    const dummy = new THREE.Object3D();
+    const positions = longitudinalSystem.supportGeometry.attributes.position.array;
+    const curvePositions = longitudinalSystem.pressureGeometry.attributes.position.array;
+    const amplitude = state.amplitude;
+    const k = TAU / state.wavelength;
+    const omega = TAU * state.frequency;
+
+    let trackedDisplacement = 0;
+
+    for (let index = 0; index < PARTICLE_COUNT; index += 1) {
+      const x0 = restPositions[index];
+      const displacement = amplitude * Math.sin(k * x0 - omega * state.time);
+      const x = x0 + displacement;
+      if (index === TRACK_INDEX) trackedDisplacement = displacement;
+
+      dummy.position.set(x, 0, 0);
+      const scale = state.trackParticle && index === TRACK_INDEX ? 1.38 : 1;
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      longitudinalSystem.particles.setMatrixAt(index, dummy.matrix);
+      longitudinalSystem.particles.setColorAt(
+        index,
+        new THREE.Color(state.trackParticle && index === TRACK_INDEX ? 0xff5f66 : 0xff8a4d)
+      );
+
+      positions[index * 3] = x;
+      positions[index * 3 + 1] = 0;
+      positions[index * 3 + 2] = 0;
+    }
+
+    longitudinalSystem.particles.instanceMatrix.needsUpdate = true;
+    if (longitudinalSystem.particles.instanceColor) {
+      longitudinalSystem.particles.instanceColor.needsUpdate = true;
+    }
+    longitudinalSystem.supportGeometry.attributes.position.needsUpdate = true;
+
+    for (let index = 0; index < longitudinalSystem.bands.length; index += 1) {
+      const t = (index + 0.5) / longitudinalSystem.bands.length;
+      const x = THREE.MathUtils.lerp(REST_MIN_X - 0.6, REST_MAX_X + 0.6, t);
+      const densitySignal = -Math.cos(k * x - omega * state.time);
+      const band = longitudinalSystem.bands[index];
+      band.position.x = x;
+      band.visible = state.showDensity;
+      band.material.color.setHex(densitySignal >= 0 ? 0xffb3a2 : 0x9bc7ff);
+      band.material.opacity = state.showDensity ? 0.06 + Math.abs(densitySignal) * 0.16 : 0;
+    }
+
+    for (let index = 0; index < 180; index += 1) {
+      const t = index / 179;
+      const x = THREE.MathUtils.lerp(REST_MIN_X, REST_MAX_X, t);
+      const densitySignal = -Math.cos(k * x - omega * state.time);
+      curvePositions[index * 3] = x;
+      curvePositions[index * 3 + 1] = 1.12 + densitySignal * 0.46;
+      curvePositions[index * 3 + 2] = 0.02;
+    }
+    longitudinalSystem.pressureGeometry.attributes.position.needsUpdate = true;
+    longitudinalSystem.pressureCurve.visible = state.showWaveCurve;
+
+    setBidirectionalArrow(
+      longitudinalSystem.wavelengthArrow,
+      new THREE.Vector3(-6.5, -1.35, 0),
+      new THREE.Vector3(-6.5 + state.wavelength, -1.35, 0)
+    );
+    setBidirectionalArrow(
+      longitudinalSystem.trackArrow,
+      new THREE.Vector3(restPositions[TRACK_INDEX] - amplitude, 0.92, 0),
+      new THREE.Vector3(restPositions[TRACK_INDEX] + amplitude, 0.92, 0)
+    );
+    longitudinalSystem.trackArrow.visible = state.trackParticle;
+
+    return { trackedDisplacement };
+  }
+
+  function renderFormulaPanel(trackedY, trackedDisplacement) {
+    const period = 1 / state.frequency;
+    const modeLabel =
+      state.waveMode === 'compare'
+        ? '비교 (횡파 + 종파)'
+        : state.waveMode === 'transverse'
+          ? '횡파'
+          : '종파';
+
+    const trackedLines = state.trackParticle
+      ? [
+          `추적 입자`,
+          `  횡파 y(t) = ${formatSigned(trackedY)} m`,
+          `  종파 x(t) - x₀ = ${formatSigned(trackedDisplacement)} m`
+        ]
+      : [
+          `추적 입자`,
+          `  추적 기능이 꺼져 있습니다.`,
+          `  토글을 켜면 실시간 변위가 표시됩니다.`
+        ];
+
+    formulaText.textContent = [
+      `파동: ${modeLabel}`,
+      ``,
+      `횡파: 진동 방향 ⊥ 진행 방향`,
+      `  예: 기타줄, 전자기파, S파`,
+      `종파: 진동 방향 ∥ 진행 방향`,
+      `  예: 음파, 용수철파, P파`,
+      ``,
+      `파동 속력: v = fλ = λ/T`,
+      `  f = ${formatNumber(state.frequency)} Hz, λ = ${formatNumber(state.wavelength)} m`,
+      `  v = ${formatNumber(state.velocity)} m/s`,
+      `  T = 1/f = ${formatNumber(period)} s`,
+      `  A = ${formatNumber(state.amplitude)} m`,
+      ``,
+      ...trackedLines,
+      ``,
+      `v = fλ에서:`,
+      `  v 일정 시 f↑ → λ↓`,
+      `  v 일정 시 λ↑ → f↓`
+    ].join('\n');
+  }
+
+  function pushHistory(history, time, value) {
+    history.push({ time, value });
+    while (history.length && time - history[0].time > HISTORY_WINDOW) {
+      history.shift();
+    }
+  }
+
+  function drawGraph(canvas, history, options) {
+    const contextInfo = prepareCanvas(canvas);
+    const { context, width, height } = contextInfo;
+
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = options.background;
+    context.fillRect(0, 0, width, height);
+
+    const padding = { left: 34, right: 12, top: 12, bottom: 22 };
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+    const midY = padding.top + innerHeight / 2;
+    const maxValue = Math.max(0.15, state.amplitude * 1.15);
+
+    context.strokeStyle = options.grid;
+    context.lineWidth = 1;
+    for (let index = 0; index <= 4; index += 1) {
+      const y = padding.top + (innerHeight / 4) * index;
+      context.beginPath();
+      context.moveTo(padding.left, y);
+      context.lineTo(width - padding.right, y);
+      context.stroke();
+    }
+
+    context.strokeStyle = options.axis;
+    context.beginPath();
+    context.moveTo(padding.left, midY);
+    context.lineTo(width - padding.right, midY);
+    context.stroke();
+
+    context.fillStyle = options.text;
+    context.font = '11px sans-serif';
+    context.fillText(options.labelTop, 8, padding.top + 4);
+    context.fillText('0', 14, midY + 4);
+    context.fillText(options.labelBottom, 6, padding.top + innerHeight);
+    context.fillText('t', width - padding.right + 2, height - 8);
+
+    if (!state.trackParticle) {
+      context.fillStyle = options.muted;
+      context.font = '12px sans-serif';
+      context.fillText('입자 추적이 꺼져 있습니다.', padding.left, midY + 4);
+      return;
+    }
+
+    if (history.length < 2) {
+      context.fillStyle = options.muted;
+      context.font = '12px sans-serif';
+      context.fillText('그래프를 수집하는 중입니다.', padding.left, midY + 4);
+      return;
+    }
+
+    const latestTime = history[history.length - 1].time;
+    context.strokeStyle = options.line;
+    context.lineWidth = 2;
+    context.beginPath();
+
+    history.forEach((sample, index) => {
+      const timeRatio = 1 - (latestTime - sample.time) / HISTORY_WINDOW;
+      const x = padding.left + innerWidth * clamp(timeRatio, 0, 1);
+      const y = midY - (sample.value / maxValue) * (innerHeight * 0.44);
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+    context.stroke();
+
+    const current = history[history.length - 1];
+    const pointX = padding.left + innerWidth;
+    const pointY = midY - (current.value / maxValue) * (innerHeight * 0.44);
+
+    context.fillStyle = options.line;
+    context.beginPath();
+    context.arc(pointX, pointY, 3.5, 0, TAU);
+    context.fill();
+  }
+
+  function prepareCanvas(canvas) {
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const context = canvas.getContext('2d');
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return {
+      context,
+      width: canvas.clientWidth,
+      height: canvas.clientHeight
+    };
+  }
+
+  function renderGraphs() {
+    drawGraph(transverseGraphCanvas, histories.transverse, {
+      background: 'rgba(255,255,255,0.04)',
+      grid: 'rgba(255,255,255,0.08)',
+      axis: 'rgba(255,255,255,0.2)',
+      line: '#6bc4ff',
+      text: 'rgba(244,248,255,0.8)',
+      muted: 'rgba(244,248,255,0.56)',
+      labelTop: '+A',
+      labelBottom: '-A'
+    });
+
+    drawGraph(longitudinalGraphCanvas, histories.longitudinal, {
+      background: 'rgba(255,255,255,0.05)',
+      grid: 'rgba(255,224,208,0.08)',
+      axis: 'rgba(255,224,208,0.2)',
+      line: '#ffb36d',
+      text: 'rgba(255,238,228,0.82)',
+      muted: 'rgba(255,238,228,0.56)',
+      labelTop: '+A',
+      labelBottom: '-A'
+    });
+  }
+
+  function renderScene(scene, camera, x, y, width, height) {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setViewport(x, y, width, height);
+    renderer.setScissor(x, y, width, height);
+    renderer.clearDepth();
+    renderer.render(scene, camera);
+  }
+
+  function animate(now = performance.now()) {
+    requestAnimationFrame(animate);
+
+    const delta = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    if (state.waveMode === 'longitudinal') {
+      transverseControls.enabled = false;
+      longitudinalControls.enabled = true;
+      longitudinalControls.update();
+    } else {
+      transverseControls.enabled = true;
+      longitudinalControls.enabled = false;
+      transverseControls.update();
+      longitudinalCamera.position.copy(transverseCamera.position);
+      longitudinalCamera.quaternion.copy(transverseCamera.quaternion);
+      longitudinalControls.target.copy(transverseControls.target);
+    }
+
+    if (state.playing) {
+      state.time += delta;
+      graphAccumulator += delta;
+    }
+
+    const transverseResult = updateTransverseScene();
+    const longitudinalResult = updateLongitudinalScene();
+
+    if (state.playing && graphAccumulator >= 1 / 30) {
+      pushHistory(histories.transverse, state.time, transverseResult.trackedY);
+      pushHistory(histories.longitudinal, state.time, longitudinalResult.trackedDisplacement);
+      graphAccumulator = 0;
+    }
+
+    renderFormulaPanel(transverseResult.trackedY, longitudinalResult.trackedDisplacement);
+    renderGraphs();
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    renderer.setScissorTest(true);
+    renderer.clear();
+
+    if (state.waveMode === 'compare') {
+      const halfHeight = Math.floor(height / 2);
+      renderScene(transverseScene, transverseCamera, 0, halfHeight, width, height - halfHeight);
+      renderScene(longitudinalScene, longitudinalCamera, 0, 0, width, halfHeight);
+    } else if (state.waveMode === 'transverse') {
+      renderScene(transverseScene, transverseCamera, 0, 0, width, height);
+    } else {
+      renderScene(longitudinalScene, longitudinalCamera, 0, 0, width, height);
+    }
+
+    renderer.setScissorTest(false);
+  }
+
+  function snap(value, step) {
+    return Math.round(value / step) * step;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function roundTo(value, digits) {
+    return Number(value.toFixed(digits));
+  }
+
+  function formatNumber(value) {
+    return Number(value).toFixed(2).replace(/\.00$/, '.0').replace(/(\.\d)0$/, '$1');
+  }
+
+  function formatSigned(value) {
+    const number = formatNumber(Math.abs(value));
+    return `${value >= 0 ? '+' : '-'}${number}`;
+  }
+</script>
+</body>
+</html>

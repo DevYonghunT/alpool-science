@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>알짜힘에 의한 운동 예측 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-top: #f7fafc;
+    --bg-bottom: #e8eef4;
+    --panel: rgba(255, 255, 255, 0.76);
+    --panel-strong: rgba(7, 18, 32, 0.88);
+    --panel-border: rgba(255, 255, 255, 0.18);
+    --panel-shadow: rgba(24, 40, 62, 0.16);
+    --ink: #14263b;
+    --ink-soft: rgba(20, 38, 59, 0.72);
+    --text-main: #f4fbff;
+    --text-soft: rgba(244, 251, 255, 0.72);
+    --red: #ff6f6f;
+    --blue: #69a5ff;
+    --orange: #ffaf54;
+    --violet: #ca8dff;
+    --green: #69d690;
+    --magenta: #ff7cbf;
+    --gold: #ffe1a5;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 225, 186, 0.44), transparent 24%),
+      radial-gradient(circle at 82% 8%, rgba(118, 176, 255, 0.24), transparent 22%),
+      linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    color: var(--ink);
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.95fr);
+    background:
+      radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.75), transparent 16%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    border-right: 1px solid rgba(19, 38, 59, 0.08);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.84), transparent 20%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 20% 10%, rgba(101, 170, 255, 0.18), transparent 24%),
+      linear-gradient(180deg, rgba(10, 21, 38, 0.98) 0%, rgba(5, 11, 22, 1) 100%);
+    color: var(--text-main);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(20, 39, 60, 0.58);
+  }
+
+  #scene-title h1 {
+    margin-top: 5px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: rgba(13, 28, 46, 0.96);
+    text-shadow: 0 8px 22px rgba(255, 255, 255, 0.58);
+  }
+
+  #scene-title p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(20, 39, 60, 0.7);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 28;
+    border: 1px solid rgba(14, 32, 54, 0.08);
+    border-radius: 999px;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.82);
+    color: rgba(11, 28, 46, 0.94);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(54, 79, 108, 0.14);
+    backdrop-filter: blur(14px);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    z-index: 27;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    display: none;
+    border-radius: 24px;
+    background: rgba(8, 18, 31, 0.9);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 48px rgba(7, 18, 31, 0.26);
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9fd6ff;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+  #guide-panel .soft { color: var(--text-soft); }
+
+  #status-chip {
+    position: absolute;
+    top: 102px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(720px, calc(100vw - 32px));
+    padding: 16px 20px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.36);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 44px rgba(70, 93, 126, 0.14);
+    text-align: center;
+  }
+
+  #status-chip .mode {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(19, 38, 59, 0.54);
+  }
+
+  #status-chip .title {
+    margin-top: 6px;
+    font-size: 18px;
+    font-weight: 800;
+    color: rgba(12, 27, 44, 0.96);
+  }
+
+  #status-chip .body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.66;
+    color: var(--ink-soft);
+  }
+
+  #status-chip.active {
+    background: rgba(233, 248, 255, 0.78);
+    border-color: rgba(133, 197, 255, 0.34);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    z-index: 18;
+    width: min(430px, calc(100vw - 36px));
+    max-height: min(42vh, 360px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 18, 31, 0.85);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 24px 50px rgba(7, 18, 31, 0.24);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--gold);
+  }
+
+  #formula-panel .panel-subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-soft);
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 118px;
+    flex-shrink: 0;
+    color: rgba(244, 251, 255, 0.66);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+  }
+
+  #formula-panel .highlight {
+    margin-top: 11px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #gui-mount {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 28;
+  }
+
+  #graph-header {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 5;
+    padding: 18px 18px 14px;
+    background: linear-gradient(180deg, rgba(5, 11, 22, 0.94) 0%, rgba(5, 11, 22, 0.76) 72%, rgba(5, 11, 22, 0) 100%);
+    pointer-events: none;
+  }
+
+  #graph-header h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #eff7ff;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-header p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(232, 243, 255, 0.78);
+  }
+
+  #metric-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px 12px 11px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .metric-card .label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(232, 243, 255, 0.56);
+  }
+
+  .metric-card .value {
+    margin-top: 6px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #f7fbff;
+  }
+
+  #graph-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(99, 175, 255, 0.12);
+    border: 1px solid rgba(99, 175, 255, 0.16);
+    font-size: 12px;
+    line-height: 1.66;
+    color: rgba(227, 240, 255, 0.86);
+  }
+
+  #graph-legend {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    pointer-events: none;
+  }
+
+  #graph-legend .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(232, 243, 255, 0.7);
+  }
+
+  #graph-legend .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6fc0ff;
+    box-shadow: 0 0 12px rgba(111, 192, 255, 0.48);
+  }
+
+  #graph-legend .soft {
+    color: rgba(232, 243, 255, 0.5);
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(10, 19, 34, 0.86);
+    --widget-color: rgba(255, 255, 255, 0.07);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(105, 166, 255, 0.38);
+    --text-color: #eff7ff;
+    --title-background-color: rgba(17, 31, 52, 0.92);
+    --title-text-color: #ffffff;
+    --number-color: #9fe0ff;
+    --string-color: #ffe7a8;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 18px 36px rgba(7, 18, 31, 0.24);
+    backdrop-filter: blur(16px);
+  }
+
+  @media (max-width: 1080px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 58vh) minmax(320px, 42vh);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(19, 38, 59, 0.08);
+    }
+
+    #graph-panel {
+      min-height: 320px;
+    }
+
+    #formula-panel {
+      max-height: min(34vh, 290px);
+    }
+  }
+
+  @media (max-width: 760px) {
+    #scene-title h1 {
+      font-size: 22px;
+    }
+
+    #status-chip {
+      top: 94px;
+      padding: 14px 16px;
+    }
+
+    #status-chip .title {
+      font-size: 16px;
+    }
+
+    #metric-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    #formula-panel,
+    #guide-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+    }
+
+    #guide-panel {
+      top: 54px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+
+      <button id="guide-toggle">📖 학습 가이드</button>
+
+      <div id="scene-title">
+        <div class="eyebrow">Mechanics · Net Force</div>
+        <h1>알짜힘에 의한 운동 예측</h1>
+        <p>빗면과 경사력 상황에서 힘을 분해하고 F = ma 로 운동을 예측합니다.</p>
+      </div>
+
+      <div id="status-chip">
+        <div class="mode" id="status-mode">준비</div>
+        <div class="title" id="status-title">시나리오를 선택하고 힘의 합을 살펴보세요.</div>
+        <div class="body" id="status-body">경사각, 질량, 마찰 계수, 힘을 바꾸면 알짜힘과 가속도가 즉시 업데이트됩니다.</div>
+      </div>
+
+      <div id="guide-panel">
+        <h3>핵심 원리</h3>
+        <p>물체에 작용하는 여러 힘을 벡터 합성하여 알짜힘을 구하고, <span class="mono">F = ma</span>로 가속도를 예측합니다. 빗면 위 물체의 가속도는 마찰이 없을 때 <span class="mono">a = gsinθ</span>, 마찰이 있을 때 <span class="mono">a = g(sinθ - μcosθ)</span>입니다.</p>
+
+        <h3>탐구 질문</h3>
+        <ul>
+          <li>빗면 경사각을 크게 하면 물체의 가속도는 어떻게 변하나요?</li>
+          <li>마찰 계수가 <span class="mono">tanθ</span>와 같을 때 물체는 어떤 운동을 하나요?</li>
+          <li>수평면 위의 물체에 비스듬히 힘을 가할 때 수직 항력이 <span class="mono">mg</span>보다 작아지는 까닭은 무엇인가요?</li>
+        </ul>
+
+        <h3>실생활 예시</h3>
+        <ul>
+          <li>스키 점프와 미끄럼틀처럼 경사를 따라 가속하는 상황</li>
+          <li>경사로 주차에서 마찰이 차량의 미끄러짐을 막는 상황</li>
+          <li>손수레나 썰매를 비스듬히 끌 때 수직항력이 줄어드는 상황</li>
+        </ul>
+
+        <h3>교과서 연계</h3>
+        <p class="soft">역학과 에너지 I편 p8~15 · 힘의 합성과 운동 예측 · 빗면 위 물체</p>
+      </div>
+
+      <div id="formula-panel"></div>
+      <div id="gui-mount"></div>
+    </section>
+
+    <aside id="graph-panel">
+      <canvas id="graph-canvas"></canvas>
+
+      <div id="graph-header">
+        <h2 id="graph-title">a-t 그래프</h2>
+        <p id="graph-subtitle">시뮬레이션이 시작되면 시간에 따른 가속도, 속도, 변위를 실시간으로 추적합니다.</p>
+        <div id="metric-grid">
+          <div class="metric-card">
+            <div class="label">시간</div>
+            <div class="value" id="metric-time">0.00 s</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">가속도</div>
+            <div class="value" id="metric-accel">0.00 m/s²</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">속도</div>
+            <div class="value" id="metric-velocity">0.00 m/s</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">변위</div>
+            <div class="value" id="metric-distance">0.00 m</div>
+          </div>
+        </div>
+        <div id="graph-note">현재 시나리오의 힘 관계를 읽는 중입니다.</div>
+      </div>
+
+      <div id="graph-legend">
+        <div class="legend-item"><span class="dot"></span><span id="legend-label">실시간 추적 곡선</span></div>
+        <div class="legend-item soft" id="legend-hint">그래프 종류를 바꾸면 같은 실험을 다른 관점으로 볼 수 있습니다.</div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+window.__mech02BootState = 'pending';
+
+window.setTimeout(() => {
+  if (window.__mech02BootState === 'ready' || window.__mech02BootState === 'error') return;
+
+  const statusModeEl = document.getElementById('status-mode');
+  const statusTitleEl = document.getElementById('status-title');
+  const statusBodyEl = document.getElementById('status-body');
+  const formulaPanelEl = document.getElementById('formula-panel');
+
+  if (!statusModeEl || !statusTitleEl || !statusBodyEl || !formulaPanelEl) return;
+
+  statusModeEl.textContent = '모듈 로드 오류';
+  statusTitleEl.textContent = '외부 모듈을 불러오지 못해 시뮬레이션을 시작하지 못했습니다.';
+  statusBodyEl.textContent = '네트워크 연결 또는 CDN 접근 상태를 확인한 뒤 새로고침해 주세요.';
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">⚠️ 모듈 로드 오류</div>
+    <div class="panel-subtitle">상태: ${window.__mech02BootState}</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">안내</div><div class="value">Three.js 또는 GUI 모듈이 로드되지 않았습니다. 인터넷 연결이 가능하면 다시 열어 보세요.</div></div>
+  `;
+}, 6000);
+</script>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://esm.sh/lil-gui@0.19.2';
+
+window.__mech02BootState = 'module-loaded';
+
+const GRAVITY = 9.8;
+const SCENARIO_INCLINE = '빗면(마찰 없음)';
+const SCENARIO_FRICTION = '빗면(마찰 있음)';
+const SCENARIO_PULL = '수평면+경사력';
+const GRAPH_ACCEL = 'a-t';
+const GRAPH_VELOCITY = 'v-t';
+const GRAPH_DISTANCE = 's-t';
+
+const WORLD_PER_METER = 0.82;
+const INCLINE_TRACK = {
+  length: 7.2,
+  width: 2.7,
+  thickness: 0.32,
+  blockStartX: -2.55,
+  blockEndX: 2.35,
+  blockY: 0.48,
+  pivotX: -0.2,
+  pivotY: 0.92
+};
+const PULL_TRACK = {
+  length: 9.6,
+  width: 3.1,
+  blockStartX: -3.25,
+  blockEndX: 2.75,
+  blockY: 0.52
+};
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const DOWN = new THREE.Vector3(0, -1, 0);
+
+const scenePanelEl = document.getElementById('scene-panel');
+const graphPanelEl = document.getElementById('graph-panel');
+const sceneCanvasEl = document.getElementById('scene-canvas');
+const graphCanvasEl = document.getElementById('graph-canvas');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const formulaPanelEl = document.getElementById('formula-panel');
+const statusChipEl = document.getElementById('status-chip');
+const statusModeEl = document.getElementById('status-mode');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const graphHeaderEl = document.getElementById('graph-header');
+const graphTitleEl = document.getElementById('graph-title');
+const graphSubtitleEl = document.getElementById('graph-subtitle');
+const graphNoteEl = document.getElementById('graph-note');
+const metricTimeEl = document.getElementById('metric-time');
+const metricAccelEl = document.getElementById('metric-accel');
+const metricVelocityEl = document.getElementById('metric-velocity');
+const metricDistanceEl = document.getElementById('metric-distance');
+const legendLabelEl = document.getElementById('legend-label');
+const legendHintEl = document.getElementById('legend-hint');
+const guiMountEl = document.getElementById('gui-mount');
+
+const graphContext = graphCanvasEl.getContext('2d');
+const clock = new THREE.Clock();
+let bootStep = 'initializing';
+
+const params = {
+  scenario: SCENARIO_INCLINE,
+  mass: 2,
+  angleDeg: 30,
+  friction: 0.2,
+  force: 20,
+  showComponents: true,
+  graphType: GRAPH_ACCEL,
+  startSimulation: () => startSimulation(),
+  resetSimulation: () => resetSimulation(true)
+};
+
+const runtime = {
+  guideOpen: false,
+  isRunning: false,
+  elapsed: 0,
+  position: 0,
+  velocity: 0,
+  initialVelocity: 0,
+  currentAcceleration: 0,
+  activeAnalysis: null,
+  history: []
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 12, 30);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(9.2, 5.4, 11.8);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvasEl,
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1.15, 0);
+controls.minDistance = 6.4;
+controls.maxDistance = 20;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const world = {
+  root: null,
+  block: null,
+  blockBody: null,
+  rampGroup: null,
+  angleGuide: null,
+  caption: null,
+  arrows: {},
+  maxDistanceMeters: 0
+};
+
+try {
+  bootStep = 'buildSharedEnvironment';
+  buildSharedEnvironment();
+  sceneCanvasEl.dataset.engine = 'three.js r160';
+
+  bootStep = 'buildGui';
+  buildGui();
+
+  bootStep = 'createScenarioWorld';
+  createScenarioWorld();
+
+  bootStep = 'resetSimulation';
+  resetSimulation(false);
+
+  bootStep = 'resize';
+  resize();
+
+  bootStep = 'animate';
+  animate();
+  window.__mech02BootState = 'ready';
+} catch (error) {
+  renderBootError(error);
+}
+
+guideToggleEl.addEventListener('click', () => {
+  runtime.guideOpen = !runtime.guideOpen;
+  guidePanelEl.classList.toggle('open', runtime.guideOpen);
+  guideToggleEl.textContent = runtime.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+window.addEventListener('resize', resize);
+
+function renderBootError(error) {
+  window.__mech02BootState = 'error';
+  const message = error instanceof Error ? error.message : String(error);
+  statusModeEl.textContent = '초기화 오류';
+  statusTitleEl.textContent = '시뮬레이션 초기화에 실패했습니다.';
+  statusBodyEl.textContent = `단계: ${bootStep} · 원인: ${message}`;
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">⚠️ 초기화 오류</div>
+    <div class="panel-subtitle">단계: ${bootStep}</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">오류 메시지</div><div class="value">${escapeHtml(message)}</div></div>
+    <div class="highlight">
+      <div>네트워크, WebGL, 외부 CDN, 또는 스크립트 초기화 문제일 수 있습니다.</div>
+    </div>
+  `;
+  console.error(error);
+}
+
+function buildSharedEnvironment() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.62);
+  directionalLight.position.set(8, 14, 7);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.left = -16;
+  directionalLight.shadow.camera.right = 16;
+  directionalLight.shadow.camera.top = 16;
+  directionalLight.shadow.camera.bottom = -16;
+  directionalLight.shadow.camera.near = 0.5;
+  directionalLight.shadow.camera.far = 40;
+  directionalLight.shadow.bias = -0.00008;
+  scene.add(directionalLight);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xc5d1df, 0.28));
+
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(42, 28),
+    new THREE.MeshStandardMaterial({ color: 0xdde4ec, roughness: 0.96, metalness: 0.02 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.02;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const grid = new THREE.GridHelper(34, 28, 0xc0cddd, 0xd8e2ec);
+  grid.position.y = 0;
+  grid.material.opacity = 0.32;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(44, 16),
+    new THREE.MeshStandardMaterial({ color: 0xf4f7fb, roughness: 1, metalness: 0 })
+  );
+  backdrop.position.set(0, 6.8, -8.5);
+  scene.add(backdrop);
+}
+
+function buildGui() {
+  const gui = new GUI({ container: guiMountEl, title: '실험 제어', width: 308 });
+
+  const controllers = {
+    scenario: gui.add(params, 'scenario', [SCENARIO_INCLINE, SCENARIO_FRICTION, SCENARIO_PULL]).name('시나리오'),
+    mass: gui.add(params, 'mass', 1, 10, 0.5).name('질량 m (kg)'),
+    angle: gui.add(params, 'angleDeg', 5, 60, 1).name('경사각 θ (°)'),
+    friction: gui.add(params, 'friction', 0, 0.8, 0.05).name('마찰 계수 μ'),
+    force: gui.add(params, 'force', 0, 50, 1).name('힘 F (N)'),
+    components: gui.add(params, 'showComponents').name('힘 분해 표시'),
+    graph: gui.add(params, 'graphType', [GRAPH_ACCEL, GRAPH_VELOCITY, GRAPH_DISTANCE]).name('그래프 종류'),
+    start: gui.add(params, 'startSimulation').name('시뮬레이션 시작'),
+    reset: gui.add(params, 'resetSimulation').name('초기화')
+  };
+
+  controllers.scenario.onChange(() => {
+    createScenarioWorld();
+    resetSimulation(false);
+    syncGui();
+  });
+
+  [controllers.mass, controllers.angle, controllers.friction, controllers.force].forEach((controller) => {
+    controller.onChange(() => {
+      resetSimulation(false);
+      syncGui();
+    });
+  });
+
+  controllers.components.onChange(() => {
+    updateSceneObjects();
+    updateFormulaPanel();
+    drawGraph();
+  });
+
+  controllers.graph.onChange(() => {
+    updateGraphPanel();
+    drawGraph();
+  });
+
+  function setEnabled(controller, enabled) {
+    controller.domElement.style.opacity = enabled ? '1' : '0.42';
+    controller.domElement.style.pointerEvents = enabled ? 'auto' : 'none';
+    controller.domElement.querySelectorAll('input, select').forEach((element) => {
+      element.disabled = !enabled;
+    });
+  }
+
+  function syncGui() {
+    const needsFriction = params.scenario !== SCENARIO_INCLINE;
+    const needsForce = params.scenario === SCENARIO_PULL;
+    setEnabled(controllers.friction, needsFriction);
+    setEnabled(controllers.force, needsForce);
+    controllers.friction.name(needsFriction ? '마찰 계수 μ' : '마찰 계수 μ (비활성)');
+    controllers.force.name(needsForce ? '힘 F (N)' : '힘 F (N) (비활성)');
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  window.syncMech02Gui = syncGui;
+  syncGui();
+
+  if (window.innerWidth < 880) {
+    gui.close();
+  }
+}
+
+function createScenarioWorld() {
+  if (world.root) {
+    scene.remove(world.root);
+    disposeObject3D(world.root);
+  }
+
+  world.root = new THREE.Group();
+  scene.add(world.root);
+  world.block = null;
+  world.blockBody = null;
+  world.rampGroup = null;
+  world.angleGuide = null;
+  world.caption = null;
+  world.arrows = {};
+
+  if (params.scenario === SCENARIO_PULL) {
+    buildPullWorld();
+  } else {
+    buildInclineWorld();
+  }
+}
+
+function buildInclineWorld() {
+  const theta = THREE.MathUtils.degToRad(params.angleDeg);
+  world.maxDistanceMeters = (INCLINE_TRACK.blockEndX - INCLINE_TRACK.blockStartX) / WORLD_PER_METER;
+
+  const stage = new THREE.Group();
+  world.root.add(stage);
+
+  const rampBase = new THREE.Mesh(
+    new THREE.BoxGeometry(7.6, 0.28, 3.0),
+    new THREE.MeshStandardMaterial({ color: 0xc4cfdb, roughness: 0.94, metalness: 0.04 })
+  );
+  rampBase.position.set(INCLINE_TRACK.pivotX, 0.18, 0);
+  rampBase.receiveShadow = true;
+  stage.add(rampBase);
+
+  world.rampGroup = new THREE.Group();
+  world.rampGroup.position.set(INCLINE_TRACK.pivotX, INCLINE_TRACK.pivotY, 0);
+  world.rampGroup.rotation.z = -theta;
+  stage.add(world.rampGroup);
+
+  const ramp = new THREE.Mesh(
+    new THREE.BoxGeometry(INCLINE_TRACK.length, INCLINE_TRACK.thickness, INCLINE_TRACK.width),
+    new THREE.MeshStandardMaterial({ color: 0xaa9988, roughness: 0.82, metalness: 0.04 })
+  );
+  ramp.castShadow = true;
+  ramp.receiveShadow = true;
+  world.rampGroup.add(ramp);
+
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(INCLINE_TRACK.length, 0.04, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xf1e2cf, roughness: 0.6, metalness: 0.06 })
+  );
+  rail.position.set(0, INCLINE_TRACK.thickness * 0.5 + 0.03, 0);
+  rail.receiveShadow = true;
+  world.rampGroup.add(rail);
+
+  const block = new THREE.Group();
+  const blockBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.6, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x4488aa, roughness: 0.46, metalness: 0.16 })
+  );
+  blockBody.castShadow = true;
+  blockBody.receiveShadow = true;
+  block.add(blockBody);
+
+  const blockTrim = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.08, 0.52),
+    new THREE.MeshStandardMaterial({ color: 0x25485b, roughness: 0.54, metalness: 0.18 })
+  );
+  blockTrim.position.y = 0.2;
+  blockTrim.castShadow = true;
+  block.add(blockTrim);
+
+  block.position.set(INCLINE_TRACK.blockStartX, INCLINE_TRACK.blockY, 0);
+  world.rampGroup.add(block);
+  world.block = block;
+  world.blockBody = blockBody;
+
+  world.caption = createTextSprite(
+    params.scenario === SCENARIO_INCLINE ? '빗면 위 물체 · 마찰 없음' : '빗면 위 물체 · 마찰 포함',
+    { color: '#143046', background: 'rgba(255,255,255,0.82)', border: 'rgba(24,44,69,0.12)', scale: [1.8, 0.34] }
+  );
+  world.caption.position.set(0.4, 2.8, 0.7);
+  stage.add(world.caption);
+
+  createInclineAngleGuide(stage);
+  createInclineArrows();
+}
+
+function buildPullWorld() {
+  world.maxDistanceMeters = (PULL_TRACK.blockEndX - PULL_TRACK.blockStartX) / WORLD_PER_METER;
+
+  const stage = new THREE.Group();
+  world.root.add(stage);
+
+  const platform = new THREE.Mesh(
+    new THREE.BoxGeometry(PULL_TRACK.length, 0.36, PULL_TRACK.width),
+    new THREE.MeshStandardMaterial({ color: 0xd7dce3, roughness: 0.92, metalness: 0.04 })
+  );
+  platform.position.set(-0.15, 0.18, 0);
+  platform.castShadow = true;
+  platform.receiveShadow = true;
+  stage.add(platform);
+
+  const guideStrip = new THREE.Mesh(
+    new THREE.BoxGeometry(PULL_TRACK.length - 0.8, 0.03, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0xf3e8d2, roughness: 0.58, metalness: 0.02 })
+  );
+  guideStrip.position.set(-0.15, 0.38, 0);
+  stage.add(guideStrip);
+
+  const block = new THREE.Group();
+  const blockBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.6, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x4488aa, roughness: 0.46, metalness: 0.18 })
+  );
+  blockBody.castShadow = true;
+  blockBody.receiveShadow = true;
+  block.add(blockBody);
+
+  const handle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.56, 18),
+    new THREE.MeshStandardMaterial({ color: 0xf7d39a, roughness: 0.46, metalness: 0.06 })
+  );
+  handle.position.set(-0.26, 0.28, 0.22);
+  handle.rotation.z = Math.PI * 0.18;
+  handle.castShadow = true;
+  block.add(handle);
+
+  block.position.set(PULL_TRACK.blockStartX, PULL_TRACK.blockY, 0);
+  stage.add(block);
+  world.block = block;
+  world.blockBody = blockBody;
+
+  world.caption = createTextSprite(
+    '수평면 위 물체 · 경사력으로 끌기',
+    { color: '#143046', background: 'rgba(255,255,255,0.82)', border: 'rgba(24,44,69,0.12)', scale: [1.72, 0.34] }
+  );
+  world.caption.position.set(-0.5, 2.75, 0.7);
+  stage.add(world.caption);
+
+  createPullAngleGuide(stage);
+  createPullArrows();
+}
+
+function createInclineArrows() {
+  world.arrows.weight = new VectorArrow({ label: 'W', color: 0xff6f6f, radius: 0.038 });
+  world.arrows.normal = new VectorArrow({ label: 'N', color: 0x69a5ff, radius: 0.034 });
+  world.arrows.parallel = new VectorArrow({ label: 'W∥', color: 0xffaf54, dashed: true, radius: 0.026 });
+  world.arrows.perpendicular = new VectorArrow({ label: 'W⊥', color: 0xca8dff, dashed: true, radius: 0.026 });
+  world.arrows.net = new VectorArrow({ label: 'F_net', color: 0x69d690, radius: 0.05 });
+  world.arrows.friction = new VectorArrow({ label: 'f', color: 0xff7cbf, radius: 0.034 });
+
+  Object.values(world.arrows).forEach((arrow) => world.root.add(arrow.group));
+}
+
+function createPullArrows() {
+  world.arrows.weight = new VectorArrow({ label: 'W', color: 0xff6f6f, radius: 0.038 });
+  world.arrows.normal = new VectorArrow({ label: 'N', color: 0x69a5ff, radius: 0.034 });
+  world.arrows.applied = new VectorArrow({ label: 'F', color: 0xff8d5d, radius: 0.044 });
+  world.arrows.fx = new VectorArrow({ label: 'Fx', color: 0xffaf54, dashed: true, radius: 0.026 });
+  world.arrows.fy = new VectorArrow({ label: 'Fy', color: 0xca8dff, dashed: true, radius: 0.026 });
+  world.arrows.friction = new VectorArrow({ label: 'f', color: 0xff7cbf, radius: 0.034 });
+  world.arrows.net = new VectorArrow({ label: 'F_net', color: 0x69d690, radius: 0.05 });
+
+  Object.values(world.arrows).forEach((arrow) => world.root.add(arrow.group));
+}
+
+function createInclineAngleGuide(stage) {
+  const guide = new THREE.Group();
+  const lineMaterial = new THREE.LineBasicMaterial({ color: 0x51657c, transparent: true, opacity: 0.78 });
+  const base = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-2.7, 0.46, 1.1), new THREE.Vector3(-1.8, 0.46, 1.1)]),
+    lineMaterial
+  );
+  guide.add(base);
+
+  const radius = 0.58;
+  const points = [];
+  const theta = THREE.MathUtils.degToRad(params.angleDeg);
+  for (let i = 0; i <= 24; i += 1) {
+    const t = (theta * i) / 24;
+    points.push(new THREE.Vector3(-2.7 + Math.cos(t) * radius, 0.46 + Math.sin(t) * radius, 1.1));
+  }
+  const arc = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lineMaterial.clone());
+  guide.add(arc);
+
+  const label = createTextSprite(`θ = ${params.angleDeg}°`, {
+    color: '#173149',
+    background: 'rgba(255,255,255,0.82)',
+    border: 'rgba(24,44,69,0.1)',
+    scale: [0.82, 0.28]
+  });
+  label.position.set(-2.1, 1.0, 1.18);
+  guide.add(label);
+
+  stage.add(guide);
+  world.angleGuide = guide;
+}
+
+function createPullAngleGuide(stage) {
+  const guide = new THREE.Group();
+  const pivot = new THREE.Vector3(PULL_TRACK.blockStartX + 0.1, 1.18, 1.05);
+
+  const base = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      pivot.clone(),
+      pivot.clone().add(new THREE.Vector3(0.9, 0, 0))
+    ]),
+    new THREE.LineBasicMaterial({ color: 0x51657c, transparent: true, opacity: 0.78 })
+  );
+  guide.add(base);
+
+  const radius = 0.62;
+  const theta = THREE.MathUtils.degToRad(params.angleDeg);
+  const points = [];
+  for (let i = 0; i <= 24; i += 1) {
+    const t = (theta * i) / 24;
+    points.push(pivot.clone().add(new THREE.Vector3(Math.cos(t) * radius, Math.sin(t) * radius, 0)));
+  }
+  const arc = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(points),
+    new THREE.LineBasicMaterial({ color: 0x51657c, transparent: true, opacity: 0.78 })
+  );
+  guide.add(arc);
+
+  const label = createTextSprite(`θ = ${params.angleDeg}°`, {
+    color: '#173149',
+    background: 'rgba(255,255,255,0.82)',
+    border: 'rgba(24,44,69,0.1)',
+    scale: [0.82, 0.28]
+  });
+  label.position.copy(pivot.clone().add(new THREE.Vector3(0.62, 0.48, 0.08)));
+  guide.add(label);
+
+  stage.add(guide);
+  world.angleGuide = guide;
+}
+
+function startSimulation() {
+  const analysis = analyseScenario();
+  runtime.activeAnalysis = analysis;
+  runtime.elapsed = 0;
+  runtime.position = 0;
+  runtime.initialVelocity = analysis.initialVelocity;
+  runtime.velocity = analysis.initialVelocity;
+  runtime.currentAcceleration = analysis.acceleration;
+  runtime.history = [{ t: 0, a: runtime.currentAcceleration, v: runtime.velocity, s: 0 }];
+
+  if (analysis.motionMode === 'static') {
+    runtime.isRunning = false;
+    setStatus(
+      '정지 유지',
+      analysis.statusBody,
+      analysis.modeLabel
+    );
+  } else {
+    runtime.isRunning = true;
+    setStatus(
+      '시뮬레이션 진행 중',
+      analysis.motionMode === 'constant'
+        ? `알짜힘이 거의 0이므로 등속 운동으로 시연합니다. 시작 속도 ${formatNumber(runtime.initialVelocity, 2)}m/s 로 움직입니다.`
+        : `알짜힘 ${formatNumber(analysis.netForce, 2)}N 으로 ${formatNumber(analysis.acceleration, 2)}m/s² 의 가속도가 생깁니다.`,
+      analysis.modeLabel
+    );
+  }
+
+  updateSceneObjects();
+  updateFormulaPanel();
+  updateGraphPanel();
+  drawGraph();
+}
+
+function resetSimulation(showMessage = true) {
+  runtime.isRunning = false;
+  runtime.elapsed = 0;
+  runtime.position = 0;
+  runtime.velocity = 0;
+  runtime.currentAcceleration = 0;
+  runtime.activeAnalysis = analyseScenario();
+  runtime.initialVelocity = runtime.activeAnalysis.motionMode === 'constant' ? runtime.activeAnalysis.initialVelocity : 0;
+  runtime.history = [{ t: 0, a: runtime.activeAnalysis.acceleration, v: 0, s: 0 }];
+
+  updateSceneObjects();
+  updateFormulaPanel();
+  updateGraphPanel();
+  drawGraph();
+
+  if (showMessage) {
+    setStatus('초기화 완료', runtime.activeAnalysis.statusBody, runtime.activeAnalysis.modeLabel);
+  } else {
+    setStatus('조건이 업데이트되었습니다', runtime.activeAnalysis.statusBody, runtime.activeAnalysis.modeLabel);
+  }
+}
+
+function analyseScenario() {
+  const thetaRad = THREE.MathUtils.degToRad(params.angleDeg);
+  const sinTheta = Math.sin(thetaRad);
+  const cosTheta = Math.cos(thetaRad);
+  const tanTheta = Math.tan(thetaRad);
+  const weight = params.mass * GRAVITY;
+  const modeLabel = params.scenario;
+
+  if (params.scenario === SCENARIO_INCLINE) {
+    const parallel = weight * sinTheta;
+    const normal = weight * cosTheta;
+    return {
+      scenario: params.scenario,
+      modeLabel,
+      thetaRad,
+      weight,
+      normal,
+      parallel,
+      perpendicular: normal,
+      frictionForce: 0,
+      displayedFriction: 0,
+      netForce: parallel,
+      acceleration: GRAVITY * sinTheta,
+      motionMode: 'accelerating',
+      initialVelocity: 0,
+      contactLost: false,
+      fx: 0,
+      fy: 0,
+      optimalAngleDeg: null,
+      statusBody: `중력의 빗면 방향 성분 ${formatNumber(parallel, 2)}N 이 그대로 알짜힘이 됩니다. 경사각이 커질수록 가속도는 ${formatNumber(GRAVITY * sinTheta, 2)}m/s² 로 커집니다.`,
+      conditionText: '마찰이 없어 W∥ = F_net',
+      maxDistanceMeters: world.maxDistanceMeters
+    };
+  }
+
+  if (params.scenario === SCENARIO_FRICTION) {
+    const parallel = weight * sinTheta;
+    const normal = weight * cosTheta;
+    const kineticFriction = params.friction * normal;
+    const drive = parallel - kineticFriction;
+    const tolerance = 0.06;
+    let motionMode = 'accelerating';
+    let displayedFriction = kineticFriction;
+    let netForce = drive;
+    let acceleration = drive / params.mass;
+    let initialVelocity = 0;
+    let conditionText = `μ = ${formatNumber(params.friction, 2)}, tanθ = ${formatNumber(tanTheta, 2)}`;
+    let statusBody = '';
+
+    if (drive < -tolerance) {
+      motionMode = 'static';
+      displayedFriction = parallel;
+      netForce = 0;
+      acceleration = 0;
+      statusBody = `마찰력이 중력의 빗면 방향 성분을 모두 상쇄합니다. μ > tanθ 이므로 물체는 정지 상태를 유지합니다.`;
+    } else if (Math.abs(drive) <= tolerance) {
+      motionMode = 'constant';
+      displayedFriction = parallel;
+      netForce = 0;
+      acceleration = 0;
+      initialVelocity = 1.15;
+      statusBody = `μ ≈ tanθ 이면 알짜힘이 거의 0이 됩니다. 이미 움직이고 있다면 등속 운동을 하고, 정지해 있다면 그대로 머무를 수 있습니다.`;
+    } else {
+      motionMode = 'accelerating';
+      statusBody = `중력 성분 ${formatNumber(parallel, 2)}N 이 마찰력 ${formatNumber(kineticFriction, 2)}N 보다 커서 빗면 아래로 가속합니다.`;
+    }
+
+    return {
+      scenario: params.scenario,
+      modeLabel,
+      thetaRad,
+      weight,
+      normal,
+      parallel,
+      perpendicular: normal,
+      frictionForce: kineticFriction,
+      displayedFriction,
+      netForce,
+      acceleration,
+      motionMode,
+      initialVelocity,
+      contactLost: false,
+      fx: 0,
+      fy: 0,
+      optimalAngleDeg: null,
+      statusBody,
+      conditionText,
+      maxDistanceMeters: world.maxDistanceMeters
+    };
+  }
+
+  const appliedForce = params.force;
+  const fx = appliedForce * cosTheta;
+  const fy = appliedForce * sinTheta;
+  const normalRaw = weight - fy;
+  const normal = Math.max(0, normalRaw);
+  const contactLost = normalRaw <= 0;
+  const kineticFriction = params.friction * normal;
+  const tolerance = 0.06;
+  let displayedFriction = kineticFriction;
+  let netForce = fx - kineticFriction;
+  let acceleration = netForce / params.mass;
+  let motionMode = 'accelerating';
+  let initialVelocity = 0;
+  let statusBody = '';
+
+  if (contactLost) {
+    displayedFriction = 0;
+    netForce = fx;
+    acceleration = fx / params.mass;
+    motionMode = fx > tolerance ? 'accelerating' : 'static';
+    statusBody = `Fsinθ 가 mg 보다 커서 수직항력이 0이 됩니다. 바닥과의 접촉이 약해져 마찰은 사라지고, 수평 성분 Fx 만이 운동을 결정합니다.`;
+  } else if (netForce < -tolerance) {
+    displayedFriction = fx;
+    netForce = 0;
+    acceleration = 0;
+    motionMode = 'static';
+    statusBody = `수평 성분 Fx 가 마찰력보다 작아 정지 마찰이 운동을 막습니다. 수직항력은 ${formatNumber(normal, 2)}N 으로 줄지만 아직 미끄러지지 않습니다.`;
+  } else if (Math.abs(netForce) <= tolerance) {
+    displayedFriction = fx;
+    netForce = 0;
+    acceleration = 0;
+    motionMode = 'constant';
+    initialVelocity = 1.05;
+    statusBody = `Fx 와 마찰력이 거의 같아 알짜힘이 0입니다. 이미 움직이고 있다면 등속 운동을 유지할 수 있습니다.`;
+  } else {
+    statusBody = `수평 성분 Fx 가 마찰력보다 커서 오른쪽으로 가속합니다. 각도를 올리면 Fx 는 줄지만 수직항력과 마찰도 함께 줄어듭니다.`;
+  }
+
+  return {
+    scenario: params.scenario,
+    modeLabel,
+    thetaRad,
+    weight,
+    normal,
+    parallel: 0,
+    perpendicular: 0,
+    frictionForce: kineticFriction,
+    displayedFriction,
+    netForce,
+    acceleration,
+    motionMode,
+    initialVelocity,
+    contactLost,
+    fx,
+    fy,
+    optimalAngleDeg: THREE.MathUtils.radToDeg(Math.atan(params.friction)),
+    statusBody,
+    conditionText: `θ_opt = arctan(μ) ≈ ${formatNumber(THREE.MathUtils.radToDeg(Math.atan(params.friction)), 1)}°`,
+    maxDistanceMeters: world.maxDistanceMeters
+  };
+}
+
+function updateSceneObjects() {
+  const analysis = runtime.activeAnalysis ?? analyseScenario();
+  runtime.activeAnalysis = analysis;
+
+  if (!world.block) return;
+
+  if (params.scenario === SCENARIO_PULL) {
+    const x = PULL_TRACK.blockStartX + Math.min(runtime.position, world.maxDistanceMeters) * WORLD_PER_METER;
+    const blockLift = analysis.contactLost ? 0.18 : 0;
+    world.block.position.set(x, PULL_TRACK.blockY + blockLift, 0);
+    updatePullAngleGuide();
+
+    const anchor = world.block.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.5, 0));
+    const weightStart = anchor.clone().add(new THREE.Vector3(0.15, 0.05, 0));
+    const normalStart = anchor.clone().add(new THREE.Vector3(-0.18, -0.08, 0));
+    const appliedStart = anchor.clone().add(new THREE.Vector3(0.02, 0.1, 0));
+    const frictionStart = anchor.clone().add(new THREE.Vector3(0, -0.12, 0));
+    const netStart = anchor.clone().add(new THREE.Vector3(0.18, 0.22, 0));
+
+    const forceDirection = new THREE.Vector3(Math.cos(analysis.thetaRad), Math.sin(analysis.thetaRad), 0);
+
+    world.arrows.weight.set(weightStart, DOWN, forceToLength(analysis.weight), true);
+    world.arrows.normal.set(normalStart, Y_AXIS, forceToLength(analysis.normal), !analysis.contactLost);
+    world.arrows.applied.set(appliedStart, forceDirection, forceToLength(params.force), params.force > 0.01);
+    world.arrows.fx.set(appliedStart.clone().add(new THREE.Vector3(0, -0.05, 0)), new THREE.Vector3(1, 0, 0), forceToLength(analysis.fx), params.showComponents && params.force > 0.01);
+    world.arrows.fy.set(appliedStart.clone().add(new THREE.Vector3(0.02, 0, 0)), Y_AXIS, forceToLength(analysis.fy), params.showComponents && params.force > 0.01);
+    world.arrows.friction.set(frictionStart, new THREE.Vector3(-1, 0, 0), forceToLength(analysis.displayedFriction), analysis.displayedFriction > 0.01);
+    world.arrows.net.set(netStart, new THREE.Vector3(1, 0, 0), forceToLength(analysis.netForce), analysis.netForce > 0.01);
+  } else {
+    world.rampGroup.rotation.z = -analysis.thetaRad;
+    const localX = INCLINE_TRACK.blockStartX + Math.min(runtime.position, world.maxDistanceMeters) * WORLD_PER_METER;
+    world.block.position.set(localX, INCLINE_TRACK.blockY, 0);
+    updateInclineAngleGuide();
+
+    const anchor = world.block.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.05, 0));
+    const tangent = localDirectionToWorld(world.rampGroup, new THREE.Vector3(1, 0, 0));
+    const normal = localDirectionToWorld(world.rampGroup, new THREE.Vector3(0, 1, 0));
+
+    world.arrows.weight.set(anchor.clone().add(new THREE.Vector3(0.08, 0.24, 0)), DOWN, forceToLength(analysis.weight), true);
+    world.arrows.normal.set(anchor.clone().add(new THREE.Vector3(-0.18, 0.02, 0)), normal, forceToLength(analysis.normal), true);
+    world.arrows.parallel.set(anchor.clone().add(new THREE.Vector3(0.16, 0.02, 0)), tangent, forceToLength(analysis.parallel), params.showComponents);
+    world.arrows.perpendicular.set(anchor.clone().add(new THREE.Vector3(-0.04, 0.14, 0)), normal.clone().negate(), forceToLength(analysis.perpendicular), params.showComponents);
+    world.arrows.net.set(anchor.clone().add(new THREE.Vector3(0.22, 0.2, 0)), tangent, forceToLength(analysis.netForce), analysis.netForce > 0.01);
+
+    if (world.arrows.friction) {
+      world.arrows.friction.set(
+        anchor.clone().add(new THREE.Vector3(-0.08, -0.04, 0)),
+        tangent.clone().negate(),
+        forceToLength(analysis.displayedFriction),
+        params.scenario === SCENARIO_FRICTION && analysis.displayedFriction > 0.01
+      );
+    }
+  }
+}
+
+function updateFormulaPanel() {
+  const analysis = runtime.activeAnalysis ?? analyseScenario();
+
+  if (params.scenario === SCENARIO_INCLINE) {
+    formulaPanelEl.innerHTML = `
+      <div class="panel-title">📐 알짜힘에 의한 운동 예측</div>
+      <div class="panel-subtitle">${params.scenario} · m = ${formatNumber(params.mass, 1)}kg · θ = ${formatNumber(params.angleDeg, 0)}°</div>
+      <div class="divider"></div>
+      <div class="line"><div class="label">W∥</div><div class="value">${formatNumber(params.mass, 1)} × 9.8 × sin${formatNumber(params.angleDeg, 0)}° = ${formatNumber(analysis.parallel, 2)} N</div></div>
+      <div class="line"><div class="label">W⊥</div><div class="value">${formatNumber(params.mass, 1)} × 9.8 × cos${formatNumber(params.angleDeg, 0)}° = ${formatNumber(analysis.perpendicular, 2)} N</div></div>
+      <div class="line"><div class="label">N</div><div class="value">${formatNumber(analysis.normal, 2)} N</div></div>
+      <div class="line"><div class="label">F_net</div><div class="value">${formatNumber(analysis.netForce, 2)} N</div></div>
+      <div class="line"><div class="label">a</div><div class="value">g sinθ = ${formatNumber(analysis.acceleration, 2)} m/s²</div></div>
+      <div class="line"><div class="label">실시간 상태</div><div class="value">t = ${formatNumber(runtime.elapsed, 2)}s, v = ${formatNumber(runtime.velocity, 2)}m/s, s = ${formatNumber(runtime.position, 2)}m</div></div>
+      <div class="highlight">
+        <div class="mono">a = gsinθ</div>
+        <div>${analysis.statusBody}</div>
+      </div>
+    `;
+    return;
+  }
+
+  if (params.scenario === SCENARIO_FRICTION) {
+    formulaPanelEl.innerHTML = `
+      <div class="panel-title">📐 알짜힘에 의한 운동 예측</div>
+      <div class="panel-subtitle">${params.scenario} · m = ${formatNumber(params.mass, 1)}kg · θ = ${formatNumber(params.angleDeg, 0)}° · μ = ${formatNumber(params.friction, 2)}</div>
+      <div class="divider"></div>
+      <div class="line"><div class="label">W∥</div><div class="value">${formatNumber(analysis.parallel, 2)} N</div></div>
+      <div class="line"><div class="label">N</div><div class="value">${formatNumber(analysis.normal, 2)} N</div></div>
+      <div class="line"><div class="label">f = μN</div><div class="value">${formatNumber(params.friction, 2)} × ${formatNumber(analysis.normal, 2)} = ${formatNumber(analysis.frictionForce, 2)} N</div></div>
+      <div class="line"><div class="label">F_net</div><div class="value">${formatNumber(params.mass, 1)} × 9.8 × (sinθ - μcosθ) = ${formatNumber(analysis.netForce, 2)} N</div></div>
+      <div class="line"><div class="label">a</div><div class="value">g(sinθ - μcosθ) = ${formatNumber(analysis.acceleration, 2)} m/s²</div></div>
+      <div class="line"><div class="label">판단 기준</div><div class="value">${analysis.conditionText}</div></div>
+      <div class="line"><div class="label">실시간 상태</div><div class="value">t = ${formatNumber(runtime.elapsed, 2)}s, v = ${formatNumber(runtime.velocity, 2)}m/s, s = ${formatNumber(runtime.position, 2)}m</div></div>
+      <div class="highlight">
+        <div class="mono">μ &lt; tanθ → 가속, μ = tanθ → 평형/등속, μ &gt; tanθ → 정지</div>
+        <div>${analysis.statusBody}</div>
+      </div>
+    `;
+    return;
+  }
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">📐 알짜힘에 의한 운동 예측</div>
+    <div class="panel-subtitle">${params.scenario} · m = ${formatNumber(params.mass, 1)}kg · θ = ${formatNumber(params.angleDeg, 0)}° · μ = ${formatNumber(params.friction, 2)} · F = ${formatNumber(params.force, 1)}N</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">Fx = Fcosθ</div><div class="value">${formatNumber(analysis.fx, 2)} N</div></div>
+    <div class="line"><div class="label">Fy = Fsinθ</div><div class="value">${formatNumber(analysis.fy, 2)} N</div></div>
+    <div class="line"><div class="label">N = mg - Fy</div><div class="value">${formatNumber(params.mass * GRAVITY, 2)} - ${formatNumber(analysis.fy, 2)} = ${formatNumber(analysis.normal, 2)} N</div></div>
+    <div class="line"><div class="label">f = μN</div><div class="value">${formatNumber(params.friction, 2)} × ${formatNumber(analysis.normal, 2)} = ${formatNumber(analysis.frictionForce, 2)} N</div></div>
+    <div class="line"><div class="label">F_net</div><div class="value">${formatNumber(analysis.fx, 2)} - ${formatNumber(analysis.displayedFriction, 2)} = ${formatNumber(analysis.netForce, 2)} N</div></div>
+    <div class="line"><div class="label">a</div><div class="value">(Fcosθ - μN) / m = ${formatNumber(analysis.acceleration, 2)} m/s²</div></div>
+    <div class="line"><div class="label">최적 각도</div><div class="value">θ_opt = arctan(μ) ≈ ${formatNumber(analysis.optimalAngleDeg, 1)}°</div></div>
+    <div class="line"><div class="label">실시간 상태</div><div class="value">t = ${formatNumber(runtime.elapsed, 2)}s, v = ${formatNumber(runtime.velocity, 2)}m/s, s = ${formatNumber(runtime.position, 2)}m</div></div>
+    <div class="highlight">
+      <div class="mono">N + Fsinθ - mg = 0</div>
+      <div>${analysis.statusBody}</div>
+    </div>
+  `;
+}
+
+function updateGraphPanel() {
+  const analysis = runtime.activeAnalysis ?? analyseScenario();
+  const labelMap = {
+    [GRAPH_ACCEL]: '가속도 a (m/s²)',
+    [GRAPH_VELOCITY]: '속도 v (m/s)',
+    [GRAPH_DISTANCE]: '변위 s (m)'
+  };
+  const subtitleMap = {
+    [SCENARIO_INCLINE]: '빗면 아래 방향의 성분력이 그대로 알짜힘이 되어 등가속도 운동이 나타납니다.',
+    [SCENARIO_FRICTION]: '중력 성분과 마찰력의 차이가 가속도를 결정합니다. μ 와 tanθ 의 크기를 함께 비교해 보세요.',
+    [SCENARIO_PULL]: '경사력의 수평 성분과 마찰력을 비교해 가속도를 예측합니다. 수직 성분은 수직항력을 줄입니다.'
+  };
+
+  graphTitleEl.textContent = `${params.graphType} 그래프`;
+  graphSubtitleEl.textContent = subtitleMap[params.scenario];
+  metricTimeEl.textContent = `${formatNumber(runtime.elapsed, 2)} s`;
+  metricAccelEl.textContent = `${formatNumber(runtime.currentAcceleration, 2)} m/s²`;
+  metricVelocityEl.textContent = `${formatNumber(runtime.velocity, 2)} m/s`;
+  metricDistanceEl.textContent = `${formatNumber(runtime.position, 2)} m`;
+  graphNoteEl.textContent = params.scenario === SCENARIO_PULL
+    ? `${analysis.conditionText}. 현재 ${labelMap[params.graphType]}를 시간축으로 추적합니다.`
+    : `${analysis.conditionText}. 현재 ${labelMap[params.graphType]}를 시간축으로 추적합니다.`;
+  legendLabelEl.textContent = labelMap[params.graphType];
+  legendHintEl.textContent = runtime.isRunning
+    ? '그래프는 시뮬레이션이 진행될수록 오른쪽으로 확장됩니다.'
+    : '시뮬레이션 시작 버튼을 누르면 현재 조건으로 곡선이 그려집니다.';
+}
+
+function drawGraph() {
+  if (!graphContext) return;
+
+  const rect = graphPanelEl.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width));
+  const height = Math.max(260, Math.floor(rect.height));
+  const dpr = Math.min(window.devicePixelRatio, 2);
+
+  if (graphCanvasEl.width !== Math.floor(width * dpr) || graphCanvasEl.height !== Math.floor(height * dpr)) {
+    graphCanvasEl.width = Math.floor(width * dpr);
+    graphCanvasEl.height = Math.floor(height * dpr);
+  }
+
+  graphContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphContext.clearRect(0, 0, width, height);
+
+  const background = graphContext.createLinearGradient(0, 0, 0, height);
+  background.addColorStop(0, 'rgba(10,21,38,1)');
+  background.addColorStop(1, 'rgba(5,11,22,1)');
+  graphContext.fillStyle = background;
+  graphContext.fillRect(0, 0, width, height);
+
+  const headerHeight = Math.max(164, Math.min(graphHeaderEl.getBoundingClientRect().height, 240));
+  const plot = {
+    left: 58,
+    top: headerHeight + 14,
+    right: width - 24,
+    bottom: height - 56
+  };
+  plot.right = Math.max(plot.left + 120, plot.right);
+  plot.bottom = Math.max(plot.top + 90, plot.bottom);
+  plot.width = plot.right - plot.left;
+  plot.height = plot.bottom - plot.top;
+
+  graphContext.fillStyle = 'rgba(255,255,255,0.03)';
+  graphContext.fillRect(plot.left, plot.top, plot.width, plot.height);
+
+  const key = params.graphType === GRAPH_ACCEL ? 'a' : params.graphType === GRAPH_VELOCITY ? 'v' : 's';
+  const label = params.graphType === GRAPH_ACCEL ? '가속도' : params.graphType === GRAPH_VELOCITY ? '속도' : '변위';
+  const unit = params.graphType === GRAPH_ACCEL ? 'm/s²' : params.graphType === GRAPH_VELOCITY ? 'm/s' : 'm';
+  const color = params.graphType === GRAPH_ACCEL ? '#ffce73' : params.graphType === GRAPH_VELOCITY ? '#69c0ff' : '#76df9c';
+
+  const history = runtime.history.length ? runtime.history : [{ t: 0, a: 0, v: 0, s: 0 }];
+  const xMax = Math.max(4, history[history.length - 1].t, runtime.elapsed, runtime.activeAnalysis?.motionMode === 'static' ? 4 : 0);
+  const currentValue = key === 'a' ? runtime.currentAcceleration : key === 'v' ? runtime.velocity : runtime.position;
+  const maxValue = Math.max(1, ...history.map((point) => Math.abs(point[key])), Math.abs(currentValue));
+  const yMax = maxValue * 1.18;
+
+  const mapX = (value) => plot.left + (value / xMax) * plot.width;
+  const mapY = (value) => plot.bottom - (value / yMax) * plot.height;
+
+  graphContext.font = '11px Pretendard Variable, sans-serif';
+  graphContext.fillStyle = 'rgba(232,243,255,0.5)';
+  graphContext.textAlign = 'right';
+  graphContext.textBaseline = 'middle';
+
+  buildTicks(0, yMax, 4).forEach((tick) => {
+    const y = mapY(tick);
+    graphContext.strokeStyle = 'rgba(255,255,255,0.08)';
+    graphContext.lineWidth = 1;
+    graphContext.beginPath();
+    graphContext.moveTo(plot.left, y);
+    graphContext.lineTo(plot.right, y);
+    graphContext.stroke();
+    graphContext.fillText(formatNumber(tick, tick < 10 ? 1 : 0), plot.left - 8, y);
+  });
+
+  graphContext.textAlign = 'center';
+  graphContext.textBaseline = 'top';
+  buildTicks(0, xMax, 4).forEach((tick) => {
+    const x = mapX(tick);
+    graphContext.strokeStyle = 'rgba(255,255,255,0.08)';
+    graphContext.beginPath();
+    graphContext.moveTo(x, plot.top);
+    graphContext.lineTo(x, plot.bottom);
+    graphContext.stroke();
+    graphContext.fillStyle = 'rgba(232,243,255,0.56)';
+    graphContext.fillText(formatNumber(tick, tick < 10 ? 1 : 0), x, plot.bottom + 8);
+  });
+
+  graphContext.strokeStyle = 'rgba(255,255,255,0.26)';
+  graphContext.lineWidth = 1.35;
+  graphContext.beginPath();
+  graphContext.moveTo(plot.left, plot.top);
+  graphContext.lineTo(plot.left, plot.bottom);
+  graphContext.lineTo(plot.right, plot.bottom);
+  graphContext.stroke();
+
+  graphContext.fillStyle = 'rgba(244,251,255,0.84)';
+  graphContext.textAlign = 'center';
+  graphContext.fillText('시간 t (s)', plot.left + plot.width * 0.5, plot.bottom + 30);
+
+  graphContext.save();
+  graphContext.translate(18, plot.top + plot.height * 0.5);
+  graphContext.rotate(-Math.PI / 2);
+  graphContext.fillText(`${label} (${unit})`, 0, 0);
+  graphContext.restore();
+
+  if (history.length > 1) {
+    graphContext.strokeStyle = color;
+    graphContext.lineWidth = 2.4;
+    graphContext.beginPath();
+    history.forEach((point, index) => {
+      const x = mapX(point.t);
+      const y = mapY(point[key]);
+      if (index === 0) {
+        graphContext.moveTo(x, y);
+      } else {
+        graphContext.lineTo(x, y);
+      }
+    });
+    graphContext.stroke();
+
+    const last = history[history.length - 1];
+    const pulseX = mapX(last.t);
+    const pulseY = mapY(last[key]);
+    graphContext.fillStyle = color;
+    graphContext.beginPath();
+    graphContext.arc(pulseX, pulseY, 4.8, 0, Math.PI * 2);
+    graphContext.fill();
+    graphContext.strokeStyle = 'rgba(255,255,255,0.8)';
+    graphContext.lineWidth = 1.4;
+    graphContext.beginPath();
+    graphContext.arc(pulseX, pulseY, 8.2, 0, Math.PI * 2);
+    graphContext.stroke();
+  } else {
+    graphContext.strokeStyle = color;
+    graphContext.lineWidth = 2;
+    graphContext.beginPath();
+    graphContext.moveTo(plot.left, mapY(0));
+    graphContext.lineTo(plot.right, mapY(0));
+    graphContext.stroke();
+    graphContext.fillStyle = 'rgba(232,243,255,0.56)';
+    graphContext.font = '13px Pretendard Variable, sans-serif';
+    graphContext.fillText('시뮬레이션 시작 전입니다. 현재 조건으로 예측된 곡선이 여기에 그려집니다.', plot.left + plot.width * 0.5, plot.top + plot.height * 0.5);
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+
+  if (runtime.isRunning) {
+    runtime.elapsed += delta;
+    const analysis = runtime.activeAnalysis;
+    const maxDistance = analysis.maxDistanceMeters;
+
+    if (analysis.motionMode === 'accelerating') {
+      runtime.velocity = runtime.initialVelocity + analysis.acceleration * runtime.elapsed;
+      runtime.position = runtime.initialVelocity * runtime.elapsed + 0.5 * analysis.acceleration * runtime.elapsed * runtime.elapsed;
+    } else if (analysis.motionMode === 'constant') {
+      runtime.velocity = runtime.initialVelocity;
+      runtime.position = runtime.initialVelocity * runtime.elapsed;
+    }
+
+    runtime.position = Math.min(runtime.position, maxDistance);
+    runtime.currentAcceleration = analysis.motionMode === 'accelerating' ? analysis.acceleration : 0;
+    runtime.history.push({ t: runtime.elapsed, a: runtime.currentAcceleration, v: runtime.velocity, s: runtime.position });
+    if (runtime.history.length > 420) {
+      runtime.history.shift();
+    }
+
+    if (runtime.position >= maxDistance - 1e-5) {
+      runtime.isRunning = false;
+      setStatus(
+        '끝 지점 도달',
+        `변위 ${formatNumber(runtime.position, 2)}m, 속도 ${formatNumber(runtime.velocity, 2)}m/s 로 시뮬레이션을 마쳤습니다. 다른 조건으로 다시 비교해 보세요.`,
+        analysis.modeLabel
+      );
+    } else {
+      setStatus(
+        '시뮬레이션 진행 중',
+        `t = ${formatNumber(runtime.elapsed, 2)}s, v = ${formatNumber(runtime.velocity, 2)}m/s, s = ${formatNumber(runtime.position, 2)}m, a = ${formatNumber(runtime.currentAcceleration, 2)}m/s²`,
+        analysis.modeLabel
+      );
+    }
+
+    updateSceneObjects();
+    updateFormulaPanel();
+    updateGraphPanel();
+    drawGraph();
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function setStatus(title, body, mode) {
+  statusModeEl.textContent = mode;
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+  statusChipEl.classList.toggle('active', runtime.isRunning);
+}
+
+function resize() {
+  const sceneRect = scenePanelEl.getBoundingClientRect();
+  renderer.setSize(sceneRect.width, sceneRect.height, false);
+  camera.aspect = sceneRect.width / sceneRect.height;
+  camera.updateProjectionMatrix();
+  drawGraph();
+}
+
+function updateInclineAngleGuide() {
+  if (!world.angleGuide || !world.angleGuide.children.length) return;
+  const arc = world.angleGuide.children[1];
+  const label = world.angleGuide.children[2];
+  const radius = 0.58;
+  const theta = THREE.MathUtils.degToRad(params.angleDeg);
+  const points = [];
+  for (let i = 0; i <= 24; i += 1) {
+    const t = (theta * i) / 24;
+    points.push(new THREE.Vector3(-2.7 + Math.cos(t) * radius, 0.46 + Math.sin(t) * radius, 1.1));
+  }
+  arc.geometry.setFromPoints(points);
+  if (label?.material?.map?.image) {
+    redrawSprite(label, `θ = ${formatNumber(params.angleDeg, 0)}°`, { color: '#173149', background: 'rgba(255,255,255,0.82)', border: 'rgba(24,44,69,0.1)' });
+  }
+}
+
+function updatePullAngleGuide() {
+  if (!world.angleGuide || !world.angleGuide.children.length) return;
+
+  const pivot = new THREE.Vector3(world.block.position.x + 0.1, 1.18 + (runtime.activeAnalysis?.contactLost ? 0.18 : 0), 1.05);
+  const base = world.angleGuide.children[0];
+  const arc = world.angleGuide.children[1];
+  const label = world.angleGuide.children[2];
+
+  base.geometry.setFromPoints([pivot.clone(), pivot.clone().add(new THREE.Vector3(0.9, 0, 0))]);
+
+  const radius = 0.62;
+  const theta = THREE.MathUtils.degToRad(params.angleDeg);
+  const points = [];
+  for (let i = 0; i <= 24; i += 1) {
+    const t = (theta * i) / 24;
+    points.push(pivot.clone().add(new THREE.Vector3(Math.cos(t) * radius, Math.sin(t) * radius, 0)));
+  }
+  arc.geometry.setFromPoints(points);
+  label.position.copy(pivot.clone().add(new THREE.Vector3(0.62, 0.48, 0.08)));
+
+  if (label?.material?.map?.image) {
+    redrawSprite(label, `θ = ${formatNumber(params.angleDeg, 0)}°`, { color: '#173149', background: 'rgba(255,255,255,0.82)', border: 'rgba(24,44,69,0.1)' });
+  }
+}
+
+function localDirectionToWorld(group, localDirection) {
+  const origin = new THREE.Vector3();
+  const target = localDirection.clone();
+  group.localToWorld(origin);
+  group.localToWorld(target);
+  return target.sub(origin).normalize();
+}
+
+function forceToLength(force) {
+  const magnitude = Math.max(0, force);
+  if (magnitude < 0.01) return 0;
+  return 0.28 + Math.pow(magnitude, 0.72) * 0.16;
+}
+
+function buildTicks(min, max, count) {
+  const ticks = [];
+  const step = (max - min) / count;
+  for (let index = 0; index <= count; index += 1) {
+    ticks.push(min + step * index);
+  }
+  return ticks;
+}
+
+function formatNumber(value, digits = 2) {
+  return Number.isFinite(value) ? value.toFixed(digits) : '-';
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function disposeObject3D(root) {
+  root.traverse((node) => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+
+    if (node.material) {
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        Object.values(material).forEach((value) => {
+          if (value && value.isTexture) {
+            value.dispose();
+          }
+        });
+        material.dispose?.();
+      });
+    }
+  });
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? [0.7, 0.24];
+  sprite.scale.set(scale[0], scale[1], 1);
+  redrawSprite(sprite, text, options, context, texture, canvas);
+  return sprite;
+}
+
+function redrawSprite(sprite, text, options = {}, reusedContext, reusedTexture, reusedCanvas) {
+  const canvas = reusedCanvas ?? sprite.material.map.image;
+  const context = reusedContext ?? canvas.getContext('2d');
+  const texture = reusedTexture ?? sprite.material.map;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  roundRect(context, 20, 18, canvas.width - 40, canvas.height - 36, 24);
+  context.fillStyle = options.background ?? 'rgba(255,255,255,0.86)';
+  context.fill();
+  context.strokeStyle = options.border ?? 'rgba(21,39,62,0.12)';
+  context.lineWidth = 2;
+  context.stroke();
+  context.fillStyle = options.color ?? '#10253a';
+  context.font = '700 34px Pretendard Variable, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
+  texture.needsUpdate = true;
+}
+
+class VectorArrow {
+  constructor({ label, color, dashed = false, radius = 0.03 }) {
+    this.label = label;
+    this.color = color;
+    this.dashed = dashed;
+    this.radius = radius;
+    this.headLength = 0.24;
+    this.group = new THREE.Group();
+
+    if (dashed) {
+      this.shaft = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]),
+        new THREE.LineDashedMaterial({ color, dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.95 })
+      );
+      this.group.add(this.shaft);
+    } else {
+      this.shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 0.68, radius * 0.68, 1, 12),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0.08 })
+      );
+      this.group.add(this.shaft);
+    }
+
+    this.head = new THREE.Mesh(
+      new THREE.ConeGeometry(radius * 2.3, this.headLength, 18),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.06 })
+    );
+    this.group.add(this.head);
+
+    this.labelSprite = createTextSprite(label, {
+      color: '#ffffff',
+      background: `rgba(8,18,31,0.82)`,
+      border: 'rgba(255,255,255,0.1)',
+      scale: [0.48 + label.length * 0.03, 0.22]
+    });
+    this.group.add(this.labelSprite);
+  }
+
+  set(start, direction, length, visible = true) {
+    if (!visible || length <= 0.001) {
+      this.group.visible = false;
+      return;
+    }
+
+    this.group.visible = true;
+    this.group.position.copy(start);
+
+    const dir = direction.clone().normalize();
+    const headLength = Math.min(this.headLength, Math.max(length * 0.28, 0.18));
+    const shaftLength = Math.max(0.02, length - headLength);
+    const rotation = new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir);
+
+    if (this.dashed) {
+      this.shaft.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), dir.clone().multiplyScalar(shaftLength)]);
+      this.shaft.computeLineDistances();
+    } else {
+      this.shaft.scale.set(1, shaftLength, 1);
+      this.shaft.position.copy(dir.clone().multiplyScalar(shaftLength * 0.5));
+      this.shaft.quaternion.copy(rotation);
+    }
+
+    this.head.scale.setScalar(headLength / this.headLength);
+    this.head.position.copy(dir.clone().multiplyScalar(shaftLength + headLength * 0.5));
+    this.head.quaternion.copy(rotation);
+    this.labelSprite.position.copy(dir.clone().multiplyScalar(length + 0.2));
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>과학기술의 양면성과 윤리 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-0: #1a1a2e;
+    --bg-1: #121a34;
+    --panel: rgba(13, 19, 40, 0.84);
+    --panel-strong: rgba(10, 16, 36, 0.94);
+    --stroke: rgba(255, 255, 255, 0.1);
+    --text-main: #f6f8ff;
+    --text-dim: rgba(246, 248, 255, 0.72);
+    --benefit: #63dd92;
+    --benefit-soft: rgba(99, 221, 146, 0.16);
+    --risk: #ff6f79;
+    --risk-soft: rgba(255, 111, 121, 0.15);
+    --accent: #70c8ff;
+    --gold: #ffd98f;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 20%, rgba(112, 200, 255, 0.13), transparent 22%),
+      radial-gradient(circle at 82% 18%, rgba(99, 221, 146, 0.08), transparent 20%),
+      radial-gradient(circle at 74% 78%, rgba(255, 111, 121, 0.08), transparent 24%),
+      linear-gradient(180deg, var(--bg-0) 0%, #141d3b 48%, var(--bg-1) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .panel {
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+  }
+
+  #title-block {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    width: min(460px, calc(100vw - 36px));
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  #title-block .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(230, 236, 255, 0.62);
+  }
+
+  #title-block h1 {
+    margin-top: 6px;
+    font-size: clamp(26px, 3vw, 34px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-block p {
+    margin-top: 8px;
+    max-width: 440px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  #case-tabs {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(780px, calc(100vw - 120px));
+  }
+
+  .case-tab {
+    padding: 11px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.76);
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .case-tab:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  .case-tab.active {
+    background: linear-gradient(135deg, rgba(112, 200, 255, 0.26), rgba(99, 221, 146, 0.18));
+    border-color: rgba(112, 200, 255, 0.42);
+    color: #ffffff;
+  }
+
+  #status-banner {
+    position: fixed;
+    top: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 32;
+    padding: 11px 20px;
+    border-radius: 999px;
+    background: rgba(19, 62, 43, 0.88);
+    border: 1px solid rgba(136, 255, 189, 0.34);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1fff7;
+    transition: background 0.24s ease, border-color 0.24s ease, transform 0.24s ease;
+  }
+
+  #status-banner.warn {
+    background: rgba(83, 29, 37, 0.92);
+    border-color: rgba(255, 140, 150, 0.36);
+    color: #fff3f4;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 122px;
+    left: 18px;
+    z-index: 36;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--stroke);
+    background: rgba(9, 16, 34, 0.88);
+    color: #ffffff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 162px;
+    left: 18px;
+    width: min(420px, calc(100vw - 36px));
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    background: rgba(9, 16, 34, 0.94);
+    z-index: 35;
+    display: none;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: var(--gold);
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .guide-card {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  #item-board {
+    position: fixed;
+    top: 122px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 31;
+    width: min(780px, calc(100vw - 120px));
+    padding: 16px;
+    background: rgba(10, 16, 36, 0.76);
+  }
+
+  #item-board .board-header {
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #item-board .board-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #item-board h2 {
+    margin-top: 4px;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #item-board p {
+    margin-top: 6px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #item-columns {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .item-column {
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .item-column.item-benefit {
+    box-shadow: inset 0 0 0 1px rgba(99, 221, 146, 0.08);
+  }
+
+  .item-column.item-risk {
+    box-shadow: inset 0 0 0 1px rgba(255, 111, 121, 0.08);
+  }
+
+  .item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .item-head span {
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .item-head strong {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .item-benefit .item-head span { color: var(--benefit); }
+  .item-risk .item-head span { color: var(--risk); }
+
+  .item-list {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+
+  .item-list li {
+    padding: 10px 11px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.42);
+    transition: background 0.22s ease, color 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+  }
+
+  .item-list li.active {
+    color: rgba(255, 255, 255, 0.94);
+    transform: translateY(-1px);
+  }
+
+  .item-benefit .item-list li.active {
+    background: var(--benefit-soft);
+    border-color: rgba(99, 221, 146, 0.3);
+  }
+
+  .item-risk .item-list li.active {
+    background: var(--risk-soft);
+    border-color: rgba(255, 111, 121, 0.28);
+  }
+
+  .item-list strong {
+    display: block;
+    font-size: 12px;
+  }
+
+  .item-list span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: inherit;
+    opacity: 0.92;
+  }
+
+  #board-footer {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    width: min(352px, calc(100vw - 36px));
+    z-index: 30;
+    padding: 18px 18px 16px;
+    background: var(--panel-strong);
+  }
+
+  #formula-panel h3 {
+    font-size: 17px;
+    color: #e7efff;
+    margin-bottom: 10px;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .formula-row .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .formula-block {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: var(--gold);
+  }
+
+  #checklist-panel {
+    position: fixed;
+    left: 390px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 29;
+    padding: 18px;
+    background: var(--panel);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #checklist-panel.hidden {
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+  }
+
+  .checklist-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .checklist-head h3 {
+    font-size: 17px;
+  }
+
+  .checklist-head span {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  #checklist-panel p {
+    margin-top: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #checklist-panel ol {
+    margin-top: 12px;
+    padding-left: 18px;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #checklist-panel li + li {
+    margin-top: 4px;
+  }
+
+  #principles {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .principle-pill {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .screen-reader {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+
+  .lil-gui.root {
+    --widget-color: #f3f6ff;
+    --background-color: rgba(9, 15, 32, 0.92);
+    --title-background-color: rgba(18, 27, 52, 0.98);
+    --hover-color: rgba(255, 255, 255, 0.06);
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 40;
+    border-radius: 18px;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+  }
+
+  @media (max-width: 1180px) {
+    #item-board {
+      width: min(720px, calc(100vw - 64px));
+    }
+
+    #checklist-panel {
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      max-width: 720px;
+      margin-left: auto;
+    }
+  }
+
+  @media (max-width: 960px) {
+    #title-block {
+      top: 16px;
+    }
+
+    #case-tabs {
+      top: 104px;
+      width: calc(100vw - 24px);
+    }
+
+    #status-banner {
+      top: 164px;
+      max-width: calc(100vw - 24px);
+      text-align: center;
+    }
+
+    #guide-toggle {
+      top: 206px;
+      left: 12px;
+    }
+
+    #guide-panel {
+      top: 246px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #item-board {
+      top: 250px;
+      width: calc(100vw - 24px);
+      padding: 14px;
+    }
+
+    #item-columns {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui.root {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      max-height: 50vh;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 196px;
+      width: auto;
+    }
+
+    #checklist-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-block .eyebrow {
+      font-size: 10px;
+    }
+
+    #title-block h1 {
+      font-size: 24px;
+      max-width: 250px;
+    }
+
+    #title-block p {
+      font-size: 12px;
+      max-width: 250px;
+    }
+
+    .case-tab {
+      flex: 1 1 31%;
+      min-width: 0;
+      padding: 10px 12px;
+      font-size: 11px;
+    }
+
+    #status-banner {
+      top: 176px;
+      font-size: 12px;
+      padding: 10px 14px;
+    }
+
+    #guide-toggle {
+      top: 214px;
+      font-size: 11px;
+    }
+
+    #item-board {
+      top: 258px;
+    }
+
+    #item-board h2 {
+      font-size: 18px;
+    }
+
+    #formula-panel {
+      bottom: 226px;
+      padding: 15px 14px 14px;
+      font-size: 11px;
+    }
+
+    .formula-row {
+      font-size: 11px;
+    }
+
+    #checklist-panel {
+      padding: 15px 14px 14px;
+    }
+
+    #checklist-panel ol,
+    #checklist-panel p {
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-block">
+  <div class="eyebrow">Integrated Science II · Science Technology Ethics</div>
+  <h1>과학기술의 양면성과 윤리</h1>
+  <p>과학기술은 인류에게 큰 혜택을 주지만 동시에 새로운 위험과 윤리 문제도 만듭니다. 천칭 저울 위에서 유용성과 문제점을 함께 올려 보며 균형 잡힌 판단의 필요성을 탐구하세요.</p>
+</div>
+
+<div id="case-tabs" aria-label="과학기술 사례 선택">
+  <button class="case-tab active" data-tech="crispr">유전자 가위</button>
+  <button class="case-tab" data-tech="ai">인공지능</button>
+  <button class="case-tab" data-tech="nuclear">핵기술</button>
+</div>
+
+<div id="status-banner">✅ 유용성과 문제점을 균형 있게 고려해야 합니다</div>
+
+<button id="guide-toggle" type="button" aria-expanded="false">📖 학습 가이드</button>
+
+<section id="guide-panel" class="panel" aria-label="학습 가이드">
+  <h3>핵심 원리</h3>
+  <p>과학기술의 발전은 여러 유용성과 문제점을 동시에 가지는 양면성이 있으므로 건전한 가치 판단에 따라 활용해야 합니다. 유전자 가위, 인공지능, 핵기술은 인류에게 큰 혜택을 주지만 윤리적 문제와 위험도 함께 내포합니다.</p>
+
+  <div class="guide-card">
+    <h4>교과서 연계</h4>
+    <p>미래엔 통합과학2 III편 p144~151의 과학기술의 발전과 윤리, 과학기술의 양면성 내용을 3D 천칭 저울과 사례 비교 활동으로 재구성했습니다.</p>
+  </div>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>유전자 가위가 질병 치료에 도움을 주더라도, 맞춤형 아기 제작에 쓰는 것은 어떻게 평가할 수 있을까요?</li>
+    <li>인공지능이 일자리를 대체하는 문제에 사회는 어떤 방식으로 대응해야 할까요?</li>
+    <li>과학기술이 빠르게 발전할수록 개인과 사회가 지녀야 할 책임 있는 태도는 무엇일까요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>유전자 치료 임상시험과 배아 편집 논쟁</li>
+    <li>ChatGPT, 자율주행차, 의료 영상 판독 AI</li>
+    <li>핵비확산조약(NPT), 원자력 발전과 방사성 폐기물 관리</li>
+  </ul>
+
+  <div class="guide-card">
+    <h4>관찰 포인트</h4>
+    <p>블록 수에 따라 저울이 기울며, 상세 보기를 켜면 각 기술의 작동 메커니즘이 3D 애니메이션으로 나타납니다. 단순히 블록 수를 맞추는 것보다 어떤 이유를 올렸는지 함께 읽어 보세요.</p>
+  </div>
+</section>
+
+<section id="item-board" class="panel" aria-live="polite">
+  <div class="board-header">
+    <div class="board-eyebrow">현재 사례</div>
+    <h2 id="board-title">유전자 가위(CRISPR)</h2>
+    <p id="board-summary"></p>
+  </div>
+  <div id="item-columns">
+    <div class="item-column item-benefit">
+      <div class="item-head">
+        <span>유용성</span>
+        <strong id="benefit-count">0 / 3</strong>
+      </div>
+      <ul id="benefit-list" class="item-list"></ul>
+    </div>
+    <div class="item-column item-risk">
+      <div class="item-head">
+        <span>문제점</span>
+        <strong id="risk-count">0 / 3</strong>
+      </div>
+      <ul id="risk-list" class="item-list"></ul>
+    </div>
+  </div>
+  <div id="board-footer"></div>
+</section>
+
+<section id="formula-panel" class="panel" aria-label="과학기술의 양면성과 윤리 수식 패널">
+  <h3>⚖️ 과학기술의 양면성과 윤리</h3>
+  <div class="formula-row"><span class="label">현재 기술</span><span class="value" id="formula-tech">유전자 가위(CRISPR)</span></div>
+  <div class="formula-row"><span class="label">유용성 점수</span><span class="value" id="formula-benefit">0점</span></div>
+  <div class="formula-row"><span class="label">문제점 점수</span><span class="value" id="formula-risk">0점</span></div>
+  <div class="formula-row"><span class="label">저울 상태</span><span class="value" id="formula-state">균형</span></div>
+  <div class="formula-block">
+    <div class="formula-row"><span class="label">양면성</span><span class="value">과학기술의 발전은 유용성과 문제점을 동시에 가진다.</span></div>
+    <div class="formula-row"><span class="label">판단 방향</span><span class="value">건전한 가치 판단으로 혜택을 극대화하고 위험을 최소화해야 한다.</span></div>
+    <div class="formula-row"><span class="label">현재 해석</span><span class="value" id="formula-note">양쪽 접시에 같은 수의 근거가 올라가 있어 균형을 이루고 있습니다.</span></div>
+  </div>
+  <div class="formula-block">
+    <strong>윤리적 원칙</strong><br>
+    혜택의 극대화 + 위험의 최소화<br>
+    공정한 접근과 분배<br>
+    투명한 감독과 규제
+  </div>
+</section>
+
+<section id="checklist-panel" class="panel" aria-label="윤리적 판단 프레임워크">
+  <div class="checklist-head">
+    <h3>윤리적 판단 프레임워크</h3>
+    <span id="checklist-tech">현재 사례: 유전자 가위(CRISPR)</span>
+  </div>
+  <p>과학기술의 발전은 양면성이 있습니다. 중요한 것은 한쪽만 보는 것이 아니라, 혜택과 위험을 함께 따져 책임 있게 활용할 방법을 찾는 일입니다.</p>
+  <ol>
+    <li>이 기술이 인류에게 주는 혜택은 무엇인가?</li>
+    <li>이 기술의 잠재적 위험은 무엇인가?</li>
+    <li>위험을 최소화하면서 혜택을 극대화하려면 어떻게 해야 하는가?</li>
+    <li>누가 이 기술의 사용을 감독하고 규제해야 하는가?</li>
+  </ol>
+  <div id="principles">
+    <span class="principle-pill">혜택의 극대화</span>
+    <span class="principle-pill">위험의 최소화</span>
+    <span class="principle-pill">공정한 접근</span>
+    <span class="principle-pill">투명한 감독</span>
+  </div>
+  <p id="realworld-example"></p>
+</section>
+
+<div class="screen-reader" id="live-region" aria-live="polite"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const TECHS = {
+  crispr: {
+    label: '유전자 가위(CRISPR)',
+    short: 'CRISPR',
+    accent: 0x70c8ff,
+    benefitColor: 0x63dd92,
+    riskColor: 0xff6f79,
+    summary: 'DNA를 정밀하게 절단하고 교정할 수 있어 질병 치료와 농업 혁신을 이끌지만, 인간 강화와 생태계 교란, 기술 불평등 문제를 함께 고민해야 합니다.',
+    detailCaption: 'DNA를 잘라 새 서열을 삽입하는 애니메이션으로 정밀 편집의 잠재력과 책임을 함께 보여 줍니다.',
+    example: '실생활 예시: 유전자 치료 임상시험, 인간 배아 편집 윤리 논쟁',
+    benefits: [
+      { title: '질병 치료', desc: '겸상적혈구빈혈증 등 유전 질환 교정' },
+      { title: '식량 문제 완화', desc: '병해충 내성 작물 개발' },
+      { title: '약물 개발 가속', desc: '표적 치료 연구 속도 향상' }
+    ],
+    risks: [
+      { title: '맞춤형 아기', desc: '외모와 능력 선택의 윤리 문제' },
+      { title: '생태계 교란', desc: '유전자 조작 생물 방출 위험' },
+      { title: '기술 불평등', desc: '부유층 중심 접근 가능성' }
+    ]
+  },
+  ai: {
+    label: '인공지능(AI)',
+    short: 'AI',
+    accent: 0x7fa7ff,
+    benefitColor: 0x66e1b0,
+    riskColor: 0xff7d8f,
+    summary: '인공지능은 의료, 이동, 연구를 빠르게 혁신하지만, 일자리 대체와 편향, 프라이버시 침해, 딥페이크 같은 사회적 위험도 함께 확대합니다.',
+    detailCaption: '다층 신경망 속을 흐르는 데이터 입자와 학습 맥동으로 AI의 작동 원리를 시각화합니다.',
+    example: '실생활 예시: ChatGPT, 자율주행차, 의료 영상 판독 AI',
+    benefits: [
+      { title: '의료 진단', desc: '영상 분석으로 암 조기 발견 지원' },
+      { title: '자율주행', desc: '교통사고 감소 가능성' },
+      { title: '연구 가속', desc: '신약 후보 물질 탐색 효율 향상' }
+    ],
+    risks: [
+      { title: '일자리 대체', desc: '자동화로 인한 실업과 전환 부담' },
+      { title: '딥페이크', desc: '허위 정보와 조작 영상 생성' },
+      { title: '알고리즘 편향', desc: '차별적 판단 결과 확대' },
+      { title: '프라이버시 침해', desc: '대규모 개인 데이터 수집' }
+    ]
+  },
+  nuclear: {
+    label: '핵기술',
+    short: '핵기술',
+    accent: 0xffc96b,
+    benefitColor: 0x72e69f,
+    riskColor: 0xff6d6d,
+    summary: '핵기술은 대규모 전력 생산과 의료, 연구에 기여하지만 핵무기, 방사성 폐기물, 원전 사고라는 장기적 위험을 동시에 남깁니다.',
+    detailCaption: '원자 모형, 핵분열, 발전소와 버섯구름 대비를 통해 핵기술의 강력한 양면성을 표현합니다.',
+    example: '실생활 예시: 원자력 발전, PET/CT, 핵비확산조약(NPT), 방사성 폐기물 관리',
+    benefits: [
+      { title: '핵발전', desc: '대용량 전기 생산과 CO₂ 배출 감소' },
+      { title: '의료 활용', desc: '방사선 치료와 암 진단' },
+      { title: '연구 기여', desc: '동위원소를 활용한 연대 측정' }
+    ],
+    risks: [
+      { title: '핵무기', desc: '대량 살상 무기로 악용 가능' },
+      { title: '방사성 폐기물', desc: '수만 년 관리가 필요한 잔재' },
+      { title: '사고 위험', desc: '체르노빌, 후쿠시마 같은 재난' }
+    ]
+  }
+};
+
+const TECH_OPTIONS = {
+  '유전자 가위(CRISPR)': 'crispr',
+  '인공지능(AI)': 'ai',
+  '핵기술': 'nuclear'
+};
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  tabs: Array.from(document.querySelectorAll('.case-tab')),
+  statusBanner: document.getElementById('status-banner'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  boardTitle: document.getElementById('board-title'),
+  boardSummary: document.getElementById('board-summary'),
+  benefitCount: document.getElementById('benefit-count'),
+  riskCount: document.getElementById('risk-count'),
+  benefitList: document.getElementById('benefit-list'),
+  riskList: document.getElementById('risk-list'),
+  boardFooter: document.getElementById('board-footer'),
+  formulaTech: document.getElementById('formula-tech'),
+  formulaBenefit: document.getElementById('formula-benefit'),
+  formulaRisk: document.getElementById('formula-risk'),
+  formulaState: document.getElementById('formula-state'),
+  formulaNote: document.getElementById('formula-note'),
+  checklistPanel: document.getElementById('checklist-panel'),
+  checklistTech: document.getElementById('checklist-tech'),
+  realworldExample: document.getElementById('realworld-example'),
+  liveRegion: document.getElementById('live-region')
+};
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x1a1a2e, 11, 27);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 2.9, 10.4);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 0.55, 0);
+controls.minDistance = 7;
+controls.maxDistance = 14;
+controls.minPolarAngle = Math.PI * 0.2;
+controls.maxPolarAngle = Math.PI * 0.47;
+
+const clock = new THREE.Clock();
+
+const state = {
+  currentTech: 'crispr',
+  beamAngle: 0,
+  targetBeamAngle: 0,
+  gui: null,
+  currentDetailGroup: null,
+  currentDetailUpdater: null,
+  plateIconGroups: [],
+  billboards: [],
+  scoreMap: Object.fromEntries(Object.keys(TECHS).map((key) => [key, { benefit: 0, risk: 0 }]))
+};
+
+const params = {
+  technology: 'crispr',
+  showDetail: true,
+  showChecklist: true,
+  addBenefit: () => addBlock('benefit'),
+  addRisk: () => addBlock('risk'),
+  reset: () => resetAllScores()
+};
+
+const world = new THREE.Group();
+const beamPivot = new THREE.Group();
+const leftHangGroup = new THREE.Group();
+const rightHangGroup = new THREE.Group();
+const leftPlateCarrier = new THREE.Group();
+const rightPlateCarrier = new THREE.Group();
+const leftBlocksGroup = new THREE.Group();
+const rightBlocksGroup = new THREE.Group();
+
+scene.add(world);
+
+const materials = {
+  metal: new THREE.MeshStandardMaterial({ color: 0x99a2b7, roughness: 0.34, metalness: 0.74 }),
+  metalDark: new THREE.MeshStandardMaterial({ color: 0x4f5870, roughness: 0.42, metalness: 0.62 }),
+  pedestal: new THREE.MeshStandardMaterial({ color: 0x646d84, roughness: 0.52, metalness: 0.46 })
+};
+
+buildEnvironment();
+buildScale();
+createGUI();
+bindEvents();
+setTechnology('crispr');
+onResize();
+animate();
+
+function buildEnvironment() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+  const mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  mainLight.position.set(5, 8, 6);
+  mainLight.castShadow = true;
+  mainLight.shadow.mapSize.set(2048, 2048);
+  mainLight.shadow.camera.left = -10;
+  mainLight.shadow.camera.right = 10;
+  mainLight.shadow.camera.top = 10;
+  mainLight.shadow.camera.bottom = -8;
+  scene.add(mainLight);
+
+  const rimLight = new THREE.PointLight(0x6c8dff, 0.7, 24, 2);
+  rimLight.position.set(-6, 4, -6);
+  scene.add(rimLight);
+
+  const warmLight = new THREE.PointLight(0xff857a, 0.45, 18, 2);
+  warmLight.position.set(6, 2, 5);
+  scene.add(warmLight);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(10, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0x202844,
+      roughness: 0.92,
+      metalness: 0.04
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2.45;
+  floor.receiveShadow = true;
+  world.add(floor);
+
+  const floorRing = new THREE.Mesh(
+    new THREE.RingGeometry(2.6, 4.35, 80),
+    new THREE.MeshBasicMaterial({
+      color: 0x34406a,
+      transparent: true,
+      opacity: 0.32,
+      side: THREE.DoubleSide
+    })
+  );
+  floorRing.rotation.x = -Math.PI / 2;
+  floorRing.position.y = -2.43;
+  world.add(floorRing);
+
+  const halo = new THREE.Mesh(
+    new THREE.CircleGeometry(5.4, 80),
+    new THREE.MeshBasicMaterial({
+      color: 0x70c8ff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = -2.44;
+  world.add(halo);
+
+  const positions = [];
+  for (let i = 0; i < 220; i += 1) {
+    const radius = 8 + Math.random() * 10;
+    const angle = Math.random() * Math.PI * 2;
+    const height = -0.5 + Math.random() * 7.5;
+    positions.push(Math.cos(angle) * radius, height, Math.sin(angle) * radius - 4);
+  }
+
+  const stars = new THREE.Points(
+    new THREE.BufferGeometry(),
+    new THREE.PointsMaterial({
+      color: 0xe7ecff,
+      size: 0.06,
+      transparent: true,
+      opacity: 0.58
+    })
+  );
+  stars.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  world.add(stars);
+}
+
+function buildScale() {
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.45, 1.7, 0.32, 48),
+    materials.pedestal
+  );
+  base.position.y = -2.28;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  world.add(base);
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.5, 2.4, 36),
+    new THREE.MeshStandardMaterial({ color: 0x818aa0, roughness: 0.42, metalness: 0.62 })
+  );
+  stem.position.y = -1.25;
+  stem.castShadow = true;
+  stem.receiveShadow = true;
+  world.add(stem);
+
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.18, 0.84, 28),
+    materials.metal
+  );
+  neck.position.y = 0.3;
+  neck.castShadow = true;
+  world.add(neck);
+
+  const pivotBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xd9def0, roughness: 0.2, metalness: 0.86 })
+  );
+  pivotBall.position.y = 0.92;
+  pivotBall.castShadow = true;
+  world.add(pivotBall);
+
+  beamPivot.position.y = 0.92;
+  world.add(beamPivot);
+
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(6, 0.12, 0.14),
+    materials.metal
+  );
+  beam.castShadow = true;
+  beam.receiveShadow = true;
+  beamPivot.add(beam);
+
+  const centerHub = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.18, 0.28, 24),
+    materials.metalDark
+  );
+  centerHub.rotation.z = Math.PI / 2;
+  centerHub.castShadow = true;
+  beamPivot.add(centerHub);
+
+  leftHangGroup.position.set(-2.6, 0, 0);
+  rightHangGroup.position.set(2.6, 0, 0);
+  beamPivot.add(leftHangGroup, rightHangGroup);
+
+  buildHangAssembly(leftHangGroup, leftPlateCarrier, leftBlocksGroup, TECHS.crispr.benefitColor, '유용성');
+  buildHangAssembly(rightHangGroup, rightPlateCarrier, rightBlocksGroup, TECHS.crispr.riskColor, '문제점');
+}
+
+function buildHangAssembly(parent, plateCarrier, blockGroup, color, labelText) {
+  const topBar = new THREE.Mesh(
+    new THREE.BoxGeometry(1.24, 0.05, 0.05),
+    materials.metalDark
+  );
+  topBar.position.y = -0.08;
+  parent.add(topBar);
+
+  [-0.48, 0, 0.48].forEach((x) => {
+    const chain = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.78, 12),
+      materials.metal
+    );
+    chain.position.set(x, -0.46, 0);
+    chain.castShadow = true;
+    parent.add(chain);
+  });
+
+  plateCarrier.position.set(0, -0.92, 0);
+  parent.add(plateCarrier);
+
+  const plate = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 1.5, 0.12, 56),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.36,
+      metalness: 0.2
+    })
+  );
+  plate.rotation.x = Math.PI / 2;
+  plate.castShadow = true;
+  plate.receiveShadow = true;
+  plateCarrier.add(plate);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.5, 0.08, 16, 64),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color).offsetHSL(0, 0, 0.08),
+      roughness: 0.3,
+      metalness: 0.3
+    })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.06;
+  rim.castShadow = true;
+  plateCarrier.add(rim);
+
+  const plateGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.34, 48),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide
+    })
+  );
+  plateGlow.rotation.x = -Math.PI / 2;
+  plateGlow.position.y = 0.061;
+  plateCarrier.add(plateGlow);
+
+  const label = createTextSprite(labelText, {
+    width: 240,
+    height: 74,
+    color: '#ffffff',
+    font: '700 28px Pretendard',
+    background: labelText === '유용성' ? 'rgba(55, 132, 84, 0.86)' : 'rgba(145, 50, 65, 0.9)',
+    border: 'rgba(255,255,255,0.16)'
+  });
+  label.position.set(0, 1.04, 0);
+  label.scale.set(1.2, 0.38, 1);
+  plateCarrier.add(label);
+  state.billboards.push(label);
+
+  blockGroup.position.y = 0.18;
+  plateCarrier.add(blockGroup);
+}
+
+function createGUI() {
+  const gui = new GUI({ title: '윤리 탐구 패널', width: 250 });
+  gui.add(params, 'technology', TECH_OPTIONS).name('과학기술').onChange((value) => setTechnology(value));
+  gui.add(params, 'addBenefit').name('유용성 블록 추가');
+  gui.add(params, 'addRisk').name('문제점 블록 추가');
+  gui.add(params, 'showDetail').name('상세 보기').onChange(() => rebuildDetailVisualization());
+  gui.add(params, 'showChecklist').name('윤리 체크리스트').onChange(() => updatePanels());
+  gui.add(params, 'reset').name('초기화');
+  state.gui = gui;
+  if (window.innerWidth <= 960) gui.close();
+}
+
+function bindEvents() {
+  window.addEventListener('resize', onResize);
+
+  dom.tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      setTechnology(tab.dataset.tech);
+    });
+  });
+
+  dom.guideToggle.addEventListener('click', () => {
+    const isOpen = dom.guidePanel.classList.toggle('open');
+    dom.guideToggle.textContent = isOpen ? '학습 가이드 닫기' : '📖 학습 가이드';
+    dom.guideToggle.setAttribute('aria-expanded', String(isOpen));
+  });
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (state.gui && window.innerWidth <= 960) {
+    state.gui.close();
+  }
+}
+
+function setTechnology(key) {
+  if (!TECHS[key]) return;
+
+  state.currentTech = key;
+  params.technology = key;
+
+  dom.tabs.forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.tech === key);
+  });
+
+  rebuildPlateIcons();
+  rebuildBlocks();
+  rebuildDetailVisualization();
+  updatePanels();
+  syncGuiDisplay();
+}
+
+function rebuildPlateIcons() {
+  state.plateIconGroups.forEach((group) => {
+    group.parent?.remove(group);
+    disposeHierarchy(group);
+  });
+  state.plateIconGroups = [];
+
+  const tech = TECHS[state.currentTech];
+  const benefitIcon = createTechnologySymbol(state.currentTech, tech.benefitColor);
+  const riskIcon = createTechnologySymbol(state.currentTech, tech.riskColor);
+
+  benefitIcon.position.set(0, 0.46, 0);
+  riskIcon.position.set(0, 0.46, 0);
+
+  leftPlateCarrier.add(benefitIcon);
+  rightPlateCarrier.add(riskIcon);
+
+  state.plateIconGroups.push(benefitIcon, riskIcon);
+}
+
+function rebuildBlocks() {
+  clearGroupChildren(leftBlocksGroup);
+  clearGroupChildren(rightBlocksGroup);
+
+  const tech = TECHS[state.currentTech];
+  const scores = state.scoreMap[state.currentTech];
+
+  createBlocksForSide(leftBlocksGroup, scores.benefit, tech.benefitColor, 'benefit');
+  createBlocksForSide(rightBlocksGroup, scores.risk, tech.riskColor, 'risk');
+  updateBeamTarget();
+}
+
+function createBlocksForSide(targetGroup, count, color, side) {
+  const slots = [
+    [-0.5, 0.1],
+    [0, -0.24],
+    [0.5, 0.1],
+    [-0.28, 0.54],
+    [0.28, 0.54],
+    [0, 0.88]
+  ];
+
+  for (let i = 0; i < count; i += 1) {
+    const slot = slots[i] ?? [((i % 3) - 1) * 0.45, 0.9 + Math.floor(i / 3) * 0.35];
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.3, 0.3),
+      new THREE.MeshStandardMaterial({
+        color,
+        emissive: new THREE.Color(color).multiplyScalar(0.28),
+        roughness: 0.34,
+        metalness: 0.12
+      })
+    );
+    block.position.set(slot[0], 0, slot[1]);
+    block.castShadow = true;
+    block.receiveShadow = true;
+    block.userData = {
+      baseY: 0,
+      phase: i * 0.7 + (side === 'benefit' ? 0.2 : 1.1),
+      appear: i === count - 1 ? 0 : 1
+    };
+
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(0.17, 0.05, 0.17),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.86
+      })
+    );
+    cap.position.y = 0.16;
+    block.add(cap);
+
+    targetGroup.add(block);
+  }
+}
+
+function rebuildDetailVisualization() {
+  if (state.currentDetailGroup) {
+    state.currentDetailGroup.parent?.remove(state.currentDetailGroup);
+    disposeHierarchy(state.currentDetailGroup);
+    state.currentDetailGroup = null;
+    state.currentDetailUpdater = null;
+  }
+
+  if (!params.showDetail) {
+    updatePanels();
+    return;
+  }
+
+  const detail = buildDetailVisualization(state.currentTech);
+  state.currentDetailGroup = detail.group;
+  state.currentDetailUpdater = detail.update;
+  world.add(detail.group);
+  updatePanels();
+}
+
+function buildDetailVisualization(key) {
+  if (key === 'crispr') return buildCrisprDetail();
+  if (key === 'ai') return buildAiDetail();
+  return buildNuclearDetail();
+}
+
+function buildCrisprDetail() {
+  const group = new THREE.Group();
+  group.position.set(0, 2.2, -0.8);
+
+  const strandA = new THREE.Mesh(
+    new THREE.TubeGeometry(createHelixCurve(0.58, 3.6, 3.4, 0), 120, 0.06, 14, false),
+    new THREE.MeshStandardMaterial({ color: 0x66d7ff, emissive: 0x183e53, roughness: 0.24, metalness: 0.16 })
+  );
+  const strandB = new THREE.Mesh(
+    new THREE.TubeGeometry(createHelixCurve(0.58, 3.6, 3.4, Math.PI), 120, 0.06, 14, false),
+    new THREE.MeshStandardMaterial({ color: 0x88ffc5, emissive: 0x1a4d34, roughness: 0.24, metalness: 0.12 })
+  );
+  group.add(strandA, strandB);
+
+  const rungGroup = new THREE.Group();
+  const rungs = [];
+  for (let i = 0; i <= 13; i += 1) {
+    const t = i / 13;
+    const angle = t * Math.PI * 2 * 3.4;
+    const y = (t - 0.5) * 3.6;
+    const left = new THREE.Vector3(Math.cos(angle) * 0.58, y, Math.sin(angle) * 0.26);
+    const right = new THREE.Vector3(Math.cos(angle + Math.PI) * 0.58, y, Math.sin(angle + Math.PI) * 0.26);
+    const rung = createCylinderBetween(left, right, 0.034, 0xdfe8ff);
+    rung.userData = { baseLeft: left.clone(), baseRight: right.clone(), distanceFromCenter: Math.abs(y) };
+    rungGroup.add(rung);
+    rungs.push(rung);
+  }
+  group.add(rungGroup);
+
+  const cutRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.8, 0.03, 12, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0x6ef0d3,
+      transparent: true,
+      opacity: 0.42
+    })
+  );
+  cutRing.rotation.y = Math.PI / 2;
+  group.add(cutRing);
+
+  const insertSegment = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 1.08, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd985,
+      emissive: 0x6a4a11,
+      roughness: 0.24,
+      metalness: 0.12
+    })
+  );
+  insertSegment.rotation.z = Math.PI / 2;
+  insertSegment.scale.x = 0.3;
+  group.add(insertSegment);
+
+  const guideRna = new THREE.Mesh(
+    new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.5, 0.6, 0.5),
+        new THREE.Vector3(-0.9, 0.45, 0.3),
+        new THREE.Vector3(-0.45, 0.2, 0.16),
+        new THREE.Vector3(-0.15, 0.05, 0.08)
+      ]),
+      24,
+      0.04,
+      10,
+      false
+    ),
+    new THREE.MeshStandardMaterial({
+      color: 0xb99cff,
+      emissive: 0x35255e,
+      roughness: 0.3,
+      metalness: 0.08
+    })
+  );
+  group.add(guideRna);
+
+  const scissors = createScissorsModel(0xdfe8ff, 0x70c8ff);
+  scissors.position.set(-1.9, 0.15, 0.85);
+  group.add(scissors);
+
+  return {
+    group,
+    update(time) {
+      group.rotation.y = time * 0.28;
+      const phase = (Math.sin(time * 1.55) + 1) * 0.5;
+      const spread = Math.max(0, phase - 0.32) * 0.7;
+
+      rungs.forEach((rung) => {
+        const { baseLeft, baseRight, distanceFromCenter } = rung.userData;
+        const influence = Math.max(0, 1 - distanceFromCenter / 0.9);
+        const left = baseLeft.clone().add(new THREE.Vector3(-spread * influence, 0, 0));
+        const right = baseRight.clone().add(new THREE.Vector3(spread * influence, 0, 0));
+        updateCylinderBetween(rung, left, right);
+      });
+
+      scissors.position.x = -1.9 + phase * 1.5;
+      scissors.rotation.z = Math.sin(time * 4.4) * 0.18;
+      scissors.rotation.y = Math.sin(time * 2.6) * 0.14;
+
+      cutRing.material.opacity = 0.26 + phase * 0.26;
+      cutRing.scale.setScalar(1 + phase * 0.08);
+      insertSegment.scale.x = 0.2 + phase * 0.8;
+      insertSegment.material.emissiveIntensity = 0.5 + phase * 0.8;
+    }
+  };
+}
+
+function buildAiDetail() {
+  const group = new THREE.Group();
+  group.position.set(0, 2.05, -0.5);
+
+  const layers = [
+    { x: -2.4, ys: [-1.2, -0.4, 0.4, 1.2] },
+    { x: 0, ys: [-1.45, -0.72, 0, 0.72, 1.45] },
+    { x: 2.4, ys: [-1.05, 0, 1.05] }
+  ];
+
+  const nodeRefs = [];
+  const paths = [];
+
+  layers.forEach((layer, layerIndex) => {
+    layer.ys.forEach((y, nodeIndex) => {
+      const node = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 24, 24),
+        new THREE.MeshStandardMaterial({
+          color: layerIndex === 1 ? 0x8bd4ff : 0x8ff0c7,
+          emissive: layerIndex === 1 ? 0x1d4760 : 0x194633,
+          roughness: 0.24,
+          metalness: 0.12
+        })
+      );
+      node.position.set(layer.x, y, 0);
+      node.userData = { pulse: nodeIndex * 0.4 + layerIndex };
+      group.add(node);
+      nodeRefs.push(node);
+    });
+  });
+
+  for (let layerIndex = 0; layerIndex < layers.length - 1; layerIndex += 1) {
+    const currentLayer = layers[layerIndex];
+    const nextLayer = layers[layerIndex + 1];
+    currentLayer.ys.forEach((y1) => {
+      nextLayer.ys.forEach((y2) => {
+        const start = new THREE.Vector3(currentLayer.x, y1, 0);
+        const end = new THREE.Vector3(nextLayer.x, y2, 0);
+        const wire = createCylinderBetween(start, end, 0.028, layerIndex === 0 ? 0x4ba8ff : 0x79f0b3);
+        wire.material.transparent = true;
+        wire.material.opacity = 0.38;
+        group.add(wire);
+        paths.push({ start, end });
+      });
+    });
+  }
+
+  const pulseGroup = new THREE.Group();
+  const pulses = [];
+  for (let i = 0; i < 12; i += 1) {
+    const pulse = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 16, 16),
+      new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0x8ff0c7 : 0x7fb7ff,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    pulse.userData = {
+      pathIndex: i % paths.length,
+      offset: i / 12,
+      speed: 0.32 + (i % 4) * 0.08
+    };
+    pulseGroup.add(pulse);
+    pulses.push(pulse);
+  }
+  group.add(pulseGroup);
+
+  const robot = createRobotHead(0x9bd6ff);
+  robot.position.set(0, 2.15, 0);
+  group.add(robot);
+
+  return {
+    group,
+    update(time) {
+      group.rotation.y = Math.sin(time * 0.42) * 0.18;
+      robot.position.y = 2.15 + Math.sin(time * 1.8) * 0.08;
+
+      nodeRefs.forEach((node) => {
+        const glow = 0.5 + Math.sin(time * 2.2 + node.userData.pulse) * 0.28;
+        node.material.emissiveIntensity = glow;
+        node.scale.setScalar(0.96 + glow * 0.08);
+      });
+
+      pulses.forEach((pulse) => {
+        const path = paths[pulse.userData.pathIndex];
+        const t = (time * pulse.userData.speed + pulse.userData.offset) % 1;
+        pulse.position.copy(path.start.clone().lerp(path.end, t));
+      });
+    }
+  };
+}
+
+function buildNuclearDetail() {
+  const group = new THREE.Group();
+  group.position.set(0, 2.12, -0.5);
+
+  const atomGroup = new THREE.Group();
+  group.add(atomGroup);
+
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 28, 28),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd28c,
+      emissive: 0x6f4618,
+      roughness: 0.2,
+      metalness: 0.08
+    })
+  );
+  atomGroup.add(core);
+
+  const fragmentA = new THREE.Mesh(
+    new THREE.SphereGeometry(0.24, 24, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0xffc17e,
+      emissive: 0x5e3c17,
+      roughness: 0.24,
+      metalness: 0.08
+    })
+  );
+  const fragmentB = fragmentA.clone();
+  atomGroup.add(fragmentA, fragmentB);
+
+  const orbitWraps = [];
+  const electrons = [];
+  [0, Math.PI / 3, Math.PI * 0.68].forEach((rotation, index) => {
+    const wrap = new THREE.Group();
+    wrap.rotation.set(rotation, rotation * 0.6, rotation * 0.85);
+    const orbit = new THREE.Mesh(
+      new THREE.TorusGeometry(1.15 + index * 0.12, 0.018, 8, 64),
+      new THREE.MeshStandardMaterial({
+        color: 0x8ac6ff,
+        emissive: 0x1d4163,
+        roughness: 0.24,
+        metalness: 0.4
+      })
+    );
+    wrap.add(orbit);
+
+    const electron = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0xaef8ff,
+        emissive: 0x376a75,
+        roughness: 0.1,
+        metalness: 0.06
+      })
+    );
+    wrap.add(electron);
+    atomGroup.add(wrap);
+    orbitWraps.push(wrap);
+    electrons.push(electron);
+  });
+
+  const sparkGroup = new THREE.Group();
+  const sparks = [];
+  for (let i = 0; i < 12; i += 1) {
+    const spark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xffc46b : 0xff7b68,
+        transparent: true,
+        opacity: 0.86
+      })
+    );
+    spark.userData = { angle: (Math.PI * 2 * i) / 12, radius: 0.55 + Math.random() * 0.38 };
+    sparkGroup.add(spark);
+    sparks.push(spark);
+  }
+  group.add(sparkGroup);
+
+  const plant = createPowerPlant(0x66e1b0);
+  plant.position.set(-3.2, -0.2, 0);
+  group.add(plant);
+
+  const cloud = createMushroomCloud();
+  cloud.position.set(3.2, -0.15, 0);
+  group.add(cloud);
+
+  return {
+    group,
+    update(time) {
+      atomGroup.rotation.y = time * 0.6;
+      const phase = (Math.sin(time * 1.45) + 1) * 0.5;
+      const split = Math.max(0, phase - 0.38) / 0.62;
+
+      core.visible = split < 0.9;
+      core.scale.setScalar(1 - split * 0.36);
+      core.material.emissiveIntensity = 0.7 + phase * 1.1;
+
+      fragmentA.position.set(-split * 0.78, 0.08 * split, 0);
+      fragmentB.position.set(split * 0.78, -0.08 * split, 0);
+      fragmentA.visible = split > 0.05;
+      fragmentB.visible = split > 0.05;
+
+      sparks.forEach((spark, index) => {
+        const radius = split * spark.userData.radius;
+        spark.position.set(
+          Math.cos(spark.userData.angle + time * 1.4 + index * 0.1) * radius,
+          Math.sin(spark.userData.angle * 1.6 + time * 2.2) * radius * 0.45,
+          Math.sin(spark.userData.angle + time) * radius * 0.28
+        );
+        spark.material.opacity = 0.28 + split * 0.7;
+      });
+
+      orbitWraps.forEach((wrap, index) => {
+        wrap.rotation.y += 0.01 + index * 0.003;
+        const radius = 1.15 + index * 0.12;
+        electrons[index].position.set(Math.cos(time * (1.6 + index * 0.3)) * radius, Math.sin(time * (1.6 + index * 0.3)) * radius, 0);
+      });
+
+      plant.children.forEach((child, index) => {
+        if (child.userData.isSteam) {
+          const steamPhase = (time * 0.45 + child.userData.offset) % 1;
+          child.position.y = 1.2 + steamPhase * 1.1;
+          child.material.opacity = 0.18 + (1 - steamPhase) * 0.22;
+        }
+        if (child.userData.isEnergy) {
+          child.material.emissiveIntensity = 0.6 + Math.sin(time * 2 + index) * 0.25;
+        }
+      });
+
+      cloud.scale.y = 0.96 + Math.sin(time * 1.8) * 0.03;
+      cloud.children.forEach((child, index) => {
+        if (child.material?.opacity !== undefined) {
+          child.material.opacity = 0.42 + Math.sin(time * 1.6 + index * 0.5) * 0.08;
+        }
+      });
+    }
+  };
+}
+
+function addBlock(side) {
+  const tech = TECHS[state.currentTech];
+  const scores = state.scoreMap[state.currentTech];
+  const items = side === 'benefit' ? tech.benefits : tech.risks;
+  const label = side === 'benefit' ? '유용성' : '문제점';
+
+  if (scores[side] >= items.length) {
+    announce(`${label} 항목을 모두 올렸습니다.`);
+    return;
+  }
+
+  scores[side] += 1;
+  rebuildBlocks();
+  updatePanels();
+  announce(`${tech.label}의 ${label} 블록을 추가했습니다.`);
+}
+
+function resetAllScores() {
+  Object.values(state.scoreMap).forEach((score) => {
+    score.benefit = 0;
+    score.risk = 0;
+  });
+  rebuildBlocks();
+  updatePanels();
+  announce('모든 블록을 제거하고 저울을 초기화했습니다.');
+}
+
+function updateBeamTarget() {
+  const scores = state.scoreMap[state.currentTech];
+  state.targetBeamAngle = THREE.MathUtils.clamp((scores.benefit - scores.risk) * 0.12, -0.42, 0.42);
+}
+
+function updatePanels() {
+  const tech = TECHS[state.currentTech];
+  const scores = state.scoreMap[state.currentTech];
+  const stateText = getBalanceStateText(scores);
+
+  dom.boardTitle.textContent = tech.label;
+  dom.boardSummary.textContent = tech.summary;
+  dom.benefitCount.textContent = `${scores.benefit} / ${tech.benefits.length}`;
+  dom.riskCount.textContent = `${scores.risk} / ${tech.risks.length}`;
+  renderItemList(dom.benefitList, tech.benefits, scores.benefit);
+  renderItemList(dom.riskList, tech.risks, scores.risk);
+
+  dom.boardFooter.textContent = params.showDetail
+    ? `${tech.detailCaption} 지금은 ${stateText} 상태이며, 블록을 더 올려 판단의 균형을 실험할 수 있습니다.`
+    : '상세 보기가 꺼져 있어 아이콘만 표시됩니다. 필요하면 오른쪽 상단 패널에서 상세 보기를 켜 보세요.';
+
+  dom.formulaTech.textContent = tech.label;
+  dom.formulaBenefit.textContent = `${scores.benefit}점`;
+  dom.formulaRisk.textContent = `${scores.risk}점`;
+  dom.formulaState.textContent = stateText;
+  dom.formulaNote.textContent = getBalanceExplanation(scores);
+
+  dom.checklistTech.textContent = `현재 사례: ${tech.label}`;
+  dom.realworldExample.textContent = tech.example;
+  dom.checklistPanel.classList.toggle('hidden', !params.showChecklist);
+
+  const balanced = scores.benefit === scores.risk;
+  dom.statusBanner.classList.toggle('warn', !balanced);
+  dom.statusBanner.textContent = balanced
+    ? '✅ 유용성과 문제점을 균형 있게 고려해야 합니다'
+    : '⚠️ 균형이 깨졌습니다';
+}
+
+function renderItemList(target, items, activeCount) {
+  target.innerHTML = '';
+  items.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.classList.toggle('active', index < activeCount);
+
+    const title = document.createElement('strong');
+    title.textContent = item.title;
+    li.appendChild(title);
+
+    const desc = document.createElement('span');
+    desc.textContent = item.desc;
+    li.appendChild(desc);
+
+    target.appendChild(li);
+  });
+}
+
+function getBalanceStateText(scores) {
+  if (scores.benefit === scores.risk) return '균형';
+  return scores.benefit > scores.risk ? '좌측 기울' : '우측 기울';
+}
+
+function getBalanceExplanation(scores) {
+  if (scores.benefit === scores.risk) {
+    return '양쪽 접시에 같은 수의 근거가 올라가 있어 균형을 이루고 있습니다.';
+  }
+  if (scores.benefit > scores.risk) {
+    return '유용성 근거가 더 많아 좌측 접시가 내려갔습니다. 장점에만 치우치지 않았는지 점검해 보세요.';
+  }
+  return '문제점 근거가 더 많아 우측 접시가 내려갔습니다. 위험을 줄이는 조건을 함께 찾아 보세요.';
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.033);
+  const time = clock.elapsedTime;
+
+  state.beamAngle += (state.targetBeamAngle - state.beamAngle) * Math.min(1, delta * 4.5);
+  beamPivot.rotation.z = state.beamAngle;
+  leftPlateCarrier.rotation.z = -state.beamAngle;
+  rightPlateCarrier.rotation.z = -state.beamAngle;
+
+  updateBlockAnimations(leftBlocksGroup, time, delta);
+  updateBlockAnimations(rightBlocksGroup, time, delta);
+
+  state.billboards.forEach((sprite) => {
+    sprite.quaternion.copy(camera.quaternion);
+  });
+
+  if (state.currentDetailUpdater) {
+    state.currentDetailUpdater(time, delta);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function updateBlockAnimations(group, time, delta) {
+  group.children.forEach((child) => {
+    if (!child.userData) return;
+    child.userData.appear = Math.min(1, child.userData.appear + delta * 3.2);
+    child.scale.setScalar(0.2 + child.userData.appear * 0.8);
+    child.position.y = child.userData.baseY + Math.sin(time * 1.8 + child.userData.phase) * 0.018;
+  });
+}
+
+function syncGuiDisplay() {
+  if (!state.gui) return;
+  state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function createTechnologySymbol(key, color) {
+  if (key === 'crispr') {
+    const group = new THREE.Group();
+    const strand1 = new THREE.Mesh(
+      new THREE.TubeGeometry(createHelixCurve(0.18, 0.9, 1.6, 0), 40, 0.018, 10, false),
+      new THREE.MeshStandardMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(0.2) })
+    );
+    const strand2 = new THREE.Mesh(
+      new THREE.TubeGeometry(createHelixCurve(0.18, 0.9, 1.6, Math.PI), 40, 0.018, 10, false),
+      new THREE.MeshStandardMaterial({ color: 0xf6fbff })
+    );
+    group.add(strand1, strand2);
+    for (let i = 0; i < 4; i += 1) {
+      const y = -0.35 + i * 0.24;
+      const rung = new THREE.Mesh(
+        new THREE.BoxGeometry(0.22, 0.018, 0.018),
+        new THREE.MeshStandardMaterial({ color: 0xf6fbff })
+      );
+      rung.position.y = y;
+      group.add(rung);
+    }
+    const scissor = createScissorsModel(0xffffff, color);
+    scissor.position.set(0.28, 0.02, 0.12);
+    scissor.scale.setScalar(0.32);
+    group.add(scissor);
+    group.scale.setScalar(0.84);
+    return group;
+  }
+
+  if (key === 'ai') {
+    const robot = createRobotHead(color);
+    robot.scale.setScalar(0.78);
+    return robot;
+  }
+
+  const atom = new THREE.Group();
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(0.14, 18, 18),
+    new THREE.MeshStandardMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(0.3) })
+  );
+  atom.add(nucleus);
+  [0, Math.PI / 3, Math.PI * 0.72].forEach((rotation) => {
+    const orbit = new THREE.Mesh(
+      new THREE.TorusGeometry(0.32, 0.014, 8, 48),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.24 })
+    );
+    orbit.rotation.set(rotation, rotation * 0.5, rotation * 0.8);
+    atom.add(orbit);
+  });
+  return atom;
+}
+
+function createRobotHead(color) {
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.48, 0.42),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: new THREE.Color(color).multiplyScalar(0.18),
+      roughness: 0.28,
+      metalness: 0.18
+    })
+  );
+  group.add(head);
+
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xf6fbff });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 14), eyeMaterial);
+  const eyeR = eyeL.clone();
+  eyeL.position.set(-0.13, 0.02, 0.22);
+  eyeR.position.set(0.13, 0.02, 0.22);
+  group.add(eyeL, eyeR);
+
+  const antenna = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.018, 0.18, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.26, metalness: 0.3 })
+  );
+  antenna.position.y = 0.32;
+  group.add(antenna);
+
+  const antennaTip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0xffd98f, emissive: 0x5a3d12 })
+  );
+  antennaTip.position.y = 0.43;
+  group.add(antennaTip);
+
+  const mouth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.04, 0.03),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  mouth.position.set(0, -0.14, 0.22);
+  group.add(mouth);
+
+  return group;
+}
+
+function createScissorsModel(primaryColor, accentColor) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: primaryColor,
+    roughness: 0.2,
+    metalness: 0.62
+  });
+
+  const loopA = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.04, 10, 32), material);
+  const loopB = loopA.clone();
+  loopA.position.set(-0.18, 0.12, 0);
+  loopB.position.set(-0.18, -0.12, 0);
+  group.add(loopA, loopB);
+
+  const bladeA = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.06, 0.05),
+    new THREE.MeshStandardMaterial({
+      color: accentColor,
+      emissive: new THREE.Color(accentColor).multiplyScalar(0.18),
+      roughness: 0.16,
+      metalness: 0.44
+    })
+  );
+  const bladeB = bladeA.clone();
+  bladeA.position.set(0.24, 0.12, 0);
+  bladeB.position.set(0.24, -0.12, 0);
+  bladeA.rotation.z = 0.32;
+  bladeB.rotation.z = -0.32;
+  group.add(bladeA, bladeB);
+
+  const pivot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.045, 0.08, 16),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.16, metalness: 0.8 })
+  );
+  pivot.rotation.x = Math.PI / 2;
+  group.add(pivot);
+
+  return group;
+}
+
+function createPowerPlant(color) {
+  const group = new THREE.Group();
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.3, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x7f889d, roughness: 0.58, metalness: 0.24 })
+  );
+  base.position.y = -0.2;
+  group.add(base);
+
+  [-0.35, 0.35].forEach((x) => {
+    const tower = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.24, 1.2, 18),
+      new THREE.MeshStandardMaterial({ color: 0xc8d2e2, roughness: 0.42, metalness: 0.08 })
+    );
+    tower.position.set(x, 0.55, 0);
+    group.add(tower);
+
+    const steam = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 18, 18),
+      new THREE.MeshBasicMaterial({
+        color: 0xe7f1ff,
+        transparent: true,
+        opacity: 0.28
+      })
+    );
+    steam.position.set(x, 1.4, 0);
+    steam.userData = { isSteam: true, offset: x < 0 ? 0.1 : 0.55 };
+    group.add(steam);
+  });
+
+  const energy = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.34, 0.34),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: new THREE.Color(color).multiplyScalar(0.4),
+      roughness: 0.2,
+      metalness: 0.12
+    })
+  );
+  energy.position.set(0, 0.45, 0.48);
+  energy.userData = { isEnergy: true };
+  group.add(energy);
+
+  return group;
+}
+
+function createMushroomCloud() {
+  const group = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xff8f6b,
+    transparent: true,
+    opacity: 0.46
+  });
+
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.2, 16), material.clone());
+  stem.position.y = 0.25;
+  group.add(stem);
+
+  [
+    { s: 0.42, x: 0, y: 1.08 },
+    { s: 0.32, x: -0.34, y: 0.96 },
+    { s: 0.32, x: 0.34, y: 0.96 },
+    { s: 0.28, x: -0.16, y: 1.3 },
+    { s: 0.28, x: 0.18, y: 1.34 }
+  ].forEach((p) => {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(p.s, 18, 18), material.clone());
+    puff.position.set(p.x, p.y, 0);
+    group.add(puff);
+  });
+
+  return group;
+}
+
+function createHelixCurve(radius, height, turns, phase) {
+  const points = [];
+  const steps = 120;
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const angle = t * Math.PI * 2 * turns + phase;
+    points.push(
+      new THREE.Vector3(
+        Math.cos(angle) * radius,
+        (t - 0.5) * height,
+        Math.sin(angle) * radius * 0.48
+      )
+    );
+  }
+  return new THREE.CatmullRomCurve3(points);
+}
+
+function createCylinderBetween(start, end, radius, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 1, 14),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.26,
+      metalness: 0.18
+    })
+  );
+  updateCylinderBetween(mesh, start, end);
+  return mesh;
+}
+
+function updateCylinderBetween(mesh, start, end) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+  mesh.scale.set(1, length, 1);
+}
+
+function createTextSprite(text, options) {
+  const canvas = document.createElement('canvas');
+  canvas.width = options.width ?? 256;
+  canvas.height = options.height ?? 80;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (options.background) {
+    ctx.fillStyle = options.background;
+    roundRect(ctx, 4, 4, canvas.width - 8, canvas.height - 8, 24);
+    ctx.fill();
+  }
+
+  if (options.border) {
+    ctx.strokeStyle = options.border;
+    ctx.lineWidth = 2;
+    roundRect(ctx, 4, 4, canvas.width - 8, canvas.height - 8, 24);
+    ctx.stroke();
+  }
+
+  ctx.font = options.font ?? '700 24px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = options.color ?? '#ffffff';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true
+  });
+  return new THREE.Sprite(material);
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function clearGroupChildren(group) {
+  while (group.children.length) {
+    const child = group.children[0];
+    group.remove(child);
+    disposeHierarchy(child);
+  }
+}
+
+function disposeHierarchy(object) {
+  if (!object) return;
+  object.traverse((node) => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+    if (node.material) {
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        if (material.map) material.map.dispose();
+        material.dispose();
+      });
+    }
+  });
+}
+
+function announce(message) {
+  dom.liveRegion.textContent = message;
+}
+</script>
+</body>
+</html>

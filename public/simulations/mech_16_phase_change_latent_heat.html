@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상태 변화와 잠열 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel: rgba(8, 18, 34, 0.82);
+    --panel-soft: rgba(255, 255, 255, 0.08);
+    --panel-light: rgba(255, 255, 255, 0.88);
+    --panel-border: rgba(255, 255, 255, 0.13);
+    --text-main: #eff6ff;
+    --text-dim: rgba(239, 246, 255, 0.74);
+    --text-dark: #1e2c3e;
+    --accent-ice: #aaddff;
+    --accent-water: #4488cc;
+    --accent-steam: #f7fbff;
+    --accent-heat: #ff9d57;
+    --accent-melt: #7cd4ff;
+    --accent-boil: #ffd66b;
+    --accent-graph: #ff5f57;
+    --shadow: 0 24px 54px rgba(7, 16, 31, 0.18);
+    --shadow-soft: 0 14px 30px rgba(7, 16, 31, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 14% 10%, rgba(138, 213, 255, 0.28), transparent 20%),
+      radial-gradient(circle at 84% 12%, rgba(255, 194, 124, 0.26), transparent 18%),
+      linear-gradient(180deg, #f4f7fb 0%, #e6ebf3 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 16%, rgba(149, 210, 255, 0.22), transparent 20%),
+      radial-gradient(circle at 80% 18%, rgba(255, 190, 140, 0.12), transparent 16%),
+      linear-gradient(180deg, rgba(243, 247, 251, 0.98) 0%, rgba(226, 233, 242, 0.98) 100%);
+    border-right: 1px solid rgba(25, 44, 67, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 20% 12%, rgba(128, 211, 255, 0.18), transparent 18%),
+      radial-gradient(circle at 84% 18%, rgba(255, 196, 129, 0.16), transparent 16%),
+      linear-gradient(180deg, #102038 0%, #0a1425 54%, #08111d 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(18, 40, 64, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+    color: var(--text-dark);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 24;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(9, 20, 37, 0.88);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    z-index: 23;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 20px;
+    border-radius: 24px;
+    line-height: 1.78;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #b8dfff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #guide-panel .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(239, 246, 255, 0.74);
+    font-size: 11px;
+  }
+
+  #title-card {
+    position: absolute;
+    top: 16px;
+    left: 104px;
+    right: 308px;
+    transform: none;
+    z-index: 20;
+    width: auto;
+    min-width: 0;
+    padding: 14px 20px 16px;
+    border-radius: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(239, 246, 255, 0.56);
+  }
+
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 28px;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+  }
+
+  #title-card p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #status-chip {
+    position: absolute;
+    top: 106px;
+    left: 104px;
+    right: 308px;
+    transform: none;
+    z-index: 18;
+    width: auto;
+    min-height: 92px;
+    padding: 16px 18px;
+    border-radius: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff4d8;
+  }
+
+  #status-body {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(239, 246, 255, 0.78);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: min(380px, calc(100vw - 32px));
+    max-height: min(40vh, 340px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.74;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  .formula-divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.04));
+  }
+
+  .formula-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .formula-row + .formula-row {
+    margin-top: 5px;
+  }
+
+  .formula-row span:last-child {
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .formula-subtitle {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    color: rgba(239, 246, 255, 0.7);
+  }
+
+  .formula-strong {
+    color: #ffe7b3;
+    font-weight: 700;
+  }
+
+  #gui-mount {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 30;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(8, 18, 34, 0.88);
+    --title-background-color: rgba(11, 26, 49, 0.98);
+    --widget-color: #d8e8ff;
+    --text-color: #eff6ff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --font-size: 12px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  #gui-mount .title {
+    font-weight: 800;
+  }
+
+  #fridge-card {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: min(320px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    pointer-events: none;
+  }
+
+  #fridge-card.hidden {
+    display: none;
+  }
+
+  #fridge-card h3 {
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  #fridge-card p {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(239, 246, 255, 0.78);
+  }
+
+  #fridge-card .fridge-flow {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #dcf4ff;
+    font-size: 11px;
+    line-height: 1.66;
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 12;
+    padding: 16px 18px;
+    border-radius: 24px;
+    color: #eff6ff;
+    pointer-events: none;
+  }
+
+  #graph-head h2 {
+    font-size: 21px;
+    color: #ffffff;
+  }
+
+  #graph-head p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(239, 246, 255, 0.74);
+  }
+
+  #graph-head .graph-badge-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .graph-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(239, 246, 255, 0.86);
+  }
+
+  .graph-badge strong {
+    color: #ffffff;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #segment-list {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .segment-card {
+    padding: 13px 14px 12px;
+    border-radius: 18px;
+    background: rgba(9, 18, 33, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(16px);
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .segment-card.active {
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(24, 42, 71, 0.9);
+  }
+
+  .segment-card .segment-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  .segment-card .segment-desc {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(239, 246, 255, 0.72);
+  }
+
+  .segment-card .segment-value {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #fff2be;
+    font-weight: 700;
+  }
+
+  .segment-card[data-stage="A"].active { border-color: rgba(170, 221, 255, 0.45); }
+  .segment-card[data-stage="B"].active { border-color: rgba(124, 212, 255, 0.45); }
+  .segment-card[data-stage="C"].active { border-color: rgba(68, 136, 204, 0.48); }
+  .segment-card[data-stage="D"].active { border-color: rgba(255, 214, 107, 0.48); }
+  .segment-card[data-stage="E"].active { border-color: rgba(255, 159, 159, 0.45); }
+
+  .heat-calc-only {
+    display: block;
+  }
+
+  body.hide-heat-calc .heat-calc-only {
+    display: none !important;
+  }
+
+  @media (max-width: 1100px) {
+    #segment-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 860px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 58vh) minmax(0, 42vh);
+    }
+
+    #scene-panel {
+      border-right: 0;
+      border-bottom: 1px solid rgba(25, 44, 67, 0.1);
+    }
+
+    #title-card {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      width: min(620px, calc(100% - 160px));
+    }
+
+    #status-chip {
+      top: 120px;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      width: min(680px, calc(100% - 32px));
+    }
+
+    #segment-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #graph-head {
+      padding-bottom: 14px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+      padding: 9px 13px;
+    }
+
+    #title-card {
+      top: 12px;
+      width: min(560px, calc(100% - 118px));
+      min-width: auto;
+      padding: 12px 14px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #title-card p {
+      font-size: 11px;
+    }
+
+    #status-chip {
+      top: 100px;
+      padding: 14px 14px;
+      min-height: 80px;
+    }
+
+    #status-title {
+      font-size: 16px;
+    }
+
+    #status-body {
+      font-size: 11px;
+    }
+
+    #formula-panel,
+    #fridge-card,
+    #graph-head {
+      left: 12px;
+      right: 12px;
+      width: auto;
+    }
+
+    #formula-panel {
+      bottom: 12px;
+      max-height: min(44vh, 300px);
+      padding: 16px 16px 14px;
+    }
+
+    #fridge-card {
+      bottom: 12px;
+    }
+
+    #gui-mount {
+      top: 12px;
+      right: 12px;
+      transform: scale(0.92);
+      transform-origin: top right;
+    }
+
+    #segment-list {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .segment-card {
+      padding: 12px;
+    }
+
+    #guide-panel {
+      top: 54px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드</button>
+    <div id="guide-panel" class="glass">
+      <h3>핵심 원리</h3>
+      <p>물질이 상태 변화를 할 때 온도가 일정하게 유지되면서 잠열을 흡수하거나 방출합니다. <strong>Q = Lm</strong>. 물의 기화열(2260 kJ/kg)은 융해열(334 kJ/kg)보다 훨씬 큽니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>온도-열량 그래프에서 수평 구간 B와 D는 각각 어떤 물리 과정을 뜻할까요?</li>
+        <li>기화열이 융해열보다 훨씬 큰 까닭을 분자 사이 결합 에너지와 관련지어 설명해 보세요.</li>
+        <li>100°C 수증기에 의한 화상이 100°C 물보다 더 심한 이유를 잠열로 설명해 보세요.</li>
+      </ul>
+
+      <h3>실생활 연결</h3>
+      <ul>
+        <li>냉장고: 냉매가 증발하며 주변에서 기화열을 흡수해 내부를 식힙니다.</li>
+        <li>땀 증발: 피부에서 물이 증발할 때 기화열을 가져가 체온을 낮춥니다.</li>
+        <li>끓는 물 요리: 물은 끓는 동안 100°C를 유지하며 열은 상태 변화에 쓰입니다.</li>
+      </ul>
+
+      <div class="textbook-ref">교과서 연계: 역학과 에너지 II편 p70~77 — 열에 의한 물질의 변화, 비열, 잠열, 온도-열량 그래프(그림 II-6)</div>
+    </div>
+
+    <div id="title-card" class="glass">
+      <div class="eyebrow">역학과 에너지 · II. 열과 에너지</div>
+      <h1>상태 변화와 잠열</h1>
+      <p>얼음 → 물 → 수증기로 이어지는 가열 과정을 3D 실험 장면과 온도-열량 그래프로 동시에 탐구합니다.</p>
+    </div>
+
+    <div id="status-chip" class="glass">
+      <div id="status-title">A · 얼음 가열</div>
+      <div id="status-body">얼음의 온도는 올라가지만 아직 상태 변화는 일어나지 않습니다.</div>
+    </div>
+
+    <div id="formula-panel" class="glass">
+      <h2>❄️→💧→♨️ 상태 변화와 잠열</h2>
+      <div class="formula-divider"></div>
+      <div class="formula-row"><span>질량 m</span><span id="mass-value">0.50 kg</span></div>
+      <div class="formula-row"><span>현재 온도</span><span id="temp-value">-20.0 °C</span></div>
+      <div class="formula-row"><span>현재 구간</span><span id="stage-value">A</span></div>
+      <div class="formula-row"><span>공급 열량</span><span id="heat-value">0.0 kJ</span></div>
+      <div class="formula-divider heat-calc-only"></div>
+      <div class="heat-calc-only">
+        <div class="formula-subtitle">현재 적용 식</div>
+        <div id="equation-value" class="formula-strong">Q = c m ΔT</div>
+        <div class="formula-subtitle">물의 잠열</div>
+        <div class="formula-row"><span>융해열 L_f</span><span>334 kJ/kg</span></div>
+        <div class="formula-row"><span>기화열 L_v</span><span>2260 kJ/kg</span></div>
+        <div class="formula-subtitle">물의 비열</div>
+        <div class="formula-row"><span>얼음</span><span>2090 J/(kg·K)</span></div>
+        <div class="formula-row"><span>물</span><span>4186 J/(kg·K)</span></div>
+        <div class="formula-row"><span>수증기</span><span>2010 J/(kg·K)</span></div>
+        <div id="heat-breakdown" class="formula-note"></div>
+      </div>
+    </div>
+
+    <div id="gui-mount"></div>
+
+    <div id="fridge-card" class="glass hidden">
+      <h3>잠열을 이용한 냉각</h3>
+      <p>냉장고는 냉매가 <strong>증발기</strong>에서 기화하며 내부 열을 흡수하고, <strong>응축기</strong>에서 다시 액화하며 외부로 열을 방출하는 장치입니다.</p>
+      <div class="fridge-flow">증발기(액체→기체, 기화열 흡수) → 압축기 → 응축기(기체→액체, 기화열 방출)</div>
+    </div>
+  </section>
+
+  <section id="graph-panel">
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="graph-head" class="glass">
+      <h2>온도-열량 그래프</h2>
+      <p id="graph-summary">구간 B와 D에서는 온도가 일정한 채로 열이 잠열로 쓰입니다. 특히 D 구간은 기화열 때문에 훨씬 넓게 나타납니다.</p>
+      <div class="graph-badge-row">
+        <div class="graph-badge"><span class="legend-dot" style="background:#aaddff"></span><strong>A</strong> 얼음 가열</div>
+        <div class="graph-badge"><span class="legend-dot" style="background:#7cd4ff"></span><strong>B</strong> 융해</div>
+        <div class="graph-badge"><span class="legend-dot" style="background:#4488cc"></span><strong>C</strong> 물 가열</div>
+        <div class="graph-badge"><span class="legend-dot" style="background:#ffd66b"></span><strong>D</strong> 기화</div>
+        <div class="graph-badge"><span class="legend-dot" style="background:#ffb3b3"></span><strong>E</strong> 수증기 가열</div>
+      </div>
+    </div>
+
+    <div id="segment-list">
+      <div class="segment-card" data-stage="A">
+        <div class="segment-label">A · 얼음 가열</div>
+        <div class="segment-desc">-20°C → 0°C, 기울기 큼</div>
+        <div class="segment-value heat-calc-only" data-segment-value="A"></div>
+      </div>
+      <div class="segment-card" data-stage="B">
+        <div class="segment-label">B · 융해</div>
+        <div class="segment-desc">0°C 일정, 잠열 흡수</div>
+        <div class="segment-value heat-calc-only" data-segment-value="B"></div>
+      </div>
+      <div class="segment-card" data-stage="C">
+        <div class="segment-label">C · 물 가열</div>
+        <div class="segment-desc">0°C → 100°C, 기울기 작음</div>
+        <div class="segment-value heat-calc-only" data-segment-value="C"></div>
+      </div>
+      <div class="segment-card" data-stage="D">
+        <div class="segment-label">D · 기화</div>
+        <div class="segment-desc">100°C 일정, 가장 넓은 구간</div>
+        <div class="segment-value heat-calc-only" data-segment-value="D"></div>
+      </div>
+      <div class="segment-card" data-stage="E">
+        <div class="segment-label">E · 수증기 가열</div>
+        <div class="segment-desc">100°C → 120°C, 다시 기울기</div>
+        <div class="segment-value heat-calc-only" data-segment-value="E"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const dom = {
+  sceneCanvas: document.getElementById('scene-canvas'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusTitle: document.getElementById('status-title'),
+  statusBody: document.getElementById('status-body'),
+  massValue: document.getElementById('mass-value'),
+  tempValue: document.getElementById('temp-value'),
+  stageValue: document.getElementById('stage-value'),
+  heatValue: document.getElementById('heat-value'),
+  equationValue: document.getElementById('equation-value'),
+  heatBreakdown: document.getElementById('heat-breakdown'),
+  graphSummary: document.getElementById('graph-summary'),
+  guiMount: document.getElementById('gui-mount'),
+  fridgeCard: document.getElementById('fridge-card'),
+  segmentCards: Array.from(document.querySelectorAll('.segment-card')),
+  segmentValues: Array.from(document.querySelectorAll('[data-segment-value]')),
+};
+
+const PHYSICS = {
+  tempStart: -20,
+  tempMelt: 0,
+  tempBoil: 100,
+  tempEnd: 120,
+  cIce: 2090,
+  cWater: 4186,
+  cSteam: 2010,
+  latentFusion: 334000,
+  latentVapor: 2260000,
+  baseHeatingRate: 36000,
+  maxSteamParticles: 90,
+  maxBubbleParticles: 24,
+  moleculeCount: 64,
+};
+
+const STAGE_META = {
+  A: {
+    label: 'A · 얼음 가열',
+    short: '얼음 가열',
+    equation: 'Q = c_얼음 m ΔT',
+    description: '얼음의 온도는 올라가지만 분자 배열은 아직 고체 격자를 유지합니다.',
+    graphNote: 'A 구간은 얼음의 비열이 물보다 작아 기울기가 더 큽니다.',
+  },
+  B: {
+    label: 'B · 융해',
+    short: '융해',
+    equation: 'Q = L_f m',
+    description: '0°C에서 온도는 그대로이고, 흡수된 열은 얼음 결합을 끊어 물로 바꾸는 데 쓰입니다.',
+    graphNote: 'B 구간이 수평인 이유는 열이 온도 상승이 아니라 상태 변화에 쓰이기 때문입니다.',
+  },
+  C: {
+    label: 'C · 물 가열',
+    short: '물 가열',
+    equation: 'Q = c_물 m ΔT',
+    description: '액체 물 분자의 평균 운동에너지가 커지며 온도가 100°C까지 상승합니다.',
+    graphNote: '물의 비열이 더 크므로 C 구간의 기울기는 A보다 작습니다.',
+  },
+  D: {
+    label: 'D · 기화',
+    short: '기화',
+    equation: 'Q = L_v m',
+    description: '100°C에서 열이 계속 공급되어도 온도는 일정하고, 거대한 기화열이 물을 수증기로 바꿉니다.',
+    graphNote: 'D 구간이 가장 넓은 이유는 기화열이 융해열보다 훨씬 크기 때문입니다.',
+  },
+  E: {
+    label: 'E · 수증기 가열',
+    short: '수증기 가열',
+    equation: 'Q = c_수증기 m ΔT',
+    description: '기체 상태가 된 뒤에는 수증기 분자가 더 빠르게 움직이며 온도가 다시 상승합니다.',
+    graphNote: '상태 변화가 끝난 뒤에는 다시 온도가 열량에 비례해 상승합니다.',
+  },
+};
+
+const state = {
+  mass: 0.5,
+  heatingRate: 3,
+  showParticles: true,
+  showRefrigerator: false,
+  showHeatCalc: true,
+  running: false,
+  suppliedHeat: 0,
+  startHeating() {
+    const segments = getSegments(state.mass);
+    if (state.suppliedHeat >= segments.total - 1) {
+      state.suppliedHeat = 0;
+    }
+    state.running = true;
+    refresh(true);
+  },
+  reset() {
+    state.running = false;
+    state.suppliedHeat = 0;
+    refresh(true);
+  },
+};
+
+const guiState = {
+  currentStage: 'A · 얼음 가열',
+};
+
+const segmentValueMap = new Map(dom.segmentValues.map((el) => [el.dataset.segmentValue, el]));
+let currentPhase = null;
+let currentPhaseKey = '';
+let currentGraphInfo = null;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 2.35, 8.2);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const controls = new OrbitControls(camera, dom.sceneCanvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 5.6;
+controls.maxDistance = 11;
+controls.target.set(0, 2.15, 0);
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+sun.position.set(3.5, 7.5, 5);
+scene.add(sun);
+
+const rim = new THREE.DirectionalLight(0xa9dcff, 0.22);
+rim.position.set(-4, 5, -2);
+scene.add(rim);
+
+const workbench = new THREE.Group();
+scene.add(workbench);
+
+const floor = new THREE.Mesh(
+  new THREE.CylinderGeometry(5.1, 5.6, 0.36, 48),
+  new THREE.MeshStandardMaterial({ color: 0xc7d0da, roughness: 0.95, metalness: 0.04 })
+);
+floor.position.set(0, 0.18, 0.3);
+workbench.add(floor);
+
+const table = new THREE.Mesh(
+  new THREE.BoxGeometry(8.2, 0.3, 4.6),
+  new THREE.MeshStandardMaterial({ color: 0xc09a72, roughness: 0.82, metalness: 0.04 })
+);
+table.position.set(0, 0.52, 0.3);
+workbench.add(table);
+
+const tableShadow = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.5, 1.8, 0.02, 36),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08 })
+);
+tableShadow.position.set(0, 0.68, 0.3);
+tableShadow.scale.set(2.2, 1, 1.2);
+workbench.add(tableShadow);
+
+const phaseRoot = new THREE.Group();
+scene.add(phaseRoot);
+
+const moleculeRoot = new THREE.Group();
+scene.add(moleculeRoot);
+
+const fridgeRoot = new THREE.Group();
+scene.add(fridgeRoot);
+
+const heatLight = new THREE.PointLight(0xff8d47, 0.95, 6, 2);
+heatLight.position.set(0, 1.68, 0.5);
+scene.add(heatLight);
+
+const beakerBottomY = 1.2;
+const beakerCenterY = 2.42;
+const beakerHeight = 2.5;
+const beakerRadius = 1.08;
+
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color: 0xf6fbff,
+  transmission: 0.82,
+  transparent: true,
+  opacity: 0.42,
+  roughness: 0.08,
+  metalness: 0.02,
+  thickness: 0.3,
+});
+
+const beakerSide = new THREE.Mesh(
+  new THREE.CylinderGeometry(beakerRadius, beakerRadius * 1.02, beakerHeight, 56, 1, true),
+  glassMat
+);
+beakerSide.position.y = beakerCenterY;
+scene.add(beakerSide);
+
+const beakerBottom = new THREE.Mesh(
+  new THREE.CylinderGeometry(beakerRadius * 0.96, beakerRadius * 0.98, 0.08, 56),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xeef7ff,
+    transmission: 0.72,
+    transparent: true,
+    opacity: 0.58,
+    roughness: 0.1,
+    thickness: 0.2,
+  })
+);
+beakerBottom.position.y = beakerBottomY;
+scene.add(beakerBottom);
+
+const rimGeo = new THREE.TorusGeometry(beakerRadius * 1.01, 0.045, 14, 60);
+const beakerRim = new THREE.Mesh(
+  rimGeo,
+  new THREE.MeshStandardMaterial({ color: 0xdde9f8, metalness: 0.12, roughness: 0.18 })
+);
+beakerRim.rotation.x = Math.PI / 2;
+beakerRim.position.y = beakerBottomY + beakerHeight / 2;
+scene.add(beakerRim);
+
+const supportStand = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.16, 0.2, 0.48, 24),
+  new THREE.MeshStandardMaterial({ color: 0x67778c, roughness: 0.48, metalness: 0.4 })
+);
+supportStand.position.set(0, 0.86, 0.55);
+scene.add(supportStand);
+
+const thermometerGroup = new THREE.Group();
+thermometerGroup.position.set(1.42, 2.35, 0.48);
+scene.add(thermometerGroup);
+
+const thermometerTube = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.06, 0.06, 2.86, 24),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xf7fbff,
+    transmission: 0.94,
+    transparent: true,
+    opacity: 0.5,
+    roughness: 0.03,
+    thickness: 0.2,
+  })
+);
+thermometerTube.position.y = 0.18;
+thermometerGroup.add(thermometerTube);
+
+const thermometerBulb = new THREE.Mesh(
+  new THREE.SphereGeometry(0.12, 24, 24),
+  new THREE.MeshStandardMaterial({ color: 0xff5b5b, roughness: 0.24, metalness: 0.02 })
+);
+thermometerBulb.position.y = -1.18;
+thermometerGroup.add(thermometerBulb);
+
+const mercuryRod = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.024, 0.024, 2.15, 20),
+  new THREE.MeshStandardMaterial({ color: 0xff5b5b, emissive: 0x441111, roughness: 0.18 })
+);
+mercuryRod.position.y = -0.16;
+thermometerGroup.add(mercuryRod);
+
+for (let i = 0; i < 8; i += 1) {
+  const mark = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.012, 0.012),
+    new THREE.MeshStandardMaterial({ color: 0x8897aa, roughness: 0.48 })
+  );
+  mark.position.set(0.09, -1.04 + i * 0.3, 0);
+  thermometerGroup.add(mark);
+}
+
+const lampGroup = new THREE.Group();
+lampGroup.position.set(0, 0.74, 0.5);
+scene.add(lampGroup);
+
+const lampGlass = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.55, 0.64, 0.6, 28),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xffa36a,
+    transmission: 0.65,
+    transparent: true,
+    opacity: 0.76,
+    roughness: 0.18,
+    thickness: 0.28,
+  })
+);
+lampGlass.position.y = 0.28;
+lampGroup.add(lampGlass);
+
+const lampCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.18, 0.18, 0.16, 20),
+  new THREE.MeshStandardMaterial({ color: 0x5e6773, roughness: 0.42, metalness: 0.35 })
+);
+lampCap.position.y = 0.66;
+lampGroup.add(lampCap);
+
+const wick = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.03, 0.03, 0.14, 12),
+  new THREE.MeshStandardMaterial({ color: 0x3b312b, roughness: 0.86 })
+);
+wick.position.y = 0.77;
+lampGroup.add(wick);
+
+function createGlowTexture(innerColor, outerColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(64, 64, 8, 64, 64, 58);
+  gradient.addColorStop(0, innerColor);
+  gradient.addColorStop(0.45, outerColor);
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 128);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const flameTexture = createGlowTexture('rgba(255, 238, 189, 1)', 'rgba(255, 102, 51, 0.7)');
+const steamTexture = createGlowTexture('rgba(255,255,255,0.95)', 'rgba(255,255,255,0.36)');
+
+function fillRoundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, width, height, radius);
+  } else {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+  ctx.fill();
+}
+
+const flameSeeds = Array.from({ length: 20 }, (_, index) => ({
+  radius: 0.05 + Math.random() * 0.12,
+  angle: Math.random() * Math.PI * 2,
+  height: 0.25 + Math.random() * 0.85,
+  phase: Math.random() * Math.PI * 2 + index * 0.35,
+}));
+
+const flamePositions = new Float32Array(flameSeeds.length * 3);
+const flameGeometry = new THREE.BufferGeometry();
+flameGeometry.setAttribute('position', new THREE.BufferAttribute(flamePositions, 3));
+const flameMaterial = new THREE.PointsMaterial({
+  map: flameTexture,
+  color: 0xff6633,
+  size: 0.22,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  alphaTest: 0.02,
+});
+const flamePoints = new THREE.Points(flameGeometry, flameMaterial);
+flamePoints.position.y = 0.76;
+lampGroup.add(flamePoints);
+
+function updateFlame(time) {
+  const intensity = state.running ? 1 : 0.45;
+  flameMaterial.size = 0.18 + intensity * 0.08 + state.heatingRate * 0.008;
+  heatLight.intensity = 0.45 + intensity * 0.72 + state.heatingRate * 0.03;
+  heatLight.color.setHSL(0.07 - state.heatingRate * 0.003, 0.9, 0.57);
+
+  flameSeeds.forEach((seed, index) => {
+    const wobble = 0.02 * Math.sin(time * 5 + seed.phase);
+    const rise = seed.height * (0.5 + intensity * 0.8) + 0.08 * Math.sin(time * 7 + seed.phase);
+    flamePositions[index * 3] = Math.cos(seed.angle + wobble) * seed.radius;
+    flamePositions[index * 3 + 1] = rise;
+    flamePositions[index * 3 + 2] = Math.sin(seed.angle + wobble) * seed.radius * 0.8;
+  });
+  flameGeometry.attributes.position.needsUpdate = true;
+}
+
+function makeLabelSprite(text, fillStyle) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(7, 20, 37, 0.86)';
+  fillRoundRect(ctx, 8, 8, 240, 80, 24);
+  ctx.fillStyle = fillStyle;
+  ctx.font = '700 26px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 48);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.85, 0.68, 1);
+  return sprite;
+}
+
+const fridgeLabel = makeLabelSprite('잠열을 이용한 냉각', '#dff6ff');
+fridgeLabel.position.set(3.25, 3.88, -0.4);
+fridgeRoot.add(fridgeLabel);
+
+const fridgeBody = new THREE.Mesh(
+  new THREE.BoxGeometry(1.2, 1.9, 0.95),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xf2fbff,
+    transmission: 0.2,
+    transparent: true,
+    opacity: 0.9,
+    roughness: 0.25,
+  })
+);
+fridgeBody.position.set(3.2, 2.22, -0.35);
+fridgeRoot.add(fridgeBody);
+
+const compressor = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.28, 0.42, 22),
+  new THREE.MeshStandardMaterial({ color: 0x59697d, roughness: 0.44, metalness: 0.36 })
+);
+compressor.position.set(2.78, 1.4, 0.04);
+fridgeRoot.add(compressor);
+
+const condenserLinePoints = [
+  new THREE.Vector3(3.84, 2.8, 0.12),
+  new THREE.Vector3(4.18, 2.8, 0.12),
+  new THREE.Vector3(4.18, 2.48, 0.12),
+  new THREE.Vector3(3.84, 2.48, 0.12),
+  new THREE.Vector3(3.84, 2.16, 0.12),
+  new THREE.Vector3(4.18, 2.16, 0.12),
+];
+const evaporatorLinePoints = [
+  new THREE.Vector3(3.18, 2.8, -0.74),
+  new THREE.Vector3(2.9, 2.8, -0.74),
+  new THREE.Vector3(2.9, 2.5, -0.74),
+  new THREE.Vector3(3.18, 2.5, -0.74),
+  new THREE.Vector3(3.18, 2.2, -0.74),
+  new THREE.Vector3(2.9, 2.2, -0.74),
+];
+const condenser = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(condenserLinePoints),
+  new THREE.LineBasicMaterial({ color: 0xffb566 })
+);
+fridgeRoot.add(condenser);
+const evaporator = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(evaporatorLinePoints),
+  new THREE.LineBasicMaterial({ color: 0x8fd7ff })
+);
+fridgeRoot.add(evaporator);
+
+const fridgePath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(2.78, 1.6, 0.04),
+  new THREE.Vector3(3.84, 2.96, 0.12),
+  new THREE.Vector3(4.18, 2.16, 0.12),
+  new THREE.Vector3(3.2, 3.1, -0.1),
+  new THREE.Vector3(2.9, 2.2, -0.74),
+  new THREE.Vector3(2.78, 1.6, 0.04),
+], true);
+const fridgePathPoints = fridgePath.getPoints(80);
+const fridgeTube = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(fridgePathPoints),
+  new THREE.LineBasicMaterial({ color: 0xc2f2ff, transparent: true, opacity: 0.5 })
+);
+fridgeRoot.add(fridgeTube);
+
+const fridgeFlowBalls = Array.from({ length: 6 }, (_, index) => {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 16, 16),
+    new THREE.MeshStandardMaterial({ color: index < 3 ? 0x9ae3ff : 0xffd78c, roughness: 0.22 })
+  );
+  fridgeRoot.add(mesh);
+  return { mesh, offset: index / 6 };
+});
+
+fridgeRoot.visible = false;
+
+function updateFridge(time) {
+  fridgeRoot.visible = state.showRefrigerator;
+  dom.fridgeCard.classList.toggle('hidden', !state.showRefrigerator);
+  if (!state.showRefrigerator) return;
+
+  fridgeFlowBalls.forEach((ball, index) => {
+    const t = (time * 0.06 + ball.offset) % 1;
+    const point = fridgePath.getPointAt(t);
+    ball.mesh.position.copy(point);
+    if (t > 0.18 && t < 0.46) {
+      ball.mesh.material.color.setHex(0xffcb7a);
+    } else if (t > 0.58 && t < 0.88) {
+      ball.mesh.material.color.setHex(0x97e3ff);
+    } else {
+      ball.mesh.material.color.setHex(index % 2 === 0 ? 0xb8eaff : 0xffd8a0);
+    }
+  });
+}
+
+const moleculeSeeds = Array.from({ length: PHYSICS.moleculeCount }, (_, index) => ({
+  radius: 0.18 + Math.random() * 0.62,
+  angle: Math.random() * Math.PI * 2,
+  swirl: 0.5 + Math.random() * 0.8,
+  phase: Math.random() * Math.PI * 2 + index * 0.17,
+  height: Math.random(),
+  gasHeight: Math.random(),
+  liquidBias: Math.random() * 2 - 1,
+}));
+
+const moleculeMeshes = moleculeSeeds.map(() => {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0xcbeeff, roughness: 0.1, metalness: 0.02 })
+  );
+  moleculeRoot.add(mesh);
+  return mesh;
+});
+
+function solidPosition(index, time, amplitude) {
+  const cols = 4;
+  const rows = 4;
+  const layers = 4;
+  const xIndex = index % cols;
+  const zIndex = Math.floor(index / cols) % rows;
+  const yIndex = Math.floor(index / (cols * rows)) % layers;
+  const seed = moleculeSeeds[index];
+  const x = -0.48 + xIndex * 0.32 + Math.sin(time * 3.4 + seed.phase) * amplitude;
+  const y = 1.42 + yIndex * 0.22 + Math.cos(time * 3.9 + seed.phase) * amplitude;
+  const z = -0.48 + zIndex * 0.32 + Math.sin(time * 3.1 + seed.phase * 1.2) * amplitude;
+  return new THREE.Vector3(x, y, z);
+}
+
+function liquidPosition(index, time, waterTop, speedFactor) {
+  const seed = moleculeSeeds[index];
+  const radius = Math.min(0.78, seed.radius * 0.9);
+  const angle = seed.angle + time * (0.45 + speedFactor * 0.08) * seed.swirl;
+  const x = Math.cos(angle) * radius * 0.72;
+  const z = Math.sin(angle) * radius * 0.72;
+  const yBase = 1.34 + seed.height * Math.max(0.16, waterTop - 1.34);
+  const y = yBase + Math.sin(time * 2.5 + seed.phase) * 0.08;
+  return new THREE.Vector3(x, y, z);
+}
+
+function gasPosition(index, time, speedFactor) {
+  const seed = moleculeSeeds[index];
+  const angle = seed.angle + time * (0.8 + speedFactor * 0.12) * seed.swirl;
+  const x = Math.cos(angle) * (0.65 + seed.radius * 0.9);
+  const z = Math.sin(angle * 1.1) * (0.35 + seed.radius * 0.65);
+  const y = 2.4 + seed.gasHeight * 2.1 + 0.2 * Math.sin(time * 2 + seed.phase);
+  return new THREE.Vector3(x, y, z);
+}
+
+function updateMolecules(info, time) {
+  moleculeRoot.visible = state.showParticles;
+  if (!state.showParticles) return;
+
+  const waterTop = getWaterTop(info);
+  const solidAmp = 0.015 + Math.max(0, info.temperature + 20) / 20 * 0.03;
+  const liquidSpeed = Math.max(0, info.temperature) / 20 + 1;
+  const gasSpeed = Math.max(0, info.temperature - 80) / 10 + 1.2;
+
+  moleculeMeshes.forEach((mesh, index) => {
+    const solidPos = solidPosition(index, time, solidAmp);
+    const liquidPos = liquidPosition(index, time, waterTop, liquidSpeed);
+    const gasPos = gasPosition(index, time, gasSpeed);
+    const seed = moleculeSeeds[index];
+
+    let target = solidPos;
+    let color = new THREE.Color(0xd6f2ff);
+
+    if (info.stage === 'A') {
+      target = solidPos;
+      color.setHex(0xc8ebff);
+    } else if (info.stage === 'B') {
+      const blend = info.stageProgress;
+      target = solidPos.lerp(liquidPos, blend);
+      color.lerpColors(new THREE.Color(0xc8ebff), new THREE.Color(0x67c4ff), blend);
+    } else if (info.stage === 'C') {
+      target = liquidPos;
+      color.setHex(0x5bb7ff);
+    } else if (info.stage === 'D') {
+      const threshold = info.steamFraction;
+      if (index / moleculeMeshes.length < threshold) {
+        target = gasPos;
+        color.setHex(0xf3fbff);
+      } else {
+        target = liquidPos;
+        color.setHex(0x78c9ff);
+      }
+    } else {
+      target = gasPos;
+      color.setHex(0xf8fcff);
+    }
+
+    mesh.position.copy(target);
+    mesh.scale.setScalar(info.stage === 'E' ? 0.78 : 1);
+    mesh.material.color.copy(color);
+    mesh.material.emissive.setHex(info.stage === 'E' ? 0x23353f : 0x112233);
+  });
+}
+
+let activePhaseGroup = null;
+let phaseVisuals = {};
+
+function disposeGroup(group) {
+  if (!group) return;
+  group.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+}
+
+function createIceGroup() {
+  const group = new THREE.Group();
+  const cubes = [];
+  const geo = new THREE.BoxGeometry(0.34, 0.26, 0.3);
+  for (let layer = 0; layer < 2; layer += 1) {
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 3; col += 1) {
+        const mesh = new THREE.Mesh(
+          geo,
+          new THREE.MeshPhysicalMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.82,
+            transmission: 0.36,
+            roughness: 0.14,
+            thickness: 0.3,
+          })
+        );
+        mesh.position.set(-0.45 + col * 0.34, 1.38 + layer * 0.24, -0.33 + row * 0.32);
+        mesh.rotation.set(Math.random() * 0.15, Math.random() * 0.25, Math.random() * 0.14);
+        group.add(mesh);
+        cubes.push({
+          mesh,
+          basePosition: mesh.position.clone(),
+          phase: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+  }
+  return { group, cubes };
+}
+
+function createWaterMesh() {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 0.94, 1, 48),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x4488cc,
+      transparent: true,
+      opacity: 0.78,
+      transmission: 0.18,
+      roughness: 0.18,
+      metalness: 0.02,
+      thickness: 0.26,
+    })
+  );
+  return mesh;
+}
+
+function createBubbleSystem() {
+  const group = new THREE.Group();
+  const bubbles = Array.from({ length: PHYSICS.maxBubbleParticles }, () => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 16, 16),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xf2fbff,
+        transparent: true,
+        opacity: 0.4,
+        transmission: 0.78,
+        roughness: 0.08,
+      })
+    );
+    group.add(mesh);
+    return {
+      mesh,
+      phase: Math.random(),
+      xBias: (Math.random() * 2 - 1) * 0.6,
+      zBias: (Math.random() * 2 - 1) * 0.45,
+      speed: 0.22 + Math.random() * 0.45,
+      scale: 0.6 + Math.random() * 0.8,
+    };
+  });
+  return { group, bubbles };
+}
+
+function createSteamSystem() {
+  const positions = new Float32Array(PHYSICS.maxSteamParticles * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    map: steamTexture,
+    color: 0xffffff,
+    size: 0.22,
+    transparent: true,
+    depthWrite: false,
+    alphaTest: 0.02,
+    opacity: 0.88,
+  });
+  const points = new THREE.Points(geometry, material);
+  const seeds = Array.from({ length: PHYSICS.maxSteamParticles }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    radius: 0.15 + Math.random() * 0.8,
+    rise: Math.random(),
+    phase: Math.random() * Math.PI * 2,
+    drift: Math.random() * 2 - 1,
+  }));
+  return { points, geometry, positions, seeds };
+}
+
+function rebuildPhase(stage) {
+  if (activePhaseGroup) {
+    phaseRoot.remove(activePhaseGroup);
+    disposeGroup(activePhaseGroup);
+  }
+
+  activePhaseGroup = new THREE.Group();
+  phaseVisuals = {};
+
+  if (stage === 'A') {
+    const ice = createIceGroup();
+    phaseVisuals.ice = ice;
+    activePhaseGroup.add(ice.group);
+  } else if (stage === 'B') {
+    const ice = createIceGroup();
+    const water = createWaterMesh();
+    phaseVisuals.ice = ice;
+    phaseVisuals.water = water;
+    activePhaseGroup.add(water);
+    activePhaseGroup.add(ice.group);
+  } else if (stage === 'C') {
+    const water = createWaterMesh();
+    phaseVisuals.water = water;
+    activePhaseGroup.add(water);
+  } else if (stage === 'D') {
+    const water = createWaterMesh();
+    const bubbles = createBubbleSystem();
+    const steam = createSteamSystem();
+    phaseVisuals.water = water;
+    phaseVisuals.bubbles = bubbles;
+    phaseVisuals.steam = steam;
+    activePhaseGroup.add(water);
+    activePhaseGroup.add(bubbles.group);
+    activePhaseGroup.add(steam.points);
+  } else {
+    const steam = createSteamSystem();
+    phaseVisuals.steam = steam;
+    activePhaseGroup.add(steam.points);
+  }
+
+  phaseRoot.add(activePhaseGroup);
+  currentPhaseKey = stage;
+}
+
+function getSegments(mass) {
+  const A = PHYSICS.cIce * mass * (PHYSICS.tempMelt - PHYSICS.tempStart);
+  const B = PHYSICS.latentFusion * mass;
+  const C = PHYSICS.cWater * mass * (PHYSICS.tempBoil - PHYSICS.tempMelt);
+  const D = PHYSICS.latentVapor * mass;
+  const E = PHYSICS.cSteam * mass * (PHYSICS.tempEnd - PHYSICS.tempBoil);
+  return {
+    A,
+    B,
+    C,
+    D,
+    E,
+    total: A + B + C + D + E,
+  };
+}
+
+function resolveState(mass, suppliedHeat) {
+  const segments = getSegments(mass);
+  const heat = THREE.MathUtils.clamp(suppliedHeat, 0, segments.total);
+  const stageHeatA = segments.A;
+  const stageHeatB = stageHeatA + segments.B;
+  const stageHeatC = stageHeatB + segments.C;
+  const stageHeatD = stageHeatC + segments.D;
+
+  let stage = 'A';
+  let temperature = PHYSICS.tempStart;
+  let stageProgress = 0;
+  let heatWithinStage = 0;
+  let stageMax = segments.A;
+  let iceFraction = 1;
+  let waterFraction = 0;
+  let steamFraction = 0;
+
+  if (heat <= stageHeatA) {
+    stage = 'A';
+    temperature = PHYSICS.tempStart + heat / (PHYSICS.cIce * mass);
+    stageProgress = segments.A > 0 ? heat / segments.A : 0;
+    heatWithinStage = heat;
+    stageMax = segments.A;
+    iceFraction = 1;
+  } else if (heat <= stageHeatB) {
+    stage = 'B';
+    heatWithinStage = heat - stageHeatA;
+    stageMax = segments.B;
+    stageProgress = segments.B > 0 ? heatWithinStage / segments.B : 0;
+    temperature = PHYSICS.tempMelt;
+    iceFraction = 1 - stageProgress;
+    waterFraction = stageProgress;
+  } else if (heat <= stageHeatC) {
+    stage = 'C';
+    heatWithinStage = heat - stageHeatB;
+    stageMax = segments.C;
+    stageProgress = segments.C > 0 ? heatWithinStage / segments.C : 0;
+    temperature = PHYSICS.tempMelt + heatWithinStage / (PHYSICS.cWater * mass);
+    waterFraction = 1;
+  } else if (heat <= stageHeatD) {
+    stage = 'D';
+    heatWithinStage = heat - stageHeatC;
+    stageMax = segments.D;
+    stageProgress = segments.D > 0 ? heatWithinStage / segments.D : 0;
+    temperature = PHYSICS.tempBoil;
+    waterFraction = 1 - stageProgress;
+    steamFraction = stageProgress;
+  } else {
+    stage = 'E';
+    heatWithinStage = heat - stageHeatD;
+    stageMax = segments.E;
+    stageProgress = segments.E > 0 ? heatWithinStage / segments.E : 1;
+    temperature = PHYSICS.tempBoil + heatWithinStage / (PHYSICS.cSteam * mass);
+    steamFraction = 1;
+  }
+
+  return {
+    stage,
+    temperature,
+    stageProgress: THREE.MathUtils.clamp(stageProgress, 0, 1),
+    heat,
+    heatWithinStage,
+    stageMax,
+    iceFraction,
+    waterFraction,
+    steamFraction,
+    segments,
+  };
+}
+
+function getWaterTop(info) {
+  if (info.stage === 'A') return 1.34;
+  if (info.stage === 'B') {
+    return 1.28 + info.waterFraction * 1.45;
+  }
+  if (info.stage === 'C') {
+    return 2.72;
+  }
+  if (info.stage === 'D') {
+    return 1.32 + Math.max(0.04, info.waterFraction) * 1.4;
+  }
+  return 1.28;
+}
+
+function updatePhaseVisuals(info, time) {
+  if (phaseVisuals.ice) {
+    const opacity = THREE.MathUtils.clamp(0.2 + info.iceFraction * 0.75, 0.2, 0.86);
+    phaseVisuals.ice.group.visible = info.iceFraction > 0.02;
+    phaseVisuals.ice.group.scale.setScalar(0.58 + info.iceFraction * 0.42);
+    phaseVisuals.ice.cubes.forEach((cube, index) => {
+      cube.mesh.position.copy(cube.basePosition);
+      cube.mesh.position.y += Math.sin(time * 3.2 + cube.phase) * 0.015 * (0.4 + info.iceFraction);
+      cube.mesh.position.x += Math.cos(time * 2.8 + cube.phase + index * 0.1) * 0.008;
+      cube.mesh.material.opacity = opacity;
+      cube.mesh.material.color.setHSL(0.55, 0.75, 0.78 - info.stageProgress * 0.06);
+    });
+  }
+
+  if (phaseVisuals.water) {
+    const waterTop = getWaterTop(info);
+    const height = Math.max(0.08, waterTop - beakerBottomY);
+    phaseVisuals.water.scale.set(1, height, 1);
+    phaseVisuals.water.position.y = beakerBottomY + height / 2;
+    phaseVisuals.water.material.color.setHSL(
+      THREE.MathUtils.clamp(0.58 - info.temperature * 0.0007, 0.52, 0.6),
+      0.56,
+      0.5 + info.stageProgress * 0.04
+    );
+    phaseVisuals.water.material.opacity = info.stage === 'D'
+      ? 0.42 + info.waterFraction * 0.34
+      : 0.76;
+  }
+
+  if (phaseVisuals.bubbles) {
+    const waterTop = getWaterTop(info);
+    const activeCount = Math.round(4 + info.stageProgress * (PHYSICS.maxBubbleParticles - 4));
+    phaseVisuals.bubbles.bubbles.forEach((bubble, index) => {
+      const visible = index < activeCount && state.running;
+      bubble.mesh.visible = visible;
+      if (!visible) return;
+      const travel = (time * bubble.speed + bubble.phase) % 1;
+      bubble.mesh.position.set(
+        bubble.xBias + Math.sin(time * 2.8 + bubble.phase) * 0.04,
+        beakerBottomY + 0.08 + travel * Math.max(0.3, waterTop - beakerBottomY - 0.18),
+        bubble.zBias + Math.cos(time * 2.4 + bubble.phase) * 0.04
+      );
+      bubble.mesh.scale.setScalar((0.5 + travel * 0.9) * bubble.scale);
+    });
+  }
+
+  if (phaseVisuals.steam) {
+    const steamIntensity = info.stage === 'D'
+      ? 0.2 + info.steamFraction * 0.8
+      : 0.68 + info.stageProgress * 0.32;
+    phaseVisuals.steam.points.material.size = 0.18 + steamIntensity * 0.14;
+    phaseVisuals.steam.seeds.forEach((seed, index) => {
+      const enabled = index < Math.floor(PHYSICS.maxSteamParticles * steamIntensity);
+      if (!enabled) {
+        phaseVisuals.steam.positions[index * 3] = 0;
+        phaseVisuals.steam.positions[index * 3 + 1] = -999;
+        phaseVisuals.steam.positions[index * 3 + 2] = 0;
+        return;
+      }
+      const rise = (time * (0.32 + state.heatingRate * 0.02) + seed.rise) % 1;
+      const spiral = seed.angle + time * 0.4 + seed.phase;
+      phaseVisuals.steam.positions[index * 3] = Math.cos(spiral) * seed.radius * (0.2 + rise);
+      phaseVisuals.steam.positions[index * 3 + 1] = 2.68 + rise * 2.4 + Math.sin(time * 2.2 + seed.phase) * 0.08;
+      phaseVisuals.steam.positions[index * 3 + 2] = Math.sin(spiral) * seed.radius * 0.6 + seed.drift * rise * 0.12;
+    });
+    phaseVisuals.steam.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+function formatKJ(valueInJoules) {
+  return `${(valueInJoules / 1000).toFixed(1)} kJ`;
+}
+
+function formatMass(value) {
+  return `${value.toFixed(2)} kg`;
+}
+
+function updateStatus(info) {
+  const meta = STAGE_META[info.stage];
+  dom.statusTitle.textContent = `${meta.label} · ${info.temperature.toFixed(1)}°C`;
+  dom.statusBody.textContent = `${meta.description} 현재 공급 열량은 ${formatKJ(info.heat)}이며, ${meta.equation}가 적용됩니다.`;
+
+  dom.massValue.textContent = formatMass(state.mass);
+  dom.tempValue.textContent = `${info.temperature.toFixed(1)} °C`;
+  dom.stageValue.textContent = `${info.stage} (${meta.short})`;
+  dom.heatValue.textContent = formatKJ(info.heat);
+  dom.equationValue.textContent = meta.equation;
+
+  const breakdownLines = [
+    `A: ${formatKJ(info.segments.A)}`,
+    `B: ${formatKJ(info.segments.B)}`,
+    `C: ${formatKJ(info.segments.C)}`,
+    `D: ${formatKJ(info.segments.D)}`,
+    `E: ${formatKJ(info.segments.E)}`,
+    `총열량: ${formatKJ(info.segments.total)}`,
+  ];
+  dom.heatBreakdown.textContent = breakdownLines.join(' · ');
+  dom.graphSummary.textContent = meta.graphNote;
+
+  guiState.currentStage = meta.label;
+  if (stageController) {
+    stageController.updateDisplay();
+  }
+
+  dom.segmentCards.forEach((card) => {
+    card.classList.toggle('active', card.dataset.stage === info.stage);
+  });
+
+  const segmentHeat = {
+    A: info.segments.A,
+    B: info.segments.B,
+    C: info.segments.C,
+    D: info.segments.D,
+    E: info.segments.E,
+  };
+  Object.entries(segmentHeat).forEach(([key, value]) => {
+    const el = segmentValueMap.get(key);
+    if (el) {
+      el.textContent = `구간 열량 ${formatKJ(value)}`;
+    }
+  });
+}
+
+function drawGraph(info) {
+  const canvas = dom.graphCanvas;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(10, Math.round(canvas.clientWidth * dpr));
+  const height = Math.max(10, Math.round(canvas.clientHeight * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, width, height);
+
+  const padding = {
+    left: 72 * dpr,
+    right: 34 * dpr,
+    top: 130 * dpr,
+    bottom: 110 * dpr,
+  };
+
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  if (plotWidth <= 0 || plotHeight <= 0) return;
+
+  const totalKJ = info.segments.total / 1000;
+  const stageCumulative = [
+    0,
+    info.segments.A / 1000,
+    (info.segments.A + info.segments.B) / 1000,
+    (info.segments.A + info.segments.B + info.segments.C) / 1000,
+    (info.segments.A + info.segments.B + info.segments.C + info.segments.D) / 1000,
+    totalKJ,
+  ];
+
+  const xFor = (kJ) => padding.left + (kJ / totalKJ) * plotWidth;
+  const yFor = (temp) => padding.top + ((PHYSICS.tempEnd - temp) / (PHYSICS.tempEnd - PHYSICS.tempStart)) * plotHeight;
+
+  const segmentColors = {
+    A: 'rgba(170, 221, 255, 0.18)',
+    B: 'rgba(124, 212, 255, 0.18)',
+    C: 'rgba(68, 136, 204, 0.18)',
+    D: 'rgba(255, 214, 107, 0.16)',
+    E: 'rgba(255, 181, 181, 0.14)',
+  };
+
+  const regionKeys = ['A', 'B', 'C', 'D', 'E'];
+  regionKeys.forEach((key, index) => {
+    const x0 = xFor(stageCumulative[index]);
+    const x1 = xFor(stageCumulative[index + 1]);
+    ctx.fillStyle = segmentColors[key];
+    ctx.fillRect(x0, padding.top, x1 - x0, plotHeight);
+  });
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 7; i += 1) {
+    const y = padding.top + (plotHeight / 7) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+  }
+
+  const yTicks = [-20, 0, 20, 40, 60, 80, 100, 120];
+  ctx.font = `${11 * dpr}px Pretendard`;
+  ctx.fillStyle = 'rgba(239, 246, 255, 0.72)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  yTicks.forEach((tick) => {
+    const y = yFor(tick);
+    ctx.fillText(`${tick}°C`, padding.left - 10 * dpr, y);
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  stageCumulative.forEach((tickKJ, index) => {
+    const x = xFor(tickKJ);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.moveTo(x, padding.top + plotHeight);
+    ctx.lineTo(x, padding.top + plotHeight + 8 * dpr);
+    ctx.stroke();
+    if (index < stageCumulative.length - 1) {
+      ctx.fillText(`${tickKJ.toFixed(0)}`, x, padding.top + plotHeight + 14 * dpr);
+    } else {
+      ctx.fillText(`${tickKJ.toFixed(0)} kJ`, x - 6 * dpr, padding.top + plotHeight + 14 * dpr);
+    }
+  });
+
+  ctx.strokeStyle = 'rgba(239, 246, 255, 0.9)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(xFor(0), yFor(-20));
+  ctx.lineTo(xFor(stageCumulative[1]), yFor(0));
+  ctx.lineTo(xFor(stageCumulative[2]), yFor(0));
+  ctx.lineTo(xFor(stageCumulative[3]), yFor(100));
+  ctx.lineTo(xFor(stageCumulative[4]), yFor(100));
+  ctx.lineTo(xFor(stageCumulative[5]), yFor(120));
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 1.4 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + plotHeight);
+  ctx.lineTo(padding.left + plotWidth, padding.top + plotHeight);
+  ctx.stroke();
+
+  const segmentCenters = [
+    (stageCumulative[0] + stageCumulative[1]) / 2,
+    (stageCumulative[1] + stageCumulative[2]) / 2,
+    (stageCumulative[2] + stageCumulative[3]) / 2,
+    (stageCumulative[3] + stageCumulative[4]) / 2,
+    (stageCumulative[4] + stageCumulative[5]) / 2,
+  ];
+  const segmentY = [ -10, 4, 52, 104, 110 ];
+
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${12 * dpr}px Pretendard`;
+  regionKeys.forEach((key, index) => {
+    const x = xFor(segmentCenters[index]);
+    const y = yFor(segmentY[index]);
+    ctx.fillStyle = 'rgba(9, 18, 33, 0.86)';
+    fillRoundRect(ctx, x - 18 * dpr, y - 13 * dpr, 36 * dpr, 26 * dpr, 13 * dpr);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(key, x, y + 1 * dpr);
+
+    if (state.showHeatCalc) {
+      const value = info.segments[key] / 1000;
+      ctx.font = `${10 * dpr}px Pretendard`;
+      ctx.fillStyle = 'rgba(239, 246, 255, 0.72)';
+      ctx.fillText(`${value.toFixed(0)} kJ`, x, y + 24 * dpr);
+      ctx.font = `700 ${12 * dpr}px Pretendard`;
+      ctx.fillStyle = '#ffffff';
+    }
+  });
+
+  const currentX = xFor(info.heat / 1000);
+  const currentY = yFor(info.temperature);
+  ctx.fillStyle = '#ff5f57';
+  ctx.beginPath();
+  ctx.arc(currentX, currentY, 6.5 * dpr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
+
+  ctx.font = `${12 * dpr}px Pretendard`;
+  ctx.fillStyle = 'rgba(239, 246, 255, 0.84)';
+  ctx.textAlign = 'center';
+  ctx.fillText('공급한 열량 Q (kJ)', padding.left + plotWidth / 2, height - 36 * dpr);
+
+  ctx.save();
+  ctx.translate(22 * dpr, padding.top + plotHeight / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('온도 T (°C)', 0, 0);
+  ctx.restore();
+}
+
+function refresh(forceRebuild = false) {
+  currentGraphInfo = resolveState(state.mass, state.suppliedHeat);
+  if (forceRebuild || currentPhaseKey !== currentGraphInfo.stage) {
+    rebuildPhase(currentGraphInfo.stage);
+  }
+  updateStatus(currentGraphInfo);
+  drawGraph(currentGraphInfo);
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  const open = dom.guidePanel.classList.toggle('open');
+  dom.guideToggle.textContent = open ? '학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+document.body.classList.toggle('hide-heat-calc', !state.showHeatCalc);
+
+const gui = new GUI({
+  container: dom.guiMount,
+  title: '가열 실험 제어',
+  width: 276,
+});
+
+gui.add(state, 'mass', 0.1, 2, 0.1).name('질량 m').onChange(() => {
+  state.suppliedHeat = Math.min(state.suppliedHeat, getSegments(state.mass).total);
+  refresh(true);
+  syncGui();
+});
+
+gui.add(state, 'heatingRate', 1, 10, 1).name('가열 속도').onChange(() => {
+  syncGui();
+});
+
+gui.add(state, 'startHeating').name('가열 시작');
+let stageController = gui.add(guiState, 'currentStage').name('현재 구간');
+stageController.domElement.style.pointerEvents = 'none';
+gui.add(state, 'showParticles').name('입자 모형').onChange(() => {
+  refresh();
+  syncGui();
+});
+gui.add(state, 'showRefrigerator').name('냉장고 원리').onChange(() => {
+  refresh();
+  syncGui();
+});
+gui.add(state, 'showHeatCalc').name('열량 계산 표시').onChange(() => {
+  document.body.classList.toggle('hide-heat-calc', !state.showHeatCalc);
+  drawGraph(currentGraphInfo);
+  syncGui();
+});
+gui.add(state, 'reset').name('초기화');
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function resize() {
+  const sceneRect = dom.sceneCanvas.getBoundingClientRect();
+  camera.aspect = sceneRect.width / sceneRect.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(sceneRect.width, sceneRect.height, false);
+  drawGraph(currentGraphInfo);
+}
+
+window.addEventListener('resize', resize);
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.04, clock.getDelta());
+  const time = clock.getElapsedTime();
+
+  if (state.running) {
+    const segments = getSegments(state.mass);
+    const gain = PHYSICS.baseHeatingRate * state.heatingRate * dt;
+    state.suppliedHeat = Math.min(segments.total, state.suppliedHeat + gain);
+    if (state.suppliedHeat >= segments.total - 1) {
+      state.running = false;
+    }
+  }
+
+  currentPhase = resolveState(state.mass, state.suppliedHeat);
+  if (currentPhaseKey !== currentPhase.stage) {
+    rebuildPhase(currentPhase.stage);
+    guiState.currentStage = STAGE_META[currentPhase.stage].label;
+    syncGui();
+  }
+
+  updateFlame(time);
+  updateFridge(time);
+  updatePhaseVisuals(currentPhase, time);
+  updateMolecules(currentPhase, time);
+  updateStatus(currentPhase);
+  drawGraph(currentPhase);
+
+  const mercuryHeight = THREE.MathUtils.mapLinear(
+    currentPhase.temperature,
+    PHYSICS.tempStart,
+    PHYSICS.tempEnd,
+    0.1,
+    2.05
+  );
+  mercuryRod.scale.y = mercuryHeight / 2.15;
+  mercuryRod.position.y = -1.12 + mercuryHeight / 2;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+refresh(true);
+resize();
+syncGui();
+animate();
+</script>
+</body>
+</html>

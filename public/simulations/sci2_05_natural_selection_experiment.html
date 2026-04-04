@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자연선택 모의실험 (초콜릿 실험) — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --cream: #f5f0e0;
+    --glass: rgba(22, 28, 39, 0.78);
+    --glass-soft: rgba(255, 255, 255, 0.08);
+    --stroke: rgba(255, 255, 255, 0.12);
+    --text-main: #fffdf7;
+    --text-dim: rgba(255, 250, 240, 0.72);
+    --shadow: rgba(22, 17, 8, 0.22);
+    --paper: #eedd66;
+    --red: #ff3333;
+    --yellow: #ffdd33;
+    --green: #33aa33;
+    --blue: #3366ff;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.55), transparent 24%),
+      radial-gradient(circle at 84% 16%, rgba(255, 217, 122, 0.18), transparent 20%),
+      linear-gradient(180deg, #fff7df 0%, #f5f0e0 54%, #efe7d0 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas { display: block; }
+
+  #app {
+    position: fixed;
+    inset: 0;
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--stroke);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 48px var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(82, 63, 18, 0.68);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #473108;
+    text-shadow: 0 2px 14px rgba(255, 255, 255, 0.65);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(71, 49, 8, 0.78);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 42;
+    border: 1px solid rgba(90, 73, 28, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 249, 230, 0.92);
+    color: #4c3b10;
+    padding: 10px 14px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 26px rgba(127, 95, 20, 0.12);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 16px;
+    z-index: 41;
+    width: min(390px, calc(100vw - 32px));
+    max-height: min(68vh, 620px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #guide-panel.visible { display: block; }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #ffe7a6;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel .section + .section {
+    margin-top: 14px;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+    color: var(--text-dim);
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  #round-banner {
+    position: fixed;
+    top: 94px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 26;
+    min-width: 290px;
+    max-width: calc(100vw - 32px);
+    padding: 12px 18px;
+    border-radius: 999px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #round-banner .round-main {
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff0b8;
+  }
+
+  #round-banner .round-sub {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #mutation-toast {
+    position: fixed;
+    left: 50%;
+    top: 152px;
+    transform: translate(-50%, -12px);
+    z-index: 40;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(28, 76, 36, 0.92);
+    border: 1px solid rgba(185, 255, 190, 0.24);
+    box-shadow: 0 14px 32px rgba(17, 38, 13, 0.24);
+    font-size: 13px;
+    font-weight: 800;
+    color: #f4fff3;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease, transform 0.24s ease;
+  }
+
+  #mutation-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  #right-panel {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 24;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .panel-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .panel-title h2 {
+    font-size: 18px;
+    color: #fff0b8;
+  }
+
+  .panel-title p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #round-chip {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: #ffe9a5;
+  }
+
+  #bars {
+    display: grid;
+    gap: 12px;
+  }
+
+  .bar-row {
+    display: grid;
+    gap: 6px;
+  }
+
+  .bar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .bar-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 700;
+  }
+
+  .bar-meta {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .bar-track {
+    position: relative;
+    height: 16px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 999px;
+    box-shadow: inset 0 -2px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  #history-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  #history-panel h3 {
+    font-size: 14px;
+    color: #fff0b8;
+    margin-bottom: 6px;
+  }
+
+  #history-panel p {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  #history-bars {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+    align-items: end;
+    min-height: 150px;
+  }
+
+  .history-col {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+  }
+
+  .history-stack {
+    width: 100%;
+    max-width: 34px;
+    height: 108px;
+    display: flex;
+    flex-direction: column-reverse;
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .history-seg {
+    width: 100%;
+    min-height: 2px;
+  }
+
+  .history-label {
+    font-size: 11px;
+    color: rgba(255, 252, 242, 0.9);
+  }
+
+  .history-total {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .history-badge {
+    font-size: 10px;
+    color: #c8ffb3;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 22;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #fff0b8;
+    margin-bottom: 12px;
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+
+  .info-row .label {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(255, 248, 225, 0.66);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 253, 244, 0.98);
+  }
+
+  .formula-block {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: #fff0b8;
+  }
+
+  #footer-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(760px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 22px;
+  }
+
+  #footer-strip h3 {
+    font-size: 14px;
+    color: #fff0b8;
+    margin-bottom: 10px;
+  }
+
+  #analogy-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .analogy-card {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    min-height: 88px;
+  }
+
+  .analogy-card .tag {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: #ffe9a5;
+  }
+
+  .analogy-card p {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #visibility-legend {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 18;
+    padding: 10px 12px;
+    border-radius: 18px;
+    font-size: 11px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  #visibility-legend strong {
+    color: #fff0b8;
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 5px;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gui-note {
+    position: fixed;
+    top: 16px;
+    right: 198px;
+    z-index: 21;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(255, 252, 238, 0.9);
+    color: #725514;
+    border: 1px solid rgba(120, 95, 35, 0.12);
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(110, 86, 26, 0.1);
+  }
+
+  @media (max-width: 1180px) {
+    #right-panel {
+      width: min(330px, calc(100vw - 24px));
+    }
+
+    #footer-strip {
+      width: min(680px, calc(100vw - 24px));
+    }
+
+    #analogy-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #title-card {
+      top: 70px;
+    }
+
+    #round-banner {
+      top: 142px;
+    }
+
+    #mutation-toast {
+      top: 206px;
+    }
+
+    #right-panel {
+      top: auto;
+      bottom: 148px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+      max-height: 34vh;
+      overflow-y: auto;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: auto;
+      max-width: none;
+    }
+
+    #footer-strip {
+      display: none;
+    }
+
+    #visibility-legend {
+      display: none;
+    }
+
+    .gui-note {
+      top: 56px;
+      right: 12px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+      padding: 9px 12px;
+    }
+
+    #title-card {
+      top: 62px;
+      width: calc(100vw - 24px);
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #right-panel,
+    #formula-panel,
+    #guide-panel {
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    #history-bars {
+      gap: 6px;
+    }
+
+    #history-stack {
+      max-width: 28px;
+      height: 92px;
+    }
+
+    .info-row .label {
+      width: 88px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene-canvas"></canvas>
+
+    <div id="title-card">
+      <div class="eyebrow">통합과학2 · 변화와 다양성 · 생물의 진화</div>
+      <h1>자연선택 모의실험 (초콜릿 실험)</h1>
+      <p>배경에 잘 어울리는 색은 덜 선택되고, 살아남은 개체는 같은 형질을 남깁니다.</p>
+    </div>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드</button>
+    <div id="guide-panel" class="glass">
+      <div class="section">
+        <h3>핵심 원리</h3>
+        <p>노란색 도화지 위에서는 노란색 초콜릿이 눈에 잘 띄지 않아 덜 집히고, 빨간색·초록색·파란색 초콜릿은 상대적으로 눈에 더 잘 띄어 더 많이 제거됩니다. 이는 환경에 잘 어울리는 형질을 가진 개체가 생존과 번식에 유리해지는 자연선택과 같습니다.</p>
+      </div>
+      <div class="section">
+        <h3>탐구 질문</h3>
+        <ul>
+          <li>노란색 도화지 위에서 초콜릿 색 비율은 라운드가 지날수록 어떻게 변하나요?</li>
+          <li>이 결과를 변이의 발생과 자연선택 과정으로 설명하면 무엇이라고 말할 수 있을까요?</li>
+          <li>도화지 색을 초록색으로 바꾼다면 어떤 색 초콜릿이 더 많이 살아남을까요?</li>
+        </ul>
+      </div>
+      <div class="section">
+        <h3>실생활 예시</h3>
+        <ul>
+          <li>항생제에 강한 세균이 살아남아 내성균 비율이 높아질 수 있습니다.</li>
+          <li>산업혁명 이후 검은 그을음이 많아진 지역에서는 어두운 나방이 더 잘 살아남았습니다.</li>
+        </ul>
+      </div>
+      <div class="section">
+        <h3>교과서 연계</h3>
+        <p>미래엔 통합과학2 I편 p22~23 — 탐구: 자연선택 과정에 대한 모의실험</p>
+      </div>
+    </div>
+
+    <div id="round-banner" class="glass">
+      <div class="round-main" id="round-main">라운드 0 / 6</div>
+      <div class="round-sub" id="round-sub">노란색 도화지 위에 4가지 색 초콜릿을 각 10개씩 섞어 놓았습니다.</div>
+    </div>
+
+    <div id="mutation-toast">🧬 돌연변이 발생! 초록색 3개 → 노란색 3개</div>
+
+    <div id="right-panel" class="glass">
+      <div class="panel-title">
+        <div>
+          <h2>색상별 개체수 막대그래프</h2>
+          <p>현재 개체수와 비율, 그리고 라운드별 구성 변화를 함께 확인합니다.</p>
+        </div>
+        <div id="round-chip">R0 준비</div>
+      </div>
+      <div id="bars"></div>
+      <div id="history-panel">
+        <h3>라운드별 구성 변화</h3>
+        <p>노란색 초콜릿이 배경과 비슷해 생존에 유리한지 살펴보세요.</p>
+        <div id="history-bars"></div>
+      </div>
+    </div>
+
+    <div id="formula-panel" class="glass">
+      <h2>🍫 자연선택 모의실험</h2>
+      <div class="info-row"><span class="label">현재 라운드</span><span class="value" id="info-round">0 / 6</span></div>
+      <div class="info-row"><span class="label">총 초콜릿</span><span class="value" id="info-total">40개</span></div>
+      <div class="info-row"><span class="label">이번 단계</span><span class="value" id="info-phase">초기 배치</span></div>
+      <div class="formula-block" id="count-breakdown"></div>
+      <div class="formula-block">
+        <strong>비유</strong><br>
+        초콜릿 색깔 = 생물의 형질(변이)<br>
+        눈에 띄어 집힘 = 포식(자연선택)<br>
+        같은 색 추가 = 번식<br>
+        색깔 변경 = 돌연변이
+      </div>
+    </div>
+
+    <div id="footer-strip" class="glass">
+      <h3>비유 설명</h3>
+      <div id="analogy-grid">
+        <div class="analogy-card">
+          <span class="tag">변이</span>
+          <p>초콜릿 색깔이 여러 종류인 것처럼, 생물 집단 안에도 서로 다른 형질이 존재합니다.</p>
+        </div>
+        <div class="analogy-card">
+          <span class="tag">자연선택</span>
+          <p>눈에 먼저 띄는 초콜릿을 집는 과정은 포식자가 잘 보이는 개체를 더 쉽게 잡는 상황과 비슷합니다.</p>
+        </div>
+        <div class="analogy-card">
+          <span class="tag">번식</span>
+          <p>살아남은 색 초콜릿만 같은 수만큼 다시 추가되므로, 생존한 형질이 다음 세대에 더 많이 이어집니다.</p>
+        </div>
+        <div class="analogy-card">
+          <span class="tag">돌연변이</span>
+          <p>초록색 3개를 노란색 3개로 바꾸는 과정은 새로운 형질이 집단 안에 생겨나는 변이를 나타냅니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="visibility-legend" class="glass">
+      <strong>눈에 띄는 정도</strong>
+      <div class="legend-row"><span class="legend-dot" style="background:#ff3333"></span><span>빨간색: 높음</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#ffdd33"></span><span>노란색: 낮음</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#33aa33"></span><span>초록색: 보통</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#3366ff"></span><span>파란색: 높음</span></div>
+    </div>
+
+    <div class="gui-note">오른쪽 위 GUI로 한 라운드씩 또는 자동으로 실험할 수 있습니다.</div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const TOTAL_ROUNDS = 6;
+  const INITIAL_PER_COLOR = 10;
+  const MUTATION_COUNT = 3;
+  const BASE_REMOVE_COUNT = 15;
+  const PAPER_SIZE = 8;
+  const PAPER_MARGIN = 0.46;
+  const PAPER_TOP = 0.03;
+  const MAX_PER_COLOR = 2500;
+  const AUTO_INTERVAL = 3000;
+
+  const COLORS = {
+    red: {
+      key: 'red',
+      label: '빨간색',
+      emoji: '🔴',
+      color: 0xff3333,
+      css: '#ff3333',
+      visibility: 1.24,
+    },
+    yellow: {
+      key: 'yellow',
+      label: '노란색',
+      emoji: '🟡',
+      color: 0xffdd33,
+      css: '#ffdd33',
+      visibility: 0.18,
+    },
+    green: {
+      key: 'green',
+      label: '초록색',
+      emoji: '🟢',
+      color: 0x33aa33,
+      css: '#33aa33',
+      visibility: 0.76,
+    },
+    blue: {
+      key: 'blue',
+      label: '파란색',
+      emoji: '🔵',
+      color: 0x3366ff,
+      css: '#3366ff',
+      visibility: 1.08,
+    },
+  };
+
+  const colorOrder = ['red', 'yellow', 'green', 'blue'];
+  const canvas = document.getElementById('scene-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const roundMain = document.getElementById('round-main');
+  const roundSub = document.getElementById('round-sub');
+  const mutationToast = document.getElementById('mutation-toast');
+  const barsEl = document.getElementById('bars');
+  const historyBarsEl = document.getElementById('history-bars');
+  const roundChip = document.getElementById('round-chip');
+  const infoRound = document.getElementById('info-round');
+  const infoTotal = document.getElementById('info-total');
+  const infoPhase = document.getElementById('info-phase');
+  const countBreakdown = document.getElementById('count-breakdown');
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf5f0e0);
+  scene.fog = new THREE.Fog(0xf5f0e0, 12, 25);
+
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 60);
+  camera.position.set(0, 8.4, 5.6);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.target.set(0, 0.2, 0);
+  controls.minDistance = 7.2;
+  controls.maxDistance = 15;
+  controls.minPolarAngle = 0.42;
+  controls.maxPolarAngle = 1.1;
+  controls.update();
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight.position.set(5, 9, 4);
+  scene.add(dirLight);
+
+  const fillLight = new THREE.DirectionalLight(0xfff1cf, 0.35);
+  fillLight.position.set(-6, 4, -4);
+  scene.add(fillLight);
+
+  const table = new THREE.Mesh(
+    new THREE.CylinderGeometry(6.8, 7.6, 0.5, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0xd5c6a0,
+      roughness: 0.92,
+      metalness: 0.02,
+    })
+  );
+  table.position.y = -0.32;
+  scene.add(table);
+
+  const paper = new THREE.Mesh(
+    new THREE.BoxGeometry(PAPER_SIZE, 0.05, PAPER_SIZE),
+    new THREE.MeshStandardMaterial({
+      color: 0xeedd66,
+      roughness: 0.8,
+      metalness: 0.0,
+    })
+  );
+  paper.position.y = 0;
+  scene.add(paper);
+
+  const paperEdge = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(PAPER_SIZE, 0.05, PAPER_SIZE)),
+    new THREE.LineBasicMaterial({ color: 0xc5b145, transparent: true, opacity: 0.45 })
+  );
+  paperEdge.position.copy(paper.position);
+  scene.add(paperEdge);
+
+  const accentRing = new THREE.Mesh(
+    new THREE.RingGeometry(4.3, 4.9, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+    })
+  );
+  accentRing.rotation.x = -Math.PI / 2;
+  accentRing.position.y = -0.19;
+  scene.add(accentRing);
+
+  const chocolateGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+  const instancedMeshes = {};
+  const meshMaterials = [];
+
+  colorOrder.forEach((key) => {
+    const def = COLORS[key];
+    const material = new THREE.MeshStandardMaterial({
+      color: def.color,
+      metalness: 0.2,
+      roughness: 0.4,
+    });
+    meshMaterials.push(material);
+    const mesh = new THREE.InstancedMesh(chocolateGeometry, material, MAX_PER_COLOR);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.count = 0;
+    instancedMeshes[key] = mesh;
+    scene.add(mesh);
+  });
+
+  const handGroups = [];
+  const handMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.36,
+    roughness: 0.24,
+    metalness: 0.0,
+  });
+  meshMaterials.push(handMaterial);
+
+  function createHand() {
+    const group = new THREE.Group();
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.28, 18, 18), handMaterial);
+    palm.scale.set(1.15, 0.5, 0.95);
+    group.add(palm);
+
+    for (let i = 0; i < 4; i += 1) {
+      const finger = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.28, 0.08),
+        handMaterial
+      );
+      finger.position.set(-0.12 + i * 0.08, 0.18, 0);
+      group.add(finger);
+    }
+
+    const thumb = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.22, 0.08),
+      handMaterial
+    );
+    thumb.position.set(-0.22, 0.02, 0.08);
+    thumb.rotation.z = 0.45;
+    group.add(thumb);
+
+    group.visible = false;
+    group.rotation.x = Math.PI / 7;
+    scene.add(group);
+    return {
+      group,
+      active: false,
+      startTime: 0,
+      duration: 0,
+      target: new THREE.Vector3(),
+    };
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    handGroups.push(createHand());
+  }
+
+  const tempObject = new THREE.Object3D();
+
+  const state = {
+    round: 0,
+    removeCount: BASE_REMOVE_COUNT,
+    mutationRound: 3,
+    autoRunning: false,
+    isAnimatingRound: false,
+    chocolates: [],
+    history: [],
+    nextId: 1,
+    sequenceId: 0,
+    phase: '초기 배치',
+    statusText: '노란색 도화지 위에 4가지 색 초콜릿을 각 10개씩 섞어 놓았습니다.',
+    lastMutationMessage: '',
+  };
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function waitCancelable(ms, seq) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      function tick(now) {
+        if (seq !== state.sequenceId) {
+          resolve(false);
+          return;
+        }
+        if (now - start >= ms) {
+          resolve(true);
+          return;
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function showMutation(message) {
+    mutationToast.textContent = message;
+    mutationToast.classList.add('show');
+    window.clearTimeout(showMutation.timerId);
+    showMutation.timerId = window.setTimeout(() => {
+      mutationToast.classList.remove('show');
+    }, 2200);
+  }
+  showMutation.timerId = 0;
+
+  function countByColor() {
+    const counts = {
+      red: 0,
+      yellow: 0,
+      green: 0,
+      blue: 0,
+    };
+
+    state.chocolates.forEach((choco) => {
+      counts[choco.colorKey] += 1;
+    });
+
+    return counts;
+  }
+
+  function totalCount() {
+    return state.chocolates.length;
+  }
+
+  function createSnapshot() {
+    const counts = countByColor();
+    return {
+      round: state.round,
+      counts,
+      total: totalCount(),
+      mutation: state.round === state.mutationRound && state.lastMutationMessage !== '',
+    };
+  }
+
+  function replaceLatestSnapshot() {
+    const snapshot = createSnapshot();
+    const lastIndex = state.history.length - 1;
+    if (lastIndex >= 0 && state.history[lastIndex].round === state.round) {
+      state.history[lastIndex] = snapshot;
+    } else {
+      state.history.push(snapshot);
+    }
+  }
+
+  function pushInitialSnapshot() {
+    state.history = [createSnapshot()];
+  }
+
+  function updatePanels() {
+    const counts = countByColor();
+    const total = totalCount();
+    const maxCount = Math.max(1, ...colorOrder.map((key) => counts[key]));
+
+    roundMain.textContent = `라운드 ${state.round} / ${TOTAL_ROUNDS}`;
+    roundSub.textContent = state.statusText;
+    roundChip.textContent = `R${state.round} ${state.phase}`;
+    infoRound.textContent = `${state.round} / ${TOTAL_ROUNDS}`;
+    infoTotal.textContent = `${total.toLocaleString('ko-KR')}개`;
+    infoPhase.textContent = state.phase;
+
+    barsEl.innerHTML = colorOrder.map((key) => {
+      const def = COLORS[key];
+      const count = counts[key];
+      const percent = total === 0 ? 0 : Math.round((count / total) * 100);
+      const width = `${(count / maxCount) * 100}%`;
+      return `
+        <div class="bar-row">
+          <div class="bar-top">
+            <span class="bar-name"><span>${def.emoji}</span><span>${def.label}</span></span>
+            <span class="bar-meta">${count.toLocaleString('ko-KR')}개 (${percent}%)</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${width}; background:${def.css};"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    countBreakdown.innerHTML = `
+      <strong>색깔별 개수</strong><br>
+      ${colorOrder.map((key) => {
+        const def = COLORS[key];
+        const count = counts[key];
+        const percent = total === 0 ? 0 : Math.round((count / total) * 100);
+        return `${def.emoji} ${def.label}: ${count.toLocaleString('ko-KR')}개 (${percent}%)`;
+      }).join('<br>')}
+    `;
+
+    historyBarsEl.innerHTML = Array.from({ length: TOTAL_ROUNDS + 1 }, (_, roundIndex) => {
+      const snapshot = state.history.find((item) => item.round === roundIndex);
+      if (!snapshot) {
+        return `
+          <div class="history-col">
+            <div class="history-stack"></div>
+            <div class="history-label">R${roundIndex}</div>
+            <div class="history-total">-</div>
+          </div>
+        `;
+      }
+
+      const segments = colorOrder.map((key) => {
+        const height = snapshot.total === 0 ? 0 : (snapshot.counts[key] / snapshot.total) * 100;
+        return `<div class="history-seg" style="height:${height}%; background:${COLORS[key].css};"></div>`;
+      }).join('');
+
+      return `
+        <div class="history-col">
+          <div class="history-stack">${segments}</div>
+          <div class="history-label">R${snapshot.round}</div>
+          <div class="history-total">${snapshot.total.toLocaleString('ko-KR')}개</div>
+          <div class="history-badge">${snapshot.mutation ? '🧬 변이' : '&nbsp;'}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function createChocolate(colorKey, position, options = {}) {
+    return {
+      id: state.nextId += 1,
+      colorKey,
+      position: position.clone(),
+      targetPosition: position.clone(),
+      scale: options.scale ?? 1,
+      targetScale: options.scale ?? 1,
+      baseScale: 0.88 + Math.random() * 0.26,
+      rotationX: Math.random() * Math.PI,
+      rotationY: Math.random() * Math.PI,
+      rotationZ: Math.random() * Math.PI,
+      phase: Math.random() * Math.PI * 2,
+      sway: 0.018 + Math.random() * 0.02,
+      anim: null,
+    };
+  }
+
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function generateLayoutTargets(count) {
+    const positions = [];
+    if (count === 0) {
+      return { positions, globalScale: 1 };
+    }
+
+    const side = PAPER_SIZE - PAPER_MARGIN * 2;
+    const columns = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / columns);
+    const spacingX = side / columns;
+    const spacingZ = side / rows;
+    const minSpacing = Math.min(spacingX, spacingZ);
+    const globalScale = clamp(minSpacing / 0.46, 0.3, 1);
+    const offsetX = -side / 2 + spacingX / 2;
+    const offsetZ = -side / 2 + spacingZ / 2;
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        if (positions.length >= count) break;
+        const jitterX = (Math.random() - 0.5) * spacingX * 0.42;
+        const jitterZ = (Math.random() - 0.5) * spacingZ * 0.42;
+        positions.push(new THREE.Vector3(
+          offsetX + col * spacingX + jitterX,
+          PAPER_TOP + 0.15 * globalScale + Math.random() * 0.02,
+          offsetZ + row * spacingZ + jitterZ,
+        ));
+      }
+    }
+
+    return { positions: shuffle(positions), globalScale };
+  }
+
+  function relayoutChocolates(withAnimation = true) {
+    const { positions, globalScale } = generateLayoutTargets(state.chocolates.length);
+    const shuffled = shuffle([...state.chocolates]);
+    shuffled.forEach((choco, index) => {
+      const target = positions[index] ?? new THREE.Vector3();
+      choco.targetPosition.copy(target);
+      choco.targetScale = globalScale;
+
+      if (!withAnimation) {
+        choco.position.copy(target);
+        choco.scale = globalScale;
+        choco.anim = null;
+      } else if (!choco.anim) {
+        choco.anim = {
+          type: 'move',
+          startTime: performance.now(),
+          duration: 520,
+          fromPosition: choco.position.clone(),
+          toPosition: target.clone(),
+          fromScale: choco.scale,
+          toScale: globalScale,
+        };
+      }
+    });
+  }
+
+  function seedInitialChocolates() {
+    state.chocolates = [];
+    state.nextId = 0;
+    colorOrder.forEach((key) => {
+      for (let i = 0; i < INITIAL_PER_COLOR; i += 1) {
+        state.chocolates.push(createChocolate(key, new THREE.Vector3()));
+      }
+    });
+    relayoutChocolates(false);
+  }
+
+  function resetSimulation() {
+    state.sequenceId += 1;
+    state.round = 0;
+    state.autoRunning = false;
+    state.isAnimatingRound = false;
+    state.phase = '초기 배치';
+    state.statusText = '노란색 도화지 위에 4가지 색 초콜릿을 각 10개씩 섞어 놓았습니다.';
+    state.lastMutationMessage = '';
+    mutationToast.classList.remove('show');
+    handGroups.forEach((hand) => {
+      hand.active = false;
+      hand.group.visible = false;
+    });
+    seedInitialChocolates();
+    pushInitialSnapshot();
+    syncGuiState();
+    updatePanels();
+  }
+
+  function sampleWeighted(count) {
+    const pool = [...state.chocolates];
+    const selected = [];
+
+    while (pool.length > 0 && selected.length < count) {
+      let totalWeight = 0;
+      const weights = pool.map((choco) => {
+        const base = COLORS[choco.colorKey].visibility;
+        const weight = base * (0.82 + Math.random() * 0.36);
+        totalWeight += weight;
+        return weight;
+      });
+
+      let threshold = Math.random() * totalWeight;
+      let chosenIndex = 0;
+      for (let i = 0; i < pool.length; i += 1) {
+        threshold -= weights[i];
+        if (threshold <= 0) {
+          chosenIndex = i;
+          break;
+        }
+      }
+      selected.push(pool[chosenIndex]);
+      pool.splice(chosenIndex, 1);
+    }
+
+    return selected;
+  }
+
+  function activateHands(selected) {
+    const groups = [[], [], []];
+    selected.forEach((choco, index) => {
+      groups[index % 3].push(choco);
+    });
+
+    handGroups.forEach((hand, index) => {
+      const group = groups[index];
+      if (group.length === 0) {
+        hand.active = false;
+        hand.group.visible = false;
+        return;
+      }
+
+      const centroid = new THREE.Vector3();
+      group.forEach((choco) => centroid.add(choco.position));
+      centroid.divideScalar(group.length);
+
+      hand.active = true;
+      hand.startTime = performance.now();
+      hand.duration = 900;
+      hand.target.copy(centroid);
+      hand.group.visible = true;
+    });
+  }
+
+  function animateRemoval(selected) {
+    activateHands(selected);
+    selected.forEach((choco, index) => {
+      const offset = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.32,
+        1.2 + Math.random() * 0.38,
+        (Math.random() - 0.5) * 0.32,
+      );
+      choco.anim = {
+        type: 'remove',
+        startTime: performance.now() + (index % 3) * 60,
+        duration: 460,
+        fromPosition: choco.position.clone(),
+        toPosition: choco.position.clone().add(offset),
+        fromScale: choco.scale,
+        toScale: 0.02,
+      };
+    });
+  }
+
+  function addOffspring(counts) {
+    const newcomers = [];
+    colorOrder.forEach((key) => {
+      for (let i = 0; i < counts[key]; i += 1) {
+        newcomers.push(createChocolate(key, new THREE.Vector3(), { scale: 0.05 }));
+      }
+    });
+
+    state.chocolates.push(...newcomers);
+    const { positions, globalScale } = generateLayoutTargets(state.chocolates.length);
+    const newcomerIds = new Set(newcomers.map((choco) => choco.id));
+    const ordered = shuffle([...state.chocolates]);
+
+    ordered.forEach((choco, index) => {
+      const target = positions[index] ?? choco.targetPosition.clone();
+      choco.targetPosition.copy(target);
+      choco.targetScale = globalScale;
+
+      if (newcomerIds.has(choco.id)) {
+        const startPosition = target.clone();
+        startPosition.y += 1.1 + Math.random() * 0.5;
+        choco.position.copy(startPosition);
+        choco.scale = 0.05;
+        choco.anim = {
+          type: 'spawn',
+          startTime: performance.now() + Math.random() * 120,
+          duration: 620,
+          fromPosition: startPosition,
+          toPosition: target.clone(),
+          fromScale: 0.05,
+          toScale: globalScale,
+        };
+      } else {
+        choco.anim = {
+          type: 'move',
+          startTime: performance.now(),
+          duration: 540,
+          fromPosition: choco.position.clone(),
+          toPosition: target.clone(),
+          fromScale: choco.scale,
+          toScale: globalScale,
+        };
+      }
+    });
+  }
+
+  function applyMutation() {
+    const greenPool = shuffle(state.chocolates.filter((choco) => choco.colorKey === 'green'));
+    const targets = greenPool.slice(0, MUTATION_COUNT);
+    const converted = targets.length;
+
+    targets.forEach((choco, index) => {
+      choco.colorKey = 'yellow';
+      choco.anim = {
+        type: 'mutate',
+        startTime: performance.now() + index * 120,
+        duration: 760,
+        fromPosition: choco.position.clone(),
+        toPosition: choco.targetPosition.clone().add(new THREE.Vector3(0, 0.12, 0)),
+        fromScale: choco.scale,
+        toScale: choco.targetScale * 1.18,
+        settleScale: choco.targetScale,
+      };
+    });
+
+    state.lastMutationMessage = converted > 0
+      ? `🧬 돌연변이 발생! 초록색 ${converted}개 → 노란색 ${converted}개`
+      : '🧬 돌연변이 라운드였지만 초록색 초콜릿이 남아 있지 않아 변화가 없었습니다.';
+
+    showMutation(state.lastMutationMessage);
+    state.statusText = state.lastMutationMessage;
+    state.phase = '돌연변이';
+    replaceLatestSnapshot();
+  }
+
+  function syncGuiState() {
+    guiState.roundDisplay = `${state.round} / ${TOTAL_ROUNDS}`;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  async function advanceRound() {
+    if (state.isAnimatingRound) return false;
+    if (state.round >= TOTAL_ROUNDS) {
+      state.statusText = '모든 라운드가 끝났습니다. 초기화 후 다시 실험해 보세요.';
+      state.phase = '실험 완료';
+      updatePanels();
+      return false;
+    }
+
+    state.isAnimatingRound = true;
+    const seq = state.sequenceId;
+    const removeTarget = Math.min(state.removeCount, state.chocolates.length);
+    const selected = sampleWeighted(removeTarget);
+    const selectedIds = new Set(selected.map((item) => item.id));
+
+    state.phase = '포식';
+    state.statusText = `눈에 먼저 띄는 초콜릿 ${removeTarget.toLocaleString('ko-KR')}개를 집어냅니다.`;
+    syncGuiState();
+    updatePanels();
+    animateRemoval(selected);
+
+    if (!await waitCancelable(860, seq)) return false;
+    if (seq !== state.sequenceId) return false;
+
+    state.chocolates = state.chocolates.filter((choco) => !selectedIds.has(choco.id));
+    relayoutChocolates(true);
+    state.statusText = '포식 이후 살아남은 초콜릿을 다시 골고루 섞었습니다.';
+    updatePanels();
+
+    if (!await waitCancelable(640, seq)) return false;
+    if (seq !== state.sequenceId) return false;
+
+    const survivors = countByColor();
+    addOffspring(survivors);
+    state.round += 1;
+    state.phase = '번식';
+    state.statusText = `살아남은 색 초콜릿을 남은 수만큼 추가해 개체수가 ${totalCount().toLocaleString('ko-KR')}개가 되었습니다.`;
+    state.lastMutationMessage = '';
+    replaceLatestSnapshot();
+    syncGuiState();
+    updatePanels();
+
+    if (!await waitCancelable(900, seq)) return false;
+    if (seq !== state.sequenceId) return false;
+
+    if (state.round === state.mutationRound) {
+      applyMutation();
+      syncGuiState();
+      updatePanels();
+      if (!await waitCancelable(920, seq)) return false;
+      if (seq !== state.sequenceId) return false;
+    }
+
+    if (state.round >= TOTAL_ROUNDS) {
+      state.phase = '실험 완료';
+      state.statusText = '6라운드가 모두 완료되었습니다. 배경에 적합한 색이 어떻게 늘어났는지 그래프에서 확인해 보세요.';
+    } else {
+      state.phase = '다음 라운드 대기';
+      state.statusText = `다음 라운드 준비 완료. 현재 총 ${totalCount().toLocaleString('ko-KR')}개의 초콜릿이 남아 있습니다.`;
+    }
+
+    state.isAnimatingRound = false;
+    syncGuiState();
+    updatePanels();
+    return true;
+  }
+
+  async function toggleAuto() {
+    if (state.autoRunning) {
+      state.autoRunning = false;
+      state.statusText = '자동 진행을 멈췄습니다.';
+      state.phase = '일시 정지';
+      updatePanels();
+      return;
+    }
+
+    state.autoRunning = true;
+    state.statusText = '자동 진행을 시작했습니다. 3초 간격으로 라운드를 실행합니다.';
+    state.phase = '자동 진행';
+    updatePanels();
+
+    while (state.autoRunning && state.round < TOTAL_ROUNDS) {
+      const startedAt = performance.now();
+      const advanced = await advanceRound();
+      if (!advanced || !state.autoRunning) break;
+      const elapsed = performance.now() - startedAt;
+      const waitTime = Math.max(180, AUTO_INTERVAL - elapsed);
+      const ok = await waitCancelable(waitTime, state.sequenceId);
+      if (!ok) break;
+    }
+
+    state.autoRunning = false;
+    syncGuiState();
+  }
+
+  const guiState = {
+    roundDisplay: '0 / 6',
+    removeCount: BASE_REMOVE_COUNT,
+    mutationRound: 3,
+    nextRound: () => {
+      if (!state.autoRunning) advanceRound();
+    },
+    autoAdvance: () => {
+      toggleAuto();
+    },
+    reset: () => {
+      resetSimulation();
+    },
+  };
+
+  const gui = new GUI({ title: '실험 컨트롤', width: 180 });
+  gui.add(guiState, 'nextRound').name('다음 라운드');
+  gui.add(guiState, 'autoAdvance').name('자동 진행');
+  const roundController = gui.add(guiState, 'roundDisplay').name('라운드');
+  roundController.domElement.querySelector('input')?.setAttribute('readonly', 'true');
+  gui.add(guiState, 'removeCount', 5, 20, 1).name('제거 수').onChange((value) => {
+    state.removeCount = value;
+  });
+  gui.add(guiState, 'mutationRound', 1, 5, 1).name('돌연변이 라운드').onChange((value) => {
+    state.mutationRound = value;
+    replaceLatestSnapshot();
+    updatePanels();
+  });
+  gui.add(guiState, 'reset').name('초기화');
+
+  if (window.innerWidth < 900) {
+    gui.close();
+  }
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('visible');
+  });
+
+  function updateHands(now) {
+    handGroups.forEach((hand, index) => {
+      if (!hand.active) {
+        hand.group.visible = false;
+        return;
+      }
+
+      const elapsed = now - hand.startTime;
+      const t = clamp(elapsed / hand.duration, 0, 1);
+      const curve = Math.sin(t * Math.PI);
+      const hover = 2.5 - curve * 1.9;
+      hand.group.visible = true;
+      hand.group.position.set(
+        hand.target.x + (index - 1) * 0.16,
+        hover,
+        hand.target.z + (index - 1) * 0.12,
+      );
+      hand.group.rotation.z = (index - 1) * 0.18 + curve * 0.1;
+      hand.group.scale.setScalar(0.95 + curve * 0.12);
+      handMaterial.opacity = 0.2 + curve * 0.22;
+
+      if (t >= 1) {
+        hand.active = false;
+        hand.group.visible = false;
+      }
+    });
+  }
+
+  function updateChocolateAnimation(choco, now) {
+    if (!choco.anim) {
+      choco.position.lerp(choco.targetPosition, 0.12);
+      choco.scale += (choco.targetScale - choco.scale) * 0.12;
+      return;
+    }
+
+    const startTime = choco.anim.startTime ?? now;
+    if (now < startTime) {
+      return;
+    }
+
+    const rawT = clamp((now - startTime) / choco.anim.duration, 0, 1);
+    const t = easeInOutCubic(rawT);
+
+    if (choco.anim.type === 'remove' || choco.anim.type === 'spawn' || choco.anim.type === 'move') {
+      choco.position.lerpVectors(choco.anim.fromPosition, choco.anim.toPosition, t);
+      choco.scale = THREE.MathUtils.lerp(choco.anim.fromScale, choco.anim.toScale, t);
+    } else if (choco.anim.type === 'mutate') {
+      choco.position.lerpVectors(choco.anim.fromPosition, choco.anim.toPosition, t);
+      const pulseScale = rawT < 0.7
+        ? THREE.MathUtils.lerp(choco.anim.fromScale, choco.anim.toScale, t)
+        : THREE.MathUtils.lerp(choco.anim.toScale, choco.anim.settleScale, (rawT - 0.7) / 0.3);
+      choco.scale = pulseScale;
+    }
+
+    if (rawT >= 1) {
+      if (choco.anim.type === 'mutate') {
+        choco.position.copy(choco.targetPosition);
+        choco.scale = choco.targetScale;
+      } else {
+        choco.position.copy(choco.targetPosition);
+        choco.scale = choco.targetScale;
+      }
+      choco.anim = null;
+    }
+  }
+
+  function renderChocolates(now) {
+    state.chocolates.forEach((choco) => {
+      updateChocolateAnimation(choco, now);
+    });
+
+    colorOrder.forEach((key) => {
+      const mesh = instancedMeshes[key];
+      let visibleCount = 0;
+
+      state.chocolates.forEach((choco) => {
+        if (choco.colorKey !== key) return;
+
+        const wobbleY = Math.sin(now * 0.0018 + choco.phase) * choco.sway;
+        tempObject.position.set(choco.position.x, choco.position.y + wobbleY, choco.position.z);
+        tempObject.rotation.set(
+          choco.rotationX + now * 0.00016,
+          choco.rotationY + now * 0.00022,
+          choco.rotationZ + now * 0.00018,
+        );
+        const finalScale = choco.scale * choco.baseScale;
+        tempObject.scale.setScalar(finalScale);
+        tempObject.updateMatrix();
+        mesh.setMatrixAt(visibleCount, tempObject.matrix);
+        visibleCount += 1;
+      });
+
+      mesh.count = visibleCount;
+      mesh.instanceMatrix.needsUpdate = true;
+    });
+  }
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  window.addEventListener('resize', onResize);
+
+  let rafId = 0;
+  function animate(now = 0) {
+    rafId = requestAnimationFrame(animate);
+    controls.update();
+    updateHands(now);
+    renderChocolates(now);
+    renderer.render(scene, camera);
+  }
+
+  function cleanup() {
+    cancelAnimationFrame(rafId);
+    controls.dispose();
+    gui.destroy();
+    chocolateGeometry.dispose();
+    meshMaterials.forEach((material) => material.dispose());
+    renderer.dispose();
+  }
+
+  window.addEventListener('beforeunload', cleanup);
+
+  resetSimulation();
+  animate();
+</script>
+</body>
+</html>

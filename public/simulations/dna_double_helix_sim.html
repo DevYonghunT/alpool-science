@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNA 이중나선 구조 - 3D 시뮬레이션</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg: #0a1020;
+    --panel: rgba(10, 16, 32, 0.84);
+    --panel-strong: rgba(8, 12, 24, 0.92);
+    --stroke: rgba(255, 255, 255, 0.12);
+    --text-main: rgba(255, 255, 255, 0.96);
+    --text-soft: rgba(255, 255, 255, 0.72);
+    --text-faint: rgba(255, 255, 255, 0.5);
+    --accent: #8ad7ff;
+    --green: #75f0a4;
+    --warn: #ff7a70;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(55, 100, 255, 0.12), transparent 28%),
+      radial-gradient(circle at 80% 18%, rgba(99, 203, 255, 0.08), transparent 24%),
+      radial-gradient(circle at 50% 82%, rgba(148, 81, 255, 0.08), transparent 28%),
+      linear-gradient(180deg, #0a1020, #090d18 44%, #070b14);
+    color: var(--text-main);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  button, input {
+    font: inherit;
+  }
+
+  #top-banner {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    right: 92px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-soft);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    backdrop-filter: blur(8px);
+  }
+
+  #top-banner h1 {
+    margin-top: 10px;
+    font-size: clamp(24px, 3vw, 38px);
+    line-height: 1.04;
+    letter-spacing: -0.04em;
+    text-shadow: 0 6px 24px rgba(0, 0, 0, 0.24);
+  }
+
+  #status-text {
+    margin-top: 10px;
+    max-width: min(720px, 100%);
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(9, 14, 28, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    color: var(--text-soft);
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+    pointer-events: none;
+  }
+
+  #status-chip.show {
+    opacity: 1;
+  }
+
+  #status-chip.success {
+    background: rgba(17, 44, 31, 0.88);
+    border-color: rgba(117, 240, 164, 0.36);
+    color: #dfffea;
+  }
+
+  #status-chip.warning {
+    background: rgba(60, 21, 21, 0.9);
+    border-color: rgba(255, 122, 112, 0.4);
+    color: #ffe3de;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 40;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 16, 32, 0.86);
+    color: var(--text-main);
+    border-radius: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(72vh, 680px);
+    overflow: auto;
+    z-index: 39;
+    display: none;
+    padding: 18px;
+    border-radius: 18px;
+    border: 1px solid var(--stroke);
+    background: rgba(8, 12, 24, 0.95);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+    line-height: 1.75;
+    font-size: 12px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #cbe8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: #ffcf88;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  #guide-panel .textbook {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  #tooltip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 26;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(6, 10, 18, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #eef8ff;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -120%);
+    transition: opacity 0.15s ease;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  #tooltip.show {
+    opacity: 1;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 24px));
+    z-index: 23;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--stroke);
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #bde7ff;
+  }
+
+  #formula-panel .row {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 94px;
+    flex-shrink: 0;
+    color: var(--text-faint);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+  }
+
+  .formula-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-box strong {
+    color: #ffd89d;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    letter-spacing: -0.02em;
+  }
+
+  #sequence-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 23;
+    width: min(960px, calc(100vw - 400px));
+    min-width: min(560px, calc(100vw - 24px));
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--stroke);
+    background: rgba(7, 11, 20, 0.88);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  .sequence-title {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+
+  .sequence-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: max-content;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  .sequence-row + .sequence-row {
+    margin-top: 2px;
+  }
+
+  .sequence-prime {
+    color: #8bd7ff;
+    font-weight: 700;
+  }
+
+  .sequence-cells {
+    display: flex;
+    gap: 6px;
+  }
+
+  .sequence-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    padding: 2px 3px;
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.92);
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .sequence-cell.active {
+    background: rgba(138, 215, 255, 0.18);
+    color: #f5fbff;
+    transform: translateY(-1px);
+  }
+
+  .sequence-bars .sequence-cell {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  #rna-caption,
+  #detail-caption,
+  #hint-chip {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 22;
+    max-width: 320px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(9, 14, 26, 0.78);
+    color: var(--text-soft);
+    backdrop-filter: blur(10px);
+    font-size: 11px;
+    line-height: 1.6;
+    box-shadow: var(--shadow);
+  }
+
+  #rna-caption,
+  #detail-caption {
+    display: none;
+  }
+
+  #rna-caption.show,
+  #detail-caption.show {
+    display: block;
+  }
+
+  #rna-caption strong,
+  #detail-caption strong {
+    color: #ffd89d;
+  }
+
+  #hint-chip {
+    bottom: 96px;
+  }
+
+  .lil-gui {
+    --width: 318px;
+    z-index: 41 !important;
+  }
+
+  @media (max-width: 1200px) {
+    #sequence-panel {
+      width: calc(100vw - 32px);
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #top-banner {
+      right: 16px;
+    }
+
+    #top-banner h1 {
+      font-size: 24px;
+      max-width: 300px;
+    }
+
+    #status-text {
+      max-width: 320px;
+      font-size: 12px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      max-width: none;
+      font-size: 11px;
+      bottom: 168px;
+    }
+
+    #sequence-panel {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      width: auto;
+      bottom: 12px;
+      padding: 12px;
+    }
+
+    #hint-chip,
+    #rna-caption,
+    #detail-caption {
+      left: 12px;
+      right: 12px;
+      max-width: none;
+    }
+
+    #hint-chip {
+      bottom: 122px;
+    }
+
+    #guide-panel {
+      top: 62px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+      max-height: 58vh;
+    }
+
+    .lil-gui {
+      --width: min(290px, calc(100vw - 24px));
+    }
+  }
+</style>
+</head>
+<body>
+<div id="top-banner">
+  <div class="eyebrow">통합과학1 · 핵산 · 상보적 염기쌍</div>
+  <h1>DNA 이중나선 구조</h1>
+  <p id="status-text">DNA의 두 가닥이 어떻게 꼬여 이중나선을 이루는지, 그리고 A-T / G-C 결합 규칙이 어떻게 유지되는지 3D로 관찰해 보세요.</p>
+</div>
+
+<div id="status-chip"></div>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<section id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>DNA는 뉴클레오타이드가 반복 결합한 두 가닥이 꼬여 이중나선 구조를 이룹니다. A는 T와, G는 C와 결합하는 규칙이 있어 한 가닥의 서열을 알면 상보적 가닥의 서열을 알 수 있습니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>DNA 한 가닥의 서열이 ATGCCAGT라면 상보적 가닥의 서열은 무엇인가요? 정답: TACGGTCA</li>
+    <li>G-C 결합이 A-T 결합보다 안정한 까닭은 무엇인가요? 정답: 수소결합이 3개이기 때문입니다.</li>
+    <li>생명체마다 특성이 다른 까닭은 DNA의 어떤 차이 때문인가요? 정답: 염기 배열 순서가 다르기 때문입니다.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>유전자 검사: 친자 확인과 유전 질환 분석에 활용됩니다.</li>
+    <li>PCR 검사: 특정 DNA 서열을 증폭해 감염 여부를 확인합니다.</li>
+    <li>유전공학: 원하는 형질을 가진 생물체를 설계하는 기반이 됩니다.</li>
+    <li>법의학: 현장의 DNA를 비교해 신원을 식별합니다.</li>
+  </ul>
+
+  <div class="textbook">교과서 연계: 미래엔 통합과학1 II편 p84~87 — 핵산, DNA 이중나선(그림 II-30), DNA 모형 제작 탐구</div>
+</section>
+
+<div id="tooltip"></div>
+
+<section id="formula-panel">
+  <h3>🧬 DNA 이중나선 구조</h3>
+  <div class="row"><span class="label">기본 단위체</span><span class="value">뉴클레오타이드 (인산 + 당 + 염기)</span></div>
+  <div class="row"><span class="label">구조</span><span class="value" id="fp-structure">이중나선 (두 가닥이 꼬인 형태)</span></div>
+  <div class="row"><span class="label">염기쌍 수</span><span class="value"><span id="fp-count">20</span>쌍</span></div>
+  <div class="row"><span class="label">회전 수</span><span class="value"><span id="fp-turns">2.0</span>회전</span></div>
+
+  <div class="formula-box mono">
+    <strong>염기쌍 규칙 (샤가프 규칙)</strong><br>
+    A ═══ T &nbsp;&nbsp;(이중 수소결합)<br>
+    G ≡≡≡ C &nbsp;(삼중 수소결합)
+  </div>
+
+  <div class="formula-box">
+    <strong>DNA vs RNA</strong><br>
+    DNA: 디옥시리보스 + A, T, G, C<br>
+    RNA: 리보스 + A, U, G, C (단일 가닥)
+  </div>
+
+  <div class="formula-box">
+    <strong>기능</strong><br>
+    DNA → 유전정보 저장<br>
+    RNA → 유전정보 전달, 단백질 합성
+  </div>
+</section>
+
+<section id="sequence-panel">
+  <div class="sequence-title">서열 표시 패널</div>
+  <div class="sequence-row">
+    <span class="sequence-prime">5'</span>
+    <span>—</span>
+    <div class="sequence-cells" id="sequence-top"></div>
+    <span>—</span>
+    <span class="sequence-prime">3'</span>
+  </div>
+  <div class="sequence-row sequence-bars">
+    <span class="sequence-prime">&nbsp;</span>
+    <span>&nbsp;</span>
+    <div class="sequence-cells" id="sequence-bars"></div>
+  </div>
+  <div class="sequence-row">
+    <span class="sequence-prime">3'</span>
+    <span>—</span>
+    <div class="sequence-cells" id="sequence-bottom"></div>
+    <span>—</span>
+    <span class="sequence-prime">5'</span>
+  </div>
+</section>
+
+<aside id="hint-chip">드래그로 회전, 휠로 확대/축소할 수 있습니다. 염기쌍 위에 마우스를 올리면 상보적 결합 규칙이 강조됩니다.</aside>
+<aside id="rna-caption"><strong>RNA 비교</strong><br>RNA는 단일 가닥이며, T(타이민) 대신 U(유라실)을 가집니다.</aside>
+<aside id="detail-caption"><strong>뉴클레오타이드 상세</strong><br>인산과 당은 에스테르 결합, 당과 염기는 글리코시드 결합으로 연결됩니다.</aside>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DEFAULT_SEQUENCE = 'ATGCCAGTACGTACGATCGA';
+const MAX_PAIRS = 20;
+const HELIX_RADIUS = 1.5;
+const HELIX_PITCH = 3.4;
+const PAIRS_PER_TURN = 10;
+const RISE = HELIX_PITCH / PAIRS_PER_TURN;
+const HELIX_STEP = Math.PI * 2 / PAIRS_PER_TURN;
+const RNA_OFFSET_X = 4.8;
+const DNA_COMPARE_OFFSET_X = -2.35;
+const ASSEMBLY_DURATION = 0.3;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+const BASE_INFO = {
+  A: { label: 'A', name: '아데닌', color: 0x44aa44, pair: 'T', bonds: 2, width: 0.92 },
+  T: { label: 'T', name: '타이민', color: 0xff6644, pair: 'A', bonds: 2, width: 0.74 },
+  G: { label: 'G', name: '구아닌', color: 0x4488ff, pair: 'C', bonds: 3, width: 0.98 },
+  C: { label: 'C', name: '사이토신', color: 0xffcc44, pair: 'G', bonds: 3, width: 0.72 },
+  U: { label: 'U', name: '유라실', color: 0xff8866, pair: 'A', bonds: 2, width: 0.76 }
+};
+
+const COMPLEMENT_MAP = { A: 'T', T: 'A', G: 'C', C: 'G' };
+
+const app = document.body;
+const tooltip = document.getElementById('tooltip');
+const statusText = document.getElementById('status-text');
+const statusChip = document.getElementById('status-chip');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const rnaCaption = document.getElementById('rna-caption');
+const detailCaption = document.getElementById('detail-caption');
+const fpCount = document.getElementById('fp-count');
+const fpTurns = document.getElementById('fp-turns');
+const fpStructure = document.getElementById('fp-structure');
+const sequenceTop = document.getElementById('sequence-top');
+const sequenceBars = document.getElementById('sequence-bars');
+const sequenceBottom = document.getElementById('sequence-bottom');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1020);
+scene.fog = new THREE.FogExp2(0x0a1020, 0.018);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 0.9, 10.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 4.5;
+controls.maxDistance = 24;
+controls.target.set(0, 0.3, 0);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambient);
+
+const directional = new THREE.DirectionalLight(0xdde8ff, 0.6);
+directional.position.set(-8, 10, 7);
+directional.castShadow = true;
+directional.shadow.mapSize.set(1024, 1024);
+scene.add(directional);
+
+const spot = new THREE.SpotLight(0xcfe5ff, 0.5, 40, Math.PI / 6, 0.28, 1);
+spot.position.set(0, 10, 6);
+spot.target.position.set(0, 0, 0);
+scene.add(spot);
+scene.add(spot.target);
+
+const backFill = new THREE.PointLight(0x5d8dff, 0.45, 24, 2);
+backFill.position.set(0, -2, -6);
+scene.add(backFill);
+
+const rotatingRig = new THREE.Group();
+scene.add(rotatingRig);
+
+const dnaGroup = new THREE.Group();
+const rnaGroup = new THREE.Group();
+const detailGroup = new THREE.Group();
+rotatingRig.add(dnaGroup);
+rotatingRig.add(rnaGroup);
+rotatingRig.add(detailGroup);
+
+const interactiveObjects = [];
+const pairRecords = [];
+const rnaRecords = [];
+const labelTextureCache = new Map();
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2(-2, -2);
+const tempVecA = new THREE.Vector3();
+const tempVecB = new THREE.Vector3();
+const tempVecC = new THREE.Vector3();
+const clock = new THREE.Clock();
+
+let hoveredPairIndex = -1;
+let assemblyElapsed = 0;
+let statusTimeout = 0;
+let needsBackboneRebuild = true;
+let dnaBackboneMeshes = [];
+let rnaBackboneMesh = null;
+let cameraDesired = new THREE.Vector3(0, 0.9, 10.8);
+let controlsDesired = new THREE.Vector3(0, 0.3, 0);
+let activeSequence = DEFAULT_SEQUENCE;
+let activeComplement = buildComplement(DEFAULT_SEQUENCE);
+let activeRnaSequence = buildRnaFromDna(DEFAULT_SEQUENCE);
+
+const state = {
+  displayMode: '완성 모형',
+  sequenceInput: DEFAULT_SEQUENCE,
+  showRNA: false,
+  autoRotate: true,
+  rotationSpeed: 1,
+  showBackbone: true,
+  showBasePairs: true,
+  showHydrogenBonds: true,
+  unwind: 0,
+  reset: () => resetState()
+};
+
+const phosphateGeometry = new THREE.SphereGeometry(0.15, 20, 20);
+const sugarGeometry = createSugarGeometry();
+const bondGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1, 16);
+const esterGeometry = new THREE.CylinderGeometry(0.065, 0.065, 1, 16);
+const glycoGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 16);
+const baseGeometryCache = {
+  A: new THREE.BoxGeometry(BASE_INFO.A.width, 0.3, 0.1),
+  T: new THREE.BoxGeometry(BASE_INFO.T.width, 0.3, 0.1),
+  G: new THREE.BoxGeometry(BASE_INFO.G.width, 0.3, 0.1),
+  C: new THREE.BoxGeometry(BASE_INFO.C.width, 0.3, 0.1),
+  U: new THREE.BoxGeometry(BASE_INFO.U.width, 0.3, 0.1)
+};
+
+const sharedGeometries = new Set([
+  phosphateGeometry,
+  sugarGeometry,
+  bondGeometry,
+  esterGeometry,
+  glycoGeometry,
+  ...Object.values(baseGeometryCache)
+]);
+
+guideToggle.addEventListener('click', () => {
+  const open = guidePanel.classList.toggle('open');
+  guideToggle.textContent = open ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+renderer.domElement.addEventListener('pointermove', (event) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  tooltip.style.left = `${event.clientX}px`;
+  tooltip.style.top = `${event.clientY}px`;
+});
+
+renderer.domElement.addEventListener('pointerleave', () => {
+  pointer.set(-2, -2);
+  setHoveredPair(-1);
+});
+
+window.addEventListener('resize', onResize);
+
+const gui = new GUI({ title: 'DNA 제어 패널' });
+const modeController = gui.add(state, 'displayMode', ['완성 모형', '조립 과정', '뉴클레오타이드 상세']).name('표시 모드');
+const sequenceController = gui.add(state, 'sequenceInput').name('염기 서열 입력');
+gui.add(state, 'showRNA').name('RNA 비교');
+gui.add(state, 'autoRotate').name('자동 회전');
+gui.add(state, 'rotationSpeed', 0, 5, 0.1).name('회전 속도');
+gui.add(state, 'showBackbone').name('당-인산 백본');
+gui.add(state, 'showBasePairs').name('염기쌍');
+gui.add(state, 'showHydrogenBonds').name('수소결합');
+gui.add(state, 'unwind', 0, 100, 1).name('풀기 (%)');
+gui.add(state, 'reset').name('초기화');
+
+modeController.onChange((value) => {
+  if (value === '조립 과정') {
+    restartAssembly();
+    showStatus('뉴클레오타이드가 위에서부터 차례로 조립됩니다.', 'success');
+  }
+  updateModeAndLayout();
+});
+
+sequenceController.onFinishChange((value) => {
+  applySequenceInput(value);
+  sequenceController.updateDisplay();
+});
+
+gui.onChange(() => {
+  needsBackboneRebuild = true;
+  updateModeAndLayout();
+});
+
+if (window.innerWidth <= 768) {
+  gui.close();
+}
+
+function createSugarGeometry() {
+  const shape = new THREE.Shape();
+  const radius = 0.22;
+  for (let i = 0; i < 5; i += 1) {
+    const angle = -Math.PI / 2 + i * Math.PI * 2 / 5;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) {
+      shape.moveTo(x, y);
+    } else {
+      shape.lineTo(x, y);
+    }
+  }
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
+  geometry.center();
+  return geometry;
+}
+
+function createLabelSprite(text, options = {}) {
+  const {
+    color = '#ffffff',
+    background = 'rgba(10, 16, 32, 0.75)',
+    border = 'rgba(255,255,255,0.12)',
+    fontSize = 42,
+    width = 192,
+    height = 96
+  } = options;
+
+  const key = JSON.stringify({ text, color, background, border, fontSize, width, height });
+  let texture = labelTextureCache.get(key);
+
+  if (!texture) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, width, height);
+    roundRect(context, 6, 10, width - 12, height - 20, 18);
+    context.fillStyle = background;
+    context.fill();
+    context.strokeStyle = border;
+    context.lineWidth = 2;
+    context.stroke();
+    context.fillStyle = color;
+    context.font = `700 ${fontSize}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    const lines = String(text).split('\n');
+    lines.forEach((line, index) => {
+      const offset = (index - (lines.length - 1) / 2) * (fontSize * 0.96);
+      context.fillText(line, width / 2, height / 2 + offset);
+    });
+    texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    labelTextureCache.set(key, texture);
+  }
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.46, 0.23, 1);
+  sprite.renderOrder = 30;
+  return sprite;
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function createMaterial(color, opacity = 1) {
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity,
+    roughness: 0.4,
+    metalness: 0.05,
+    emissive: 0x000000
+  });
+  material.userData.baseOpacity = opacity;
+  return material;
+}
+
+function createNucleotide(baseKey, sugarColor, options = {}) {
+  const unit = new THREE.Group();
+  const phosphate = new THREE.Mesh(phosphateGeometry, createMaterial(0xff4444));
+  const sugar = new THREE.Mesh(sugarGeometry, createMaterial(sugarColor));
+  const base = new THREE.Mesh(baseGeometryCache[baseKey], createMaterial(BASE_INFO[baseKey].color));
+  const pLabel = createLabelSprite('P', { fontSize: 34, width: 128, height: 72, color: '#ffe3e0' });
+  const sLabel = createLabelSprite('S', { fontSize: 34, width: 128, height: 72, color: '#f0d7ff' });
+  const baseLabel = createLabelSprite(baseKey, {
+    fontSize: 38,
+    width: 128,
+    height: 72,
+    color: '#ffffff',
+    background: 'rgba(10, 16, 32, 0.85)'
+  });
+
+  phosphate.castShadow = true;
+  sugar.castShadow = true;
+  base.castShadow = true;
+
+  unit.add(phosphate, sugar, base, pLabel, sLabel, baseLabel);
+
+  if (options.interactive) {
+    base.userData.pairIndex = options.pairIndex;
+    base.userData.kind = 'base';
+  }
+
+  return {
+    group: unit,
+    phosphate,
+    sugar,
+    base,
+    pLabel,
+    sLabel,
+    baseLabel,
+    materials: [phosphate.material, sugar.material, base.material, pLabel.material, sLabel.material, baseLabel.material]
+  };
+}
+
+function createDnaPairRecord(base1, base2, index) {
+  const group = new THREE.Group();
+  const strand1 = createNucleotide(base1, 0x8844aa, { interactive: true, pairIndex: index });
+  const strand2 = createNucleotide(base2, 0x8844aa, { interactive: true, pairIndex: index });
+  const bondCount = BASE_INFO[base1].bonds;
+  const bonds = Array.from({ length: bondCount }, () => {
+    const bond = new THREE.Mesh(bondGeometry, createMaterial(0xffffff, 0.92));
+    bond.castShadow = true;
+    bond.userData.pairIndex = index;
+    bond.userData.kind = 'bond';
+    group.add(bond);
+    interactiveObjects.push(bond);
+    return bond;
+  });
+
+  const glow = new THREE.PointLight(0x66ff99, 0, 1.8, 2);
+  group.add(glow);
+  group.add(strand1.group, strand2.group);
+  dnaGroup.add(group);
+
+  interactiveObjects.push(strand1.base, strand2.base);
+
+  pairRecords.push({
+    index,
+    group,
+    strand1,
+    strand2,
+    bonds,
+    bondCount,
+    glow,
+    flashStrength: 0,
+    prevProgress: 0
+  });
+}
+
+function createBackboneMesh(color = 0x8844aa) {
+  const geometry = new THREE.TubeGeometry(
+    new THREE.LineCurve3(new THREE.Vector3(), new THREE.Vector3(0, 0.01, 0)),
+    2,
+    0.06,
+    8,
+    false
+  );
+  const mesh = new THREE.Mesh(geometry, createMaterial(color, 0.95));
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createRnaRecord(baseKey) {
+  const unit = createNucleotide(baseKey, 0xaa66cc, { interactive: false });
+  unit.pLabel.visible = false;
+  unit.sLabel.visible = false;
+  rnaGroup.add(unit.group);
+  rnaRecords.push({ unit });
+}
+
+function buildDnaModel() {
+  clearGroup(dnaGroup);
+  interactiveObjects.length = 0;
+  pairRecords.length = 0;
+  dnaBackboneMeshes = [createBackboneMesh(), createBackboneMesh()];
+  dnaBackboneMeshes.forEach((mesh) => dnaGroup.add(mesh));
+  activeSequence.split('').forEach((base, index) => {
+    createDnaPairRecord(base, activeComplement[index], index);
+  });
+  needsBackboneRebuild = true;
+}
+
+function buildRnaModel() {
+  clearGroup(rnaGroup);
+  rnaRecords.length = 0;
+
+  const points = [];
+  const count = activeRnaSequence.length;
+  activeRnaSequence.split('').forEach((baseKey, index) => {
+    const y = getPairY(index, count);
+    points.push(new THREE.Vector3(
+      Math.sin(index * 0.56) * 0.6 + Math.sin(index * 0.18) * 0.2,
+      y,
+      Math.cos(index * 0.45) * 0.52
+    ));
+    createRnaRecord(baseKey);
+  });
+
+  if (points.length >= 2) {
+    const curve = new THREE.CatmullRomCurve3(points);
+    rnaBackboneMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 140, 0.06, 10, false), createMaterial(0xaa66cc, 0.94));
+    rnaBackboneMesh.castShadow = true;
+    rnaGroup.add(rnaBackboneMesh);
+  } else {
+    rnaBackboneMesh = null;
+  }
+}
+
+function buildDetailModel() {
+  clearGroup(detailGroup);
+
+  const focusBase = activeSequence[0] ?? 'A';
+  const root = new THREE.Group();
+  detailGroup.add(root);
+
+  const phosphate = new THREE.Mesh(phosphateGeometry, createMaterial(0xff4444));
+  const sugar = new THREE.Mesh(sugarGeometry, createMaterial(0x8844aa));
+  const base = new THREE.Mesh(baseGeometryCache[focusBase], createMaterial(BASE_INFO[focusBase].color));
+  const esterBond = new THREE.Mesh(esterGeometry, createMaterial(0x72e0ff));
+  const glycoBond = new THREE.Mesh(glycoGeometry, createMaterial(0xffdd88));
+
+  phosphate.position.set(-1.7, 0.25, 0);
+  sugar.position.set(-0.3, 0.05, 0);
+  base.position.set(1.45, 0.02, 0);
+
+  sugar.quaternion.setFromAxisAngle(Y_AXIS, Math.PI / 6);
+  base.quaternion.setFromAxisAngle(Y_AXIS, Math.PI / 14);
+
+  positionCylinder(esterBond, phosphate.position, sugar.position);
+  positionCylinder(glycoBond, sugar.position, base.position);
+
+  const pLabel = createLabelSprite('P', { fontSize: 44, width: 160, height: 84, color: '#ffe3e0' });
+  pLabel.position.copy(phosphate.position).add(new THREE.Vector3(0, 0.42, 0));
+  pLabel.scale.set(0.68, 0.34, 1);
+
+  const sLabel = createLabelSprite('S', { fontSize: 44, width: 160, height: 84, color: '#f0d7ff' });
+  sLabel.position.copy(sugar.position).add(new THREE.Vector3(0, 0.52, 0));
+  sLabel.scale.set(0.68, 0.34, 1);
+
+  const baseLabel = createLabelSprite(focusBase, { fontSize: 44, width: 160, height: 84, color: '#ffffff' });
+  baseLabel.position.copy(base.position).add(new THREE.Vector3(0, 0.42, 0));
+  baseLabel.scale.set(0.68, 0.34, 1);
+
+  const esterLabel = createLabelSprite('에스테르 결합', {
+    fontSize: 30,
+    width: 260,
+    height: 86,
+    color: '#dff8ff',
+    background: 'rgba(10,16,32,0.82)'
+  });
+  esterLabel.position.set(-0.96, 0.95, 0);
+  esterLabel.scale.set(1.12, 0.37, 1);
+
+  const glycoLabel = createLabelSprite('글리코시드 결합', {
+    fontSize: 30,
+    width: 300,
+    height: 86,
+    color: '#fff0cf',
+    background: 'rgba(10,16,32,0.82)'
+  });
+  glycoLabel.position.set(0.6, -0.92, 0);
+  glycoLabel.scale.set(1.26, 0.37, 1);
+
+  const titleLabel = createLabelSprite('뉴클레오타이드\n인산 + 당 + 염기', {
+    fontSize: 32,
+    width: 300,
+    height: 130,
+    color: '#d8efff',
+    background: 'rgba(10,16,32,0.88)'
+  });
+  titleLabel.position.set(0, 1.8, 0);
+  titleLabel.scale.set(1.24, 0.54, 1);
+
+  root.add(phosphate, sugar, base, esterBond, glycoBond, pLabel, sLabel, baseLabel, esterLabel, glycoLabel, titleLabel);
+}
+
+function clearGroup(group) {
+  while (group.children.length > 0) {
+    const child = group.children[0];
+    group.remove(child);
+    disposeObject(child);
+  }
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry && !sharedGeometries.has(child.geometry)) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+}
+
+function buildComplement(sequence) {
+  return sequence.split('').map((base) => COMPLEMENT_MAP[base]).join('');
+}
+
+function buildRnaFromDna(sequence) {
+  return sequence.replaceAll('T', 'U');
+}
+
+function sanitizeSequence(input) {
+  const upper = String(input ?? '').toUpperCase();
+  const filtered = upper.replace(/[^ATGC]/g, '');
+  const clipped = filtered.slice(0, MAX_PAIRS);
+  let warning = '';
+  if (!clipped) {
+    warning = 'A, T, G, C만 사용할 수 있어 기본 서열로 되돌렸습니다.';
+    return { value: DEFAULT_SEQUENCE, warning };
+  }
+  if (filtered.length > MAX_PAIRS) {
+    warning = `염기쌍 수는 최대 ${MAX_PAIRS}개까지 표시합니다.`;
+  } else if (filtered.length !== upper.length) {
+    warning = 'A, T, G, C 이외 문자는 제거했습니다.';
+  }
+  return { value: clipped, warning };
+}
+
+function applySequenceInput(value) {
+  const { value: sanitized, warning } = sanitizeSequence(value);
+  state.sequenceInput = sanitized;
+  activeSequence = sanitized;
+  activeComplement = buildComplement(activeSequence);
+  activeRnaSequence = buildRnaFromDna(activeSequence);
+  buildDnaModel();
+  buildRnaModel();
+  buildDetailModel();
+  restartAssembly();
+  updateFormulaPanel();
+  updateSequencePanel();
+  updateModeAndLayout();
+
+  if (warning) {
+    showStatus(warning, 'warning');
+  } else {
+    showStatus(`상보적 가닥 ${activeComplement}를 생성했습니다.`, 'success');
+  }
+}
+
+function resetState() {
+  state.displayMode = '완성 모형';
+  state.sequenceInput = DEFAULT_SEQUENCE;
+  state.showRNA = false;
+  state.autoRotate = true;
+  state.rotationSpeed = 1;
+  state.showBackbone = true;
+  state.showBasePairs = true;
+  state.showHydrogenBonds = true;
+  state.unwind = 0;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  applySequenceInput(DEFAULT_SEQUENCE);
+  showStatus('기본 DNA 이중나선 상태로 초기화했습니다.', 'success');
+}
+
+function restartAssembly() {
+  assemblyElapsed = 0;
+  pairRecords.forEach((record) => {
+    record.flashStrength = 0;
+    record.prevProgress = 0;
+  });
+  needsBackboneRebuild = true;
+}
+
+function getPairY(index, count = activeSequence.length) {
+  return (index - (count - 1) / 2) * RISE;
+}
+
+function getDnaStrandPosition(index, strand, unwindFactor) {
+  const count = activeSequence.length;
+  const angle = index * HELIX_STEP + (strand === 1 ? 0 : Math.PI);
+  const y = getPairY(index, count);
+  const helix = new THREE.Vector3(
+    HELIX_RADIUS * Math.cos(angle),
+    y,
+    HELIX_RADIUS * Math.sin(angle)
+  );
+  const ladder = new THREE.Vector3(strand === 1 ? -HELIX_RADIUS : HELIX_RADIUS, y, 0);
+  return helix.lerp(ladder, unwindFactor);
+}
+
+function getStrandDirection(index, strand, unwindFactor) {
+  const angle = index * HELIX_STEP + (strand === 1 ? 0 : Math.PI);
+  const helixDirection = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
+  const ladderDirection = new THREE.Vector3(strand === 1 ? -1 : 1, 0, 0);
+  return helixDirection.lerp(ladderDirection, unwindFactor).normalize();
+}
+
+function getPhosphatePosition(index, strand, unwindFactor) {
+  const current = getDnaStrandPosition(index, strand, unwindFactor);
+  const count = activeSequence.length;
+  let next;
+  if (index < count - 1) {
+    next = getDnaStrandPosition(index + 1, strand, unwindFactor);
+  } else {
+    const prev = getDnaStrandPosition(index - 1, strand, unwindFactor);
+    next = current.clone().add(current.clone().sub(prev));
+  }
+  const midpoint = current.clone().lerp(next, 0.5);
+  const outward = getStrandDirection(index + 0.35, strand, unwindFactor);
+  midpoint.add(outward.multiplyScalar(0.22));
+  return midpoint;
+}
+
+function getBackbonePoints(strand, count, unwindFactor) {
+  const points = [];
+  for (let i = 0; i < count; i += 1) {
+    points.push(getDnaStrandPosition(i, strand, unwindFactor));
+    points.push(getPhosphatePosition(i, strand, unwindFactor));
+  }
+  return points;
+}
+
+function updateBackbones(force = false) {
+  if (!dnaBackboneMeshes.length) {
+    return;
+  }
+
+  const unwindFactor = state.unwind / 100;
+  const visibleCount = state.displayMode === '조립 과정'
+    ? Math.max(0, Math.ceil(Math.min(activeSequence.length, assemblyElapsed / ASSEMBLY_DURATION)))
+    : activeSequence.length;
+
+  if (!needsBackboneRebuild && !force) {
+    return;
+  }
+
+  dnaBackboneMeshes.forEach((mesh, index) => {
+    const strand = index === 0 ? 1 : 2;
+    if (visibleCount < 2) {
+      mesh.visible = false;
+      return;
+    }
+    const points = getBackbonePoints(strand, visibleCount, unwindFactor);
+    const curve = new THREE.CatmullRomCurve3(points);
+    const geometry = new THREE.TubeGeometry(curve, Math.max(80, points.length * 10), 0.06, 10, false);
+    mesh.geometry.dispose();
+    mesh.geometry = geometry;
+    mesh.visible = state.showBackbone && state.displayMode !== '뉴클레오타이드 상세';
+  });
+
+  needsBackboneRebuild = false;
+}
+
+function updateNucleotideTransform(unit, config) {
+  const {
+    sugarPos,
+    phosphatePos,
+    basePos,
+    baseDir,
+    sugarFacing,
+    labelLift = 0.28
+  } = config;
+
+  unit.sugar.position.copy(sugarPos);
+  unit.phosphate.position.copy(phosphatePos);
+  unit.base.position.copy(basePos);
+
+  unit.sugar.quaternion.setFromUnitVectors(Z_AXIS, sugarFacing.clone().normalize());
+  unit.sugar.rotateOnAxis(Z_AXIS, Math.PI / 5);
+  unit.base.quaternion.setFromUnitVectors(X_AXIS, baseDir.clone().normalize());
+
+  unit.pLabel.position.copy(phosphatePos).add(new THREE.Vector3(0, labelLift, 0));
+  unit.sLabel.position.copy(sugarPos).add(new THREE.Vector3(0, labelLift + 0.02, 0));
+  unit.baseLabel.position.copy(basePos).add(new THREE.Vector3(0, labelLift + 0.02, 0));
+}
+
+function getAssemblyProgressForIndex(index) {
+  if (state.displayMode !== '조립 과정') {
+    return 1;
+  }
+  const raw = THREE.MathUtils.clamp(assemblyElapsed / ASSEMBLY_DURATION - index, 0, 1);
+  return raw * raw * (3 - 2 * raw);
+}
+
+function updatePairRecord(record) {
+  const unwindFactor = state.unwind / 100;
+  const progress = getAssemblyProgressForIndex(record.index);
+  const pairY = getPairY(record.index);
+  const entryOffset = (1 - progress) * 2.8;
+  record.group.position.set(0, pairY + entryOffset, 0);
+  record.group.scale.setScalar(0.62 + progress * 0.38);
+  record.group.visible = progress > 0 || state.displayMode !== '조립 과정';
+
+  const strand1Pos = getDnaStrandPosition(record.index, 1, unwindFactor);
+  const strand2Pos = getDnaStrandPosition(record.index, 2, unwindFactor);
+  const strand1Local = strand1Pos.clone().setY(0);
+  const strand2Local = strand2Pos.clone().setY(0);
+  const strand1Dir = getStrandDirection(record.index, 1, unwindFactor);
+  const strand2Dir = getStrandDirection(record.index, 2, unwindFactor);
+  const base1Length = BASE_INFO[activeSequence[record.index]].width;
+  const base2Length = BASE_INFO[activeComplement[record.index]].width;
+  const base1Pos = strand1Local.clone().add(strand1Dir.clone().multiplyScalar(-(0.34 + base1Length * 0.18)));
+  const base2Pos = strand2Local.clone().add(strand2Dir.clone().multiplyScalar(-(0.34 + base2Length * 0.18)));
+
+  const phosphate1World = getPhosphatePosition(record.index, 1, unwindFactor);
+  const phosphate2World = getPhosphatePosition(record.index, 2, unwindFactor);
+  const phosphate1Pos = phosphate1World.clone();
+  const phosphate2Pos = phosphate2World.clone();
+  phosphate1Pos.y -= pairY;
+  phosphate2Pos.y -= pairY;
+
+  updateNucleotideTransform(record.strand1, {
+    sugarPos: strand1Local,
+    phosphatePos: phosphate1Pos,
+    basePos: base1Pos,
+    baseDir: base1Pos.clone().sub(strand1Local),
+    sugarFacing: strand1Dir
+  });
+
+  updateNucleotideTransform(record.strand2, {
+    sugarPos: strand2Local,
+    phosphatePos: phosphate2Pos,
+    basePos: base2Pos,
+    baseDir: base2Pos.clone().sub(strand2Local),
+    sugarFacing: strand2Dir
+  });
+
+  const bondNormal = tempVecA.subVectors(base2Pos, base1Pos).normalize();
+  const bondLift = record.bondCount === 2 ? [-0.09, 0.09] : [-0.14, 0, 0.14];
+  record.bonds.forEach((bond, bondIndex) => {
+    const offset = new THREE.Vector3(0, bondLift[bondIndex], 0);
+    const start = base1Pos.clone().add(bondNormal.clone().multiplyScalar(0.18)).add(offset);
+    const end = base2Pos.clone().add(bondNormal.clone().multiplyScalar(-0.18)).add(offset);
+    positionCylinder(bond, start, end);
+    bond.visible = state.showHydrogenBonds && state.displayMode !== '뉴클레오타이드 상세' && progress > 0;
+  });
+
+  if (progress === 1 && record.prevProgress < 1 && state.displayMode === '조립 과정') {
+    record.flashStrength = 1;
+    const left = activeSequence[record.index];
+    const right = activeComplement[record.index];
+    showStatus(`${left} ↔ ${right} 상보적 염기쌍 매칭 완료`, 'success');
+  }
+  record.prevProgress = progress;
+}
+
+function positionCylinder(mesh, start, end) {
+  const direction = tempVecB.subVectors(end, start);
+  const length = Math.max(direction.length(), 0.001);
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.scale.set(1, length, 1);
+  mesh.quaternion.setFromUnitVectors(Y_AXIS, direction.normalize());
+}
+
+function updateRnaModel() {
+  rnaGroup.position.x = state.showRNA && state.displayMode !== '뉴클레오타이드 상세' ? RNA_OFFSET_X : 0;
+  rnaGroup.visible = state.showRNA && state.displayMode !== '뉴클레오타이드 상세';
+
+  if (!rnaGroup.visible) {
+    return;
+  }
+
+  if (rnaBackboneMesh) {
+    rnaBackboneMesh.visible = state.showBackbone;
+  }
+
+  const count = activeRnaSequence.length;
+  rnaGroup.rotation.y = Math.sin(clock.elapsedTime * 0.7) * 0.08;
+
+  rnaRecords.forEach((record, index) => {
+    const y = getPairY(index, count);
+    const sugarPos = new THREE.Vector3(
+      Math.sin(index * 0.56) * 0.6 + Math.sin(index * 0.18) * 0.2,
+      y,
+      Math.cos(index * 0.45) * 0.52
+    );
+    const prevPoint = new THREE.Vector3(
+      Math.sin((index - 0.2) * 0.56) * 0.6 + Math.sin((index - 0.2) * 0.18) * 0.2,
+      getPairY(Math.max(index - 0.2, 0), count),
+      Math.cos((index - 0.2) * 0.45) * 0.52
+    );
+    const nextPoint = new THREE.Vector3(
+      Math.sin((index + 0.2) * 0.56) * 0.6 + Math.sin((index + 0.2) * 0.18) * 0.2,
+      getPairY(Math.min(index + 0.2, count - 1), count),
+      Math.cos((index + 0.2) * 0.45) * 0.52
+    );
+    const tangent = nextPoint.clone().sub(prevPoint).normalize();
+    const side = tempVecC.set(Math.sin(index * 0.9 + 0.4), 0, Math.cos(index * 0.9 + 0.4)).clone().normalize();
+    const phosphatePos = sugarPos.clone().add(tangent.clone().multiplyScalar(0.22));
+    const basePos = sugarPos.clone().add(side.multiplyScalar(index % 2 === 0 ? 0.88 : -0.88));
+
+    updateNucleotideTransform(record.unit, {
+      sugarPos,
+      phosphatePos,
+      basePos,
+      baseDir: basePos.clone().sub(sugarPos),
+      sugarFacing: side,
+      labelLift: 0.24
+    });
+
+    record.unit.phosphate.visible = state.showBackbone;
+    record.unit.sugar.visible = state.showBackbone;
+    record.unit.base.visible = state.showBasePairs;
+    record.unit.baseLabel.visible = state.showBasePairs;
+  });
+}
+
+function updatePairAppearance(delta) {
+  pairRecords.forEach((record) => {
+    record.flashStrength = Math.max(0, record.flashStrength - delta * 1.8);
+    const isHovered = hoveredPairIndex === record.index;
+    const shouldDim = hoveredPairIndex !== -1 && !isHovered;
+    const opacityFactor = shouldDim ? 0.24 : 1;
+    const emissiveColor = isHovered ? 0xffffff : 0x66ff99;
+    const emissiveIntensity = isHovered ? 0.55 : record.flashStrength * 0.8;
+
+    const showBackboneNow = state.showBackbone && state.displayMode !== '뉴클레오타이드 상세';
+    const showBasesNow = state.showBasePairs && state.displayMode !== '뉴클레오타이드 상세';
+
+    record.strand1.phosphate.visible = showBackboneNow;
+    record.strand1.sugar.visible = showBackboneNow;
+    record.strand1.pLabel.visible = showBackboneNow;
+    record.strand1.sLabel.visible = showBackboneNow;
+    record.strand2.phosphate.visible = showBackboneNow;
+    record.strand2.sugar.visible = showBackboneNow;
+    record.strand2.pLabel.visible = showBackboneNow;
+    record.strand2.sLabel.visible = showBackboneNow;
+    record.strand1.base.visible = showBasesNow;
+    record.strand1.baseLabel.visible = showBasesNow;
+    record.strand2.base.visible = showBasesNow;
+    record.strand2.baseLabel.visible = showBasesNow;
+
+    [
+      ...record.strand1.materials,
+      ...record.strand2.materials,
+      ...record.bonds.map((bond) => bond.material)
+    ].forEach((material) => {
+      material.opacity = (material.userData.baseOpacity ?? 1) * opacityFactor;
+      if (material.emissive) {
+        material.emissive.setHex(emissiveColor);
+        material.emissiveIntensity = emissiveIntensity;
+      }
+    });
+
+    record.glow.position.set(0, 0, 0);
+    record.glow.intensity = isHovered ? 0.6 : record.flashStrength * 0.48;
+    record.glow.color.setHex(isHovered ? 0xd9f3ff : 0x66ff99);
+  });
+}
+
+function setHoveredPair(index) {
+  if (hoveredPairIndex === index) {
+    return;
+  }
+  hoveredPairIndex = index;
+  updateSequencePanel();
+
+  if (index === -1) {
+    tooltip.classList.remove('show');
+    tooltip.textContent = '';
+    return;
+  }
+
+  const left = activeSequence[index];
+  const right = activeComplement[index];
+  const bondText = BASE_INFO[left].bonds === 2 ? '이중 수소결합' : '삼중 수소결합';
+  tooltip.textContent = `${left} — ${right} (${bondText})`;
+  tooltip.classList.add('show');
+}
+
+function updateHover() {
+  if (state.displayMode === '뉴클레오타이드 상세') {
+    setHoveredPair(-1);
+    return;
+  }
+
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(interactiveObjects, false);
+  const visibleHit = hits.find((hit) => hit.object.visible);
+  setHoveredPair(visibleHit ? visibleHit.object.userData.pairIndex : -1);
+}
+
+function updateFormulaPanel() {
+  fpCount.textContent = String(activeSequence.length);
+  fpTurns.textContent = (activeSequence.length / PAIRS_PER_TURN).toFixed(1);
+  if (state.displayMode === '뉴클레오타이드 상세') {
+    fpStructure.textContent = '뉴클레오타이드 상세 확대 보기';
+  } else if (state.unwind >= 100) {
+    fpStructure.textContent = '완전히 풀린 평면 사다리 구조';
+  } else if (state.unwind >= 50) {
+    fpStructure.textContent = '부분적으로 풀린 이중나선 구조';
+  } else {
+    fpStructure.textContent = '이중나선 (두 가닥이 꼬인 형태)';
+  }
+}
+
+function updateSequencePanel() {
+  renderSequenceCells(sequenceTop, activeSequence.split(''));
+  renderSequenceCells(sequenceBars, Array.from({ length: activeSequence.length }, () => '|'));
+  renderSequenceCells(sequenceBottom, activeComplement.split(''));
+}
+
+function renderSequenceCells(container, values) {
+  container.innerHTML = values.map((value, index) => {
+    const activeClass = hoveredPairIndex === index ? ' active' : '';
+    return `<span class="sequence-cell${activeClass}">${value}</span>`;
+  }).join('');
+}
+
+function updateModeAndLayout() {
+  const detailMode = state.displayMode === '뉴클레오타이드 상세';
+  dnaGroup.visible = !detailMode;
+  detailGroup.visible = detailMode;
+  detailCaption.classList.toggle('show', detailMode);
+  rnaCaption.classList.toggle('show', state.showRNA && !detailMode);
+  dnaGroup.position.x = state.showRNA && !detailMode ? DNA_COMPARE_OFFSET_X : 0;
+  updateFormulaPanel();
+  updateCameraTargets();
+  needsBackboneRebuild = true;
+
+  if (detailMode) {
+    statusText.textContent = '뉴클레오타이드는 인산, 당, 염기로 이루어지며 각 부분은 특정 결합으로 연결됩니다.';
+  } else if (state.displayMode === '조립 과정') {
+    statusText.textContent = '각 염기쌍이 위에서 날아와 결합하며 이중나선이 조립되는 과정을 관찰해 보세요.';
+  } else {
+    statusText.textContent = 'DNA의 두 가닥이 어떻게 꼬여 이중나선을 이루는지, 그리고 A-T / G-C 결합 규칙이 어떻게 유지되는지 3D로 관찰해 보세요.';
+  }
+}
+
+function updateCameraTargets() {
+  if (state.displayMode === '뉴클레오타이드 상세') {
+    cameraDesired = new THREE.Vector3(0, 0.5, 7.2);
+    controlsDesired = new THREE.Vector3(0, 0.15, 0);
+  } else if (state.showRNA) {
+    cameraDesired = new THREE.Vector3(0.9, 0.7, 13.0);
+    controlsDesired = new THREE.Vector3(0.95, 0.2, 0);
+  } else {
+    cameraDesired = new THREE.Vector3(0, 0.9, 10.8);
+    controlsDesired = new THREE.Vector3(0, 0.3, 0);
+  }
+}
+
+function showStatus(message, type = 'success') {
+  statusChip.textContent = message;
+  statusChip.className = `show ${type}`.trim();
+  window.clearTimeout(statusTimeout);
+  statusTimeout = window.setTimeout(() => {
+    statusChip.className = '';
+  }, 1700);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+
+  if (state.autoRotate) {
+    rotatingRig.rotation.y += 0.18 * delta * state.rotationSpeed;
+  }
+
+  if (state.displayMode === '조립 과정') {
+    const before = Math.floor(assemblyElapsed / ASSEMBLY_DURATION);
+    assemblyElapsed = Math.min(activeSequence.length * ASSEMBLY_DURATION, assemblyElapsed + delta);
+    const after = Math.floor(assemblyElapsed / ASSEMBLY_DURATION);
+    if (after !== before) {
+      needsBackboneRebuild = true;
+    }
+  }
+
+  pairRecords.forEach(updatePairRecord);
+  updateBackbones();
+  updateRnaModel();
+  updateHover();
+  updatePairAppearance(delta);
+  camera.position.lerp(cameraDesired, 0.045);
+  controls.target.lerp(controlsDesired, 0.08);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+buildDnaModel();
+buildRnaModel();
+buildDetailModel();
+updateFormulaPanel();
+updateSequencePanel();
+updateModeAndLayout();
+animate();
+
+function disposeAll() {
+  disposeObject(dnaGroup);
+  disposeObject(rnaGroup);
+  disposeObject(detailGroup);
+  labelTextureCache.forEach((texture) => texture.dispose());
+  renderer.dispose();
+}
+
+window.addEventListener('beforeunload', disposeAll);
+</script>
+</body>
+</html>

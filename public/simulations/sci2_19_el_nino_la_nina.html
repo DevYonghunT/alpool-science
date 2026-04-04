@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>엘니뇨와 라니냐 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --panel-bg: rgba(7, 20, 40, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --accent: #ffd98d;
+    --accent-cool: #93d9ff;
+    --accent-warm: #ff9566;
+    --impact: rgba(255, 137, 96, 0.14);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 20% 18%, rgba(121, 208, 255, 0.12), transparent 24%),
+      radial-gradient(circle at 80% 16%, rgba(255, 157, 94, 0.1), transparent 22%),
+      linear-gradient(180deg, #173562 0%, #112244 42%, #09152b 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    min-width: 280px;
+    padding: 12px 18px 13px;
+    border-radius: 20px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 700;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 44;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 18, 34, 0.86);
+    color: #fff;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 68vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    z-index: 43;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #bfe6ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd49f;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 11px;
+  }
+
+  #mode-pill {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 29;
+    min-width: 220px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #mode-pill strong {
+    color: #ffe4a6;
+  }
+
+  #sst-panel {
+    position: fixed;
+    top: 130px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 28px));
+    padding: 14px 16px;
+    border-radius: 20px;
+    z-index: 28;
+  }
+
+  #sst-panel.hidden {
+    display: none;
+  }
+
+  .sst-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    font-size: 11px;
+  }
+
+  .sst-head strong {
+    color: #fff;
+    font-size: 13px;
+  }
+
+  .sst-head span {
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  #sst-gradient {
+    margin-top: 10px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.08);
+  }
+
+  .sst-locations,
+  .sst-scale {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .sst-locations {
+    margin-top: 8px;
+  }
+
+  .sst-scale {
+    margin-top: 7px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    z-index: 34;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #bfe6ff;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .info-row .label {
+    width: 98px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .info-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .info-box strong {
+    color: #ffd59b;
+  }
+
+  #impact-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    width: min(330px, calc(100vw - 28px));
+    padding: 16px 16px 14px;
+    border-radius: 20px;
+    z-index: 34;
+    background: linear-gradient(180deg, rgba(9, 24, 44, 0.92), rgba(14, 30, 53, 0.92));
+    border: 1px solid rgba(255, 176, 132, 0.18);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+  }
+
+  #impact-panel.hidden {
+    display: none;
+  }
+
+  #impact-panel h3 {
+    font-size: 15px;
+    color: #ffd1a2;
+  }
+
+  #impact-panel p {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  #impact-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .impact-tag {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--impact);
+    border: 1px solid rgba(255, 161, 124, 0.18);
+    font-size: 10px;
+    color: rgba(255, 247, 235, 0.92);
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    top: calc(130px + 116px);
+    max-width: 340px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    z-index: 31;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.74);
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    z-index: 45 !important;
+    --background-color: rgba(4, 14, 30, 0.94);
+    --title-background-color: rgba(255, 255, 255, 0.05);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #f1fbff;
+  }
+
+  @media (max-width: 960px) {
+    #title-card {
+      width: calc(100vw - 90px);
+      min-width: 0;
+    }
+
+    #sst-panel {
+      top: 126px;
+      width: calc(100vw - 28px);
+    }
+
+    #hint-chip {
+      top: auto;
+      right: auto;
+      left: 50%;
+      bottom: 214px;
+      transform: translateX(-50%);
+      width: min(92vw, 420px);
+      text-align: center;
+    }
+
+    #impact-panel {
+      bottom: 186px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      top: 12px;
+      width: calc(100vw - 120px);
+      padding: 11px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #mode-pill {
+      top: 84px;
+      width: calc(100vw - 28px);
+      min-width: 0;
+    }
+
+    #sst-panel {
+      top: 118px;
+    }
+
+    #guide-panel {
+      width: calc(100vw - 28px);
+    }
+
+    #formula-panel,
+    #impact-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      max-width: none;
+    }
+
+    #formula-panel {
+      max-height: 40vh;
+      overflow-y: auto;
+      bottom: 12px;
+    }
+
+    #impact-panel {
+      bottom: 246px;
+      max-height: 28vh;
+      overflow-y: auto;
+    }
+
+    #hint-chip {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Integrated Science II</div>
+  <h1>엘니뇨와 라니냐</h1>
+  <p id="scene-subtitle">적도 태평양의 해수면 온도, 무역풍, 용승 변화가 이상 기후를 만듭니다.</p>
+</div>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+
+  <h4>🔑 핵심 원리</h4>
+  <p>엘니뇨는 열대 태평양 동쪽 해역의 해수면 온도가 평년보다 높아지는 현상이고, 라니냐는 반대로 낮아지는 현상입니다. 이들은 전 세계적으로 이상 기후를 유발하며 생태계에도 영향을 미칩니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>엘니뇨가 발생하면 동태평양의 해수면 온도와 무역풍은 어떻게 변하나요?</li>
+    <li>엘니뇨와 라니냐가 전 세계 기후에 미치는 영향의 차이점은 무엇인가요?</li>
+    <li>지구 온난화가 엘니뇨와 라니냐의 빈도와 강도에 어떤 영향을 줄 수 있을까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li><strong>2023~2024 슈퍼 엘니뇨</strong>: 전 세계 폭염, 가뭄, 집중호우를 동시에 강화했습니다.</li>
+    <li><strong>한국의 이상 기후</strong>: 계절별 폭염, 한파, 집중호우 패턴에 간접적으로 영향을 줄 수 있습니다.</li>
+    <li><strong>페루 어업 피해</strong>: 동태평양 용승이 약해지면 영양염 공급이 줄어 어장이 약화됩니다.</li>
+  </ul>
+
+  <h4>📘 교과서 연계</h4>
+  <p>평상시에는 서태평양에 따뜻한 물이 모이고 동태평양에서는 차가운 물이 용승합니다. 엘니뇨와 라니냐는 이 균형이 흔들릴 때 나타나는 대표적인 해양-대기 상호작용입니다.</p>
+
+  <div class="textbook-ref">📚 미래엔 통합과학2 II편 p88~89 — 엘니뇨와 라니냐, 이상 기후</div>
+</div>
+
+<div id="mode-pill" class="glass">현재 모드: <strong id="mode-pill-value">평상시</strong></div>
+
+<div id="sst-panel" class="glass">
+  <div class="sst-head">
+    <strong>해수면 온도 지도</strong>
+    <span id="sst-summary">동태평양은 차갑고 서태평양에는 따뜻한 물이 축적됩니다.</span>
+  </div>
+  <div id="sst-gradient"></div>
+  <div class="sst-locations">
+    <span>동태평양</span>
+    <span>적도 태평양</span>
+    <span>서태평양</span>
+  </div>
+  <div class="sst-scale">
+    <span>차가움</span>
+    <span>평균</span>
+    <span>따뜻함</span>
+  </div>
+</div>
+
+<div id="formula-panel" class="glass">
+  <h3>🌊 엘니뇨와 라니냐</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 모드:</span><span class="value" id="fp-mode">평상시</span></div>
+  <div class="info-row"><span class="label">무역풍 세기:</span><span class="value" id="fp-wind">보통</span></div>
+  <div class="info-row"><span class="label">동태평양 수온:</span><span class="value" id="fp-temp">평년 대비 +0.0°C</span></div>
+  <div class="info-row"><span class="label">용승 강도:</span><span class="value" id="fp-upwelling">보통</span></div>
+  <div class="info-row"><span class="label">강수 이동:</span><span class="value" id="fp-rain">서태평양에 집중</span></div>
+  <div class="info-row"><span class="label">자동 전환:</span><span class="value" id="fp-auto">꺼짐</span></div>
+
+  <div class="info-box">
+    <strong>엘니뇨</strong><br>
+    동태평양 해수면 온도 ↑, 무역풍 약화, 용승 약화 → 남미 홍수, 호주 가뭄
+  </div>
+
+  <div class="info-box">
+    <strong>라니냐</strong><br>
+    동태평양 해수면 온도 ↓, 무역풍 강화, 용승 강화 → 남미 가뭄, 호주 홍수
+  </div>
+
+  <div class="info-box">
+    <strong>핵심 포인트</strong><br>
+    무역풍이 약해지면 따뜻한 물이 동쪽으로 이동해 수온약층이 평탄해지고, 무역풍이 강해지면 동쪽의 차가운 용승과 서쪽의 따뜻한 물 축적이 강화됩니다.
+  </div>
+</div>
+
+<div id="impact-panel" class="hidden">
+  <h3 id="impact-title">현재 영향</h3>
+  <p id="impact-description">평상시에는 서태평양 강수 집중과 동태평양 용승이 균형을 이룹니다.</p>
+  <div id="impact-tags"></div>
+</div>
+
+<div id="hint-chip" class="glass">드래그로 카메라를 움직이고, 우측 GUI에서 모드와 무역풍 세기를 바꾸면 수온약층과 해수면 온도 분포가 함께 바뀝니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const OCEAN_WIDTH = 20;
+const OCEAN_HEIGHT = 3;
+const OCEAN_DEPTH = 8;
+const OCEAN_TOP = OCEAN_HEIGHT * 0.5;
+const OCEAN_BOTTOM = -OCEAN_HEIGHT * 0.5;
+const COOL_COLOR = new THREE.Color(0x0044aa);
+const MID_COLOR = new THREE.Color(0x44aa88);
+const WARM_COLOR = new THREE.Color(0xff4400);
+
+const MODE_KEYS = ['normal', 'elNino', 'laNina'];
+const MODE_OPTIONS = {
+  '평상시': 'normal',
+  '엘니뇨': 'elNino',
+  '라니냐': 'laNina'
+};
+
+const MODE_CONFIG = {
+  normal: {
+    label: '평상시',
+    defaultWind: 1.0,
+    eastAnomaly: 0.0,
+    eastNorm: 0.2,
+    westNorm: 0.96,
+    midBias: -0.02,
+    baseUpwelling: 1.0,
+    thermo: { east: 0.28, mid: 0.48, west: 0.78 },
+    eastWeather: 0.12,
+    westWeather: 1.0,
+    eastLabel: '맑고 건조',
+    westLabel: '적운과 강수',
+    rainShift: '서태평양에 집중',
+    subtitle: '서태평양 warm pool과 동태평양 용승이 균형을 이룹니다.',
+    sstSummary: '동태평양은 차갑고 서태평양에는 따뜻한 물이 축적됩니다.',
+    impactTitle: '평상시 영향',
+    impactDescription: '무역풍이 따뜻한 표층수를 서태평양으로 밀어 모아 두고, 동태평양에서는 차가운 심층수가 용승해 상대적으로 맑고 건조한 날씨가 나타납니다.',
+    impactTags: ['동태평양 용승 유지', '서태평양 강수 집중', '적도 태평양 순환 안정']
+  },
+  elNino: {
+    label: '엘니뇨',
+    defaultWind: 0.45,
+    eastAnomaly: 2.1,
+    eastNorm: 0.86,
+    westNorm: 0.78,
+    midBias: 0.02,
+    baseUpwelling: 0.35,
+    thermo: { east: 0.56, mid: 0.58, west: 0.62 },
+    eastWeather: 1.0,
+    westWeather: 0.18,
+    eastLabel: '구름과 폭우',
+    westLabel: '건조와 가뭄',
+    rainShift: '동태평양으로 이동',
+    subtitle: '무역풍이 약해져 따뜻한 물이 동태평양까지 퍼집니다.',
+    sstSummary: '동태평양 해수면 온도가 크게 올라가고 수온약층이 평탄해집니다.',
+    impactTitle: '엘니뇨 영향',
+    impactDescription: '동태평양 해수면 온도 상승으로 남미 연안 강수와 홍수 가능성이 커지고, 서태평양의 호주·인도네시아 부근은 상대적으로 건조해질 수 있습니다.',
+    impactTags: ['동태평양 해수면 온도 상승', '남미 홍수', '호주 가뭄']
+  },
+  laNina: {
+    label: '라니냐',
+    defaultWind: 1.7,
+    eastAnomaly: -1.9,
+    eastNorm: 0.05,
+    westNorm: 1.0,
+    midBias: -0.04,
+    baseUpwelling: 1.7,
+    thermo: { east: 0.16, mid: 0.43, west: 0.86 },
+    eastWeather: 0.08,
+    westWeather: 1.2,
+    eastLabel: '극심한 건조',
+    westLabel: '폭우 강화',
+    rainShift: '서태평양으로 더 집중',
+    subtitle: '강한 무역풍이 동태평양의 차가운 용승과 서태평양 warm pool을 강화합니다.',
+    sstSummary: '동태평양 냉수대가 강화되고 수온약층 기울기가 더 커집니다.',
+    impactTitle: '라니냐 영향',
+    impactDescription: '동태평양의 차가운 용승이 강화되어 남미 서해안은 건조해지고, 서태평양과 호주 주변은 폭우와 홍수 위험이 커질 수 있습니다.',
+    impactTags: ['동태평양 해수면 온도 하강', '남미 가뭄', '호주 홍수']
+  }
+};
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  subtitle: document.getElementById('scene-subtitle'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  modePill: document.getElementById('mode-pill-value'),
+  sstPanel: document.getElementById('sst-panel'),
+  sstGradient: document.getElementById('sst-gradient'),
+  sstSummary: document.getElementById('sst-summary'),
+  fpMode: document.getElementById('fp-mode'),
+  fpWind: document.getElementById('fp-wind'),
+  fpTemp: document.getElementById('fp-temp'),
+  fpUpwelling: document.getElementById('fp-upwelling'),
+  fpRain: document.getElementById('fp-rain'),
+  fpAuto: document.getElementById('fp-auto'),
+  impactPanel: document.getElementById('impact-panel'),
+  impactTitle: document.getElementById('impact-title'),
+  impactDescription: document.getElementById('impact-description'),
+  impactTags: document.getElementById('impact-tags')
+};
+
+const state = {
+  mode: 'normal',
+  windStrength: MODE_CONFIG.normal.defaultWind,
+  showTemperature: true,
+  showAtmosphere: true,
+  showImpacts: false,
+  autoCycle: false,
+  autoTimer: null
+};
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x112244);
+scene.fog = new THREE.Fog(0x112244, 24, 48);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 5.4, 18.6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 13;
+controls.maxDistance = 28;
+controls.minPolarAngle = 0.45;
+controls.maxPolarAngle = 1.32;
+controls.target.set(0, 0.8, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+directional.position.set(-10, 12, 10);
+scene.add(directional);
+
+const fillLight = new THREE.PointLight(0x67c8ff, 0.6, 40, 2);
+fillLight.position.set(0, 2.2, 10);
+scene.add(fillLight);
+
+const world = new THREE.Group();
+scene.add(world);
+
+const oceanGroup = new THREE.Group();
+world.add(oceanGroup);
+
+const oceanGeometry = new THREE.BoxGeometry(OCEAN_WIDTH, OCEAN_HEIGHT, OCEAN_DEPTH, 56, 14, 18);
+const oceanColors = new Float32Array(oceanGeometry.attributes.position.count * 3);
+oceanGeometry.setAttribute('color', new THREE.BufferAttribute(oceanColors, 3));
+
+const oceanMaterial = new THREE.MeshPhysicalMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.92,
+  roughness: 0.18,
+  metalness: 0.02,
+  transmission: 0.16
+});
+const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
+oceanGroup.add(oceanMesh);
+
+const oceanOutline = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(OCEAN_WIDTH, OCEAN_HEIGHT, OCEAN_DEPTH)),
+  new THREE.LineBasicMaterial({ color: 0xcdf3ff, transparent: true, opacity: 0.22 })
+);
+oceanGroup.add(oceanOutline);
+
+const surfaceCanvas = document.createElement('canvas');
+surfaceCanvas.width = 1024;
+surfaceCanvas.height = 256;
+const surfaceCtx = surfaceCanvas.getContext('2d');
+const surfaceTexture = new THREE.CanvasTexture(surfaceCanvas);
+surfaceTexture.colorSpace = THREE.SRGBColorSpace;
+surfaceTexture.wrapS = THREE.ClampToEdgeWrapping;
+surfaceTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+const surfaceGeometry = new THREE.PlaneGeometry(20, 8, 100, 34);
+const surfaceBasePositions = surfaceGeometry.attributes.position.array.slice();
+const surfaceMaterial = new THREE.MeshPhysicalMaterial({
+  map: surfaceTexture,
+  transparent: true,
+  opacity: 0.82,
+  side: THREE.DoubleSide,
+  roughness: 0.14,
+  metalness: 0,
+  transmission: 0.08
+});
+const surfaceMesh = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
+surfaceMesh.rotation.x = -Math.PI * 0.5;
+surfaceMesh.position.y = OCEAN_TOP + 0.02;
+oceanGroup.add(surfaceMesh);
+
+const seaFloor = new THREE.Mesh(
+  new THREE.BoxGeometry(20.4, 0.22, 8.4),
+  new THREE.MeshStandardMaterial({
+    color: 0x4d372a,
+    roughness: 0.95,
+    metalness: 0
+  })
+);
+seaFloor.position.y = OCEAN_BOTTOM - 0.22;
+oceanGroup.add(seaFloor);
+
+const shelf = new THREE.Mesh(
+  new THREE.BoxGeometry(3.0, 0.18, 5.2),
+  new THREE.MeshStandardMaterial({
+    color: 0x73594a,
+    roughness: 0.92
+  })
+);
+shelf.position.set(-8.35, OCEAN_BOTTOM - 0.1, 0);
+oceanGroup.add(shelf);
+
+const continentMaterial = new THREE.MeshStandardMaterial({
+  color: 0x886644,
+  roughness: 0.9,
+  metalness: 0.02
+});
+
+const leftContinent = createContinent({
+  blocks: [
+    { size: [2.0, 3.6, 6.6], pos: [-11.3, 0.1, 0] },
+    { size: [1.1, 1.6, 3.4], pos: [-10.25, 1.9, -1.1] },
+    { size: [0.8, 1.1, 2.1], pos: [-10.05, 2.6, 1.4] }
+  ],
+  label: '남아메리카',
+  labelPos: [-11.0, 3.7, 0]
+});
+scene.add(leftContinent.group);
+
+const rightContinent = createContinent({
+  blocks: [
+    { size: [2.5, 3.8, 6.8], pos: [11.6, 0.15, 0] },
+    { size: [1.2, 1.5, 3.0], pos: [10.35, 2.05, 1.7] },
+    { size: [1.0, 1.1, 2.2], pos: [12.8, 1.55, -1.8] }
+  ],
+  label: '아시아 · 호주',
+  labelPos: [11.5, 3.8, 0]
+});
+scene.add(rightContinent.group);
+
+const eastPacificLabel = createLabelSprite('동태평양', { color: '#d8f4ff', width: 300, height: 80, fontSize: 30 });
+eastPacificLabel.position.set(-7.2, 2.75, 4.7);
+scene.add(eastPacificLabel);
+
+const westPacificLabel = createLabelSprite('서태평양', { color: '#ffe1b2', width: 300, height: 80, fontSize: 30 });
+westPacificLabel.position.set(7.0, 2.75, 4.7);
+scene.add(westPacificLabel);
+
+const thermoclineMaterial = new THREE.MeshStandardMaterial({
+  color: 0xffba58,
+  emissive: 0xd86a3d,
+  emissiveIntensity: 0.3,
+  roughness: 0.4,
+  metalness: 0.05
+});
+const thermoclineMesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(), new THREE.Vector3(0, 1, 0)), 4, 0.11, 12, false), thermoclineMaterial);
+oceanGroup.add(thermoclineMesh);
+
+const thermoclineLabel = createLabelSprite('수온약층', { color: '#ffd29c', width: 260, height: 76, fontSize: 28 });
+thermoclineLabel.position.set(0, -0.3, 4.6);
+scene.add(thermoclineLabel);
+
+const windGroup = new THREE.Group();
+scene.add(windGroup);
+
+const windParticles = [];
+for (let lane = 0; lane < 3; lane += 1) {
+  for (let i = 0; i < 14; i += 1) {
+    const arrow = createArrowParticle(0x77caff);
+    arrow.group.position.set(-10 + i * 1.55, 3.35 + lane * 0.48, -2.1 + lane * 2.0);
+    windParticles.push({
+      ...arrow,
+      lane,
+      seed: i * 0.47 + lane * 0.33
+    });
+    windGroup.add(arrow.group);
+  }
+}
+
+const windLabel = createLabelSprite('무역풍: 동 → 서', { color: '#bfe8ff', width: 380, height: 84, fontSize: 30 });
+windLabel.position.set(0.2, 4.8, 4.8);
+scene.add(windLabel);
+
+const upwellingGroup = new THREE.Group();
+scene.add(upwellingGroup);
+const upwellingArrows = [];
+for (let i = 0; i < 5; i += 1) {
+  const arrow = new THREE.ArrowHelper(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(-8.65 + i * 0.72, -1.35, -1.2 + i * 0.6),
+    1.2,
+    0x5fbaff,
+    0.28,
+    0.16
+  );
+  upwellingGroup.add(arrow);
+  upwellingArrows.push(arrow);
+}
+const upwellingLabel = createLabelSprite('용승', { color: '#b4e8ff', width: 180, height: 72, fontSize: 28 });
+upwellingLabel.position.set(-8.0, 1.1, 4.8);
+scene.add(upwellingLabel);
+
+const eastWeather = createWeatherSystem(-7.2);
+const westWeather = createWeatherSystem(7.4);
+scene.add(eastWeather.group, westWeather.group);
+
+const eastWeatherLabel = createLabelSprite('', { color: '#d7f2ff', width: 240, height: 76, fontSize: 28 });
+eastWeatherLabel.position.set(-7.2, 5.45, 4.9);
+scene.add(eastWeatherLabel);
+
+const westWeatherLabel = createLabelSprite('', { color: '#ffe6bf', width: 240, height: 76, fontSize: 28 });
+westWeatherLabel.position.set(7.4, 5.45, 4.9);
+scene.add(westWeatherLabel);
+
+const surfaceMarkerEast = createLabelSprite('', { color: '#d4f4ff', width: 240, height: 82, fontSize: 28, background: 'rgba(5, 24, 48, 0.72)' });
+surfaceMarkerEast.position.set(-6.8, 2.15, 4.95);
+scene.add(surfaceMarkerEast);
+
+const surfaceMarkerWest = createLabelSprite('', { color: '#ffe1b0', width: 240, height: 82, fontSize: 28, background: 'rgba(42, 18, 7, 0.58)' });
+surfaceMarkerWest.position.set(6.9, 2.15, 4.95);
+scene.add(surfaceMarkerWest);
+
+const impactLabel3D = createLabelSprite('', {
+  color: '#fff4e8',
+  width: 560,
+  height: 118,
+  fontSize: 24,
+  background: 'rgba(24, 18, 30, 0.78)',
+  border: 'rgba(255, 182, 135, 0.42)'
+});
+impactLabel3D.position.set(0, 6.2, 3.9);
+scene.add(impactLabel3D);
+
+let guideOpen = false;
+dom.guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  dom.guidePanel.classList.toggle('open', guideOpen);
+  dom.guideToggle.textContent = guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+const guiState = {
+  mode: '평상시',
+  windStrength: MODE_CONFIG.normal.defaultWind,
+  showTemperature: true,
+  showAtmosphere: true,
+  showImpacts: false,
+  autoCycle: () => toggleAutoCycle(),
+  reset: () => resetSimulation()
+};
+
+const gui = new GUI({ title: '태평양 조절 패널', width: 292 });
+gui.domElement.style.marginTop = '14px';
+gui.add(guiState, 'mode', Object.keys(MODE_OPTIONS)).name('모드').onChange((label) => {
+  setMode(MODE_OPTIONS[label], true);
+});
+gui.add(guiState, 'windStrength', 0, 2, 0.01).name('무역풍 세기').onChange((value) => {
+  state.windStrength = value;
+  refreshScene(false);
+});
+gui.add(guiState, 'showTemperature').name('해수면 온도 표시').onChange((value) => {
+  state.showTemperature = value;
+  refreshScene(false);
+});
+gui.add(guiState, 'showAtmosphere').name('대기 순환 표시').onChange((value) => {
+  state.showAtmosphere = value;
+  refreshScene(false);
+});
+gui.add(guiState, 'showImpacts').name('영향 표시').onChange((value) => {
+  state.showImpacts = value;
+  refreshScene(false);
+});
+gui.add(guiState, 'autoCycle').name('자동 전환');
+gui.add(guiState, 'reset').name('초기화');
+if (window.innerWidth <= 960) gui.close();
+
+setMode('normal', false);
+
+window.addEventListener('resize', onResize);
+onResize();
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(animate);
+
+function animate() {
+  const elapsed = clock.getElapsedTime();
+  const profile = getDerivedProfile();
+
+  updateSurfaceWaves(elapsed, profile);
+  updateWindParticles(elapsed, profile);
+  updateWeatherAnimation(elapsed, eastWeather, profile.eastWeatherStrength);
+  updateWeatherAnimation(elapsed, westWeather, profile.westWeatherStrength);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setMode(modeKey, syncGui = true) {
+  state.mode = modeKey;
+  state.windStrength = MODE_CONFIG[modeKey].defaultWind;
+  guiState.mode = MODE_CONFIG[modeKey].label;
+  guiState.windStrength = state.windStrength;
+  refreshScene(syncGui);
+}
+
+function resetSimulation() {
+  stopAutoCycle();
+  state.mode = 'normal';
+  state.windStrength = MODE_CONFIG.normal.defaultWind;
+  state.showTemperature = true;
+  state.showAtmosphere = true;
+  state.showImpacts = false;
+
+  guiState.mode = MODE_CONFIG.normal.label;
+  guiState.windStrength = state.windStrength;
+  guiState.showTemperature = true;
+  guiState.showAtmosphere = true;
+  guiState.showImpacts = false;
+  refreshScene(true);
+}
+
+function toggleAutoCycle() {
+  if (state.autoCycle) {
+    stopAutoCycle();
+    refreshScene(true);
+    return;
+  }
+
+  state.autoCycle = true;
+  state.autoTimer = window.setInterval(() => {
+    const currentIndex = MODE_KEYS.indexOf(state.mode);
+    const nextMode = MODE_KEYS[(currentIndex + 1) % MODE_KEYS.length];
+    setMode(nextMode, true);
+  }, 5000);
+  refreshScene(true);
+}
+
+function stopAutoCycle() {
+  state.autoCycle = false;
+  if (state.autoTimer) {
+    clearInterval(state.autoTimer);
+    state.autoTimer = null;
+  }
+}
+
+function refreshScene(syncGui = true) {
+  const profile = getDerivedProfile();
+
+  updateOceanColors(profile);
+  updateSurfaceTexture(profile);
+  updateThermocline(profile);
+  updateAtmosphere(profile);
+  updateUpwelling(profile);
+  updateOverlay(profile);
+
+  if (syncGui) {
+    guiState.mode = MODE_CONFIG[state.mode].label;
+    guiState.windStrength = state.windStrength;
+    guiState.showTemperature = state.showTemperature;
+    guiState.showAtmosphere = state.showAtmosphere;
+    guiState.showImpacts = state.showImpacts;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function getDerivedProfile() {
+  const mode = MODE_CONFIG[state.mode];
+  const windDelta = state.windStrength - mode.defaultWind;
+
+  const eastAnomaly = THREE.MathUtils.clamp(mode.eastAnomaly - windDelta * 1.1, -2.5, 2.5);
+  const eastNorm = THREE.MathUtils.clamp(mode.eastNorm - windDelta * 0.13, 0.02, 0.96);
+  const westNorm = THREE.MathUtils.clamp(mode.westNorm + windDelta * 0.06, 0.5, 1.0);
+  const midNorm = THREE.MathUtils.clamp((eastNorm + westNorm) * 0.5 + mode.midBias, 0.16, 0.92);
+
+  const thermoEast = THREE.MathUtils.clamp(mode.thermo.east - windDelta * 0.12, 0.12, 0.72);
+  const thermoMid = THREE.MathUtils.clamp(mode.thermo.mid - windDelta * 0.05, 0.28, 0.72);
+  const thermoWest = THREE.MathUtils.clamp(mode.thermo.west + windDelta * 0.08, 0.44, 0.92);
+
+  const upwelling = THREE.MathUtils.clamp(mode.baseUpwelling + windDelta * 0.85, 0, 2);
+  const eastWeatherStrength = THREE.MathUtils.clamp(mode.eastWeather - windDelta * 0.2, 0, 1.25);
+  const westWeatherStrength = THREE.MathUtils.clamp(mode.westWeather + windDelta * 0.16, 0, 1.35);
+
+  return {
+    ...mode,
+    eastAnomaly,
+    eastNorm,
+    midNorm,
+    westNorm,
+    thermoEast,
+    thermoMid,
+    thermoWest,
+    upwelling,
+    eastWeatherStrength,
+    westWeatherStrength
+  };
+}
+
+function updateOceanColors(profile) {
+  const position = oceanGeometry.attributes.position;
+  const colorAttr = oceanGeometry.attributes.color;
+
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const z = position.getZ(i);
+    const xRatio = THREE.MathUtils.clamp((x + OCEAN_WIDTH * 0.5) / OCEAN_WIDTH, 0, 1);
+    const depthRatio = THREE.MathUtils.clamp((OCEAN_TOP - y) / OCEAN_HEIGHT, 0, 1);
+    const thermoDepth = sampleThermoclineDepth(profile, xRatio);
+    const warmFactor = 1 - smoothstep(thermoDepth - 0.08, thermoDepth + 0.22, depthRatio);
+    const surfaceNorm = sampleSurfaceNorm(profile, xRatio);
+    const deepNorm = 0.08 + 0.03 * (1 - xRatio) + 0.01 * Math.sin(z * 0.65);
+    const colorNorm = state.showTemperature
+      ? THREE.MathUtils.clamp(THREE.MathUtils.lerp(deepNorm, surfaceNorm, warmFactor), 0, 1)
+      : THREE.MathUtils.clamp(0.38 + 0.06 * (1 - depthRatio) + 0.02 * Math.sin(x * 0.4), 0, 1);
+
+    const color = getTemperatureColor(colorNorm);
+    colorAttr.setXYZ(i, color.r, color.g, color.b);
+  }
+
+  colorAttr.needsUpdate = true;
+}
+
+function updateSurfaceTexture(profile) {
+  const width = surfaceCanvas.width;
+  const height = surfaceCanvas.height;
+  surfaceCtx.clearRect(0, 0, width, height);
+
+  for (let x = 0; x < width; x += 1) {
+    const ratio = x / (width - 1);
+    const color = state.showTemperature
+      ? getTemperatureColor(sampleSurfaceNorm(profile, ratio))
+      : new THREE.Color(0x4aa1b7);
+    surfaceCtx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+    surfaceCtx.fillRect(x, 0, 1, height);
+  }
+
+  const gloss = surfaceCtx.createLinearGradient(0, 0, 0, height);
+  gloss.addColorStop(0, 'rgba(255, 255, 255, 0.36)');
+  gloss.addColorStop(0.4, 'rgba(255, 255, 255, 0.08)');
+  gloss.addColorStop(1, 'rgba(0, 0, 0, 0.04)');
+  surfaceCtx.fillStyle = gloss;
+  surfaceCtx.fillRect(0, 0, width, height);
+
+  surfaceCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  surfaceCtx.lineWidth = 2;
+  for (let i = 0; i < 5; i += 1) {
+    surfaceCtx.beginPath();
+    for (let x = 0; x <= width; x += 12) {
+      const wave = 18 + i * 30 + Math.sin(x * 0.018 + i * 0.8) * 5;
+      if (x === 0) surfaceCtx.moveTo(x, wave);
+      else surfaceCtx.lineTo(x, wave);
+    }
+    surfaceCtx.stroke();
+  }
+
+  surfaceTexture.needsUpdate = true;
+  surfaceMesh.visible = state.showTemperature;
+}
+
+function updateThermocline(profile) {
+  const points = [];
+  for (let i = 0; i <= 18; i += 1) {
+    const ratio = i / 18;
+    const x = -10 + ratio * 20;
+    const depthRatio = sampleThermoclineDepth(profile, ratio);
+    const y = THREE.MathUtils.lerp(OCEAN_TOP - 0.12, OCEAN_BOTTOM + 0.18, depthRatio);
+    points.push(new THREE.Vector3(x, y, 0));
+  }
+
+  const curve = new THREE.CatmullRomCurve3(points);
+  thermoclineMesh.geometry.dispose();
+  thermoclineMesh.geometry = new THREE.TubeGeometry(curve, 90, 0.12, 12, false);
+  thermoclineLabel.position.y = points[9].y + 0.28;
+}
+
+function updateAtmosphere(profile) {
+  windGroup.visible = state.showAtmosphere;
+  windLabel.visible = state.showAtmosphere;
+  eastWeather.group.visible = state.showAtmosphere;
+  westWeather.group.visible = state.showAtmosphere;
+  eastWeatherLabel.visible = state.showAtmosphere;
+  westWeatherLabel.visible = state.showAtmosphere;
+
+  updateLabelSprite(eastWeatherLabel, profile.eastLabel);
+  updateLabelSprite(westWeatherLabel, profile.westLabel);
+
+  setWeatherStrength(eastWeather, profile.eastWeatherStrength, '#dff4ff');
+  setWeatherStrength(westWeather, profile.westWeatherStrength, '#fff0d5');
+}
+
+function updateUpwelling(profile) {
+  const length = 0.58 + profile.upwelling * 0.52;
+  upwellingArrows.forEach((arrow, index) => {
+    const headLength = 0.18 + profile.upwelling * 0.12;
+    const headWidth = 0.12 + profile.upwelling * 0.08;
+    arrow.setLength(length, headLength, headWidth);
+    arrow.position.y = -1.42 + Math.sin(index * 0.5) * 0.03;
+    arrow.line.material.opacity = 0.44 + profile.upwelling * 0.22;
+    arrow.cone.material.opacity = 0.6 + profile.upwelling * 0.16;
+    arrow.line.material.transparent = true;
+    arrow.cone.material.transparent = true;
+  });
+}
+
+function updateOverlay(profile) {
+  dom.subtitle.textContent = profile.subtitle;
+  dom.modePill.textContent = profile.label;
+  dom.sstSummary.textContent = profile.sstSummary;
+  dom.sstPanel.classList.toggle('hidden', !state.showTemperature);
+
+  dom.fpMode.textContent = profile.label;
+  dom.fpWind.textContent = strengthLabel(state.windStrength);
+  dom.fpTemp.textContent = `평년 대비 ${profile.eastAnomaly >= 0 ? '+' : ''}${profile.eastAnomaly.toFixed(1)}°C`;
+  dom.fpUpwelling.textContent = strengthLabel(profile.upwelling);
+  dom.fpRain.textContent = profile.rainShift;
+  dom.fpAuto.textContent = state.autoCycle ? '5초 간격 순환 중' : '꺼짐';
+
+  dom.impactTitle.textContent = profile.impactTitle;
+  dom.impactDescription.textContent = profile.impactDescription;
+  dom.impactTags.innerHTML = '';
+  profile.impactTags.forEach((tag) => {
+    const el = document.createElement('span');
+    el.className = 'impact-tag';
+    el.textContent = tag;
+    dom.impactTags.appendChild(el);
+  });
+  dom.impactPanel.classList.toggle('hidden', !state.showImpacts);
+
+  updateLabelSprite(surfaceMarkerEast, `동태평양\n${profile.eastAnomaly >= 0 ? '+' : ''}${profile.eastAnomaly.toFixed(1)}°C`);
+  updateLabelSprite(surfaceMarkerWest, `서태평양\n${temperatureText(profile.westNorm)}`);
+
+  const impact3dText = profile.label === '평상시'
+    ? '평상시\n서태평양 강수 집중 · 동태평양 용승 유지'
+    : profile.label === '엘니뇨'
+      ? '엘니뇨\n동태평양 수온 상승 · 남미 홍수 · 호주 가뭄'
+      : '라니냐\n동태평양 수온 하강 · 남미 가뭄 · 호주 홍수';
+  impactLabel3D.visible = state.showImpacts;
+  updateLabelSprite(impactLabel3D, impact3dText);
+
+  updateSstBar(profile);
+}
+
+function updateSstBar(profile) {
+  const stops = [];
+  for (let i = 0; i <= 12; i += 1) {
+    const ratio = i / 12;
+    const color = getTemperatureColor(sampleSurfaceNorm(profile, ratio));
+    const css = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+    stops.push(`${css} ${Math.round(ratio * 100)}%`);
+  }
+  dom.sstGradient.style.background = `linear-gradient(90deg, ${stops.join(', ')})`;
+}
+
+function updateSurfaceWaves(elapsed, profile) {
+  const positions = surfaceGeometry.attributes.position.array;
+  const base = surfaceBasePositions;
+  const amplitude = 0.06 + state.windStrength * 0.025;
+
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = base[i];
+    const z = base[i + 1];
+    positions[i + 2] = Math.sin(elapsed * (0.8 + state.windStrength * 0.4) + x * 0.75 + z * 0.42) * amplitude
+      + Math.cos(elapsed * 0.9 + z * 0.8) * amplitude * 0.35
+      + (sampleSurfaceNorm(profile, (x + 10) / 20) - 0.5) * 0.02;
+  }
+
+  surfaceGeometry.attributes.position.needsUpdate = true;
+  surfaceGeometry.computeVertexNormals();
+}
+
+function updateWindParticles(elapsed, profile) {
+  windParticles.forEach((particle) => {
+    const speed = 1.4 + state.windStrength * 2.4;
+    const cycle = ((elapsed * speed) + particle.seed * 6) % 22;
+    particle.group.position.x = -11 + cycle;
+    particle.group.position.y = 3.35 + particle.lane * 0.48 + Math.sin(elapsed * 2 + particle.seed * 4) * 0.05;
+    particle.group.scale.setScalar(0.55 + state.windStrength * 0.42);
+    particle.material.opacity = state.showAtmosphere ? 0.26 + state.windStrength * 0.26 : 0;
+  });
+}
+
+function updateWeatherAnimation(elapsed, weatherSystem, strength) {
+  weatherSystem.clouds.forEach((cloud, index) => {
+    cloud.position.y = Math.sin(elapsed * 0.8 + index * 0.9) * 0.04;
+  });
+
+  weatherSystem.rains.forEach((drop, index) => {
+    const offset = (elapsed * (1.5 + strength) + index * 0.16) % 1;
+    drop.position.y = 0.8 - offset * 1.5;
+  });
+}
+
+function createContinent({ blocks, label, labelPos }) {
+  const group = new THREE.Group();
+  blocks.forEach((spec) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(spec.size[0], spec.size[1], spec.size[2]),
+      continentMaterial
+    );
+    mesh.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+    group.add(mesh);
+  });
+
+  const sprite = createLabelSprite(label, {
+    color: '#f6e7cf',
+    width: 300,
+    height: 78,
+    fontSize: 28,
+    background: 'rgba(50, 29, 15, 0.52)'
+  });
+  sprite.position.set(labelPos[0], labelPos[1], labelPos[2]);
+  group.add(sprite);
+  return { group, sprite };
+}
+
+function createWeatherSystem(baseX) {
+  const group = new THREE.Group();
+  group.position.set(baseX, 4.2, 0);
+
+  const clouds = [];
+  const rains = [];
+
+  for (let i = 0; i < 5; i += 1) {
+    const cloud = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42 + (i % 2) * 0.12, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.8,
+        roughness: 0.75
+      })
+    );
+    cloud.scale.set(1.25 + i * 0.05, 0.72 + (i % 2) * 0.08, 0.72);
+    cloud.position.set(-0.7 + i * 0.35, 0.1 + Math.sin(i) * 0.08, -0.6 + (i % 3) * 0.6);
+    clouds.push(cloud);
+    group.add(cloud);
+  }
+
+  for (let i = 0; i < 12; i += 1) {
+    const rain = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.42, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0x84d7ff,
+        transparent: true,
+        opacity: 0.55
+      })
+    );
+    rain.rotation.z = 0.16;
+    rain.position.set(-0.95 + (i % 4) * 0.42, 0.7 - Math.floor(i / 4) * 0.18, -0.8 + (i % 3) * 0.7);
+    rains.push(rain);
+    group.add(rain);
+  }
+
+  return { group, clouds, rains };
+}
+
+function setWeatherStrength(system, strength, labelColor) {
+  const visible = state.showAtmosphere && strength > 0.02;
+  system.group.visible = visible;
+
+  system.clouds.forEach((cloud, index) => {
+    cloud.material.opacity = THREE.MathUtils.clamp(0.18 + strength * 0.55, 0.08, 0.95);
+    cloud.scale.setScalar(0.85 + strength * 0.34 + index * 0.015);
+  });
+
+  system.rains.forEach((rain) => {
+    rain.visible = strength > 0.24;
+    rain.material.opacity = THREE.MathUtils.clamp((strength - 0.14) * 0.75, 0, 0.82);
+    rain.scale.y = 0.7 + strength * 0.5;
+  });
+}
+
+function createArrowParticle(color) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 0.44, 10),
+    material
+  );
+  shaft.rotation.z = -Math.PI * 0.5;
+  shaft.position.x = -0.02;
+
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.08, 0.18, 12),
+    material
+  );
+  head.rotation.z = -Math.PI * 0.5;
+  head.position.x = 0.25;
+
+  const group = new THREE.Group();
+  group.add(shaft, head);
+  return { group, material };
+}
+
+function createLabelSprite(text, options = {}) {
+  const width = options.width ?? 320;
+  const height = options.height ?? 88;
+  const fontSize = options.fontSize ?? 30;
+  const color = options.color ?? '#ffffff';
+  const background = options.background ?? 'rgba(7, 16, 30, 0.35)';
+  const border = options.border ?? 'rgba(255, 255, 255, 0.12)';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.userData = { canvas, ctx, texture, fontSize, color, background, border };
+  updateLabelSprite(sprite, text);
+  sprite.scale.set(width / 190, height / 190, 1);
+  return sprite;
+}
+
+function updateLabelSprite(sprite, text) {
+  const { canvas, ctx, texture, fontSize, color, background, border } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  roundRect(ctx, 4, 4, canvas.width - 8, canvas.height - 8, 18, background, border);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = `700 ${fontSize}px Pretendard`;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 8;
+
+  const lines = String(text).split('\n');
+  const lineHeight = fontSize * 1.15;
+  const startY = canvas.height * 0.5 - ((lines.length - 1) * lineHeight) * 0.5;
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width * 0.5, startY + index * lineHeight);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function sampleSurfaceNorm(profile, xRatio) {
+  if (xRatio <= 0.5) {
+    const t = xRatio / 0.5;
+    return cubicEase(profile.eastNorm, profile.midNorm, t);
+  }
+  const t = (xRatio - 0.5) / 0.5;
+  return cubicEase(profile.midNorm, profile.westNorm, t);
+}
+
+function sampleThermoclineDepth(profile, xRatio) {
+  if (xRatio <= 0.5) {
+    const t = xRatio / 0.5;
+    return cubicEase(profile.thermoEast, profile.thermoMid, t);
+  }
+  const t = (xRatio - 0.5) / 0.5;
+  return cubicEase(profile.thermoMid, profile.thermoWest, t);
+}
+
+function cubicEase(a, b, t) {
+  const eased = t * t * (3 - 2 * t);
+  return THREE.MathUtils.lerp(a, b, eased);
+}
+
+function smoothstep(min, max, value) {
+  const x = THREE.MathUtils.clamp((value - min) / (max - min), 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+function getTemperatureColor(norm) {
+  const t = THREE.MathUtils.clamp(norm, 0, 1);
+  if (t <= 0.5) {
+    return COOL_COLOR.clone().lerp(MID_COLOR, t / 0.5);
+  }
+  return MID_COLOR.clone().lerp(WARM_COLOR, (t - 0.5) / 0.5);
+}
+
+function strengthLabel(value) {
+  if (value < 0.55) return '약';
+  if (value < 1.35) return '보통';
+  return '강';
+}
+
+function temperatureText(norm) {
+  if (norm < 0.24) return '차가운 물 우세';
+  if (norm < 0.62) return '평균에 가까움';
+  return '따뜻한 물 축적';
+}
+</script>
+</body>
+</html>

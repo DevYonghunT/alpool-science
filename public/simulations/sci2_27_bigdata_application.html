@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>빅데이터의 활용 - 3D 시뮬레이션</title>
+  <style>
+    :root {
+      --bg: #0a1020;
+      --panel: rgba(10, 16, 32, 0.78);
+      --panel-strong: rgba(7, 12, 24, 0.9);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #eff5ff;
+      --muted: #aebbd6;
+      --accent: #73b3ff;
+      --accent-warm: #ff9566;
+      --accent-green: #6ce2ae;
+      --shadow: 0 20px 52px rgba(0, 0, 0, 0.34);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(115, 179, 255, 0.15), transparent 24%),
+        radial-gradient(circle at 84% 16%, rgba(255, 149, 102, 0.12), transparent 24%),
+        linear-gradient(180deg, #0b1120 0%, #07101d 100%);
+      color: var(--text);
+      font-family: "Pretendard", "SUIT", "Noto Sans KR", sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #top-bar {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      z-index: 12;
+    }
+
+    #guide-toggle,
+    .tab-btn {
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(11, 18, 35, 0.76);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 16px;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    #guide-toggle:hover,
+    .tab-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.26);
+      background: rgba(16, 25, 48, 0.88);
+    }
+
+    #status-pill {
+      max-width: min(46vw, 720px);
+      padding: 11px 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(71, 129, 255, 0.18), rgba(126, 222, 189, 0.14));
+      border: 1px solid rgba(126, 192, 255, 0.2);
+      color: #eaf3ff;
+      font-size: 14px;
+      line-height: 1.45;
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    #tab-strip {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 12;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(115, 179, 255, 0.28), rgba(108, 226, 174, 0.2));
+      border-color: rgba(143, 211, 255, 0.35);
+    }
+
+    .glass-panel {
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(8, 13, 27, 0.9), rgba(7, 12, 23, 0.82));
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+    }
+
+    #guide-panel {
+      position: absolute;
+      top: 74px;
+      left: 18px;
+      width: min(460px, calc(100vw - 36px));
+      max-height: min(48vh, 520px);
+      overflow: auto;
+      padding: 18px 20px;
+      z-index: 11;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+
+    #guide-panel.closed {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+
+    #guide-panel h2,
+    #guide-panel h3 {
+      margin: 0 0 8px;
+    }
+
+    #guide-panel h2 {
+      font-size: 18px;
+    }
+
+    #guide-panel h3 {
+      margin-top: 16px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #9ed1ff;
+    }
+
+    #guide-panel p,
+    #guide-panel li {
+      margin: 0;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    #guide-panel ul,
+    #proscons-panel ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    #formula-panel {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      width: min(410px, calc(100vw - 36px));
+      padding: 18px 20px;
+      z-index: 10;
+    }
+
+    #formula-pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.72;
+      color: #ebf3ff;
+      font-family: "Pretendard", "SUIT", "Noto Sans KR", sans-serif;
+    }
+
+    #insight-panel {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      padding: 18px 20px;
+      z-index: 10;
+    }
+
+    #insight-panel h3,
+    #proscons-panel h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    #insight-chart {
+      width: 100%;
+      height: 176px;
+      display: block;
+      margin-top: 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    #insight-body {
+      margin-top: 14px;
+      display: grid;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric-card {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .metric-card span {
+      display: block;
+      font-size: 11px;
+      color: #89a4c9;
+      margin-bottom: 6px;
+    }
+
+    .metric-card strong {
+      font-size: 20px;
+      color: #f6fbff;
+      letter-spacing: -0.02em;
+    }
+
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .legend-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #dce7fb;
+      font-size: 11.5px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    #proscons-panel {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      width: min(620px, calc(100vw - 40px));
+      padding: 18px 20px;
+      z-index: 9;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #proscons-panel.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(10px);
+      pointer-events: none;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    #case-badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      color: #c8dcfb;
+      font-size: 11px;
+    }
+
+    .proscons-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .pros-card,
+    .cons-card {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .pros-card h4,
+    .cons-card h4 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .pros-card h4 {
+      color: #a9ffd6;
+    }
+
+    .cons-card h4 {
+      color: #ffc0ad;
+    }
+
+    #pros-note {
+      margin: 14px 0 0;
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: #c8d8f0;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(115, 179, 255, 0.08);
+      border: 1px solid rgba(115, 179, 255, 0.12);
+    }
+
+    .lil-gui.root {
+      --width: 304px;
+      z-index: 13;
+      margin-right: 12px;
+      margin-top: 10px;
+    }
+
+    .lil-gui {
+      --background-color: rgba(7, 12, 23, 0.92);
+      --widget-color: rgba(255, 255, 255, 0.06);
+      --hover-color: rgba(255, 255, 255, 0.12);
+      --focus-color: rgba(115, 179, 255, 0.32);
+      --number-color: #ffd18f;
+      --string-color: #a7d9ff;
+      --title-background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    @media (max-width: 1024px) {
+      #tab-strip {
+        top: auto;
+        bottom: 254px;
+        left: 18px;
+        right: 18px;
+        transform: none;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      #top-bar {
+        flex-direction: column;
+      }
+
+      #status-pill {
+        max-width: 100%;
+      }
+
+      #guide-panel {
+        top: 116px;
+        max-height: 34vh;
+      }
+
+      #proscons-panel {
+        left: 18px;
+        right: 18px;
+        width: auto;
+        transform: none;
+      }
+
+      #proscons-panel.hidden {
+        transform: translateY(10px);
+      }
+    }
+
+    @media (max-width: 820px) {
+      #formula-panel,
+      #insight-panel {
+        width: calc(100vw - 28px);
+        left: 14px;
+        right: 14px;
+      }
+
+      #insight-panel {
+        bottom: 216px;
+      }
+
+      #formula-panel {
+        bottom: 14px;
+      }
+
+      #proscons-panel {
+        bottom: 428px;
+      }
+
+      .metric-grid,
+      .proscons-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <div id="overlay">
+      <div id="top-bar">
+        <button id="guide-toggle">📖 학습 가이드</button>
+        <div id="status-pill"></div>
+      </div>
+
+      <div id="tab-strip">
+        <button class="tab-btn active" data-case="감염병 전파 추적">감염병 전파 추적</button>
+        <button class="tab-btn" data-case="기상 데이터 분석">기상 데이터 분석</button>
+        <button class="tab-btn" data-case="의약품 개발">의약품 개발</button>
+      </div>
+
+      <section id="guide-panel" class="glass-panel closed">
+        <h2>📊 빅데이터의 활용</h2>
+        <p>
+          빅데이터란 기존의 방법으로는 수집·저장·분석하기 어려운 규모가 매우 큰 데이터를 뜻합니다.
+          빅데이터 분석을 통해 감염병 추적, 기상 예측, 신약 개발 등 다양한 분야에서 유용하게 활용됩니다.
+        </p>
+
+        <h3>탐구 질문</h3>
+        <ul>
+          <li>빅데이터를 활용하여 감염병의 전파를 예측하고 대응하는 방법을 설명해 보세요.</li>
+          <li>빅데이터 활용의 장점과 문제점을 각각 2가지씩 써 보세요.</li>
+          <li>개인 정보를 보호하면서 빅데이터를 활용할 수 있는 방법에는 무엇이 있을까요?</li>
+        </ul>
+
+        <h3>실생활 예시</h3>
+        <ul>
+          <li>코로나19 역학조사와 QR 체크인 데이터 분석</li>
+          <li>태풍 경로 예측을 위한 위성·기상 관측 데이터</li>
+          <li>넷플릭스 추천 알고리즘과 맞춤형 콘텐츠 추천</li>
+          <li>자율주행차의 실시간 센서·지도 데이터 처리</li>
+        </ul>
+
+        <h3>교과서 연계</h3>
+        <p>미래엔 통합과학2 III편 p136~139 - 빅데이터의 활용, 장점과 문제점</p>
+      </section>
+
+      <section id="formula-panel" class="glass-panel">
+        <pre id="formula-pre"></pre>
+      </section>
+
+      <section id="insight-panel" class="glass-panel">
+        <h3 id="insight-title"></h3>
+        <canvas id="insight-chart"></canvas>
+        <div id="insight-body"></div>
+      </section>
+
+      <section id="proscons-panel" class="glass-panel">
+        <div class="panel-head">
+          <h3>⚖️ 빅데이터의 장점과 문제점</h3>
+          <span id="case-badge"></span>
+        </div>
+        <div class="proscons-grid">
+          <div class="pros-card">
+            <h4>장점</h4>
+            <ul>
+              <li>정확한 예측과 의사 결정</li>
+              <li>감염병 조기 대응</li>
+              <li>맞춤형 서비스 제공</li>
+            </ul>
+          </div>
+          <div class="cons-card">
+            <h4>문제점</h4>
+            <ul>
+              <li>개인 정보 유출 위험</li>
+              <li>알고리즘 편향</li>
+              <li>데이터 독점</li>
+            </ul>
+          </div>
+        </div>
+        <p id="pros-note"></p>
+      </section>
+    </div>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const canvas = document.getElementById('scene');
+    const statusPill = document.getElementById('status-pill');
+    const guideToggle = document.getElementById('guide-toggle');
+    const guidePanel = document.getElementById('guide-panel');
+    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+    const formulaPre = document.getElementById('formula-pre');
+    const insightTitle = document.getElementById('insight-title');
+    const insightChart = document.getElementById('insight-chart');
+    const insightBody = document.getElementById('insight-body');
+    const prosconsPanel = document.getElementById('proscons-panel');
+    const caseBadge = document.getElementById('case-badge');
+    const prosNote = document.getElementById('pros-note');
+    const chartCtx = insightChart.getContext('2d');
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.setClearColor(0x0a1020, 1);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a1020, 0.028);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 160);
+    camera.position.set(8.2, 4.8, 9.6);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 5;
+    controls.maxDistance = 20;
+    controls.target.set(0, 0.8, 0);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.24);
+    const pointLight = new THREE.PointLight(0xb8d6ff, 1.05, 60, 2);
+    pointLight.position.set(8, 9, 8);
+    const fillLight = new THREE.PointLight(0x3d8fff, 0.35, 40, 2);
+    fillLight.position.set(-8, -2, 10);
+    scene.add(ambientLight, pointLight, fillLight);
+
+    const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const pointerDown = { x: 0, y: 0 };
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const tempQuat = new THREE.Quaternion();
+    const tempMatrix = new THREE.Matrix4();
+    const tempScale = new THREE.Vector3();
+
+    const CASE_NAMES = ['감염병 전파 추적', '기상 데이터 분석', '의약품 개발'];
+
+    const appState = {
+      activeCaseName: '감염병 전파 추적',
+      activeCase: null,
+      uiAccumulator: 0
+    };
+
+    const params = {
+      scenario: '감염병 전파 추적',
+      time: 0,
+      quarantine: true,
+      density: 180,
+      prosCons: true,
+      start: () => startCurrentCase(),
+      reset: () => resetCurrentCase()
+    };
+
+    guideToggle.addEventListener('click', () => {
+      guidePanel.classList.toggle('closed');
+    });
+
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        switchCase(button.dataset.case);
+      });
+    });
+
+    renderer.domElement.addEventListener('pointerdown', (event) => {
+      pointerDown.x = event.clientX;
+      pointerDown.y = event.clientY;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (event) => {
+      if (!appState.activeCase || typeof appState.activeCase.onPointerSelect !== 'function') {
+        return;
+      }
+      if (Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 5) {
+        return;
+      }
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      appState.activeCase.onPointerSelect(raycaster);
+    });
+
+    window.addEventListener('resize', onResize);
+
+    const backgroundField = createBackgroundField();
+    scene.add(backgroundField);
+
+    const gui = new GUI({ title: '빅데이터 제어' });
+    const scenarioController = gui
+      .add(params, 'scenario', CASE_NAMES)
+      .name('활용 사례')
+      .onChange((value) => switchCase(value));
+    gui.add(params, 'start').name('시뮬레이션 시작');
+    const timeController = gui
+      .add(params, 'time', 0, 30, 1)
+      .name('시간')
+      .onChange((value) => {
+        if (appState.activeCase) {
+          appState.activeCase.setTime(value);
+          refreshUi();
+        }
+      });
+    const quarantineController = gui
+      .add(params, 'quarantine')
+      .name('격리 조치')
+      .onChange(() => refreshUi());
+    const densityController = gui
+      .add(params, 'density', 50, 500, 10)
+      .name('데이터 밀도')
+      .onFinishChange((value) => {
+        if (appState.activeCase && typeof appState.activeCase.setDensity === 'function') {
+          appState.activeCase.setDensity(value);
+          refreshUi();
+        }
+      });
+    const prosController = gui
+      .add(params, 'prosCons')
+      .name('장단점 표시')
+      .onChange((value) => {
+        prosconsPanel.classList.toggle('hidden', !value);
+      });
+    gui.add(params, 'reset').name('초기화');
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function hashUnit(a, b = 0, c = 0) {
+      let h = (a * 374761393 + b * 668265263 + c * 2147483647) >>> 0;
+      h = (h ^ (h >>> 13)) >>> 0;
+      h = Math.imul(h, 1274126177) >>> 0;
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+    }
+
+    function formatInt(value) {
+      return Math.round(value).toLocaleString('ko-KR');
+    }
+
+    function setControllerVisible(controller, visible) {
+      controller.domElement.style.display = visible ? '' : 'none';
+    }
+
+    function roundedRect(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function resizeChartCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(300, Math.floor(insightChart.clientWidth * dpr));
+      const height = Math.max(160, Math.floor(insightChart.clientHeight * dpr));
+      if (insightChart.width !== width || insightChart.height !== height) {
+        insightChart.width = width;
+        insightChart.height = height;
+      }
+      return { width, height };
+    }
+
+    function prepareChart() {
+      const { width, height } = resizeChartCanvas();
+      chartCtx.clearRect(0, 0, width, height);
+      const gradient = chartCtx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, 'rgba(34, 52, 86, 0.72)');
+      gradient.addColorStop(1, 'rgba(8, 13, 26, 0.92)');
+      chartCtx.fillStyle = gradient;
+      chartCtx.fillRect(0, 0, width, height);
+      chartCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+      chartCtx.lineWidth = 1;
+      const bounds = { x: 40, y: 18, w: width - 58, h: height - 40 };
+      for (let i = 0; i <= 4; i += 1) {
+        const y = bounds.y + (bounds.h / 4) * i;
+        chartCtx.beginPath();
+        chartCtx.moveTo(bounds.x, y);
+        chartCtx.lineTo(bounds.x + bounds.w, y);
+        chartCtx.stroke();
+      }
+      chartCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+      chartCtx.beginPath();
+      chartCtx.moveTo(bounds.x, bounds.y);
+      chartCtx.lineTo(bounds.x, bounds.y + bounds.h);
+      chartCtx.lineTo(bounds.x + bounds.w, bounds.y + bounds.h);
+      chartCtx.stroke();
+      return bounds;
+    }
+
+    function drawSeries(bounds, values, maxValue, color, dash = []) {
+      if (!values.length || maxValue <= 0) return;
+      chartCtx.save();
+      chartCtx.strokeStyle = color;
+      chartCtx.lineWidth = 3;
+      chartCtx.setLineDash(dash);
+      chartCtx.beginPath();
+      values.forEach((value, index) => {
+        const x = bounds.x + (index / Math.max(1, values.length - 1)) * bounds.w;
+        const y = bounds.y + bounds.h - (value / maxValue) * bounds.h;
+        if (index === 0) {
+          chartCtx.moveTo(x, y);
+        } else {
+          chartCtx.lineTo(x, y);
+        }
+      });
+      chartCtx.stroke();
+      chartCtx.restore();
+    }
+
+    function drawMarker(bounds, index, values, maxValue, color) {
+      if (!values.length || maxValue <= 0) return;
+      const clampedIndex = clamp(index, 0, values.length - 1);
+      const x = bounds.x + (clampedIndex / Math.max(1, values.length - 1)) * bounds.w;
+      const y = bounds.y + bounds.h - (values[clampedIndex] / maxValue) * bounds.h;
+      chartCtx.fillStyle = color;
+      chartCtx.beginPath();
+      chartCtx.arc(x, y, 5.5, 0, Math.PI * 2);
+      chartCtx.fill();
+      chartCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+      chartCtx.lineWidth = 1.5;
+      chartCtx.beginPath();
+      chartCtx.arc(x, y, 5.5, 0, Math.PI * 2);
+      chartCtx.stroke();
+    }
+
+    function createBackgroundField() {
+      const count = 640;
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const colorA = new THREE.Color(0x73b3ff);
+      const colorB = new THREE.Color(0x6ce2ae);
+      for (let i = 0; i < count; i += 1) {
+        let x = 0;
+        let y = 0;
+        let z = 0;
+        do {
+          x = lerp(-18, 18, Math.random());
+          y = lerp(-10, 10, Math.random());
+          z = lerp(-18, 18, Math.random());
+        } while (Math.hypot(x, y, z) < 6.5);
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        colorA.clone().lerp(colorB, Math.random()).toArray(colors, i * 3);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const material = new THREE.PointsMaterial({
+        size: 0.08,
+        transparent: true,
+        opacity: 0.34,
+        vertexColors: true,
+        depthWrite: false
+      });
+      return new THREE.Points(geometry, material);
+    }
+
+    function createTextSprite(text, options = {}) {
+      const {
+        color = '#ffffff',
+        background = 'rgba(8, 13, 25, 0.78)',
+        border = 'rgba(255,255,255,0.18)',
+        font = '700 28px Pretendard',
+        padding = 20
+      } = options;
+      const lines = String(text).split('\n');
+      const cvs = document.createElement('canvas');
+      const ctx = cvs.getContext('2d');
+      ctx.font = font;
+      const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+      const lineHeight = 36;
+      cvs.width = Math.ceil(maxWidth + padding * 2);
+      cvs.height = Math.ceil(lines.length * lineHeight + padding * 1.8);
+      ctx.font = font;
+      ctx.textBaseline = 'middle';
+      if (background !== 'transparent') {
+        ctx.fillStyle = background;
+        ctx.strokeStyle = border;
+        ctx.lineWidth = 2;
+        roundedRect(ctx, 0, 0, cvs.width, cvs.height, 18);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = color;
+      lines.forEach((line, index) => {
+        ctx.fillText(line, padding, padding * 0.72 + index * lineHeight + lineHeight / 2);
+      });
+      const texture = new THREE.CanvasTexture(cvs);
+      texture.needsUpdate = true;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(cvs.width * 0.008, cvs.height * 0.008, 1);
+      return sprite;
+    }
+
+    function latLonToVector3(lat, lon, radius) {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const theta = THREE.MathUtils.degToRad(lon + 180);
+      return new THREE.Vector3(
+        -radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    function temperatureToColor(temp) {
+      const t = clamp((temp + 10) / 45, 0, 1);
+      return new THREE.Color().setHSL(lerp(0.62, 0.0, t), 0.76, lerp(0.48, 0.62, t));
+    }
+
+    function setCylinderBetween(mesh, start, end) {
+      const direction = end.clone().sub(start);
+      const length = direction.length();
+      mesh.position.copy(start).addScaledVector(direction, 0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      mesh.scale.set(1, length, 1);
+    }
+
+    function disposeObject3D(root) {
+      root.traverse((child) => {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          materials.forEach((material) => {
+            Object.keys(material).forEach((key) => {
+              const value = material[key];
+              if (value && value.isTexture) {
+                value.dispose();
+              }
+            });
+            material.dispose();
+          });
+        }
+      });
+    }
+
+    function setCameraForCase(caseName) {
+      if (caseName === '감염병 전파 추적') {
+        camera.position.set(7.8, 4.0, 8.8);
+        controls.target.set(0, 0.8, 0);
+        controls.minDistance = 5;
+        controls.maxDistance = 18;
+      } else if (caseName === '기상 데이터 분석') {
+        camera.position.set(8.6, 3.8, 8.6);
+        controls.target.set(0, 0.1, 0);
+        controls.minDistance = 5.5;
+        controls.maxDistance = 16;
+      } else {
+        camera.position.set(7.2, 3.2, 7.8);
+        controls.target.set(0.2, 0.7, 0);
+        controls.minDistance = 4.8;
+        controls.maxDistance = 16;
+      }
+      controls.update();
+    }
+
+    function updateTabState(caseName) {
+      tabButtons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.case === caseName);
+      });
+    }
+
+    function updateGuiVisibility() {
+      const active = appState.activeCase;
+      setControllerVisible(quarantineController, active && active.name === '감염병 전파 추적');
+      setControllerVisible(densityController, active && active.name === '기상 데이터 분석');
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+
+    function configureTimeController(activeCase) {
+      timeController.min(activeCase.timeMin);
+      timeController.max(activeCase.timeMax);
+      timeController.step(activeCase.timeStep);
+      params.time = activeCase.defaultTime;
+      timeController.updateDisplay();
+    }
+
+    function buildCase(caseName) {
+      if (caseName === '감염병 전파 추적') {
+        return buildInfectionCase();
+      }
+      if (caseName === '기상 데이터 분석') {
+        return buildWeatherCase();
+      }
+      return buildDrugCase();
+    }
+
+    function switchCase(caseName) {
+      if (!caseName) return;
+      if (appState.activeCase && appState.activeCase.name === caseName) {
+        return;
+      }
+      if (appState.activeCase) {
+        scene.remove(appState.activeCase.group);
+        appState.activeCase.dispose();
+      }
+      const nextCase = buildCase(caseName);
+      appState.activeCase = nextCase;
+      appState.activeCaseName = caseName;
+      scene.add(nextCase.group);
+      setCameraForCase(caseName);
+      configureTimeController(nextCase);
+      params.scenario = caseName;
+      scenarioController.updateDisplay();
+      updateTabState(caseName);
+      updateGuiVisibility();
+      nextCase.setTime(nextCase.defaultTime);
+      prosconsPanel.classList.toggle('hidden', !params.prosCons);
+      refreshUi();
+    }
+
+    function startCurrentCase() {
+      if (appState.activeCase) {
+        appState.activeCase.start();
+        refreshUi();
+      }
+    }
+
+    function resetCurrentCase() {
+      if (appState.activeCase) {
+        appState.activeCase.reset();
+        params.time = appState.activeCase.defaultTime;
+        timeController.updateDisplay();
+        refreshUi();
+      }
+    }
+
+    function refreshUi() {
+      if (!appState.activeCase) return;
+      const ui = appState.activeCase.getUiData();
+      statusPill.textContent = ui.status;
+      formulaPre.textContent = ui.formula;
+      insightTitle.textContent = ui.insightTitle;
+      insightBody.innerHTML = ui.insightHtml;
+      caseBadge.textContent = appState.activeCaseName;
+      prosNote.textContent = ui.prosNote;
+      const bounds = prepareChart();
+      ui.drawChart(bounds);
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      refreshUi();
+    }
+
+    function animate() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+      requestAnimationFrame(animate);
+      backgroundField.rotation.y += dt * 0.02;
+      backgroundField.rotation.x = Math.sin(clock.elapsedTime * 0.08) * 0.08;
+      if (appState.activeCase) {
+        appState.activeCase.update(dt);
+      }
+      controls.update();
+      renderer.render(scene, camera);
+      appState.uiAccumulator += dt;
+      if (appState.uiAccumulator > 0.12) {
+        appState.uiAccumulator = 0;
+        refreshUi();
+      }
+    }
+
+    function buildInfectionCase() {
+      const group = new THREE.Group();
+      const nodeCount = 84;
+      const clusterSpecs = [
+        { name: '가족', center: new THREE.Vector3(-3.4, 0.8, -0.8), count: 28, color: 0x60b7ff },
+        { name: '학교', center: new THREE.Vector3(2.8, 0.2, 1.8), count: 30, color: 0x6ce2ae },
+        { name: '직장', center: new THREE.Vector3(0.6, 1.9, -2.6), count: 26, color: 0xffae7b }
+      ];
+      const nodes = [];
+      const edges = [];
+      const edgeLookup = new Map();
+      const edgeIndexByKey = new Map();
+      const quarantineEvents = [];
+      const history = { active: [1], cumulative: [1], recovered: [0], quarantined: [0] };
+      let baseline = null;
+      let superSpreaderIndex = 0;
+      let patientZeroIndex = 0;
+      let currentTime = 0;
+      let currentDay = 0;
+      let running = false;
+
+      const nodeGeo = new THREE.SphereGeometry(0.15, 16, 16);
+      const nodeMat = new THREE.MeshStandardMaterial({ roughness: 0.38, metalness: 0.1, vertexColors: true });
+      const nodeMesh = new THREE.InstancedMesh(nodeGeo, nodeMat, nodeCount);
+      nodeMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      group.add(nodeMesh);
+
+      const grid = new THREE.GridHelper(16, 16, 0x22436e, 0x173053);
+      grid.position.y = -2.5;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.28;
+      group.add(grid);
+
+      clusterSpecs.forEach((spec) => {
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(1.9, 26, 26),
+          new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: 0.06, wireframe: true })
+        );
+        dome.position.copy(spec.center);
+        group.add(dome);
+
+        const label = createTextSprite(spec.name, {
+          color: '#eaf3ff',
+          background: 'rgba(6, 12, 22, 0.74)',
+          border: 'rgba(255,255,255,0.12)',
+          font: '700 24px Pretendard'
+        });
+        label.position.copy(spec.center).add(new THREE.Vector3(0, 1.7, 0));
+        group.add(label);
+      });
+
+      const rngSeed = 27027;
+      let indexOffset = 0;
+      clusterSpecs.forEach((spec, clusterIndex) => {
+        for (let i = 0; i < spec.count; i += 1) {
+          const index = indexOffset + i;
+          const angle = hashUnit(rngSeed, index, 1) * Math.PI * 2;
+          const radius = 0.4 + hashUnit(rngSeed, index, 2) * 1.1;
+          const lift = lerp(-0.8, 0.8, hashUnit(rngSeed, index, 3));
+          const pos = new THREE.Vector3(
+            spec.center.x + Math.cos(angle) * radius,
+            spec.center.y + lift,
+            spec.center.z + Math.sin(angle) * radius
+          );
+          nodes.push({
+            index,
+            clusterIndex,
+            position: pos,
+            contacts: [],
+            state: 'healthy',
+            infectedAt: null,
+            quarantined: false,
+            degree: 0,
+            infectivity: 0.12 + hashUnit(rngSeed, index, 4) * 0.18
+          });
+        }
+        indexOffset += spec.count;
+      });
+
+      function edgeKey(a, b) {
+        return a < b ? `${a}-${b}` : `${b}-${a}`;
+      }
+
+      function connect(a, b) {
+        if (a === b) return;
+        const key = edgeKey(a, b);
+        if (edgeLookup.has(key)) return;
+        edgeLookup.set(key, true);
+        nodes[a].contacts.push(b);
+        nodes[b].contacts.push(a);
+      }
+
+      clusterSpecs.reduce((start, spec) => {
+        const end = start + spec.count;
+        for (let i = start; i < end; i += 1) {
+          const candidates = [];
+          for (let j = start; j < end; j += 1) {
+            if (i === j) continue;
+            candidates.push({ j, dist: nodes[i].position.distanceTo(nodes[j].position) });
+          }
+          candidates.sort((left, right) => left.dist - right.dist);
+          candidates.slice(0, 4).forEach((candidate) => connect(i, candidate.j));
+          connect(i, start + Math.floor(hashUnit(rngSeed, i, 9) * spec.count));
+        }
+        return end;
+      }, 0);
+
+      for (let i = 0; i < 18; i += 1) {
+        const a = Math.floor(hashUnit(rngSeed, i, 10) * nodeCount);
+        const b = Math.floor(hashUnit(rngSeed, i, 11) * nodeCount);
+        if (nodes[a].clusterIndex !== nodes[b].clusterIndex) {
+          connect(a, b);
+        }
+      }
+
+      nodes.forEach((node) => {
+        node.degree = node.contacts.length;
+        tempMatrix.compose(node.position, tempQuat.identity(), tempScale.set(1, 1, 1));
+        nodeMesh.setMatrixAt(node.index, tempMatrix);
+      });
+
+      superSpreaderIndex = nodes.reduce((best, node) => (node.degree > nodes[best].degree ? node.index : best), 0);
+      patientZeroIndex = superSpreaderIndex;
+
+      const edgeGeo = new THREE.CylinderGeometry(0.02, 0.02, 1, 8, 1, true);
+      edgeLookup.forEach((_, key) => {
+        const [a, b] = key.split('-').map(Number);
+        const material = new THREE.MeshBasicMaterial({ color: 0x394b66, transparent: true, opacity: 0.54 });
+        const mesh = new THREE.Mesh(edgeGeo, material);
+        setCylinderBetween(mesh, nodes[a].position, nodes[b].position);
+        edgeIndexByKey.set(key, edges.length);
+        edges.push({ a, b, mesh, transmitted: false });
+        group.add(mesh);
+      });
+
+      const pulseGroup = new THREE.Group();
+      const pulses = Array.from({ length: 16 }, () => {
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.05, 12, 12),
+          new THREE.MeshBasicMaterial({ color: 0xffa37f })
+        );
+        mesh.visible = false;
+        pulseGroup.add(mesh);
+        return { mesh, active: false, from: 0, to: 0, progress: 0 };
+      });
+      group.add(pulseGroup);
+
+      const superRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.28, 0.04, 16, 48),
+        new THREE.MeshBasicMaterial({ color: 0xffe067, transparent: true, opacity: 0.96 })
+      );
+      superRing.position.copy(nodes[superSpreaderIndex].position);
+      superRing.rotation.x = Math.PI / 2;
+      group.add(superRing);
+
+      const superLabel = createTextSprite('AI 추적\n슈퍼 전파자', {
+        color: '#fff7d7',
+        background: 'rgba(33, 25, 3, 0.78)',
+        border: 'rgba(255,220,132,0.3)',
+        font: '700 24px Pretendard'
+      });
+      superLabel.position.copy(nodes[superSpreaderIndex].position).add(new THREE.Vector3(0, 0.7, 0));
+      group.add(superLabel);
+
+      function activatePulse(fromIndex, toIndex) {
+        const pulse = pulses.find((item) => !item.active);
+        if (!pulse) return;
+        pulse.active = true;
+        pulse.from = fromIndex;
+        pulse.to = toIndex;
+        pulse.progress = 0;
+        pulse.mesh.visible = true;
+        pulse.mesh.position.copy(nodes[fromIndex].position);
+      }
+
+      function setNodeColor(node) {
+        let color = new THREE.Color(0x44aa44);
+        if (node.quarantined) {
+          color = new THREE.Color(0x6f7686);
+        } else if (node.state === 'infected') {
+          color = new THREE.Color(0xff4444);
+        } else if (node.state === 'recovered') {
+          color = new THREE.Color(0x4488ff);
+        }
+        nodeMesh.setColorAt(node.index, color);
+      }
+
+      function updateEdgeState() {
+        edges.forEach((edge) => {
+          const nodeA = nodes[edge.a];
+          const nodeB = nodes[edge.b];
+          const blocked = nodeA.quarantined || nodeB.quarantined;
+          edge.mesh.visible = !blocked;
+          if (blocked) return;
+          edge.mesh.material.opacity = edge.transmitted ? 0.92 : 0.54;
+          edge.mesh.material.color.set(edge.transmitted ? 0xff6f59 : 0x394b66);
+          edge.mesh.scale.x = edge.transmitted ? 1.35 : 1;
+          edge.mesh.scale.z = edge.transmitted ? 1.35 : 1;
+        });
+      }
+
+      function countStats() {
+        let active = 0;
+        let cumulative = 0;
+        let recovered = 0;
+        let quarantined = 0;
+        nodes.forEach((node) => {
+          if (node.state === 'infected') active += 1;
+          if (node.state === 'infected' || node.state === 'recovered') cumulative += 1;
+          if (node.state === 'recovered') recovered += 1;
+          if (node.quarantined) quarantined += 1;
+        });
+        return { active, cumulative, recovered, quarantined };
+      }
+
+      function recordHistory(day) {
+        const counts = countStats();
+        history.active[day] = counts.active;
+        history.cumulative[day] = counts.cumulative;
+        history.recovered[day] = counts.recovered;
+        history.quarantined[day] = counts.quarantined;
+      }
+
+      function edgeWillTransmit(edgeIndex, fromIndex, toIndex, day) {
+        const fromNode = nodes[fromIndex];
+        const toNode = nodes[toIndex];
+        const sameCluster = fromNode.clusterIndex === toNode.clusterIndex;
+        const probability = clamp(
+          0.06 + fromNode.infectivity + fromNode.degree * 0.015 + (sameCluster ? 0.08 : 0.02) + (fromIndex === superSpreaderIndex ? 0.14 : 0),
+          0.05,
+          0.72
+        );
+        return hashUnit(rngSeed, edgeIndex + 1, day + fromIndex * 7 + toIndex * 13) < probability;
+      }
+
+      function applyDay(day) {
+        quarantineEvents.filter((event) => event.day === day).forEach((event) => {
+          nodes[event.nodeIndex].quarantined = true;
+        });
+
+        const newInfections = [];
+        nodes.forEach((node) => {
+          if (node.state === 'infected' && node.infectedAt !== null) {
+            if (day - node.infectedAt >= 6) {
+              node.state = 'recovered';
+              return;
+            }
+            if (node.quarantined) return;
+            node.contacts.forEach((otherIndex) => {
+              const other = nodes[otherIndex];
+              if (other.state !== 'healthy' || other.quarantined) return;
+              const edgeIndex = edgeIndexByKey.get(edgeKey(node.index, otherIndex));
+              if (edgeIndex == null) return;
+              if (edgeWillTransmit(edgeIndex, node.index, otherIndex, day)) {
+                newInfections.push({ to: otherIndex, from: node.index, edgeIndex });
+              }
+            });
+          }
+        });
+
+        const deduped = new Map();
+        newInfections.forEach((item) => {
+          if (!deduped.has(item.to)) {
+            deduped.set(item.to, item);
+          }
+        });
+
+        deduped.forEach((item) => {
+          const target = nodes[item.to];
+          target.state = 'infected';
+          target.infectedAt = day;
+          edges[item.edgeIndex].transmitted = true;
+          activatePulse(item.from, item.to);
+        });
+
+        recordHistory(day);
+        updateVisuals();
+      }
+
+      function updateVisuals() {
+        nodes.forEach((node) => setNodeColor(node));
+        nodeMesh.instanceColor.needsUpdate = true;
+        updateEdgeState();
+      }
+
+      function resetState(clearQuarantine = false) {
+        if (clearQuarantine) {
+          quarantineEvents.length = 0;
+        }
+        history.active.length = 1;
+        history.cumulative.length = 1;
+        history.recovered.length = 1;
+        history.quarantined.length = 1;
+        history.active[0] = 1;
+        history.cumulative[0] = 1;
+        history.recovered[0] = 0;
+        history.quarantined[0] = 0;
+
+        nodes.forEach((node) => {
+          node.state = 'healthy';
+          node.infectedAt = null;
+          node.quarantined = false;
+        });
+        nodes[patientZeroIndex].state = 'infected';
+        nodes[patientZeroIndex].infectedAt = 0;
+        edges.forEach((edge) => {
+          edge.transmitted = false;
+        });
+        pulses.forEach((pulse) => {
+          pulse.active = false;
+          pulse.mesh.visible = false;
+        });
+        updateVisuals();
+        currentTime = 0;
+        currentDay = 0;
+        running = false;
+      }
+
+      function replayToDay(targetDay) {
+        resetState(false);
+        for (let day = 1; day <= targetDay; day += 1) {
+          applyDay(day);
+        }
+        currentDay = targetDay;
+      }
+
+      function simulateBaseline() {
+        const states = Array.from({ length: nodeCount }, (_, index) => ({
+          state: index === patientZeroIndex ? 'infected' : 'healthy',
+          infectedAt: index === patientZeroIndex ? 0 : null
+        }));
+        const result = { active: [1], cumulative: [1] };
+        for (let day = 1; day <= 30; day += 1) {
+          const newInfections = [];
+          states.forEach((state, fromIndex) => {
+            if (state.state === 'infected' && state.infectedAt !== null) {
+              if (day - state.infectedAt >= 6) {
+                state.state = 'recovered';
+                return;
+              }
+              nodes[fromIndex].contacts.forEach((toIndex) => {
+                if (states[toIndex].state !== 'healthy') return;
+                const edgeIndex = edgeIndexByKey.get(edgeKey(fromIndex, toIndex));
+                if (edgeIndex == null) return;
+                if (edgeWillTransmit(edgeIndex, fromIndex, toIndex, day)) {
+                  newInfections.push(toIndex);
+                }
+              });
+            }
+          });
+          [...new Set(newInfections)].forEach((toIndex) => {
+            states[toIndex].state = 'infected';
+            states[toIndex].infectedAt = day;
+          });
+          result.active[day] = states.filter((state) => state.state === 'infected').length;
+          result.cumulative[day] = states.filter((state) => state.state === 'infected' || state.state === 'recovered').length;
+        }
+        return result;
+      }
+
+      baseline = simulateBaseline();
+      resetState(true);
+
+      return {
+        name: '감염병 전파 추적',
+        group,
+        timeMin: 0,
+        timeMax: 30,
+        timeStep: 1,
+        defaultTime: 0,
+        update(dt) {
+          superRing.rotation.z += dt * 1.1;
+          superRing.scale.setScalar(1 + Math.sin(clock.elapsedTime * 3.8) * 0.08);
+          superLabel.position.copy(nodes[superSpreaderIndex].position).y += 0.7 + Math.sin(clock.elapsedTime * 2) * 0.05;
+          pulses.forEach((pulse) => {
+            if (!pulse.active) return;
+            pulse.progress += dt * 1.8;
+            if (pulse.progress >= 1) {
+              pulse.active = false;
+              pulse.mesh.visible = false;
+              return;
+            }
+            pulse.mesh.position.lerpVectors(nodes[pulse.from].position, nodes[pulse.to].position, pulse.progress);
+          });
+          if (running) {
+            currentTime = Math.min(30, currentTime + dt * 2.1);
+            while (currentDay < Math.floor(currentTime)) {
+              currentDay += 1;
+              applyDay(currentDay);
+            }
+            if (currentTime >= 30) {
+              running = false;
+            }
+            params.time = Number(currentTime.toFixed(2));
+            timeController.updateDisplay();
+          }
+        },
+        setTime(value) {
+          running = false;
+          currentTime = clamp(value, 0, 30);
+          replayToDay(Math.floor(currentTime));
+          params.time = currentTime;
+          timeController.updateDisplay();
+        },
+        start() {
+          if (currentTime >= 30) {
+            resetState(true);
+          }
+          running = true;
+        },
+        reset() {
+          resetState(true);
+          params.time = 0;
+        },
+        onPointerSelect(localRaycaster) {
+          if (!params.quarantine) return;
+          const hits = localRaycaster.intersectObject(nodeMesh, false);
+          if (!hits.length || hits[0].instanceId == null) return;
+          const nodeIndex = hits[0].instanceId;
+          if (nodes[nodeIndex].quarantined) return;
+          const eventDay = Math.floor(currentTime);
+          quarantineEvents.push({ nodeIndex, day: eventDay });
+          replayToDay(eventDay);
+          currentTime = eventDay;
+          params.time = currentTime;
+          timeController.updateDisplay();
+          refreshUi();
+        },
+        getUiData() {
+          const counts = countStats();
+          const dayIndex = Math.floor(currentTime);
+          const prevented = Math.max(0, (baseline.cumulative[dayIndex] || 0) - counts.cumulative);
+          return {
+            status: `AI가 연결도가 가장 높은 노드 P${String(superSpreaderIndex + 1).padStart(2, '0')}을 슈퍼 전파자로 강조했습니다. 격리 조치가 ON이면 노드를 눌러 접촉망을 끊고 확산 변화를 비교할 수 있습니다.`,
+            formula:
+`📊 빅데이터의 활용
+━━━━━━━━━━━━━━
+현재 사례:    감염병 전파 추적
+
+빅데이터란?
+  기존 방법으로 수집·저장·분석하기
+  어려운 규모가 매우 큰 데이터
+
+현재 감염:
+  진행 일수:   ${String(dayIndex).padStart(2, ' ')}일
+  감염자 수:   ${String(counts.active).padStart(2, ' ')}명
+  회복자 수:   ${String(counts.recovered).padStart(2, ' ')}명
+  격리 인원:   ${String(counts.quarantined).padStart(2, ' ')}명
+
+활용 분야:
+  • 감염병 전파 추적 및 예측
+  • 기상 정보 분석 및 예보
+  • 신약 개발 및 맞춤 의학
+  • 교통 흐름 최적화
+
+장점: 정확한 예측, 조기 대응
+문제점: 개인정보, 편향, 독점`,
+            insightTitle: '🦠 감염병 전파 네트워크',
+            insightHtml:
+              `<div class="metric-grid">
+                <div class="metric-card"><span>현재 감염자</span><strong>${counts.active}명</strong></div>
+                <div class="metric-card"><span>누적 감염자</span><strong>${counts.cumulative}명</strong></div>
+                <div class="metric-card"><span>회복자</span><strong>${counts.recovered}명</strong></div>
+                <div class="metric-card"><span>격리로 줄인 감염</span><strong>${prevented}명</strong></div>
+              </div>
+              <div class="legend-row">
+                <span class="legend-pill"><span class="legend-dot" style="background:#ff8466"></span>실제 감염 추이</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#73b3ff"></span>무격리 예측</span>
+              </div>
+              <div>무격리 예측 대비 누적 감염이 <strong>${prevented}명</strong> 감소했습니다. 감염 경로를 빠르게 식별할수록 전파 차단 효과가 커집니다.</div>`,
+            prosNote: '감염병 추적에는 통신, 이동, 접촉 데이터가 유용하지만, 개인 위치 정보와 건강 정보를 다루므로 익명화와 최소 수집 원칙이 중요합니다.',
+            drawChart(bounds) {
+              const actual = history.active.slice(0, dayIndex + 1);
+              const forecast = baseline.active.slice(0, dayIndex + 1);
+              const maxValue = Math.max(5, ...actual, ...forecast);
+              drawSeries(bounds, forecast, maxValue, '#73b3ff', [7, 5]);
+              drawSeries(bounds, actual, maxValue, '#ff8466');
+              drawMarker(bounds, dayIndex, actual, maxValue, '#ffb59d');
+              chartCtx.fillStyle = 'rgba(199,214,255,0.72)';
+              chartCtx.font = '12px Pretendard';
+              chartCtx.fillText('감염자 수', bounds.x, 12);
+              chartCtx.fillText('일수', bounds.x + bounds.w - 20, bounds.y + bounds.h + 20);
+            }
+          };
+        },
+        dispose() {
+          disposeObject3D(group);
+        }
+      };
+    }
+
+    function buildWeatherCase() {
+      const group = new THREE.Group();
+      const earthGroup = new THREE.Group();
+      group.add(earthGroup);
+
+      let running = false;
+      let currentDay = 1;
+      let density = params.density;
+      let avgTemp = 0;
+      let maxTemp = 0;
+      let pathError = 0;
+      let playhead = 1;
+
+      function createEarthTexture() {
+        const cvs = document.createElement('canvas');
+        cvs.width = 1024;
+        cvs.height = 512;
+        const ctx = cvs.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, cvs.height);
+        gradient.addColorStop(0, '#2f66a7');
+        gradient.addColorStop(1, '#0b2d52');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+        ctx.fillStyle = 'rgba(74, 124, 78, 0.92)';
+        [[680, 180, 150, 90], [760, 205, 110, 70], [510, 220, 90, 120], [330, 210, 110, 150], [190, 170, 120, 90]].forEach(([x, y, w, h]) => {
+          ctx.beginPath();
+          ctx.ellipse(x, y, w, h, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.fillStyle = 'rgba(208, 219, 171, 0.55)';
+        ctx.fillRect(0, 0, cvs.width, 40);
+        ctx.fillRect(0, cvs.height - 40, cvs.width, 40);
+        return new THREE.CanvasTexture(cvs);
+      }
+
+      function createCloudTexture() {
+        const cvs = document.createElement('canvas');
+        cvs.width = 1024;
+        cvs.height = 512;
+        const ctx = cvs.getContext('2d');
+        for (let i = 0; i < 180; i += 1) {
+          const x = Math.random() * cvs.width;
+          const y = Math.random() * cvs.height;
+          const r = 18 + Math.random() * 60;
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+          gradient.addColorStop(0, 'rgba(255,255,255,0.32)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        }
+        return new THREE.CanvasTexture(cvs);
+      }
+
+      const earthRadius = 3;
+      const earth = new THREE.Mesh(
+        new THREE.SphereGeometry(earthRadius, 64, 64),
+        new THREE.MeshStandardMaterial({
+          map: createEarthTexture(),
+          roughness: 0.9,
+          metalness: 0.06,
+          emissive: 0x061324,
+          emissiveIntensity: 0.62
+        })
+      );
+      earthGroup.add(earth);
+
+      const atmosphere = new THREE.Mesh(
+        new THREE.SphereGeometry(earthRadius + 0.18, 48, 48),
+        new THREE.MeshBasicMaterial({ color: 0x4fa4ff, transparent: true, opacity: 0.08, side: THREE.BackSide, depthWrite: false })
+      );
+      earthGroup.add(atmosphere);
+
+      const clouds = new THREE.Mesh(
+        new THREE.SphereGeometry(earthRadius + 0.1, 64, 64),
+        new THREE.MeshLambertMaterial({ map: createCloudTexture(), transparent: true, opacity: 0.22, depthWrite: false })
+      );
+      earthGroup.add(clouds);
+
+      const gridGroup = new THREE.Group();
+      const gridMaterial = new THREE.LineBasicMaterial({ color: 0x5b78a7, transparent: true, opacity: 0.42 });
+      [-60, -30, 0, 30, 60].forEach((lat) => {
+        const points = [];
+        for (let lon = -180; lon <= 180; lon += 6) {
+          points.push(latLonToVector3(lat, lon, earthRadius + 0.03));
+        }
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), gridMaterial));
+      });
+      [-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].forEach((lon) => {
+        const points = [];
+        for (let lat = -80; lat <= 80; lat += 4) {
+          points.push(latLonToVector3(lat, lon, earthRadius + 0.03));
+        }
+        gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), gridMaterial));
+      });
+      earthGroup.add(gridGroup);
+
+      const stationGeo = new THREE.SphereGeometry(1, 10, 10);
+      const stationMat = new THREE.MeshStandardMaterial({ roughness: 0.24, metalness: 0.12, vertexColors: true });
+      let stationMesh = null;
+      let stations = [];
+
+      const actualPath = [[14, 145], [16, 141], [18, 137], [20, 133], [23, 130], [26, 128], [30, 126], [34, 125]].map(([lat, lon]) => latLonToVector3(lat, lon, earthRadius + 0.22));
+      const predictedPath = [[14, 147], [16, 143], [18, 140], [21, 136], [24, 132], [28, 129], [32, 127], [35, 126]].map(([lat, lon]) => latLonToVector3(lat, lon, earthRadius + 0.24));
+      const actualCurve = new THREE.CatmullRomCurve3(actualPath);
+      const predictedCurve = new THREE.CatmullRomCurve3(predictedPath);
+
+      const actualTube = new THREE.Mesh(
+        new THREE.TubeGeometry(actualCurve, 160, 0.045, 8, false),
+        new THREE.MeshStandardMaterial({ color: 0xff5e5e, emissive: 0xff1a1a, emissiveIntensity: 0.55 })
+      );
+      const predictedTube = new THREE.Mesh(
+        new THREE.TubeGeometry(predictedCurve, 160, 0.032, 8, false),
+        new THREE.MeshStandardMaterial({ color: 0x73b3ff, transparent: true, opacity: 0.9, emissive: 0x2b67ff, emissiveIntensity: 0.4 })
+      );
+      earthGroup.add(actualTube, predictedTube);
+
+      const actualMarker = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff7f61 }));
+      const predictedMarker = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshBasicMaterial({ color: 0x7cc0ff }));
+      earthGroup.add(actualMarker, predictedMarker);
+
+      const aiLabel = createTextSprite('AI가 패턴 발견\n태풍 경로 예측', {
+        color: '#eaf4ff',
+        background: 'rgba(7, 18, 40, 0.78)',
+        border: 'rgba(115,179,255,0.32)',
+        font: '700 24px Pretendard'
+      });
+      aiLabel.position.set(0, 4.8, 0);
+      group.add(aiLabel);
+
+      const actualLabel = createTextSprite('실제 경로', {
+        color: '#ffe2da',
+        background: 'rgba(46, 10, 8, 0.8)',
+        border: 'rgba(255, 109, 85, 0.3)',
+        font: '700 20px Pretendard'
+      });
+      const predictedLabel = createTextSprite('AI 예측', {
+        color: '#deeeff',
+        background: 'rgba(11, 22, 48, 0.8)',
+        border: 'rgba(104, 181, 255, 0.3)',
+        font: '700 20px Pretendard'
+      });
+      earthGroup.add(actualLabel, predictedLabel);
+
+      const errorSeries = Array.from({ length: 30 }, (_, i) => {
+        const t = i / 29;
+        const actualPos = actualCurve.getPointAt(t).clone().normalize();
+        const predictedPos = predictedCurve.getPointAt(t).clone().normalize();
+        return actualPos.angleTo(predictedPos) * 6371;
+      });
+
+      function rebuildStations(count) {
+        if (stationMesh) {
+          earthGroup.remove(stationMesh);
+          disposeObject3D(stationMesh);
+        }
+        density = count;
+        stations = Array.from({ length: count }, (_, index) => {
+          const y = 1 - (index / Math.max(1, count - 1)) * 2;
+          const theta = index * 2.399963229728653;
+          return {
+            lat: THREE.MathUtils.radToDeg(Math.asin(y)),
+            lon: THREE.MathUtils.radToDeg(theta % (Math.PI * 2)) - 180,
+            phase: hashUnit(271, index, 8) * Math.PI * 2,
+            bias: hashUnit(271, index, 9)
+          };
+        });
+        stationMesh = new THREE.InstancedMesh(stationGeo, stationMat, count);
+        stationMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        earthGroup.add(stationMesh);
+      }
+
+      function updateMarkers(day) {
+        const progress = (day - 1) / 29;
+        const actualPos = actualCurve.getPointAt(progress);
+        const predictedPos = predictedCurve.getPointAt(progress);
+        actualMarker.position.copy(actualPos);
+        predictedMarker.position.copy(predictedPos);
+        actualLabel.position.copy(actualPos).multiplyScalar(1.1);
+        predictedLabel.position.copy(predictedPos).multiplyScalar(1.12);
+        pathError = actualPos.clone().normalize().angleTo(predictedPos.clone().normalize()) * 6371;
+      }
+
+      function updateWeather(day) {
+        currentDay = clamp(Math.round(day), 1, 30);
+        playhead = day;
+        updateMarkers(currentDay);
+        let sum = 0;
+        let hottest = -Infinity;
+        const stormVector = actualMarker.position.clone().normalize();
+        stations.forEach((station, index) => {
+          const baseVec = latLonToVector3(station.lat, station.lon, earthRadius + 0.15);
+          const normal = baseVec.clone().normalize();
+          const tropicality = 1 - Math.abs(station.lat) / 90;
+          const seasonal = Math.sin((currentDay / 30) * Math.PI * 2 + station.phase) * 3.4;
+          const wave = Math.cos(THREE.MathUtils.degToRad(station.lon * 1.6) + currentDay * 0.18 + station.phase) * 2.8;
+          const stormEffect = Math.exp(-Math.pow(normal.angleTo(stormVector), 2) / 0.14) * 10.5;
+          const temp = -7 + tropicality * 31 + seasonal + wave + stormEffect + station.bias * 2.2;
+          const color = temperatureToColor(temp);
+          const size = 0.05 + tropicality * 0.08 + stormEffect * 0.004 + station.bias * 0.015;
+          tempMatrix.compose(baseVec, tempQuat.identity(), tempScale.set(size, size, size));
+          stationMesh.setMatrixAt(index, tempMatrix);
+          stationMesh.setColorAt(index, color);
+          sum += temp;
+          hottest = Math.max(hottest, temp);
+        });
+        stationMesh.instanceMatrix.needsUpdate = true;
+        stationMesh.instanceColor.needsUpdate = true;
+        avgTemp = sum / Math.max(1, stations.length);
+        maxTemp = hottest;
+      }
+
+      rebuildStations(density);
+      updateWeather(1);
+
+      return {
+        name: '기상 데이터 분석',
+        group,
+        timeMin: 1,
+        timeMax: 30,
+        timeStep: 1,
+        defaultTime: 1,
+        update(dt) {
+          earthGroup.rotation.y += dt * 0.12;
+          clouds.rotation.y += dt * 0.2;
+          aiLabel.lookAt(camera.position);
+          actualLabel.lookAt(camera.position);
+          predictedLabel.lookAt(camera.position);
+          if (running) {
+            playhead = Math.min(30, playhead + dt * 3.8);
+            if (Math.round(playhead) !== currentDay) {
+              updateWeather(playhead);
+            }
+            params.time = Math.round(playhead);
+            timeController.updateDisplay();
+            if (playhead >= 30) {
+              running = false;
+            }
+          }
+        },
+        setTime(value) {
+          running = false;
+          updateWeather(value);
+          params.time = currentDay;
+          timeController.updateDisplay();
+        },
+        setDensity(value) {
+          rebuildStations(value);
+          updateWeather(currentDay);
+          params.density = value;
+          densityController.updateDisplay();
+        },
+        start() {
+          if (currentDay >= 30) {
+            updateWeather(1);
+          }
+          running = true;
+        },
+        reset() {
+          running = false;
+          updateWeather(1);
+          params.time = 1;
+        },
+        getUiData() {
+          return {
+            status: '위성, 해양, 기온, 바람 데이터를 통합 분석하면 태풍 경로와 기온 분포 변화를 더 빠르게 예측할 수 있습니다. 붉은 경로는 실제, 푸른 경로는 AI 예측입니다.',
+            formula:
+`📊 빅데이터의 활용
+━━━━━━━━━━━━━━
+현재 사례:    기상 데이터 분석
+
+빅데이터란?
+  기존 방법으로 수집·저장·분석하기
+  어려운 규모가 매우 큰 데이터
+
+현재 분석:
+  관측 일수:   ${String(currentDay).padStart(2, ' ')}일
+  데이터 밀도: ${String(density).padStart(3, ' ')}개
+  평균 기온:   ${avgTemp.toFixed(1)}°C
+  경로 오차:   ${Math.round(pathError)} km
+
+활용 분야:
+  • 감염병 전파 추적 및 예측
+  • 기상 정보 분석 및 예보
+  • 신약 개발 및 맞춤 의학
+  • 교통 흐름 최적화
+
+장점: 정확한 예측, 조기 대응
+문제점: 개인정보, 편향, 독점`,
+            insightTitle: '🌦 기상 빅데이터 분석',
+            insightHtml:
+              `<div class="metric-grid">
+                <div class="metric-card"><span>현재 일수</span><strong>${currentDay}일</strong></div>
+                <div class="metric-card"><span>평균 기온</span><strong>${avgTemp.toFixed(1)}°C</strong></div>
+                <div class="metric-card"><span>최고 기온</span><strong>${maxTemp.toFixed(1)}°C</strong></div>
+                <div class="metric-card"><span>예측 경로 오차</span><strong>${Math.round(pathError)}km</strong></div>
+              </div>
+              <div class="legend-row">
+                <span class="legend-pill"><span class="legend-dot" style="background:#ff6f66"></span>실제 태풍 경로</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#73b3ff"></span>AI 예측 경로</span>
+              </div>
+              <div>기상 관측소를 촘촘히 배치할수록 국지적 고온대와 태풍 중심 부근의 급격한 변화를 더 세밀하게 포착할 수 있습니다.</div>`,
+            prosNote: '기상 빅데이터는 재난 대응과 농업, 항공, 해운 분야에 큰 도움을 주지만, 데이터가 부족한 지역이나 과거 학습 편향이 남아 있으면 예측 불확실성이 커질 수 있습니다.',
+            drawChart(bounds) {
+              const values = errorSeries.slice(0, currentDay);
+              const maxValue = Math.max(400, ...errorSeries);
+              drawSeries(bounds, values, maxValue, '#73b3ff');
+              drawMarker(bounds, currentDay - 1, values, maxValue, '#ffffff');
+              chartCtx.fillStyle = 'rgba(199,214,255,0.72)';
+              chartCtx.font = '12px Pretendard';
+              chartCtx.fillText('예측 경로 오차 (km)', bounds.x, 12);
+              chartCtx.fillText('일수', bounds.x + bounds.w - 20, bounds.y + bounds.h + 20);
+            }
+          };
+        },
+        dispose() {
+          disposeObject3D(group);
+        }
+      };
+    }
+
+    function buildDrugCase() {
+      const group = new THREE.Group();
+      let progress = 0;
+      let running = false;
+      let screenedCount = 0;
+      let bindingScore = 32;
+      let stage = '데이터 정제';
+
+      const proteinGroup = new THREE.Group();
+      const drugRig = new THREE.Group();
+      const candidateGroup = new THREE.Group();
+      group.add(proteinGroup, drugRig, candidateGroup);
+
+      const activeSite = new THREE.Vector3(1.35, 0.32, 0.08);
+      const proteinGeo = new THREE.SphereGeometry(1, 12, 12);
+      const proteinMat = new THREE.MeshStandardMaterial({ roughness: 0.34, metalness: 0.08, vertexColors: true, transparent: true, opacity: 0.95 });
+      const proteinMesh = new THREE.InstancedMesh(proteinGeo, proteinMat, 88);
+      proteinMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      proteinGroup.add(proteinMesh);
+
+      const shell = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(2.5, 2),
+        new THREE.MeshBasicMaterial({ color: 0x305d93, transparent: true, opacity: 0.08, wireframe: true })
+      );
+      proteinGroup.add(shell);
+
+      const siteRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.56, 0.06, 16, 64),
+        new THREE.MeshBasicMaterial({ color: 0xffc76a, transparent: true, opacity: 0.92 })
+      );
+      siteRing.position.copy(activeSite);
+      siteRing.rotation.y = Math.PI / 2;
+      proteinGroup.add(siteRing);
+
+      const siteGlow = new THREE.PointLight(0xffb75a, 0.6, 8, 2);
+      siteGlow.position.copy(activeSite);
+      proteinGroup.add(siteGlow);
+
+      const proteinLabel = createTextSprite('단백질 표적', {
+        color: '#ebf5ff',
+        background: 'rgba(7, 18, 36, 0.78)',
+        border: 'rgba(115,179,255,0.22)',
+        font: '700 22px Pretendard'
+      });
+      proteinLabel.position.set(0.4, 3.2, 0);
+      proteinGroup.add(proteinLabel);
+
+      for (let i = 0; i < 88; i += 1) {
+        let pos = new THREE.Vector3();
+        let tries = 0;
+        do {
+          const theta = hashUnit(902, i, tries + 1) * Math.PI * 2;
+          const phi = Math.acos(lerp(-1, 1, hashUnit(903, i, tries + 2)));
+          const radius = 1.25 + hashUnit(904, i, tries + 3) * 1.1;
+          pos = new THREE.Vector3().setFromSphericalCoords(radius, phi, theta);
+          tries += 1;
+        } while (pos.distanceTo(activeSite) < 0.78 && tries < 24);
+        const scale = 0.18 + hashUnit(905, i, 4) * 0.28;
+        const color = new THREE.Color().setHSL(0.56 + hashUnit(906, i, 5) * 0.12, 0.5, 0.42 + hashUnit(907, i, 6) * 0.18);
+        tempMatrix.compose(pos, tempQuat.identity(), tempScale.set(scale, scale, scale));
+        proteinMesh.setMatrixAt(i, tempMatrix);
+        proteinMesh.setColorAt(i, color);
+      }
+      proteinMesh.instanceColor.needsUpdate = true;
+
+      const atoms = [
+        { pos: new THREE.Vector3(-0.8, 0.0, 0.0), color: 0x333c4f, size: 0.24 },
+        { pos: new THREE.Vector3(-0.2, 0.32, 0.18), color: 0x333c4f, size: 0.24 },
+        { pos: new THREE.Vector3(0.42, 0.18, -0.12), color: 0x1a79ff, size: 0.22 },
+        { pos: new THREE.Vector3(0.9, -0.12, 0.12), color: 0xff5959, size: 0.24 },
+        { pos: new THREE.Vector3(0.24, -0.46, -0.22), color: 0x44cc88, size: 0.18 },
+        { pos: new THREE.Vector3(-0.42, -0.38, 0.18), color: 0xffd261, size: 0.18 }
+      ];
+
+      const drugGroup = new THREE.Group();
+      drugRig.add(drugGroup);
+      atoms.forEach((atom) => {
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(atom.size, 18, 18),
+          new THREE.MeshStandardMaterial({ color: atom.color, roughness: 0.28, metalness: 0.16 })
+        );
+        mesh.position.copy(atom.pos);
+        drugGroup.add(mesh);
+      });
+
+      [[0, 1], [1, 2], [2, 3], [1, 4], [0, 5]].forEach(([a, b]) => {
+        const bond = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.05, 0.05, 1, 10, 1, true),
+          new THREE.MeshStandardMaterial({ color: 0xbbcadf, roughness: 0.22, metalness: 0.12 })
+        );
+        setCylinderBetween(bond, atoms[a].pos, atoms[b].pos);
+        drugGroup.add(bond);
+      });
+
+      const drugLabel = createTextSprite('후보 약물', {
+        color: '#eef5ff',
+        background: 'rgba(10, 18, 35, 0.82)',
+        border: 'rgba(255,255,255,0.16)',
+        font: '700 20px Pretendard'
+      });
+      drugLabel.position.set(0, 1.4, 0);
+      drugGroup.add(drugLabel);
+
+      const aiBanner = createTextSprite('빅데이터 + AI\n수백만 개 후보 중 최적 약물 탐색', {
+        color: '#fff6dc',
+        background: 'rgba(36, 25, 8, 0.8)',
+        border: 'rgba(255, 204, 118, 0.28)',
+        font: '700 24px Pretendard'
+      });
+      aiBanner.position.set(0, 3.8, -0.2);
+      group.add(aiBanner);
+
+      const dockingCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-5.6, 0.8, 2.2),
+        new THREE.Vector3(-2.8, 1.2, 1.2),
+        new THREE.Vector3(-0.4, 0.8, 0.4),
+        activeSite.clone()
+      ]);
+
+      const candidateCount = 280;
+      const candidatePositions = new Float32Array(candidateCount * 3);
+      const candidateColors = new Float32Array(candidateCount * 3);
+      const candidateData = Array.from({ length: candidateCount }, (_, index) => ({
+        x: -7 - Math.random() * 5,
+        y: lerp(-2.4, 2.4, Math.random()),
+        z: lerp(-2.4, 2.4, Math.random()),
+        speed: 1.4 + Math.random() * 1.6,
+        offset: Math.random() * Math.PI * 2,
+        index
+      }));
+      const candidateGeometry = new THREE.BufferGeometry();
+      candidateGeometry.setAttribute('position', new THREE.BufferAttribute(candidatePositions, 3));
+      candidateGeometry.setAttribute('color', new THREE.BufferAttribute(candidateColors, 3));
+      const candidatePoints = new THREE.Points(
+        candidateGeometry,
+        new THREE.PointsMaterial({ size: 0.08, transparent: true, opacity: 0.62, vertexColors: true, depthWrite: false })
+      );
+      candidateGroup.add(candidatePoints);
+
+      function updateCandidates(dt) {
+        candidateData.forEach((candidate) => {
+          candidate.x += dt * candidate.speed * (0.7 + progress * 0.01);
+          if (candidate.x > 3.2) {
+            candidate.x = -7 - Math.random() * 3;
+            candidate.y = lerp(-2.4, 2.4, Math.random());
+            candidate.z = lerp(-2.4, 2.4, Math.random());
+          }
+          const shimmer = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2 + candidate.offset);
+          candidatePositions[candidate.index * 3] = candidate.x;
+          candidatePositions[candidate.index * 3 + 1] = candidate.y + Math.sin(clock.elapsedTime + candidate.offset) * 0.08;
+          candidatePositions[candidate.index * 3 + 2] = candidate.z;
+          new THREE.Color().setHSL(0.55 + shimmer * 0.05, 0.7, 0.6).toArray(candidateColors, candidate.index * 3);
+        });
+        candidateGeometry.attributes.position.needsUpdate = true;
+        candidateGeometry.attributes.color.needsUpdate = true;
+      }
+
+      function updateDrug(progressValue) {
+        progress = clamp(progressValue, 0, 100);
+        const t = progress / 100;
+        const pos = dockingCurve.getPointAt(t);
+        drugRig.position.copy(pos);
+        drugGroup.rotation.y = clock.elapsedTime * 0.8 + t * Math.PI * 1.4;
+        drugGroup.rotation.z = Math.sin(clock.elapsedTime * 1.1) * 0.18;
+        drugRig.lookAt(activeSite);
+        drugRig.rotateY(Math.PI / 2);
+
+        screenedCount = Math.round(t * 3600000);
+        bindingScore = clamp(t < 0.6 ? 30 + t * 74 + Math.sin(progress * 0.12) * 3 : 76 + (t - 0.6) * 46 + Math.sin(progress * 0.2) * 2, 30, 98);
+
+        if (progress < 20) {
+          stage = '데이터 정제';
+        } else if (progress < 45) {
+          stage = '후보 선별';
+        } else if (progress < 70) {
+          stage = 'AI 예측';
+        } else if (progress < 92) {
+          stage = '도킹 검증';
+        } else {
+          stage = '결합 완료';
+        }
+
+        siteGlow.intensity = 0.5 + t * 1.4;
+        siteRing.rotation.z += 0.02;
+        siteRing.scale.setScalar(1 + Math.sin(clock.elapsedTime * 3.2) * 0.06 + t * 0.1);
+      }
+
+      updateDrug(0);
+
+      return {
+        name: '의약품 개발',
+        group,
+        timeMin: 0,
+        timeMax: 100,
+        timeStep: 1,
+        defaultTime: 0,
+        update(dt) {
+          shell.rotation.y += dt * 0.22;
+          proteinLabel.lookAt(camera.position);
+          aiBanner.lookAt(camera.position);
+          drugLabel.lookAt(camera.position);
+          updateCandidates(dt);
+          if (running) {
+            const next = Math.min(100, progress + dt * 16);
+            updateDrug(next);
+            params.time = next;
+            timeController.updateDisplay();
+            if (next >= 100) {
+              running = false;
+            }
+          }
+        },
+        setTime(value) {
+          running = false;
+          updateDrug(value);
+          params.time = progress;
+          timeController.updateDisplay();
+        },
+        start() {
+          if (progress >= 100) {
+            updateDrug(0);
+          }
+          running = true;
+        },
+        reset() {
+          running = false;
+          updateDrug(0);
+          params.time = 0;
+        },
+        getUiData() {
+          const screenedLabel = screenedCount >= 1000000 ? `${(screenedCount / 1000000).toFixed(1)}M` : formatInt(screenedCount);
+          return {
+            status: '빅데이터와 AI는 수백만 개의 화합물 데이터를 빠르게 분석해 단백질 활성 부위와 잘 결합할 가능성이 높은 후보 약물을 먼저 찾아냅니다.',
+            formula:
+`📊 빅데이터의 활용
+━━━━━━━━━━━━━━
+현재 사례:    의약품 개발
+
+빅데이터란?
+  기존 방법으로 수집·저장·분석하기
+  어려운 규모가 매우 큰 데이터
+
+현재 분석:
+  진행률:      ${String(Math.round(progress)).padStart(3, ' ')}%
+  후보 탐색:   ${screenedLabel}
+  결합 점수:   ${bindingScore.toFixed(1)}
+  단계:        ${stage}
+
+활용 분야:
+  • 감염병 전파 추적 및 예측
+  • 기상 정보 분석 및 예보
+  • 신약 개발 및 맞춤 의학
+  • 교통 흐름 최적화
+
+장점: 정확한 예측, 조기 대응
+문제점: 개인정보, 편향, 독점`,
+            insightTitle: '💊 의약품 개발',
+            insightHtml:
+              `<div class="metric-grid">
+                <div class="metric-card"><span>진행률</span><strong>${Math.round(progress)}%</strong></div>
+                <div class="metric-card"><span>탐색 후보</span><strong>${screenedLabel}</strong></div>
+                <div class="metric-card"><span>예측 결합 점수</span><strong>${bindingScore.toFixed(1)}</strong></div>
+                <div class="metric-card"><span>현재 단계</span><strong>${stage}</strong></div>
+              </div>
+              <div class="legend-row">
+                <span class="legend-pill"><span class="legend-dot" style="background:#73b3ff"></span>후보 스크리닝</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#ffcf72"></span>결합 점수</span>
+              </div>
+              <div>방대한 화합물 데이터와 단백질 구조 데이터를 함께 분석하면, 실험 전에 유망 후보를 좁혀 실험 시간과 비용을 줄일 수 있습니다.</div>`,
+            prosNote: '의약품 개발에서 빅데이터는 임상 성공 가능성을 높여 주지만, 학습 데이터가 특정 집단에 치우치면 약효 예측이 불공정해질 수 있어 다양한 데이터 확보가 중요합니다.',
+            drawChart(bounds) {
+              const xCount = 21;
+              const screeningSeries = Array.from({ length: xCount }, (_, index) => Math.log10(1 + (index / (xCount - 1)) * 3600000));
+              const scoreSeries = Array.from({ length: xCount }, (_, index) => {
+                const t = index / (xCount - 1);
+                return 30 + t * 66 + Math.sin(t * 8) * 4;
+              });
+              drawSeries(bounds, screeningSeries, Math.log10(1 + 3600000), '#73b3ff');
+              drawSeries(bounds, scoreSeries, 100, '#ffcf72');
+              drawMarker(bounds, Math.round((progress / 100) * (xCount - 1)), scoreSeries, 100, '#fff4cb');
+              chartCtx.fillStyle = 'rgba(199,214,255,0.72)';
+              chartCtx.font = '12px Pretendard';
+              chartCtx.fillText('후보 스크리닝 / 결합 점수', bounds.x, 12);
+              chartCtx.fillText('진행률', bounds.x + bounds.w - 28, bounds.y + bounds.h + 20);
+            }
+          };
+        },
+        dispose() {
+          disposeObject3D(group);
+        }
+      };
+    }
+
+    switchCase('감염병 전파 추적');
+    animate();
+  </script>
+</body>
+</html>

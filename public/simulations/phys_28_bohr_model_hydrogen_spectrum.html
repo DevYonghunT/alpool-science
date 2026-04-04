@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>보어 원자 모형과 수소 스펙트럼 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a20;
+    --scene-panel: rgba(9, 12, 33, 0.78);
+    --card: rgba(12, 18, 44, 0.92);
+    --card-soft: rgba(16, 23, 56, 0.72);
+    --border: rgba(255, 255, 255, 0.1);
+    --text-main: #edf4ff;
+    --text-dim: rgba(237, 244, 255, 0.7);
+    --text-faint: rgba(237, 244, 255, 0.5);
+    --accent-red: #ff5c6a;
+    --accent-cyan: #5ee7ff;
+    --accent-blue: #7aa4ff;
+    --accent-purple: #b27cff;
+    --accent-gold: #ffd47b;
+    --accent-green: #7ef3c2;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 15% 8%, rgba(123, 143, 255, 0.12), transparent 22%),
+      radial-gradient(circle at 88% 12%, rgba(0, 220, 255, 0.08), transparent 18%),
+      linear-gradient(135deg, #070914 0%, var(--bg) 52%, #060713 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
+    background: radial-gradient(circle at center, rgba(65, 91, 255, 0.06), transparent 44%);
+  }
+
+  #scene-panel,
+  #info-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 16%, rgba(113, 131, 255, 0.18), transparent 20%),
+      radial-gradient(circle at 84% 18%, rgba(111, 242, 255, 0.12), transparent 18%),
+      linear-gradient(180deg, rgba(8, 11, 30, 0.92), rgba(7, 10, 28, 0.98));
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at center, transparent 42%, rgba(2, 4, 12, 0.5) 100%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 22%);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 20;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(12, 18, 44, 0.82);
+    color: var(--text-main);
+    cursor: pointer;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+    transition: transform 160ms ease, background 160ms ease;
+  }
+
+  #guide-toggle:hover {
+    transform: translateY(-1px);
+    background: rgba(18, 28, 68, 0.9);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    z-index: 19;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(74vh, 720px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 14, 34, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
+    line-height: 1.7;
+    font-size: 13px;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #9fcbff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+  #guide-panel p { color: var(--text-dim); }
+
+  #scene-header {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    width: min(720px, calc(100% - 200px));
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(230px, 0.8fr);
+    gap: 14px;
+    pointer-events: none;
+  }
+
+  .glass-card {
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      linear-gradient(135deg, rgba(19, 27, 63, 0.88), rgba(10, 16, 38, 0.78)),
+      rgba(10, 16, 38, 0.78);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 18px 36px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(18px);
+  }
+
+  #title-card {
+    padding: 16px 18px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(237, 244, 255, 0.52);
+  }
+
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 26px;
+    line-height: 1.06;
+    letter-spacing: -0.04em;
+  }
+
+  #title-card p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #status-card {
+    padding: 14px 16px;
+  }
+
+  #status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffe8a7;
+    background: rgba(255, 212, 123, 0.12);
+    border: 1px solid rgba(255, 212, 123, 0.2);
+  }
+
+  #status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ffe080;
+    box-shadow: 0 0 14px rgba(255, 224, 128, 0.72);
+  }
+
+  #status-title {
+    margin-top: 11px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  #status-body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #status-meta {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    z-index: 15;
+    width: min(390px, calc(100% - 36px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 14, 34, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 22px 40px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
+    line-height: 1.68;
+    font-size: 12px;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffe3a3;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .formula-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .formula-line strong {
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .formula-value {
+    text-align: right;
+    color: #fef4d6;
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+  }
+
+  .formula-block .mono {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    color: #fff3cb;
+  }
+
+  #scene-caption {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    z-index: 14;
+    max-width: 260px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: rgba(10, 14, 34, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.65;
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+  }
+
+  #scene-caption strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-main);
+    font-size: 12px;
+  }
+
+  #gui-mount {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 22;
+  }
+
+  #gui-mount .lil-gui.root {
+    --width: 282px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  }
+
+  #info-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+    background:
+      radial-gradient(circle at 16% 10%, rgba(122, 164, 255, 0.12), transparent 22%),
+      radial-gradient(circle at 86% 12%, rgba(255, 91, 115, 0.09), transparent 18%),
+      linear-gradient(180deg, rgba(8, 12, 31, 0.98), rgba(6, 10, 27, 1));
+  }
+
+  #panel-head {
+    padding: 16px 18px;
+  }
+
+  #panel-head h2 {
+    margin-top: 6px;
+    font-size: 24px;
+    letter-spacing: -0.03em;
+  }
+
+  #panel-head p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #panel-head .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .panel-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .panel-card {
+    position: relative;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .card-head h3 {
+    font-size: 17px;
+    line-height: 1.2;
+  }
+
+  .card-head p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .badge-column {
+    display: grid;
+    gap: 8px;
+    justify-items: end;
+  }
+
+  .status-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+  }
+
+  .status-badge[data-tone="emission"] {
+    color: #ffd2d7;
+    background: rgba(255, 92, 106, 0.14);
+    border-color: rgba(255, 92, 106, 0.2);
+  }
+
+  .status-badge[data-tone="absorption"] {
+    color: #c8f6ff;
+    background: rgba(94, 231, 255, 0.12);
+    border-color: rgba(94, 231, 255, 0.2);
+  }
+
+  .status-badge[data-tone="idle"] {
+    color: #ffe6a6;
+    background: rgba(255, 212, 123, 0.12);
+    border-color: rgba(255, 212, 123, 0.2);
+  }
+
+  .canvas-shell {
+    position: relative;
+    height: calc(100% - 84px);
+    min-height: 220px;
+    border-radius: 22px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(7, 10, 26, 0.96), rgba(3, 6, 20, 0.98)),
+      #070a1b;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 40px rgba(108, 153, 255, 0.05);
+  }
+
+  #energy-canvas,
+  #spectrum-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .canvas-off {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-dim);
+    background: rgba(4, 8, 21, 0.86);
+    backdrop-filter: blur(12px);
+  }
+
+  .canvas-off.show { display: flex; }
+
+  .panel-note {
+    margin-top: 12px;
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.68;
+  }
+
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 1100px) {
+    #scene-header {
+      width: min(640px, calc(100% - 180px));
+      grid-template-columns: 1fr;
+    }
+
+    #status-card {
+      max-width: 360px;
+    }
+  }
+
+  @media (max-width: 960px) {
+    html,
+    body {
+      position: static;
+      overflow: auto;
+    }
+
+    #layout {
+      position: static;
+      min-height: 100vh;
+      grid-template-columns: 1fr;
+      grid-template-rows: 58vh auto;
+    }
+
+    #scene-panel {
+      min-height: 58vh;
+      border-right: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    #info-panel {
+      min-height: 42vh;
+    }
+
+    #scene-header {
+      top: 68px;
+      left: 16px;
+      right: 16px;
+      width: auto;
+      transform: none;
+    }
+
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+    }
+
+    #gui-mount {
+      top: 12px;
+      right: 12px;
+    }
+
+    #formula-panel {
+      width: min(390px, calc(100% - 24px));
+      left: 12px;
+      bottom: 12px;
+    }
+
+    #scene-caption {
+      right: 12px;
+      bottom: 12px;
+      max-width: 230px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #scene-header {
+      right: 12px;
+      left: 12px;
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #status-card {
+      max-width: none;
+    }
+
+    #formula-panel,
+    #scene-caption {
+      position: static;
+      width: auto;
+      margin: 0 12px 12px;
+    }
+
+    #formula-panel {
+      margin-top: auto;
+    }
+
+    #scene-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    #scene-canvas {
+      position: absolute;
+      inset: 0;
+    }
+
+    #scene-caption {
+      max-width: none;
+    }
+
+    #panel-head,
+    .panel-card {
+      padding: 14px;
+    }
+
+    .canvas-shell {
+      min-height: 240px;
+      height: 270px;
+    }
+
+    #gui-mount .lil-gui.root {
+      --width: 250px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas" aria-label="보어 원자 모형 3D 장면"></canvas>
+    <button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+    <aside id="guide-panel" aria-hidden="true">
+      <h3>핵심 원리</h3>
+      <p>보어 원자 모형에서 전자는 특정 에너지 준위에서만 존재합니다. 전자가 높은 준위에서 낮은 준위로 전이할 때 에너지 차이만큼의 광자를 방출하며, 이것이 수소의 선 스펙트럼입니다. 수소의 에너지 준위는 <strong>En = -13.6 / n² eV</strong>로 표현됩니다.</p>
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>수소 원자에서 n=3 → n=2 전이 시 방출되는 빛의 색을 구해 보세요.</li>
+        <li>에너지 준위가 양자화되어 있기 때문에 수소 스펙트럼이 선 형태가 되는 까닭을 설명해 보세요.</li>
+        <li>수소 원자의 이온화 에너지는 몇 eV인가요? 힌트: n=1에서 n=∞로 전이합니다.</li>
+      </ul>
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>네온사인과 기체 방전관은 원자의 들뜸과 전이 스펙트럼을 활용합니다.</li>
+        <li>LED와 레이저는 에너지 준위 차이를 이용해 특정 파장의 빛을 냅니다.</li>
+        <li>천문학에서는 별빛의 스펙트럼선을 보고 원소 조성을 판별합니다.</li>
+      </ul>
+      <h3>교과서 연계</h3>
+      <p>물리학 III편 p158~163 — 보어 원자 모형, 수소 스펙트럼, 에너지 준위</p>
+    </aside>
+
+    <div id="scene-header">
+      <div id="title-card" class="glass-card">
+        <div class="eyebrow">Physics III · Atom & Spectrum</div>
+        <h1>보어 원자 모형과 수소 스펙트럼</h1>
+        <p>전자 궤도 전이와 광자 방출·흡수를 한 장면에서 보며, 오른쪽 에너지 준위 다이어그램과 가시광선 스펙트럼이 어떻게 연결되는지 함께 관찰해 보세요.</p>
+      </div>
+      <div id="status-card" class="glass-card">
+        <div id="status-pill"><span id="status-dot"></span>현재 전이 상태</div>
+        <div id="status-title">바닥상태 n=1</div>
+        <div id="status-body">전자는 가장 낮은 에너지 준위에 있습니다. 목표 궤도를 올려 흡수를, 낮춰 방출을 관찰해 보세요.</div>
+        <div id="status-meta">
+          <div class="meta-chip" id="meta-current-series">발머 계열 보기</div>
+          <div class="meta-chip" id="meta-photon-color">광자 색상 대기</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gui-mount" aria-label="시뮬레이션 제어 패널"></div>
+
+    <section id="formula-panel" aria-live="polite">
+      <div class="panel-title">⚛️ 보어 원자 모형과 수소 스펙트럼</div>
+      <div class="divider"></div>
+      <div class="formula-line"><strong>전자 현재 궤도</strong><span class="formula-value" id="formula-current-orbit">n = 1</span></div>
+      <div class="formula-line"><strong>에너지</strong><span class="formula-value" id="formula-current-energy">-13.60 eV</span></div>
+      <div class="formula-line"><strong>전이</strong><span class="formula-value" id="formula-transition">n=1 → n=2</span></div>
+      <div class="formula-line"><strong>에너지 차이</strong><span class="formula-value" id="formula-delta-energy">10.20 eV</span></div>
+      <div class="formula-line"><strong>방출 광자</strong><span class="formula-value" id="formula-wavelength">λ = 121.6 nm</span></div>
+      <div class="formula-line"><strong>주파수</strong><span class="formula-value" id="formula-frequency">f = 24.67 ×10¹⁴ Hz</span></div>
+      <div class="formula-line"><strong>색상</strong><span class="formula-value" id="formula-color">자외선</span></div>
+
+      <div class="formula-block">
+        <div class="mono">En = -13.6 / n² eV</div>
+        <div class="mono">n=1: -13.6 eV (바닥상태)</div>
+        <div class="mono">n=2: -3.4 eV</div>
+        <div class="mono">n=3: -1.51 eV</div>
+        <div class="mono">n=∞: 0 eV (이온화)</div>
+      </div>
+
+      <div class="formula-block">
+        <div><strong>발머 계열 (가시광선)</strong></div>
+        <div class="mono">Hα 656.3 nm · Hβ 486.1 nm</div>
+        <div class="mono">Hγ 434.0 nm · Hδ 410.2 nm</div>
+      </div>
+    </section>
+
+    <div id="scene-caption">
+      <strong>관찰 포인트</strong>
+      선택된 궤도는 더 밝게 표시됩니다. 방출 전이에서는 광자가 원자 바깥으로 날아가고, 흡수 전이에서는 외부 광자가 들어오며 전자가 높은 준위로 점프합니다.
+    </div>
+  </section>
+
+  <section id="info-panel">
+    <header id="panel-head" class="glass-card">
+      <div class="eyebrow">Energy Diagram · Hydrogen Spectrum</div>
+      <h2>양자화된 준위와 선 스펙트럼</h2>
+      <p>오른쪽 상단은 수소의 에너지 준위를, 하단은 400~700nm 가시광선 구간에서 관측되는 발머 계열 스펙트럼을 보여 줍니다. 전이가 일어나면 대응하는 화살표와 선이 함께 강조됩니다.</p>
+      <div class="chip-row">
+        <div class="panel-chip" id="series-chip">계열: 발머</div>
+        <div class="panel-chip" id="transition-chip">대기 중</div>
+        <div class="panel-chip" id="visibility-chip">가시광선 기준</div>
+      </div>
+    </header>
+
+    <section class="panel-card glass-card">
+      <div class="card-head">
+        <div>
+          <h3>에너지 준위 다이어그램</h3>
+          <p>n=1~5와 이온화 준위를 표시하고, 선택한 계열의 전이 화살표를 함께 그립니다.</p>
+        </div>
+        <div class="badge-column">
+          <div class="status-badge" id="transition-badge" data-tone="idle">전이 대기</div>
+          <div class="status-badge" id="arrow-badge" data-tone="idle">ΔE = 10.20 eV</div>
+        </div>
+      </div>
+      <div class="canvas-shell">
+        <canvas id="energy-canvas" aria-label="수소 에너지 준위 다이어그램"></canvas>
+        <div class="canvas-off" id="energy-off">GUI의 ‘에너지 준위 표시’를 켜면 전이 화살표와 준위 다이어그램이 다시 나타납니다.</div>
+      </div>
+      <div class="panel-note" id="energy-note">현재 선택은 n=1 → n=2 입니다. 낮은 준위에서 높은 준위로 이동하므로 외부 광자를 흡수하는 경우입니다.</div>
+    </section>
+
+    <section class="panel-card glass-card">
+      <div class="card-head">
+        <div>
+          <h3>수소 방출 스펙트럼</h3>
+          <p>가시광선 바에서 발머 계열 선스펙트럼을 보여 줍니다. 방출 전이가 일어나면 해당 선이 강하게 번쩍입니다.</p>
+        </div>
+        <div class="badge-column">
+          <div class="status-badge" id="spectrum-badge" data-tone="idle">선 대기</div>
+          <div class="status-badge" id="line-badge" data-tone="idle">400~700 nm</div>
+        </div>
+      </div>
+      <div class="canvas-shell">
+        <canvas id="spectrum-canvas" aria-label="수소 방출 스펙트럼"></canvas>
+        <div class="canvas-off" id="spectrum-off">GUI의 ‘스펙트럼 표시’를 켜면 발머 계열 선스펙트럼이 다시 나타납니다.</div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-chip"><span class="legend-dot" style="background:#ff4f5d;"></span>Hα 656.3nm</div>
+        <div class="legend-chip"><span class="legend-dot" style="background:#31e2dd;"></span>Hβ 486.1nm</div>
+        <div class="legend-chip"><span class="legend-dot" style="background:#678dff;"></span>Hγ 434.0nm</div>
+        <div class="legend-chip"><span class="legend-dot" style="background:#a97cff;"></span>Hδ 410.2nm</div>
+      </div>
+      <div class="panel-note" id="spectrum-note">발머 계열은 n→2 전이에서 관측되며, 수소의 대표적인 가시광선 선스펙트럼을 만듭니다.</div>
+    </section>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const HC_EV_NM = 1239.841984;
+const PLANCK_EV_S = 4.135667696e-15;
+const TAU = Math.PI * 2;
+
+const ORBITS = [
+  { n: 1, radius: 1.5, color: 0x4488ff, energy: -13.6 },
+  { n: 2, radius: 3.0, color: 0x44aaff, energy: -3.4 },
+  { n: 3, radius: 4.5, color: 0x44ccff, energy: -1.51 },
+  { n: 4, radius: 6.0, color: 0x44eeff, energy: -0.85 },
+  { n: 5, radius: 7.5, color: 0x88ffff, energy: -0.54 },
+];
+
+const REFERENCE_LEVEL = { n: 6, energy: -13.6 / 36 };
+
+const SERIES_TRANSITIONS = {
+  '라이먼': [
+    [2, 1],
+    [3, 1],
+    [4, 1],
+    [5, 1],
+  ],
+  '발머': [
+    [3, 2],
+    [4, 2],
+    [5, 2],
+    [6, 2],
+  ],
+  '파셴': [
+    [4, 3],
+    [5, 3],
+    [6, 3],
+  ],
+  '자유 선택': [],
+};
+
+const BALMER_LINES = [
+  { key: '3-2', from: 3, to: 2, label: 'Hα', wavelength: 656.3, color: 0xff4f5d, name: '빨강' },
+  { key: '4-2', from: 4, to: 2, label: 'Hβ', wavelength: 486.1, color: 0x31e2dd, name: '청록' },
+  { key: '5-2', from: 5, to: 2, label: 'Hγ', wavelength: 434.0, color: 0x678dff, name: '파랑' },
+  { key: '6-2', from: 6, to: 2, label: 'Hδ', wavelength: 410.2, color: 0xa97cff, name: '보라' },
+];
+
+const KNOWN_COLORS = {
+  '3-2': { hex: 0xff3333, name: '빨강' },
+  '4-2': { hex: 0x00cccc, name: '청록' },
+  '5-2': { hex: 0x4444ff, name: '파랑' },
+  '6-2': { hex: 0x8c63ff, name: '보라' },
+};
+
+const dom = {
+  sceneCanvas: document.getElementById('scene-canvas'),
+  energyCanvas: document.getElementById('energy-canvas'),
+  spectrumCanvas: document.getElementById('spectrum-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  guiMount: document.getElementById('gui-mount'),
+  statusTitle: document.getElementById('status-title'),
+  statusBody: document.getElementById('status-body'),
+  metaCurrentSeries: document.getElementById('meta-current-series'),
+  metaPhotonColor: document.getElementById('meta-photon-color'),
+  formulaCurrentOrbit: document.getElementById('formula-current-orbit'),
+  formulaCurrentEnergy: document.getElementById('formula-current-energy'),
+  formulaTransition: document.getElementById('formula-transition'),
+  formulaDeltaEnergy: document.getElementById('formula-delta-energy'),
+  formulaWavelength: document.getElementById('formula-wavelength'),
+  formulaFrequency: document.getElementById('formula-frequency'),
+  formulaColor: document.getElementById('formula-color'),
+  seriesChip: document.getElementById('series-chip'),
+  transitionChip: document.getElementById('transition-chip'),
+  visibilityChip: document.getElementById('visibility-chip'),
+  transitionBadge: document.getElementById('transition-badge'),
+  arrowBadge: document.getElementById('arrow-badge'),
+  spectrumBadge: document.getElementById('spectrum-badge'),
+  lineBadge: document.getElementById('line-badge'),
+  energyNote: document.getElementById('energy-note'),
+  spectrumNote: document.getElementById('spectrum-note'),
+  energyOff: document.getElementById('energy-off'),
+  spectrumOff: document.getElementById('spectrum-off'),
+};
+
+const state = {
+  currentOrbit: 1,
+  targetOrbit: 2,
+  spectrumSeries: '발머',
+  showEnergyLevels: true,
+  showSpectrum: true,
+};
+
+const runtime = {
+  guideOpen: false,
+  electronOrbit: 1,
+  electronAngle: Math.PI * 0.2,
+  transition: null,
+  activePhoton: null,
+  autoMode: false,
+  autoTimeoutId: 0,
+  lineFlash: new Map(),
+  lastTransition: null,
+  currentStatus: {
+    title: '바닥상태 n=1',
+    body: '전자는 가장 낮은 에너지 준위에 있습니다. 목표 궤도를 올려 흡수를, 낮춰 방출을 관찰해 보세요.',
+  },
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a20);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+  alpha: false,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(8.8, 6.8, 10.6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 5.5;
+controls.maxDistance = 26;
+controls.target.set(0, 0.5, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+scene.add(ambientLight);
+
+const nucleusLight = new THREE.PointLight(0xff6b6b, 0.7, 24, 2);
+scene.add(nucleusLight);
+
+const sceneGroup = new THREE.Group();
+scene.add(sceneGroup);
+
+const starsGeometry = new THREE.BufferGeometry();
+const starPositions = [];
+for (let i = 0; i < 420; i += 1) {
+  const radius = 14 + Math.random() * 18;
+  const theta = Math.random() * TAU;
+  const phi = Math.acos((Math.random() * 2) - 1);
+  starPositions.push(
+    radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta),
+  );
+}
+starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+const stars = new THREE.Points(
+  starsGeometry,
+  new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.72,
+    sizeAttenuation: true,
+  }),
+);
+scene.add(stars);
+
+const atomCoreGroup = new THREE.Group();
+sceneGroup.add(atomCoreGroup);
+
+const nucleus = new THREE.Mesh(
+  new THREE.SphereGeometry(0.3, 16, 16),
+  new THREE.MeshStandardMaterial({
+    color: 0xff4444,
+    emissive: 0xff4444,
+    emissiveIntensity: 0.55,
+    roughness: 0.35,
+    metalness: 0.1,
+  }),
+);
+atomCoreGroup.add(nucleus);
+
+const nucleusGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(0.54, 20, 20),
+  new THREE.MeshBasicMaterial({
+    color: 0xff7777,
+    transparent: true,
+    opacity: 0.12,
+  }),
+);
+atomCoreGroup.add(nucleusGlow);
+
+nucleusLight.position.copy(nucleus.position);
+
+const orbitGroup = new THREE.Group();
+sceneGroup.add(orbitGroup);
+
+const labelSprites = [];
+const orbitMeshes = new Map();
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createLabelSprite(text, {
+  color = '#e9f5ff',
+  bg = 'rgba(7, 12, 30, 0.66)',
+  fontSize = 48,
+  paddingX = 20,
+  paddingY = 12,
+  fontWeight = 700,
+} = {}) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const font = `${fontWeight} ${fontSize}px Pretendard, sans-serif`;
+  context.font = font;
+  const metrics = context.measureText(text);
+  const width = Math.ceil(metrics.width + paddingX * 2);
+  const height = Math.ceil(fontSize + paddingY * 2);
+  canvas.width = width;
+  canvas.height = height;
+
+  context.font = font;
+  context.fillStyle = bg;
+  roundRect(context, 0, 0, width, height, Math.min(22, height * 0.35));
+  context.fill();
+  context.strokeStyle = 'rgba(255,255,255,0.14)';
+  context.lineWidth = 2;
+  roundRect(context, 1, 1, width - 2, height - 2, Math.min(20, height * 0.34));
+  context.stroke();
+  context.fillStyle = color;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, width / 2, height / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set((width / 68) * 0.34, (height / 68) * 0.34, 1);
+  sprite.renderOrder = 10;
+  labelSprites.push(sprite);
+  return sprite;
+}
+
+const nucleusLabel = createLabelSprite('p⁺', {
+  color: '#ffe2df',
+  bg: 'rgba(78, 15, 20, 0.78)',
+  fontSize: 54,
+});
+nucleusLabel.position.set(0, 0.78, 0);
+atomCoreGroup.add(nucleusLabel);
+
+for (const orbit of ORBITS) {
+  const material = new THREE.MeshStandardMaterial({
+    color: orbit.color,
+    emissive: orbit.color,
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.3,
+    roughness: 0.28,
+    metalness: 0.14,
+  });
+  const mesh = new THREE.Mesh(
+    new THREE.TorusGeometry(orbit.radius, 0.015, 8, 64),
+    material,
+  );
+  mesh.rotation.x = Math.PI / 2;
+  orbitGroup.add(mesh);
+
+  const energyLabel = orbit.n === 1 ? '-13.6' : orbit.energy.toFixed(2);
+  const label = createLabelSprite(`n=${orbit.n}  E${orbit.n}=${energyLabel}eV`, {
+    color: '#dff5ff',
+    bg: 'rgba(10, 16, 40, 0.78)',
+    fontSize: 34,
+    paddingX: 18,
+    paddingY: 10,
+  });
+  label.position.set(orbit.radius * 0.76, 0.16, orbit.radius * 0.56);
+  orbitGroup.add(label);
+
+  orbitMeshes.set(orbit.n, { orbit, mesh, label });
+}
+
+const electron = new THREE.Mesh(
+  new THREE.SphereGeometry(0.12, 20, 20),
+  new THREE.MeshStandardMaterial({
+    color: 0xffff44,
+    emissive: 0xffff55,
+    emissiveIntensity: 0.85,
+    roughness: 0.24,
+    metalness: 0.08,
+  }),
+);
+sceneGroup.add(electron);
+
+const electronGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(0.24, 16, 16),
+  new THREE.MeshBasicMaterial({
+    color: 0xfff075,
+    transparent: true,
+    opacity: 0.22,
+  }),
+);
+electron.add(electronGlow);
+
+const transitionCurveMaterial = new THREE.LineBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0,
+});
+const transitionCurveGeometry = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+]);
+const transitionCurve = new THREE.Line(transitionCurveGeometry, transitionCurveMaterial);
+sceneGroup.add(transitionCurve);
+
+const clock = new THREE.Clock();
+const energyCtx = dom.energyCanvas.getContext('2d');
+const spectrumCtx = dom.spectrumCanvas.getContext('2d');
+
+function energyOf(n) {
+  return -13.6 / (n * n);
+}
+
+function radiusOf(n) {
+  const preset = ORBITS.find((orbit) => orbit.n === n);
+  return preset ? preset.radius : 9;
+}
+
+function normalizeAngle(value) {
+  let angle = value % TAU;
+  if (angle < 0) angle += TAU;
+  return angle;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function easeOutQuad(t) {
+  return 1 - ((1 - t) * (1 - t));
+}
+
+function formatEnergy(value) {
+  return `${value.toFixed(2)} eV`;
+}
+
+function formatWavelength(value) {
+  return `${value.toFixed(1)} nm`;
+}
+
+function formatFrequency(value) {
+  return `${(value / 1e14).toFixed(2)} ×10¹⁴ Hz`;
+}
+
+function getSeriesName(from, to) {
+  if (to === 1) return '라이먼';
+  if (to === 2) return '발머';
+  if (to === 3) return '파셴';
+  return '자유 선택';
+}
+
+function getLineLabel(from, to) {
+  const entry = BALMER_LINES.find((item) => item.from === from && item.to === to);
+  return entry ? entry.label : `n=${from}→${to}`;
+}
+
+function wavelengthToRGB(wavelength) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const wl = clamp(wavelength, 380, 780);
+
+  if (wl >= 380 && wl < 440) {
+    r = -(wl - 440) / (440 - 380);
+    b = 1;
+  } else if (wl < 490) {
+    g = (wl - 440) / (490 - 440);
+    b = 1;
+  } else if (wl < 510) {
+    g = 1;
+    b = -(wl - 510) / (510 - 490);
+  } else if (wl < 580) {
+    r = (wl - 510) / (580 - 510);
+    g = 1;
+  } else if (wl < 645) {
+    r = 1;
+    g = -(wl - 645) / (645 - 580);
+  } else {
+    r = 1;
+  }
+
+  let factor = 1;
+  if (wl >= 380 && wl < 420) {
+    factor = 0.3 + 0.7 * (wl - 380) / 40;
+  } else if (wl > 700 && wl <= 780) {
+    factor = 0.3 + 0.7 * (780 - wl) / 80;
+  }
+
+  const gamma = 0.8;
+  const toChannel = (channel) => {
+    if (channel <= 0) return 0;
+    return Math.round(255 * Math.pow(channel * factor, gamma));
+  };
+
+  return {
+    r: toChannel(r),
+    g: toChannel(g),
+    b: toChannel(b),
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  return (r << 16) | (g << 8) | b;
+}
+
+function photonDescriptor(wavelength, key) {
+  if (KNOWN_COLORS[key]) return KNOWN_COLORS[key];
+  if (wavelength < 400) return { hex: 0x9a5cff, name: '자외선' };
+  if (wavelength > 700) return { hex: 0xff8f63, name: '적외선' };
+  if (wavelength >= 620) return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '빨강' };
+  if (wavelength >= 570) return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '노랑' };
+  if (wavelength >= 495) return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '초록' };
+  if (wavelength >= 450) return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '청록' };
+  if (wavelength >= 425) return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '파랑' };
+  return { hex: rgbToHex(wavelengthToRGB(wavelength)), name: '보라' };
+}
+
+function transitionInfo(from, to) {
+  const deltaE = Math.abs(energyOf(to) - energyOf(from));
+  const wavelength = HC_EV_NM / deltaE;
+  const frequency = deltaE / PLANCK_EV_S;
+  const key = `${from}-${to}`;
+  const descriptor = photonDescriptor(wavelength, key);
+  const series = getSeriesName(from, to);
+  return {
+    from,
+    to,
+    key,
+    deltaE,
+    wavelength,
+    frequency,
+    emission: from > to,
+    series,
+    label: getLineLabel(from, to),
+    colorHex: descriptor.hex,
+    colorName: descriptor.name,
+    visible: wavelength >= 400 && wavelength <= 700,
+  };
+}
+
+function cssColor(hex) {
+  return `#${hex.toString(16).padStart(6, '0')}`;
+}
+
+function orbitAngularSpeed(n) {
+  return 1.8 / Math.sqrt(n);
+}
+
+function seriesDisplayText(name) {
+  return `계열: ${name}`;
+}
+
+function setGuideOpen(open) {
+  runtime.guideOpen = open;
+  dom.guidePanel.classList.toggle('open', open);
+  dom.guideToggle.setAttribute('aria-expanded', String(open));
+  dom.guidePanel.setAttribute('aria-hidden', String(!open));
+  dom.guideToggle.textContent = open ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  setGuideOpen(!runtime.guideOpen);
+});
+
+function setStatus(title, body) {
+  runtime.currentStatus = { title, body };
+  dom.statusTitle.textContent = title;
+  dom.statusBody.textContent = body;
+}
+
+function currentPlannedTransition() {
+  if (state.currentOrbit === state.targetOrbit) {
+    const fallbackTo = state.currentOrbit === 1 ? 2 : state.currentOrbit - 1;
+    return transitionInfo(state.currentOrbit, fallbackTo);
+  }
+  return transitionInfo(state.currentOrbit, state.targetOrbit);
+}
+
+function updateFormulaPanel() {
+  const transition = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  dom.formulaCurrentOrbit.textContent = `n = ${state.currentOrbit}`;
+  dom.formulaCurrentEnergy.textContent = formatEnergy(energyOf(state.currentOrbit));
+  dom.formulaTransition.textContent = `n=${transition.from} → n=${transition.to}`;
+  dom.formulaDeltaEnergy.textContent = formatEnergy(transition.deltaE);
+  dom.formulaWavelength.textContent = `λ = ${formatWavelength(transition.wavelength)}`;
+  dom.formulaFrequency.textContent = `f = ${formatFrequency(transition.frequency)}`;
+  dom.formulaColor.textContent = transition.colorName;
+}
+
+function updateMetaChips() {
+  const transition = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  dom.metaCurrentSeries.textContent = `${transition.series} 계열 보기`;
+  dom.metaPhotonColor.textContent = `광자 색상 ${transition.colorName}`;
+  dom.seriesChip.textContent = seriesDisplayText(state.spectrumSeries);
+  dom.transitionChip.textContent = `${transition.emission ? '전이' : '흡수'}: n=${transition.from} → n=${transition.to}`;
+  dom.visibilityChip.textContent = transition.visible ? `${formatWavelength(transition.wavelength)} · 가시광선` : `${formatWavelength(transition.wavelength)} · ${transition.colorName}`;
+}
+
+function updateBadgeStyles() {
+  const transition = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  const tone = runtime.transition ? (transition.emission ? 'emission' : 'absorption') : 'idle';
+  const label = runtime.transition ? `${transition.emission ? '방출' : '흡수'} ${transition.label}` : '전이 대기';
+  dom.transitionBadge.dataset.tone = tone;
+  dom.transitionBadge.textContent = label;
+  dom.arrowBadge.dataset.tone = tone;
+  dom.arrowBadge.textContent = `ΔE = ${transition.deltaE.toFixed(2)} eV`;
+  dom.spectrumBadge.dataset.tone = tone;
+  dom.spectrumBadge.textContent = transition.visible ? `${transition.label} ${formatWavelength(transition.wavelength)}` : `${transition.colorName} 영역`;
+  dom.lineBadge.dataset.tone = tone;
+  dom.lineBadge.textContent = transition.visible ? '발광선 강조 가능' : '가시광선 밖';
+}
+
+function updateNotes() {
+  const transition = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  dom.energyNote.textContent = transition.emission
+    ? `현재 선택은 n=${transition.from} → n=${transition.to} 입니다. 높은 준위에서 낮은 준위로 내려가므로 ${transition.deltaE.toFixed(2)} eV에 해당하는 광자를 방출합니다.`
+    : `현재 선택은 n=${transition.from} → n=${transition.to} 입니다. 낮은 준위에서 높은 준위로 올라가므로 외부에서 ${transition.deltaE.toFixed(2)} eV 에너지를 흡수해야 합니다.`;
+
+  if (!transition.visible) {
+    dom.spectrumNote.textContent = `${transition.label} 전이의 파장은 ${formatWavelength(transition.wavelength)}로 ${transition.colorName} 영역입니다. 오른쪽 스펙트럼 바는 가시광선 발머 계열을 중심으로 표시하므로 참고선만 안내합니다.`;
+  } else if (transition.series === '발머') {
+    dom.spectrumNote.textContent = `${transition.label} 전이는 ${formatWavelength(transition.wavelength)}의 ${transition.colorName} 발광선을 만듭니다. 발머 계열은 n→2 전이여서 수소의 대표 가시광선 스펙트럼이 됩니다.`;
+  } else {
+    dom.spectrumNote.textContent = `${transition.label} 전이는 가시광선에 해당하지만, 수소 방출 스펙트럼의 대표 비교선은 주로 발머 계열입니다. 필요하면 계열을 ‘자유 선택’으로 두고 화살표를 직접 비교해 보세요.`;
+  }
+}
+
+function updatePanels() {
+  updateFormulaPanel();
+  updateMetaChips();
+  updateBadgeStyles();
+  updateNotes();
+  dom.energyOff.classList.toggle('show', !state.showEnergyLevels);
+  dom.spectrumOff.classList.toggle('show', !state.showSpectrum);
+}
+
+function setElectronFromOrbit(n) {
+  runtime.electronOrbit = n;
+  const radius = radiusOf(n);
+  electron.position.set(
+    Math.cos(runtime.electronAngle) * radius,
+    0,
+    Math.sin(runtime.electronAngle) * radius,
+  );
+}
+
+function updateOrbitVisuals() {
+  const activeFrom = runtime.transition ? runtime.transition.info.from : state.currentOrbit;
+  const activeTo = runtime.transition ? runtime.transition.info.to : state.targetOrbit;
+  const pulse = runtime.transition ? 0.55 + 0.45 * Math.sin(performance.now() * 0.01) : 0;
+
+  for (const [n, item] of orbitMeshes.entries()) {
+    const selected = n === state.currentOrbit;
+    const target = n === state.targetOrbit;
+    const inTransition = n === activeFrom || n === activeTo;
+    item.mesh.material.opacity = selected ? 0.72 : target ? 0.48 : 0.22;
+    item.mesh.material.emissiveIntensity = inTransition ? 0.55 + pulse * 0.25 : selected ? 0.42 : 0.14;
+    item.label.material.opacity = inTransition ? 1 : selected || target ? 0.92 : 0.66;
+    item.label.scale.setScalar(inTransition ? 1.16 : selected ? 1.08 : 1);
+  }
+}
+
+function disposeActivePhoton() {
+  if (!runtime.activePhoton) return;
+  runtime.activePhoton.group.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+  sceneGroup.remove(runtime.activePhoton.group);
+  runtime.activePhoton = null;
+}
+
+function spawnPhoton({ start, end, colorHex, duration }) {
+  disposeActivePhoton();
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: colorHex,
+      emissive: colorHex,
+      emissiveIntensity: 1.2,
+      roughness: 0.18,
+      metalness: 0.08,
+    }),
+  );
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.22,
+    }),
+  );
+  group.add(core);
+  group.add(halo);
+  group.position.copy(start);
+  sceneGroup.add(group);
+  runtime.activePhoton = {
+    group,
+    start: start.clone(),
+    end: end.clone(),
+    duration,
+    elapsed: 0,
+  };
+}
+
+function updatePhoton(delta) {
+  if (!runtime.activePhoton) return;
+  runtime.activePhoton.elapsed += delta * 1000;
+  const progress = clamp(runtime.activePhoton.elapsed / runtime.activePhoton.duration, 0, 1);
+  const eased = easeOutQuad(progress);
+  runtime.activePhoton.group.position.lerpVectors(runtime.activePhoton.start, runtime.activePhoton.end, eased);
+  const scale = 1 - progress * 0.18;
+  runtime.activePhoton.group.scale.setScalar(scale);
+  if (progress >= 1) disposeActivePhoton();
+}
+
+function flashLine(key, intensity = 1.1) {
+  runtime.lineFlash.set(key, intensity);
+}
+
+function setTransitionCurve(points, opacity, colorHex) {
+  transitionCurveGeometry.setFromPoints(points);
+  transitionCurveGeometry.attributes.position.needsUpdate = true;
+  transitionCurveMaterial.opacity = opacity;
+  transitionCurveMaterial.color.setHex(colorHex);
+}
+
+function clearTransitionCurve() {
+  transitionCurveMaterial.opacity = 0;
+}
+
+function finishTransition() {
+  if (!runtime.transition) return;
+  const info = runtime.transition.info;
+  state.currentOrbit = info.to <= 5 ? info.to : 5;
+  runtime.electronOrbit = info.to;
+  runtime.electronAngle = normalizeAngle(runtime.transition.targetAngle);
+  setElectronFromOrbit(info.to);
+  runtime.lastTransition = info;
+  clearTransitionCurve();
+  runtime.transition = null;
+  disposeActivePhoton();
+  setStatus(
+    `전이 완료: ${info.label}`,
+    info.emission
+      ? `${info.deltaE.toFixed(2)} eV의 에너지 차이가 ${formatWavelength(info.wavelength)} 광자로 방출되었습니다.`
+      : `${formatWavelength(info.wavelength)} 광자를 흡수해 전자가 n=${info.to} 준위로 올라갔습니다.`,
+  );
+  syncGui();
+  updatePanels();
+
+  if (runtime.autoMode) {
+    if (!runtime.autoQueue || runtime.autoQueue.length === 0) {
+      runtime.autoMode = false;
+      setStatus('자동 전이 완료', '발머 계열 시연이 끝났습니다. 필요하면 다시 자동 전이를 눌러 반복해 보세요.');
+      updatePanels();
+      return;
+    }
+    scheduleAutoNext();
+  }
+}
+
+function updateTransition(now) {
+  if (!runtime.transition) return;
+  const transition = runtime.transition;
+  const elapsed = now - transition.startTime;
+  const progress = clamp(elapsed / transition.duration, 0, 1);
+  const eased = easeInOutCubic(progress);
+  const spiral = Math.sin(progress * Math.PI) * 0.42;
+  const angle = THREE.MathUtils.lerp(transition.startAngle, transition.targetAngle, eased);
+  const radius = THREE.MathUtils.lerp(radiusOf(transition.info.from), radiusOf(transition.info.to), eased);
+  const wobble = transition.info.emission ? spiral : -spiral * 0.6;
+  const height = Math.sin(progress * Math.PI) * 0.9;
+  const effectiveRadius = radius + wobble * Math.sin(progress * Math.PI * 3);
+
+  runtime.electronAngle = normalizeAngle(angle);
+  electron.position.set(
+    Math.cos(angle) * effectiveRadius,
+    height,
+    Math.sin(angle) * effectiveRadius,
+  );
+
+  const midPoint = new THREE.Vector3(
+    Math.cos((transition.startAngle + transition.targetAngle) * 0.5) * ((radiusOf(transition.info.from) + radiusOf(transition.info.to)) * 0.35),
+    1.25,
+    Math.sin((transition.startAngle + transition.targetAngle) * 0.5) * ((radiusOf(transition.info.from) + radiusOf(transition.info.to)) * 0.35),
+  );
+  setTransitionCurve([transition.startPosition, midPoint, transition.endPosition], 0.58 * Math.sin(progress * Math.PI), transition.info.colorHex);
+
+  if (!transition.info.emission) {
+    if (!runtime.activePhoton) {
+      const direction = transition.startPosition.clone().normalize().add(new THREE.Vector3(0.6, 0.2, 0.28)).normalize();
+      const photonStart = transition.startPosition.clone().add(direction.multiplyScalar(6.2));
+      spawnPhoton({
+        start: photonStart,
+        end: transition.startPosition.clone(),
+        colorHex: transition.info.colorHex,
+        duration: 520,
+      });
+    }
+    if (progress > 0.42 && runtime.activePhoton && !transition.photonRemoved) {
+      transition.photonRemoved = true;
+      disposeActivePhoton();
+    }
+  } else if (progress > 0.46 && !transition.photonSpawned) {
+    transition.photonSpawned = true;
+    const photonDir = electron.position.clone().normalize().add(new THREE.Vector3(0.48, 0.22, 0.12)).normalize();
+    const photonEnd = electron.position.clone().add(photonDir.multiplyScalar(7.2));
+    spawnPhoton({
+      start: electron.position.clone(),
+      end: photonEnd,
+      colorHex: transition.info.colorHex,
+      duration: 820,
+    });
+    if (transition.info.visible) flashLine(transition.info.key, 1.5);
+  }
+
+  if (progress >= 1) finishTransition();
+}
+
+function scheduleAutoNext() {
+  window.clearTimeout(runtime.autoTimeoutId);
+  if (!runtime.autoMode) return;
+  runtime.autoTimeoutId = window.setTimeout(() => {
+    const next = runtime.autoQueue.shift();
+    if (!next) {
+      runtime.autoMode = false;
+      setStatus('자동 전이 완료', '발머 계열의 대표 전이 Hα, Hβ, Hγ와 참조선 Hδ를 순서대로 확인했습니다.');
+      updatePanels();
+      return;
+    }
+
+    if (next.referenceOnly) {
+      const ref = BALMER_LINES.find((line) => line.key === next.key);
+      flashLine(next.key, 1.35);
+      setStatus('Hδ 참조선 강조', `Hδ는 n=6 → n=2 전이에 해당하는 보라색 선(${ref.wavelength.toFixed(1)} nm)입니다. 현재 3D 장면은 n=1~5 궤도를 중심으로 시연합니다.`);
+      updatePanels();
+      scheduleAutoNext();
+      return;
+    }
+
+    state.currentOrbit = next.from;
+    state.targetOrbit = next.to;
+    runtime.electronOrbit = next.from;
+    setElectronFromOrbit(next.from);
+    syncGui();
+    updatePanels();
+    startTransition(next.from, next.to, { autoStep: true });
+  }, 760);
+}
+
+function startAutoSequence() {
+  if (runtime.transition) return;
+  window.clearTimeout(runtime.autoTimeoutId);
+  runtime.autoMode = true;
+  runtime.autoQueue = [
+    { from: 3, to: 2 },
+    { from: 4, to: 2 },
+    { from: 5, to: 2 },
+    { referenceOnly: true, key: '6-2' },
+  ];
+  state.spectrumSeries = '발머';
+  state.currentOrbit = 3;
+  state.targetOrbit = 2;
+  runtime.electronOrbit = 3;
+  setElectronFromOrbit(3);
+  syncGui();
+  updatePanels();
+  startTransition(3, 2, { autoStep: true });
+}
+
+function startTransition(from, to, options = {}) {
+  if (from === to || runtime.transition) return;
+  disposeActivePhoton();
+  window.clearTimeout(runtime.autoTimeoutId);
+  const info = transitionInfo(from, to);
+  const startAngle = runtime.electronAngle;
+  const startRadius = radiusOf(from);
+  const endRadius = radiusOf(to);
+  const startPosition = new THREE.Vector3(
+    Math.cos(startAngle) * startRadius,
+    0,
+    Math.sin(startAngle) * startRadius,
+  );
+  const targetAngle = startAngle + Math.PI * (info.emission ? 1.22 : 1.08);
+  const endPosition = new THREE.Vector3(
+    Math.cos(targetAngle) * endRadius,
+    0,
+    Math.sin(targetAngle) * endRadius,
+  );
+
+  runtime.transition = {
+    info,
+    startAngle,
+    targetAngle,
+    startTime: performance.now(),
+    duration: 1300,
+    photonSpawned: false,
+    photonRemoved: false,
+    options,
+    startPosition,
+    endPosition,
+  };
+
+  setStatus(
+    `${info.emission ? '방출' : '흡수'} 전이 n=${from} → n=${to}`,
+    info.emission
+      ? `${info.label} 방출: ${formatWavelength(info.wavelength)} ${info.colorName} 광자가 나옵니다.`
+      : `${info.label} 흡수: ${formatWavelength(info.wavelength)}에 해당하는 광자가 들어옵니다.`,
+  );
+
+  if (!info.emission && info.visible) flashLine(info.key, 0.7);
+  updatePanels();
+}
+
+function resetSimulation() {
+  window.clearTimeout(runtime.autoTimeoutId);
+  runtime.autoMode = false;
+  runtime.autoQueue = [];
+  runtime.transition = null;
+  runtime.lastTransition = null;
+  runtime.lineFlash.clear();
+  disposeActivePhoton();
+  clearTransitionCurve();
+  state.currentOrbit = 1;
+  state.targetOrbit = 2;
+  state.spectrumSeries = '발머';
+  state.showEnergyLevels = true;
+  state.showSpectrum = true;
+  runtime.electronOrbit = 1;
+  runtime.electronAngle = Math.PI * 0.2;
+  setElectronFromOrbit(1);
+  setStatus('초기화 완료', '전자와 스펙트럼 강조를 처음 상태로 되돌렸습니다. 이제 다시 전이를 실행해 보세요.');
+  syncGui();
+  updatePanels();
+}
+
+function drawEnergyDiagram() {
+  const rect = dom.energyCanvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (dom.energyCanvas.width !== width || dom.energyCanvas.height !== height) {
+    dom.energyCanvas.width = width;
+    dom.energyCanvas.height = height;
+  }
+
+  const ctx = energyCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.fillStyle = '#060914';
+  ctx.fillRect(0, 0, w, h);
+  if (!state.showEnergyLevels) return;
+
+  const padding = { top: 28, right: 26, bottom: 24, left: 86 };
+  const levelLeft = padding.left;
+  const levelRight = w - padding.right;
+  const topEnergy = 0;
+  const bottomEnergy = -13.6;
+
+  const mapY = (energy) => {
+    const t = (energy - topEnergy) / (bottomEnergy - topEnergy);
+    return padding.top + t * (h - padding.top - padding.bottom);
+  };
+
+  const transition = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  const seriesTransitions = state.spectrumSeries === '자유 선택'
+    ? [[transition.from, transition.to]]
+    : SERIES_TRANSITIONS[state.spectrumSeries];
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let tick = -12; tick <= 0; tick += 2) {
+    const y = mapY(tick);
+    ctx.beginPath();
+    ctx.moveTo(levelLeft, y);
+    ctx.lineTo(levelRight, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(237,244,255,0.42)';
+    ctx.font = '11px Pretendard, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${tick} eV`, levelLeft - 10, y + 4);
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.58)';
+  ctx.font = '12px Pretendard, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('에너지 (eV)', 18, 20);
+
+  const levelsToDraw = [...ORBITS.map((orbit) => ({ n: orbit.n, energy: energyOf(orbit.n), reference: false }))];
+  const needsReferenceLevel = seriesTransitions.some(([from]) => from === 6) || runtime.lineFlash.has('6-2');
+  if (needsReferenceLevel) levelsToDraw.push({ n: 6, energy: REFERENCE_LEVEL.energy, reference: true });
+  levelsToDraw.push({ n: '∞', energy: 0, reference: false, ionization: true });
+
+  for (const level of levelsToDraw) {
+    const y = mapY(level.energy);
+    ctx.save();
+    ctx.strokeStyle = level.reference ? 'rgba(169,124,255,0.55)' : 'rgba(171, 206, 255, 0.96)';
+    ctx.lineWidth = level.ionization ? 2.4 : level.reference ? 1.6 : 2;
+    if (level.reference) ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(levelLeft + 12, y);
+    ctx.lineTo(levelRight - 18, y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = level.reference ? 'rgba(220,201,255,0.82)' : 'rgba(237,244,255,0.88)';
+    ctx.font = '12px Pretendard, sans-serif';
+    if (level.ionization) {
+      ctx.fillText('n=∞, E=0 eV  이온화', levelLeft + 18, y - 8);
+    } else {
+      const energyText = level.n === 1 ? '-13.6' : energyOf(level.n).toFixed(2);
+      const referenceText = level.reference ? ' (참조)' : '';
+      ctx.fillText(`n=${level.n}, E=${energyText}eV${referenceText}`, levelLeft + 18, y - 8);
+    }
+  }
+
+  const laneStart = levelLeft + 48;
+  const laneGap = Math.max(58, (levelRight - laneStart - 56) / Math.max(seriesTransitions.length, 1));
+  let laneIndex = 0;
+  for (const [from, to] of seriesTransitions) {
+    const info = transitionInfo(from, to);
+    const isCurrent = info.key === transition.key;
+    const flash = runtime.lineFlash.get(info.key) ?? 0;
+    const x = laneStart + laneIndex * laneGap;
+    const yFrom = mapY(energyOf(from));
+    const yTo = mapY(energyOf(to));
+
+    ctx.save();
+    ctx.strokeStyle = info.emission ? `rgba(255, 106, 118, ${isCurrent ? 0.92 : 0.42 + flash * 0.2})` : `rgba(94, 231, 255, ${isCurrent ? 0.92 : 0.4})`;
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = isCurrent ? 3.4 : 2;
+    if (from === 6 || to === 6) ctx.setLineDash([6, 4]);
+    ctx.shadowColor = info.emission ? 'rgba(255, 92, 106, 0.48)' : 'rgba(94, 231, 255, 0.36)';
+    ctx.shadowBlur = isCurrent ? 16 : flash * 10;
+    ctx.beginPath();
+    ctx.moveTo(x, yFrom);
+    ctx.lineTo(x, yTo);
+    ctx.stroke();
+
+    const head = info.emission ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, yTo);
+    ctx.lineTo(x - 7, yTo - head * 10);
+    ctx.lineTo(x + 7, yTo - head * 10);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'center';
+    ctx.font = isCurrent ? '700 11px Pretendard, sans-serif' : '11px Pretendard, sans-serif';
+    ctx.fillStyle = isCurrent ? '#fff5dd' : 'rgba(237,244,255,0.72)';
+    ctx.fillText(info.label, x, Math.min(yFrom, yTo) - 10);
+    ctx.fillText(`ΔE ${info.deltaE.toFixed(2)}eV`, x, Math.max(yFrom, yTo) + 16);
+    ctx.restore();
+    laneIndex += 1;
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.78)';
+  ctx.font = '12px Pretendard, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${transition.series} 계열`, w - 24, 24);
+}
+
+function drawSpectrum() {
+  const rect = dom.spectrumCanvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (dom.spectrumCanvas.width !== width || dom.spectrumCanvas.height !== height) {
+    dom.spectrumCanvas.width = width;
+    dom.spectrumCanvas.height = height;
+  }
+
+  const ctx = spectrumCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  const padding = { top: 18, right: 22, bottom: 36, left: 22 };
+
+  ctx.fillStyle = '#03050f';
+  ctx.fillRect(0, 0, w, h);
+  if (!state.showSpectrum) return;
+
+  const barY = padding.top;
+  const barHeight = 36;
+  const spectrumTop = barY + barHeight + 20;
+  const lineBottom = h - padding.bottom;
+  const lineHeight = lineBottom - spectrumTop;
+  const scaleX = (wavelength) => padding.left + ((wavelength - 400) / 300) * (w - padding.left - padding.right);
+
+  const visibleGradient = ctx.createLinearGradient(padding.left, 0, w - padding.right, 0);
+  visibleGradient.addColorStop(0, '#7b45ff');
+  visibleGradient.addColorStop(0.15, '#355bff');
+  visibleGradient.addColorStop(0.33, '#2be5ff');
+  visibleGradient.addColorStop(0.5, '#38ff9f');
+  visibleGradient.addColorStop(0.68, '#ffe458');
+  visibleGradient.addColorStop(0.82, '#ff9436');
+  visibleGradient.addColorStop(1, '#ff3448');
+  ctx.fillStyle = visibleGradient;
+  roundRect(ctx, padding.left, barY, w - padding.left - padding.right, barHeight, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, padding.left, barY, w - padding.left - padding.right, barHeight, 14);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = '11px Pretendard, sans-serif';
+  ctx.textAlign = 'center';
+  for (const tick of [400, 450, 500, 550, 600, 650, 700]) {
+    ctx.fillText(`${tick}`, scaleX(tick), barY + barHeight + 14);
+  }
+
+  const current = runtime.transition ? runtime.transition.info : currentPlannedTransition();
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillRect(padding.left, spectrumTop, w - padding.left - padding.right, lineHeight);
+
+  for (const line of BALMER_LINES) {
+    const x = scaleX(line.wavelength);
+    const flash = runtime.lineFlash.get(line.key) ?? 0;
+    const isCurrent = current.key === line.key;
+    const intensity = clamp(0.18 + flash * 0.65 + (isCurrent ? 0.25 : 0), 0.18, 1);
+    const alpha = clamp(0.22 + flash * 0.58 + (isCurrent ? 0.25 : 0), 0.18, 1);
+    const lineTop = lineBottom - lineHeight * intensity;
+
+    ctx.save();
+    ctx.strokeStyle = `rgba(${(line.color >> 16) & 255}, ${(line.color >> 8) & 255}, ${line.color & 255}, ${alpha})`;
+    ctx.lineWidth = isCurrent ? 4.4 : 3;
+    ctx.shadowColor = cssColor(line.color);
+    ctx.shadowBlur = 14 + flash * 14 + (isCurrent ? 8 : 0);
+    ctx.beginPath();
+    ctx.moveTo(x, lineBottom);
+    ctx.lineTo(x, lineTop);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = isCurrent ? '#fff3d3' : 'rgba(237,244,255,0.76)';
+    ctx.font = isCurrent ? '700 11px Pretendard, sans-serif' : '11px Pretendard, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(line.label, x, lineTop - 10);
+    ctx.fillText(`${line.wavelength.toFixed(1)}nm`, x, lineBottom + 16);
+  }
+
+  if (!current.visible) {
+    ctx.fillStyle = 'rgba(255,255,255,0.66)';
+    ctx.font = '12px Pretendard, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`현재 선택 ${current.label} = ${formatWavelength(current.wavelength)} (${current.colorName})`, padding.left, h - 10);
+  }
+}
+
+function updateCanvasEffects(delta) {
+  for (const [key, value] of runtime.lineFlash.entries()) {
+    const next = value - delta * 0.82;
+    if (next <= 0.02) runtime.lineFlash.delete(key);
+    else runtime.lineFlash.set(key, next);
+  }
+}
+
+function resizeScene() {
+  const rect = dom.sceneCanvas.getBoundingClientRect();
+  camera.aspect = Math.max(1, rect.width) / Math.max(1, rect.height);
+  camera.updateProjectionMatrix();
+  renderer.setSize(rect.width, rect.height, false);
+}
+
+window.addEventListener('resize', () => {
+  resizeScene();
+  updatePanels();
+});
+
+const gui = new GUI({
+  container: dom.guiMount,
+  title: '원자 제어 패널',
+});
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+const guiActions = {
+  runTransition() {
+    if (state.currentOrbit === state.targetOrbit || runtime.transition) return;
+    runtime.autoMode = false;
+    startTransition(state.currentOrbit, state.targetOrbit);
+  },
+  runAuto() {
+    if (runtime.transition) return;
+    startAutoSequence();
+  },
+  reset() {
+    resetSimulation();
+  },
+};
+
+gui.add(state, 'currentOrbit', 1, 5, 1).name('전자 현재 궤도 n').onChange((value) => {
+  if (runtime.transition) return;
+  runtime.autoMode = false;
+  state.currentOrbit = value;
+  runtime.electronOrbit = value;
+  runtime.electronAngle = normalizeAngle(runtime.electronAngle + 0.12);
+  setElectronFromOrbit(value);
+  if (state.targetOrbit === state.currentOrbit) {
+    state.targetOrbit = state.currentOrbit === 5 ? 4 : state.currentOrbit + 1;
+  }
+  updatePanels();
+  setStatus(`전자 배치 n=${value}`, `전자를 n=${value} 궤도에 직접 두었습니다. 목표 궤도를 바꾸고 전이를 실행해 보세요.`);
+  syncGui();
+});
+
+gui.add(state, 'targetOrbit', 1, 5, 1).name('전이 대상 궤도').onChange((value) => {
+  state.targetOrbit = value;
+  updatePanels();
+});
+
+gui.add(guiActions, 'runTransition').name('전이 실행');
+gui.add(state, 'spectrumSeries', ['라이먼', '발머', '파셴', '자유 선택']).name('스펙트럼 계열').onChange(() => {
+  updatePanels();
+});
+gui.add(guiActions, 'runAuto').name('자동 전이');
+gui.add(state, 'showEnergyLevels').name('에너지 준위 표시').onChange(() => {
+  updatePanels();
+});
+gui.add(state, 'showSpectrum').name('스펙트럼 표시').onChange(() => {
+  updatePanels();
+});
+gui.add(guiActions, 'reset').name('초기화');
+
+if (window.matchMedia('(max-width: 720px)').matches) gui.close();
+
+function animate() {
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const now = performance.now();
+  controls.update();
+  updateCanvasEffects(delta);
+
+  if (runtime.transition) {
+    updateTransition(now);
+  } else {
+    runtime.electronAngle = normalizeAngle(runtime.electronAngle + delta * orbitAngularSpeed(runtime.electronOrbit));
+    setElectronFromOrbit(runtime.electronOrbit);
+  }
+
+  updatePhoton(delta);
+  updateOrbitVisuals();
+  drawEnergyDiagram();
+  drawSpectrum();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+resizeScene();
+setElectronFromOrbit(1);
+updatePanels();
+animate();
+</script>
+</body>
+</html>

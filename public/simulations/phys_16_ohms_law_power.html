@@ -1,0 +1,1905 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>옴의 법칙과 소비 전력 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --panel-bg: rgba(9, 20, 36, 0.84);
+    --panel-strong: rgba(7, 16, 28, 0.92);
+    --panel-soft: rgba(255, 255, 255, 0.72);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f4f8ff;
+    --text-dim: rgba(244, 248, 255, 0.72);
+    --text-ink: rgba(12, 28, 46, 0.92);
+    --accent: #ffbd55;
+    --accent-2: #73b6ff;
+    --accent-3: #ff6e63;
+    --accent-4: #7fe28e;
+    --shadow: 0 18px 40px rgba(21, 39, 61, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 16%, rgba(255, 218, 140, 0.28), transparent 20%),
+      radial-gradient(circle at 84% 10%, rgba(126, 171, 255, 0.18), transparent 18%),
+      linear-gradient(180deg, #f5f8fc 0%, #eef0f5 54%, #e4e8ef 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    touch-action: none;
+  }
+
+  #title-wrap {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    text-align: center;
+    pointer-events: none;
+    max-width: min(84vw, 760px);
+  }
+
+  #title-wrap .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(19, 41, 66, 0.56);
+  }
+
+  #title-wrap h1 {
+    margin-top: 4px;
+    font-size: 26px;
+    font-weight: 800;
+    color: rgba(16, 33, 52, 0.96);
+    text-shadow: 0 6px 16px rgba(255, 255, 255, 0.55);
+  }
+
+  #title-wrap p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(20, 42, 67, 0.68);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 42;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.48);
+    background: rgba(255, 255, 255, 0.7);
+    color: rgba(12, 30, 49, 0.92);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 14px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(7, 18, 34, 0.92);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 42px rgba(8, 18, 34, 0.22);
+    z-index: 41;
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9cd6ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #guide-panel .textbook {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(680px, calc(100vw - 32px));
+    padding: 13px 18px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.68);
+    color: var(--text-ink);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+    text-align: center;
+    z-index: 33;
+  }
+
+  #status-chip.safe {
+    background: rgba(232, 255, 241, 0.8);
+    border-color: rgba(126, 227, 163, 0.42);
+  }
+
+  #status-chip.alert {
+    background: rgba(255, 240, 232, 0.84);
+    border-color: rgba(255, 127, 102, 0.36);
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #status-chip .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.62;
+    color: rgba(19, 41, 67, 0.76);
+  }
+
+  #right-panel {
+    position: fixed;
+    top: 154px;
+    right: 16px;
+    width: min(420px, 38vw);
+    max-height: calc(100vh - 170px);
+    overflow-y: auto;
+    display: grid;
+    gap: 14px;
+    z-index: 26;
+  }
+
+  .glass-card {
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 42px rgba(7, 18, 32, 0.18);
+  }
+
+  .glass-card h2 {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .glass-card .subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.58;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-canvas {
+    display: block;
+    width: 100%;
+    height: 250px;
+    margin-top: 12px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 18% 14%, rgba(115, 182, 255, 0.12), transparent 20%),
+      linear-gradient(180deg, rgba(15, 27, 46, 0.96) 0%, rgba(9, 18, 34, 0.98) 100%);
+  }
+
+  #plot-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.62;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  #record-list {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+    list-style: none;
+  }
+
+  .record-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+  }
+
+  .record-item .meta {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .record-item .value {
+    color: #92dcff;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  }
+
+  .empty-record {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 11px;
+  }
+
+  #power-grid {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .calc-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+    padding: 9px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .calc-line span {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .calc-line strong {
+    font-size: 13px;
+    color: #fff5c5;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  }
+
+  #safety-box {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #safety-box h3 {
+    font-size: 13px;
+    color: #ffcf8b;
+  }
+
+  .safety-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .safety-line span {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .safety-line strong {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .safety-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .safety-pill.ok {
+    background: rgba(127, 226, 142, 0.16);
+    color: #bdf5c5;
+  }
+
+  .safety-pill.warn {
+    background: rgba(255, 189, 85, 0.18);
+    color: #ffe2a4;
+  }
+
+  .safety-pill.danger {
+    background: rgba(255, 110, 99, 0.18);
+    color: #ffc1bb;
+  }
+
+  .safety-note {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.62;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 18, 34, 0.86);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 42px rgba(7, 18, 32, 0.2);
+    z-index: 27;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff0bb;
+  }
+
+  #formula-panel .panel-subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 100px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #formula-panel .warning {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 132, 111, 0.12);
+    border: 1px solid rgba(255, 132, 111, 0.18);
+    color: #ffd4cf;
+    font-size: 11px;
+    line-height: 1.62;
+    display: none;
+  }
+
+  #formula-panel .warning.show {
+    display: block;
+  }
+
+  #scene-hint {
+    position: fixed;
+    left: 16px;
+    bottom: 320px;
+    max-width: 280px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.68);
+    color: rgba(14, 31, 52, 0.84);
+    font-size: 11px;
+    line-height: 1.65;
+    z-index: 24;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 24;
+  }
+
+  .hud-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    padding: 5px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 18, 32, 0.8);
+    color: #ffffff;
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 24px rgba(6, 15, 28, 0.14);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .hud-label.orange {
+    border-color: rgba(255, 189, 85, 0.32);
+    color: #ffe4ab;
+  }
+
+  .hud-label.blue {
+    border-color: rgba(115, 182, 255, 0.32);
+    color: #d6ebff;
+  }
+
+  .hud-label.red {
+    border-color: rgba(255, 110, 99, 0.32);
+    color: #ffd3ce;
+  }
+
+  .hud-label.green {
+    border-color: rgba(127, 226, 142, 0.32);
+    color: #d9ffe0;
+  }
+
+  .lil-gui.root {
+    z-index: 45;
+  }
+
+  @media (max-width: 1120px) {
+    #right-panel {
+      width: min(390px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #right-panel {
+      top: auto;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      width: auto;
+    }
+
+    #graph-canvas {
+      height: 190px;
+    }
+
+    #formula-panel {
+      bottom: 402px;
+      width: calc(100vw - 32px);
+    }
+
+    #scene-hint {
+      display: none;
+    }
+  }
+
+  @media (max-width: 680px) {
+    #title-wrap h1 {
+      font-size: 21px;
+    }
+
+    #title-wrap p {
+      font-size: 10px;
+    }
+
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+      padding: 9px 13px;
+    }
+
+    #guide-panel {
+      top: 52px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #status-chip {
+      top: 88px;
+      width: calc(100vw - 24px);
+      padding: 12px 14px;
+    }
+
+    #status-chip .title {
+      font-size: 14px;
+    }
+
+    #status-chip .body {
+      font-size: 11px;
+    }
+
+    #right-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 390px;
+      width: auto;
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="title-wrap">
+  <div class="eyebrow">Physics II · Ohm's Law & Power</div>
+  <h1>옴의 법칙과 소비 전력</h1>
+  <p>전압과 저항을 바꾸며 V-I 그래프, 소비 전력, 전기 안전을 한 번에 비교해 보세요.</p>
+</div>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>🔌 핵심 원리</h3>
+  <p>옴의 법칙은 전류가 전압에 비례하고 저항에 반비례한다는 뜻입니다. 따라서 <strong>I = V/R</strong>이고, 소비 전력은 <strong>P = VI = I²R = V²/R</strong>로 같은 값을 가리킵니다.</p>
+
+  <h3>❓ 탐구 질문</h3>
+  <ul>
+    <li>같은 전압에서 저항을 2배로 늘리면 전류와 소비 전력은 각각 어떻게 바뀔까요?</li>
+    <li>1000W 헤어드라이어를 30분 사용하면 전력량은 몇 Wh일까요?</li>
+    <li>문어발 콘센트가 위험한 이유를 소비 전력과 전류 관점에서 설명할 수 있을까요?</li>
+  </ul>
+
+  <h3>🏠 실생활 연결</h3>
+  <ul>
+    <li>LED 전구(약 10W), 전기히터(약 1500W), 에어컨(약 2000W)은 같은 시간 사용해도 전력량과 전기요금이 크게 다릅니다.</li>
+    <li>전류가 너무 커지면 전선이 뜨거워지고, 차단기는 그 상태를 감지해 회로를 끊어 화재를 예방합니다.</li>
+    <li>접지와 누전 차단 장치는 전류가 사람이 아닌 안전한 경로로 흐르도록 돕습니다.</li>
+  </ul>
+
+  <h3>🧭 관찰 포인트</h3>
+  <ul>
+    <li>저항이 작아질수록 V-I 그래프의 기울기 <strong>1/R</strong>이 커집니다.</li>
+    <li>전류가 커질수록 전자 입자 이동 속도와 전구 밝기가 증가합니다.</li>
+    <li>안전 모드를 켜면 과전류, 누전, 합선, 접지, 차단기 작동을 함께 볼 수 있습니다.</li>
+  </ul>
+
+  <div class="textbook">물리학 II편 p86~91 - 옴의 법칙, 소비 전력, 전기 안전</div>
+</div>
+
+<div id="status-chip">
+  <div class="title" id="status-title">V-I 그래프의 기울기는 1/R입니다.</div>
+  <div class="body" id="status-body">전압을 올리면 전류가 비례해서 커지고, 저항을 키우면 같은 전압에서도 전류가 줄어듭니다.</div>
+</div>
+
+<div id="right-panel">
+  <section class="glass-card" id="graph-panel">
+    <h2>V-I 그래프</h2>
+    <p class="subtitle">이론 그래프는 I = V/R 직선을 따릅니다. 현재 저항값 직선과 기준 저항선을 함께 비교하세요.</p>
+    <div id="graph-legend">
+      <span class="legend-chip"><span class="legend-dot" style="background:#ff6e63;"></span>현재 직선</span>
+      <span class="legend-chip"><span class="legend-dot" style="background:#73b6ff;"></span>기록된 점</span>
+      <span class="legend-chip"><span class="legend-dot" style="background:#ffd26b;"></span>기준 저항선</span>
+    </div>
+    <canvas id="graph-canvas" aria-label="옴의 법칙 V-I 그래프"></canvas>
+    <div id="plot-note">현재 기울기 1/R = 0.100 A/V, 전압 6.0V에서 계산 전류는 0.60A입니다.</div>
+    <ul id="record-list"></ul>
+  </section>
+
+  <section class="glass-card" id="power-panel">
+    <h2>소비 전력 계산기</h2>
+    <p class="subtitle">세 식이 같은 값을 준다는 점을 확인하고, 사용 시간을 곱해 전력량과 예상 전기요금을 계산해 보세요.</p>
+    <div id="power-grid">
+      <div class="calc-line"><span>P = VI</span><strong id="calc-power-vi">3.60 W</strong></div>
+      <div class="calc-line"><span>P = I²R</span><strong id="calc-power-i2r">3.60 W</strong></div>
+      <div class="calc-line"><span>P = V²/R</span><strong id="calc-power-v2r">3.60 W</strong></div>
+      <div class="calc-line"><span>전력량 W = Pt</span><strong id="calc-energy">10.80 Wh</strong></div>
+      <div class="calc-line"><span>예상 전기요금</span><strong id="calc-cost">약 1.1원</strong></div>
+    </div>
+    <div id="safety-box">
+      <h3>⚠️ 전기 안전</h3>
+      <div class="safety-line"><span>과전류</span><strong id="safety-overcurrent" class="safety-pill ok">정상</strong></div>
+      <div class="safety-line"><span>누전 위험</span><strong id="safety-leakage" class="safety-pill ok">관찰 전</strong></div>
+      <div class="safety-line"><span>합선 위험</span><strong id="safety-short" class="safety-pill ok">없음</strong></div>
+      <div class="safety-line"><span>접지 / 차단기</span><strong id="safety-protection" class="safety-pill warn">대기</strong></div>
+      <div class="safety-note" id="safety-note">안전 모드를 켜면 누전 경로, 접지선, 차단기 반응을 함께 볼 수 있습니다.</div>
+    </div>
+  </section>
+</div>
+
+<div id="scene-hint">마우스로 장면을 회전하고 확대해 회로를 자세히 보세요. GUI 패널에서 전압, 저항, 사용 시간을 바꾸면 그래프와 계산식이 바로 갱신됩니다.</div>
+
+<div id="formula-panel">
+  <div class="panel-title">🔌 옴의 법칙과 소비 전력</div>
+  <div class="panel-subtitle">계산값은 I = V/R, P = VI = I²R = V²/R을 기준으로 표시합니다.</div>
+  <div class="divider"></div>
+  <div class="line"><span class="label">전압 V</span><span class="value" id="formula-voltage">6V</span></div>
+  <div class="line"><span class="label">저항 R</span><span class="value" id="formula-resistance">10Ω</span></div>
+  <div class="line"><span class="label">전류 I</span><span class="value mono" id="formula-current">V/R = 0.60A</span></div>
+  <div class="divider"></div>
+  <div class="line"><span class="label">옴의 법칙</span><span class="value mono">V = IR</span></div>
+  <div class="line"><span class="label">P = VI</span><span class="value mono" id="formula-p1">3.60W</span></div>
+  <div class="line"><span class="label">P = I²R</span><span class="value mono" id="formula-p2">3.60W</span></div>
+  <div class="line"><span class="label">P = V²/R</span><span class="value mono" id="formula-p3">3.60W</span></div>
+  <div class="divider"></div>
+  <div class="line"><span class="label">전력량</span><span class="value mono" id="formula-energy">3.60W × 3h = 10.80Wh</span></div>
+  <div class="line"><span class="label">전기요금</span><span class="value" id="formula-cost">약 1.1원</span></div>
+  <div class="highlight">
+    <div class="mono" id="formula-compare">기울기 1/R = 0.100 A/V, 전압을 2배로 하면 전류도 2배가 됩니다.</div>
+    <div style="margin-top:8px; color:rgba(255,255,255,0.86);" id="formula-app">가전제품의 전력량 = 소비 전력 × 사용 시간, 요금은 kWh 기준으로 계산합니다.</div>
+  </div>
+  <div class="warning" id="formula-warning">안전 모드에서 과전류가 감지되면 차단기가 회로를 열어 실제 계기 전류와 전구 밝기는 0에 가까워집니다. 위 식은 차단 전 계산값입니다.</div>
+</div>
+
+<div id="label-layer"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MAX_VOLTAGE = 12;
+const MAX_GRAPH_CURRENT = 5;
+const ELECTRON_COUNT = 40;
+const OVERCURRENT_THRESHOLD = 3.5;
+const SHORT_CIRCUIT_RESISTANCE = 2;
+
+const state = {
+  voltage: 6,
+  resistance: 10,
+  usageHours: 3,
+  showFlow: true,
+  showMeters: true,
+  safetyMode: false,
+  recordPoint: () => {
+    recordCurrentPoint();
+  },
+  reset: () => {
+    resetState();
+  },
+};
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const statusChip = document.getElementById('status-chip');
+const statusTitle = document.getElementById('status-title');
+const statusBody = document.getElementById('status-body');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphCtx = graphCanvas.getContext('2d');
+const recordList = document.getElementById('record-list');
+const plotNote = document.getElementById('plot-note');
+const calcPowerVI = document.getElementById('calc-power-vi');
+const calcPowerI2R = document.getElementById('calc-power-i2r');
+const calcPowerV2R = document.getElementById('calc-power-v2r');
+const calcEnergy = document.getElementById('calc-energy');
+const calcCost = document.getElementById('calc-cost');
+const safetyOvercurrent = document.getElementById('safety-overcurrent');
+const safetyLeakage = document.getElementById('safety-leakage');
+const safetyShort = document.getElementById('safety-short');
+const safetyProtection = document.getElementById('safety-protection');
+const safetyNote = document.getElementById('safety-note');
+const formulaVoltage = document.getElementById('formula-voltage');
+const formulaResistance = document.getElementById('formula-resistance');
+const formulaCurrent = document.getElementById('formula-current');
+const formulaP1 = document.getElementById('formula-p1');
+const formulaP2 = document.getElementById('formula-p2');
+const formulaP3 = document.getElementById('formula-p3');
+const formulaEnergy = document.getElementById('formula-energy');
+const formulaCost = document.getElementById('formula-cost');
+const formulaCompare = document.getElementById('formula-compare');
+const formulaApp = document.getElementById('formula-app');
+const formulaWarning = document.getElementById('formula-warning');
+const labelLayer = document.getElementById('label-layer');
+
+if (!graphCtx) {
+  throw new Error('2D 그래프 캔버스를 초기화할 수 없습니다.');
+}
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 14, 24);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(5.2, 3.7, 8.6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.domElement.id = 'scene-canvas';
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4.8;
+controls.maxDistance = 16;
+controls.maxPolarAngle = Math.PI * 0.47;
+controls.target.set(0.1, 1.1, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.62);
+directionalLight.position.set(6, 10, 5);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -12;
+directionalLight.shadow.camera.right = 12;
+directionalLight.shadow.camera.top = 12;
+directionalLight.shadow.camera.bottom = -12;
+directionalLight.shadow.bias = -0.00015;
+scene.add(directionalLight);
+
+const fillLight = new THREE.DirectionalLight(0xb4c9ff, 0.28);
+fillLight.position.set(-6, 5, -5);
+scene.add(fillLight);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(28, 18),
+  new THREE.MeshStandardMaterial({ color: 0xe7ebf1, roughness: 0.96, metalness: 0.02 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.15;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const floorGrid = new THREE.GridHelper(24, 24, 0xc6cfdb, 0xdbe1ea);
+floorGrid.position.y = -0.145;
+scene.add(floorGrid);
+
+const table = new THREE.Mesh(
+  new THREE.BoxGeometry(11.2, 0.28, 4.8),
+  new THREE.MeshStandardMaterial({ color: 0xfaf3e8, roughness: 0.82, metalness: 0.04 })
+);
+table.position.set(-0.2, 0, 0);
+table.castShadow = true;
+table.receiveShadow = true;
+scene.add(table);
+
+const tableEdge = new THREE.Mesh(
+  new THREE.BoxGeometry(11.28, 0.06, 4.88),
+  new THREE.MeshStandardMaterial({ color: 0xdec79f, roughness: 0.5, metalness: 0.06 })
+);
+tableEdge.position.set(-0.2, 0.17, 0);
+tableEdge.castShadow = true;
+scene.add(tableEdge);
+
+const splitGlow = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.05, 4.5),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 })
+);
+splitGlow.position.set(1.55, 0.2, -2);
+scene.add(splitGlow);
+
+function makeTextSprite(text, options = {}) {
+  const {
+    textColor = '#ffffff',
+    fill = 'rgba(12, 27, 47, 0.92)',
+    border = 'rgba(255,255,255,0.14)',
+    fontSize = 110,
+    padding = 42,
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('텍스트 스프라이트용 캔버스를 만들 수 없습니다.');
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.roundRect(28, 28, canvas.width - 56, canvas.height - 56, 44);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = textColor;
+  ctx.font = `800 ${fontSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2 + padding * 0.05);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+    })
+  );
+  sprite.scale.set(0.32, 0.32, 1);
+  return sprite;
+}
+
+function createHudLabel(className) {
+  const el = document.createElement('div');
+  el.className = `hud-label ${className}`.trim();
+  labelLayer.appendChild(el);
+  return el;
+}
+
+const tempVector = new THREE.Vector3();
+const hudLabels = [];
+
+function registerHudLabel(anchor, className, offsetY = 0) {
+  const element = createHudLabel(className);
+  const item = { anchor, element, offsetY, visible: true };
+  hudLabels.push(item);
+  return item;
+}
+
+function setHudLabel(item, text, visible = true) {
+  item.element.textContent = text;
+  item.visible = visible;
+  item.element.style.display = visible ? 'block' : 'none';
+}
+
+function updateHudLabels() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  hudLabels.forEach((item) => {
+    if (!item.visible) return;
+    item.anchor.getWorldPosition(tempVector);
+    tempVector.y += item.offsetY;
+    tempVector.project(camera);
+    const x = (tempVector.x * 0.5 + 0.5) * width;
+    const y = (-tempVector.y * 0.5 + 0.5) * height;
+    const onScreen = tempVector.z < 1 && x > -80 && x < width + 80 && y > -80 && y < height + 80;
+
+    item.element.style.display = onScreen ? 'block' : 'none';
+    if (onScreen) {
+      item.element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+    }
+  });
+}
+
+const circuitGroup = new THREE.Group();
+scene.add(circuitGroup);
+
+const anchorBattery = new THREE.Object3D();
+anchorBattery.position.set(-3.55, 1.95, 0);
+scene.add(anchorBattery);
+
+const anchorResistor = new THREE.Object3D();
+anchorResistor.position.set(-0.1, 2.1, 0);
+scene.add(anchorResistor);
+
+const anchorBulb = new THREE.Object3D();
+anchorBulb.position.set(2.82, 2.05, 0);
+scene.add(anchorBulb);
+
+const anchorAmmeter = new THREE.Object3D();
+anchorAmmeter.position.set(-1.55, 3.05, 0.2);
+scene.add(anchorAmmeter);
+
+const anchorVoltmeter = new THREE.Object3D();
+anchorVoltmeter.position.set(1.1, 3.05, 0.2);
+scene.add(anchorVoltmeter);
+
+const batteryLabel = registerHudLabel(anchorBattery, 'orange');
+const resistorLabel = registerHudLabel(anchorResistor, 'orange');
+const bulbLabel = registerHudLabel(anchorBulb, 'red');
+const ammeterLabel = registerHudLabel(anchorAmmeter, 'green');
+const voltmeterLabel = registerHudLabel(anchorVoltmeter, 'blue');
+
+const batteryGroup = new THREE.Group();
+batteryGroup.position.set(-3.55, 0.88, 0);
+circuitGroup.add(batteryGroup);
+
+const batteryBody = new THREE.Mesh(
+  new THREE.BoxGeometry(0.8, 1.2, 0.4),
+  new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.54, metalness: 0.32 })
+);
+batteryBody.castShadow = true;
+batteryBody.receiveShadow = true;
+batteryGroup.add(batteryBody);
+
+const batteryGloss = new THREE.Mesh(
+  new THREE.BoxGeometry(0.82, 1.22, 0.42),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.04,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
+);
+batteryGroup.add(batteryGloss);
+
+const positiveTerminal = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.08, 0.08, 0.18, 20),
+  new THREE.MeshStandardMaterial({ color: 0xff5c54, roughness: 0.34, metalness: 0.68 })
+);
+positiveTerminal.rotation.z = Math.PI / 2;
+positiveTerminal.position.set(0.46, 0.32, 0);
+positiveTerminal.castShadow = true;
+batteryGroup.add(positiveTerminal);
+
+const negativeTerminal = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.08, 0.08, 0.18, 20),
+  new THREE.MeshStandardMaterial({ color: 0x4e90ff, roughness: 0.34, metalness: 0.68 })
+);
+negativeTerminal.rotation.z = Math.PI / 2;
+negativeTerminal.position.set(0.46, -0.32, 0);
+negativeTerminal.castShadow = true;
+batteryGroup.add(negativeTerminal);
+
+const plusSprite = makeTextSprite('+', { textColor: '#ffdbc8', fill: 'rgba(255,92,84,0.92)' });
+plusSprite.position.set(0.04, 0.32, 0.22);
+batteryGroup.add(plusSprite);
+
+const minusSprite = makeTextSprite('−', { textColor: '#dcebff', fill: 'rgba(78,144,255,0.92)' });
+minusSprite.position.set(0.04, -0.32, 0.22);
+batteryGroup.add(minusSprite);
+
+const resistorGroup = new THREE.Group();
+resistorGroup.position.set(-0.1, 1.55, 0);
+circuitGroup.add(resistorGroup);
+
+const resistorLeadMaterial = new THREE.MeshStandardMaterial({ color: 0xc4c8d0, roughness: 0.3, metalness: 0.78 });
+const resistorLeadLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.68, 16), resistorLeadMaterial);
+resistorLeadLeft.rotation.z = Math.PI / 2;
+resistorLeadLeft.position.set(-0.98, 0, 0);
+resistorGroup.add(resistorLeadLeft);
+
+const resistorLeadRight = resistorLeadLeft.clone();
+resistorLeadRight.position.x = 0.98;
+resistorGroup.add(resistorLeadRight);
+
+const resistorBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.16, 0.16, 1.28, 32),
+  new THREE.MeshStandardMaterial({
+    color: 0xe6d2af,
+    roughness: 0.68,
+    metalness: 0.06,
+  })
+);
+resistorBody.rotation.z = Math.PI / 2;
+resistorBody.castShadow = true;
+resistorBody.receiveShadow = true;
+resistorGroup.add(resistorBody);
+
+const bandPositions = [-0.3, -0.08, 0.14, 0.36];
+const resistorBands = bandPositions.map((x) => {
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.163, 0.163, 0.065, 24),
+    new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.42, metalness: 0.18 })
+  );
+  band.rotation.z = Math.PI / 2;
+  band.position.x = x;
+  resistorGroup.add(band);
+  return band;
+});
+
+const resistorShadow = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.19, 0.19, 1.34, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0xffc166,
+    transparent: true,
+    opacity: 0.03,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
+);
+resistorShadow.rotation.z = Math.PI / 2;
+resistorGroup.add(resistorShadow);
+
+const bulbGroup = new THREE.Group();
+bulbGroup.position.set(2.85, 0.58, 0);
+circuitGroup.add(bulbGroup);
+
+const bulbBase = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.26, 0.3, 0.46, 24),
+  new THREE.MeshStandardMaterial({ color: 0x7c818f, roughness: 0.38, metalness: 0.62 })
+);
+bulbBase.position.y = 0.18;
+bulbBase.castShadow = true;
+bulbGroup.add(bulbBase);
+
+const bulbBaseRim = new THREE.Mesh(
+  new THREE.TorusGeometry(0.25, 0.03, 14, 36),
+  new THREE.MeshStandardMaterial({ color: 0xdfe7f0, roughness: 0.24, metalness: 0.82 })
+);
+bulbBaseRim.rotation.x = Math.PI / 2;
+bulbBaseRim.position.y = 0.41;
+bulbGroup.add(bulbBaseRim);
+
+const bulbGlass = new THREE.Mesh(
+  new THREE.SphereGeometry(0.43, 32, 24),
+  new THREE.MeshPhongMaterial({
+    color: 0xdbeaff,
+    transparent: true,
+    opacity: 0.26,
+    shininess: 100,
+    emissive: 0x294064,
+    emissiveIntensity: 0.05,
+  })
+);
+bulbGlass.position.y = 0.86;
+bulbGlass.castShadow = true;
+bulbGroup.add(bulbGlass);
+
+const filamentCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-0.13, 0.76, 0),
+  new THREE.Vector3(-0.06, 0.86, 0.06),
+  new THREE.Vector3(0, 0.74, -0.05),
+  new THREE.Vector3(0.06, 0.9, 0.06),
+  new THREE.Vector3(0.13, 0.76, 0),
+]);
+
+const filament = new THREE.Mesh(
+  new THREE.TubeGeometry(filamentCurve, 20, 0.02, 10, false),
+  new THREE.MeshStandardMaterial({
+    color: 0xffc46c,
+    emissive: 0xff8a2e,
+    emissiveIntensity: 0.1,
+    roughness: 0.36,
+    metalness: 0.2,
+  })
+);
+bulbGroup.add(filament);
+
+const filamentSupportMaterial = new THREE.MeshStandardMaterial({ color: 0xb7bcc5, roughness: 0.26, metalness: 0.78 });
+const supportLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.42, 12), filamentSupportMaterial);
+supportLeft.position.set(-0.13, 0.52, 0);
+supportLeft.rotation.z = 0.05;
+bulbGroup.add(supportLeft);
+
+const supportRight = supportLeft.clone();
+supportRight.position.x = 0.13;
+supportRight.rotation.z = -0.05;
+bulbGroup.add(supportRight);
+
+const bulbLight = new THREE.PointLight(0xffb85b, 0.3, 5, 2);
+bulbLight.position.set(0, 0.86, 0);
+bulbGroup.add(bulbLight);
+
+function createGauge(labelText, accentColor) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.46, 0.46, 0.16, 48),
+    new THREE.MeshStandardMaterial({ color: 0xeff6ff, roughness: 0.84, metalness: 0.06 })
+  );
+  body.rotation.x = Math.PI / 2;
+  body.castShadow = true;
+  group.add(body);
+
+  const face = new THREE.Mesh(
+    new THREE.CircleGeometry(0.4, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  face.position.z = 0.082;
+  group.add(face);
+
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(0.41, 0.47, 48),
+    new THREE.MeshStandardMaterial({ color: 0x203146, roughness: 0.4, metalness: 0.54 })
+  );
+  rim.position.z = 0.083;
+  group.add(rim);
+
+  for (let i = 0; i < 7; i += 1) {
+    const angle = THREE.MathUtils.degToRad(120 - i * 40);
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.1, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0x183149 })
+    );
+    tick.position.set(Math.cos(angle) * 0.29, Math.sin(angle) * 0.29, 0.09);
+    tick.rotation.z = -angle + Math.PI / 2;
+    group.add(tick);
+  }
+
+  const pivot = new THREE.Group();
+  pivot.position.z = 0.095;
+  group.add(pivot);
+
+  const needle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.026, 0.28, 0.02),
+    new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.35, metalness: 0.18 })
+  );
+  needle.position.y = 0.14;
+  pivot.add(needle);
+
+  const centerCap = new THREE.Mesh(
+    new THREE.CircleGeometry(0.05, 24),
+    new THREE.MeshBasicMaterial({ color: 0x16293f })
+  );
+  centerCap.position.z = 0.1;
+  group.add(centerCap);
+
+  const label = makeTextSprite(labelText, {
+    textColor: '#f8fcff',
+    fill: 'rgba(19, 38, 60, 0.92)',
+    border: 'rgba(255,255,255,0.12)',
+    fontSize: 82,
+  });
+  label.position.set(0, -0.23, 0.1);
+  label.scale.set(0.26, 0.26, 1);
+  group.add(label);
+
+  return { group, pivot };
+}
+
+const ammeter = createGauge('A', 0x6de58a);
+ammeter.group.position.set(-1.55, 2.55, 0.3);
+scene.add(ammeter.group);
+
+const voltmeter = createGauge('V', 0x74b6ff);
+voltmeter.group.position.set(1.1, 2.55, 0.3);
+scene.add(voltmeter.group);
+
+const safetyGroup = new THREE.Group();
+scene.add(safetyGroup);
+
+const breakerGroup = new THREE.Group();
+breakerGroup.position.set(-1.2, 2.22, 0.24);
+safetyGroup.add(breakerGroup);
+
+const breakerBase = new THREE.Mesh(
+  new THREE.BoxGeometry(0.92, 0.34, 0.24),
+  new THREE.MeshStandardMaterial({ color: 0xe2e8f2, roughness: 0.76, metalness: 0.08 })
+);
+breakerBase.castShadow = true;
+breakerGroup.add(breakerBase);
+
+const breakerSlot = new THREE.Mesh(
+  new THREE.BoxGeometry(0.46, 0.08, 0.1),
+  new THREE.MeshBasicMaterial({ color: 0xa6b3c3 })
+);
+breakerSlot.position.z = 0.13;
+breakerGroup.add(breakerSlot);
+
+const breakerPivot = new THREE.Group();
+breakerPivot.position.set(-0.18, 0, 0.14);
+breakerGroup.add(breakerPivot);
+
+const breakerLever = new THREE.Mesh(
+  new THREE.BoxGeometry(0.42, 0.09, 0.09),
+  new THREE.MeshStandardMaterial({ color: 0xffa94b, roughness: 0.34, metalness: 0.24 })
+);
+breakerLever.position.x = 0.2;
+breakerLever.castShadow = true;
+breakerPivot.add(breakerLever);
+breakerPivot.rotation.z = 0.35;
+
+function createHumanFigure() {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x93a4bc, roughness: 0.82, metalness: 0.02 });
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), bodyMaterial);
+  head.position.y = 1.22;
+  group.add(head);
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.56, 8, 14), bodyMaterial);
+  torso.position.y = 0.74;
+  group.add(torso);
+
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.52, 12), bodyMaterial);
+  arm.rotation.z = THREE.MathUtils.degToRad(66);
+  arm.position.set(0.21, 0.86, 0);
+  group.add(arm);
+
+  const arm2 = arm.clone();
+  arm2.rotation.z = THREE.MathUtils.degToRad(-52);
+  arm2.position.set(-0.17, 0.82, 0);
+  group.add(arm2);
+
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 12), bodyMaterial);
+  leg.rotation.z = THREE.MathUtils.degToRad(8);
+  leg.position.set(0.08, 0.26, 0);
+  group.add(leg);
+
+  const leg2 = leg.clone();
+  leg2.rotation.z = THREE.MathUtils.degToRad(-8);
+  leg2.position.x = -0.08;
+  group.add(leg2);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.36, 0.08, 24),
+    new THREE.MeshStandardMaterial({ color: 0x6a7382, roughness: 0.82, metalness: 0.08 })
+  );
+  base.position.y = -0.05;
+  group.add(base);
+
+  return group;
+}
+
+const humanFigure = createHumanFigure();
+humanFigure.position.set(4.35, 0.02, 0.7);
+safetyGroup.add(humanFigure);
+
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x64d585, roughness: 0.44, metalness: 0.14 });
+const groundCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(3.18, 0.56, 0.1),
+  new THREE.Vector3(3.85, 0.72, 0.4),
+  new THREE.Vector3(4.18, 0.15, 0.48),
+  new THREE.Vector3(4.3, -0.42, 0.5),
+]);
+const groundWire = new THREE.Mesh(new THREE.TubeGeometry(groundCurve, 36, 0.035, 10, false), groundMaterial);
+groundWire.castShadow = true;
+safetyGroup.add(groundWire);
+
+const groundSymbol = new THREE.Group();
+groundSymbol.position.set(4.3, -0.5, 0.5);
+safetyGroup.add(groundSymbol);
+
+[
+  [0.24, -0.02, 0.02],
+  [0.16, -0.12, 0.02],
+  [0.08, -0.21, 0.02],
+].forEach(([w, y, z]) => {
+  const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, 0.02), groundMaterial);
+  line.position.set(0, y, z);
+  groundSymbol.add(line);
+});
+
+const groundStem = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.18, 0.02), groundMaterial);
+groundStem.position.y = 0.03;
+groundSymbol.add(groundStem);
+
+const leakageCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(3.12, 0.8, 0.12),
+  new THREE.Vector3(3.58, 1.14, 0.3),
+  new THREE.Vector3(4.05, 1.12, 0.5),
+  new THREE.Vector3(4.28, 0.94, 0.66),
+]);
+const leakageMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff665c,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const leakagePath = new THREE.Mesh(new THREE.TubeGeometry(leakageCurve, 42, 0.03, 10, false), leakageMaterial);
+safetyGroup.add(leakagePath);
+
+const shortCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-3.05, 1.2, 0.14),
+  new THREE.Vector3(-2.48, 1.34, 0.45),
+  new THREE.Vector3(-2.48, 0.42, 0.45),
+  new THREE.Vector3(-3.05, 0.56, 0.14),
+]);
+const shortMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff7c66,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const shortBypass = new THREE.Mesh(new THREE.TubeGeometry(shortCurve, 42, 0.045, 10, false), shortMaterial);
+safetyGroup.add(shortBypass);
+
+const currentPathPoints = [
+  new THREE.Vector3(-3.05, 1.2, 0),
+  new THREE.Vector3(-2.42, 1.82, 0),
+  new THREE.Vector3(-1.38, 1.96, 0),
+  new THREE.Vector3(-0.86, 1.55, 0),
+  new THREE.Vector3(0.74, 1.55, 0),
+  new THREE.Vector3(1.48, 1.94, 0),
+  new THREE.Vector3(2.54, 1.34, 0),
+  new THREE.Vector3(3.2, 1.02, 0),
+  new THREE.Vector3(3.02, 0.26, 0),
+  new THREE.Vector3(1.52, -0.04, 0),
+  new THREE.Vector3(-1.28, -0.04, 0),
+  new THREE.Vector3(-2.42, 0.08, 0),
+  new THREE.Vector3(-3.05, 0.56, 0),
+  new THREE.Vector3(-3.38, 0.88, 0),
+];
+
+const currentCurve = new THREE.CurvePath();
+for (let index = 0; index < currentPathPoints.length; index += 1) {
+  const start = currentPathPoints[index];
+  const end = currentPathPoints[(index + 1) % currentPathPoints.length];
+  currentCurve.add(new THREE.LineCurve3(start, end));
+}
+const wireGeometry = new THREE.TubeGeometry(currentCurve, 220, 0.06, 16, true);
+const wireMaterial = new THREE.MeshStandardMaterial({
+  color: 0xcc6633,
+  roughness: 0.38,
+  metalness: 0.56,
+  emissive: 0x291508,
+  emissiveIntensity: 0.16,
+});
+const wireMesh = new THREE.Mesh(wireGeometry, wireMaterial);
+wireMesh.castShadow = true;
+wireMesh.receiveShadow = true;
+circuitGroup.add(wireMesh);
+
+const wireGlow = new THREE.Mesh(
+  wireGeometry,
+  new THREE.MeshBasicMaterial({
+    color: 0xff5538,
+    transparent: true,
+    opacity: 0.04,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
+);
+circuitGroup.add(wireGlow);
+
+const electronGroup = new THREE.Group();
+circuitGroup.add(electronGroup);
+
+const electronMaterial = new THREE.MeshBasicMaterial({ color: 0xffed7a });
+const electrons = [];
+for (let i = 0; i < ELECTRON_COUNT; i += 1) {
+  const electron = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 12), electronMaterial);
+  electron.userData.offset = i / ELECTRON_COUNT;
+  electronGroup.add(electron);
+  electrons.push(electron);
+}
+
+const digitBandColors = {
+  0: 0x111111,
+  1: 0x7a4b1d,
+  2: 0xcc1e2f,
+  3: 0xf28f16,
+  4: 0xf2d540,
+  5: 0x3c9b45,
+  6: 0x337dd6,
+  7: 0x8456e6,
+  8: 0xa4a4a4,
+  9: 0xf4f1ec,
+  '-1': 0xd4af37,
+  '-2': 0xc0c0c0,
+};
+
+const recordedPoints = [];
+const derived = {
+  currentIdeal: 0,
+  currentActual: 0,
+  power: 0,
+  powerByCurrent: 0,
+  powerByVoltage: 0,
+  energyWh: 0,
+  costWon: 0,
+  overcurrent: false,
+  shortCircuit: false,
+  breakerTripped: false,
+  leakageRisk: false,
+};
+
+function numberText(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function wonText(value) {
+  return `${value.toFixed(value < 10 ? 1 : 0)}원`;
+}
+
+function computeDerived() {
+  derived.currentIdeal = state.voltage / state.resistance;
+  derived.overcurrent = derived.currentIdeal > OVERCURRENT_THRESHOLD;
+  derived.shortCircuit = state.resistance <= SHORT_CIRCUIT_RESISTANCE;
+  derived.breakerTripped = state.safetyMode && (derived.overcurrent || derived.shortCircuit);
+  derived.currentActual = derived.breakerTripped ? 0 : derived.currentIdeal;
+  derived.power = state.voltage * derived.currentIdeal;
+  derived.powerByCurrent = derived.currentIdeal * derived.currentIdeal * state.resistance;
+  derived.powerByVoltage = (state.voltage * state.voltage) / state.resistance;
+  derived.energyWh = derived.power * state.usageHours;
+  derived.costWon = (derived.energyWh / 1000) * 100;
+  derived.leakageRisk = state.safetyMode && derived.currentIdeal > 1.8;
+}
+
+function resistorCode(value) {
+  let scaled = value;
+  let multiplier = 0;
+
+  while (scaled >= 100) {
+    scaled /= 10;
+    multiplier += 1;
+  }
+
+  while (scaled < 10) {
+    scaled *= 10;
+    multiplier -= 1;
+  }
+
+  let sig = Math.round(scaled);
+  if (sig === 100) {
+    sig = 10;
+    multiplier += 1;
+  }
+
+  const first = Math.floor(sig / 10);
+  const second = sig % 10;
+  return [first, second, multiplier];
+}
+
+function updateResistorBands() {
+  const [d1, d2, mul] = resistorCode(state.resistance);
+  const bandValues = [d1, d2, String(mul), '-1'];
+  resistorBands.forEach((band, index) => {
+    band.material.color.setHex(digitBandColors[bandValues[index]]);
+  });
+}
+
+function setPill(element, label, tone) {
+  element.textContent = label;
+  element.className = `safety-pill ${tone}`;
+}
+
+function refreshTextPanels() {
+  formulaVoltage.textContent = `${state.voltage}V`;
+  formulaResistance.textContent = `${state.resistance}Ω`;
+  formulaCurrent.textContent = `V/R = ${numberText(derived.currentIdeal, 2)}A`;
+  formulaP1.textContent = `${numberText(derived.power, 2)}W`;
+  formulaP2.textContent = `${numberText(derived.powerByCurrent, 2)}W`;
+  formulaP3.textContent = `${numberText(derived.powerByVoltage, 2)}W`;
+  formulaEnergy.textContent = `${numberText(derived.power, 2)}W × ${state.usageHours}h = ${numberText(derived.energyWh, 2)}Wh`;
+  formulaCost.textContent = `약 ${wonText(derived.costWon)}`;
+  formulaCompare.textContent = `기울기 1/R = ${numberText(1 / state.resistance, 3)} A/V, 전압 ${state.voltage}V에서 계산 전류는 ${numberText(derived.currentIdeal, 2)}A입니다.`;
+  formulaApp.textContent = derived.currentIdeal > MAX_GRAPH_CURRENT
+    ? `현재 계산 전류가 5A 눈금을 넘어 그래프 상단에 표시됩니다. 소비 전력과 전력량은 계속 계산됩니다.`
+    : `가전제품의 전력량 = 소비 전력 × 사용 시간, 요금은 kWh 기준으로 계산합니다.`;
+  formulaWarning.classList.toggle('show', derived.breakerTripped);
+
+  calcPowerVI.textContent = `${numberText(derived.power, 2)} W`;
+  calcPowerI2R.textContent = `${numberText(derived.powerByCurrent, 2)} W`;
+  calcPowerV2R.textContent = `${numberText(derived.powerByVoltage, 2)} W`;
+  calcEnergy.textContent = `${numberText(derived.energyWh, 2)} Wh`;
+  calcCost.textContent = `약 ${wonText(derived.costWon)}`;
+
+  plotNote.textContent = derived.currentIdeal > MAX_GRAPH_CURRENT
+    ? `현재 기울기 1/R = ${numberText(1 / state.resistance, 3)} A/V입니다. 계산 전류 ${numberText(derived.currentIdeal, 2)}A는 그래프 범위를 넘어 상단에 표시됩니다.`
+    : `현재 기울기 1/R = ${numberText(1 / state.resistance, 3)} A/V, 전압 ${state.voltage.toFixed(1)}V에서 계산 전류는 ${numberText(derived.currentIdeal, 2)}A입니다.`;
+
+  if (!state.safetyMode) {
+    setPill(safetyOvercurrent, '정상', 'ok');
+    setPill(safetyLeakage, '관찰 전', 'ok');
+    setPill(safetyShort, '없음', 'ok');
+    setPill(safetyProtection, '대기', 'warn');
+    safetyNote.textContent = '안전 모드를 켜면 누전 경로, 접지선, 차단기 반응을 함께 볼 수 있습니다.';
+    statusChip.className = '';
+    statusTitle.textContent = 'V-I 그래프의 기울기는 1/R입니다.';
+    statusBody.textContent = '전압을 올리면 전류가 비례해서 커지고, 저항을 키우면 같은 전압에서도 전류가 줄어듭니다.';
+  } else if (derived.shortCircuit) {
+    setPill(safetyOvercurrent, derived.overcurrent ? '과전류' : '주의', derived.overcurrent ? 'danger' : 'warn');
+    setPill(safetyLeakage, derived.leakageRisk ? '위험' : '경계', derived.leakageRisk ? 'danger' : 'warn');
+    setPill(safetyShort, '합선 위험', 'danger');
+    setPill(safetyProtection, derived.breakerTripped ? '차단 작동' : '준비', derived.breakerTripped ? 'warn' : 'ok');
+    safetyNote.textContent = '저항이 매우 작아 전원 단락에 가까운 상태입니다. 실제 회로에서는 차단기가 회로를 끊어 화재를 막아야 합니다.';
+    statusChip.className = 'alert';
+    statusTitle.textContent = '합선 위험! 차단기가 회로를 차단합니다.';
+    statusBody.textContent = `저항 ${state.resistance}Ω에서 계산 전류 ${numberText(derived.currentIdeal, 2)}A가 예상됩니다. 전선 과열과 화재 위험이 커집니다.`;
+  } else if (derived.overcurrent) {
+    setPill(safetyOvercurrent, '과전류', 'danger');
+    setPill(safetyLeakage, derived.leakageRisk ? '위험' : '경계', derived.leakageRisk ? 'danger' : 'warn');
+    setPill(safetyShort, '없음', 'ok');
+    setPill(safetyProtection, derived.breakerTripped ? '차단 작동' : '준비', derived.breakerTripped ? 'warn' : 'ok');
+    safetyNote.textContent = '전류가 커지면 전선이 뜨거워집니다. 안전 모드에서는 차단기 레버가 내려가며 실제 계기 전류를 0A로 표시합니다.';
+    statusChip.className = 'alert';
+    statusTitle.textContent = '과전류 감지! 전선 과열을 조심하세요.';
+    statusBody.textContent = `계산 전류 ${numberText(derived.currentIdeal, 2)}A가 임계값을 넘어 차단기가 작동합니다. 접지선과 누전 경로도 함께 표시됩니다.`;
+  } else {
+    setPill(safetyOvercurrent, '정상', 'ok');
+    setPill(safetyLeakage, derived.leakageRisk ? '주의' : '낮음', derived.leakageRisk ? 'warn' : 'ok');
+    setPill(safetyShort, '없음', 'ok');
+    setPill(safetyProtection, '접지 활성', 'ok');
+    safetyNote.textContent = '현재는 안전 범위입니다. 접지선은 누전 전류가 사람 대신 안전한 경로로 빠져나가도록 돕습니다.';
+    statusChip.className = 'safe';
+    statusTitle.textContent = '안전 모드가 켜졌습니다.';
+    statusBody.textContent = '접지선, 인체 누전 경로, 차단기를 함께 보면서 안전한 회로 조건을 비교할 수 있습니다.';
+  }
+}
+
+function renderRecordList() {
+  recordList.innerHTML = '';
+
+  if (!recordedPoints.length) {
+    const empty = document.createElement('li');
+    empty.className = 'empty-record';
+    empty.textContent = 'GUI의 "V-I 그래프에 점 기록" 버튼을 눌러 현재 상태를 저장해 보세요.';
+    recordList.appendChild(empty);
+    return;
+  }
+
+  [...recordedPoints].reverse().slice(0, 5).forEach((point) => {
+    const item = document.createElement('li');
+    item.className = 'record-item';
+
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `${point.voltage}V · ${point.resistance}Ω`;
+
+    const value = document.createElement('span');
+    value.className = 'value';
+    value.textContent = `I=${numberText(point.current, 2)}A / P=${numberText(point.power, 2)}W`;
+
+    item.appendChild(meta);
+    item.appendChild(value);
+    recordList.appendChild(item);
+  });
+}
+
+function graphPointPosition(voltage, current, rect) {
+  const x = rect.left + (voltage / MAX_VOLTAGE) * rect.width;
+  const y = rect.top + rect.height - (Math.min(current, MAX_GRAPH_CURRENT) / MAX_GRAPH_CURRENT) * rect.height;
+  return { x, y };
+}
+
+function drawGraph() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.floor(graphCanvas.clientWidth * dpr);
+  const height = Math.floor(graphCanvas.clientHeight * dpr);
+  if (graphCanvas.width !== width || graphCanvas.height !== height) {
+    graphCanvas.width = width;
+    graphCanvas.height = height;
+  }
+
+  graphCtx.setTransform(1, 0, 0, 1, 0, 0);
+  graphCtx.clearRect(0, 0, width, height);
+  graphCtx.scale(dpr, dpr);
+
+  const canvasWidth = graphCanvas.clientWidth;
+  const canvasHeight = graphCanvas.clientHeight;
+  const rect = {
+    left: 42,
+    top: 18,
+    width: canvasWidth - 62,
+    height: canvasHeight - 46,
+  };
+
+  const gradient = graphCtx.createLinearGradient(0, rect.top, 0, rect.top + rect.height);
+  gradient.addColorStop(0, 'rgba(21, 39, 66, 0.95)');
+  gradient.addColorStop(1, 'rgba(10, 19, 34, 0.98)');
+  graphCtx.fillStyle = gradient;
+  graphCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.lineWidth = 1;
+  for (let i = 0; i <= 6; i += 1) {
+    const y = rect.top + (rect.height / 5) * i;
+    graphCtx.beginPath();
+    graphCtx.moveTo(rect.left, y);
+    graphCtx.lineTo(rect.left + rect.width, y);
+    graphCtx.stroke();
+  }
+  for (let i = 0; i <= 6; i += 1) {
+    const x = rect.left + (rect.width / 6) * i;
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, rect.top);
+    graphCtx.lineTo(x, rect.top + rect.height);
+    graphCtx.stroke();
+  }
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.45)';
+  graphCtx.lineWidth = 1.5;
+  graphCtx.beginPath();
+  graphCtx.moveTo(rect.left, rect.top);
+  graphCtx.lineTo(rect.left, rect.top + rect.height);
+  graphCtx.lineTo(rect.left + rect.width, rect.top + rect.height);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.72)';
+  graphCtx.font = '11px sans-serif';
+  graphCtx.textAlign = 'right';
+  graphCtx.textBaseline = 'middle';
+  for (let i = 0; i <= 5; i += 1) {
+    const y = rect.top + rect.height - (rect.height * i) / 5;
+    graphCtx.fillText(String(i), rect.left - 10, y);
+  }
+
+  graphCtx.textAlign = 'center';
+  graphCtx.textBaseline = 'top';
+  for (let i = 0; i <= 6; i += 1) {
+    const value = i * 2;
+    const x = rect.left + (rect.width * value) / MAX_VOLTAGE;
+    graphCtx.fillText(String(value), x, rect.top + rect.height + 8);
+  }
+
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+  graphCtx.font = '600 11px sans-serif';
+  graphCtx.fillText('전압 V', rect.left + rect.width - 6, rect.top + rect.height + 24);
+  graphCtx.translate(14, rect.top + 8);
+  graphCtx.rotate(-Math.PI / 2);
+  graphCtx.fillText('전류 I (A)', 0, 0);
+  graphCtx.restore();
+
+  const references = Array.from(new Set([5, 10, 20, state.resistance])).sort((a, b) => a - b);
+  references.forEach((resistance) => {
+    graphCtx.beginPath();
+    graphCtx.setLineDash(resistance === state.resistance ? [] : [6, 6]);
+    graphCtx.strokeStyle = resistance === state.resistance ? '#ff6e63' : 'rgba(255, 210, 107, 0.42)';
+    graphCtx.lineWidth = resistance === state.resistance ? 2.4 : 1.3;
+
+    for (let sample = 0; sample <= 60; sample += 1) {
+      const voltage = (MAX_VOLTAGE * sample) / 60;
+      const current = voltage / resistance;
+      const { x, y } = graphPointPosition(voltage, current, rect);
+      if (sample === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+  });
+  graphCtx.setLineDash([]);
+
+  recordedPoints.forEach((point) => {
+    const { x, y } = graphPointPosition(point.voltage, point.current, rect);
+    graphCtx.beginPath();
+    graphCtx.fillStyle = '#73b6ff';
+    graphCtx.arc(x, y, 4.5, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.65)';
+    graphCtx.lineWidth = 1;
+    graphCtx.stroke();
+  });
+
+  const currentPoint = graphPointPosition(state.voltage, derived.currentIdeal, rect);
+  graphCtx.beginPath();
+  graphCtx.fillStyle = '#ff6e63';
+  graphCtx.arc(currentPoint.x, currentPoint.y, 5.5, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.8)';
+  graphCtx.lineWidth = 1.4;
+  graphCtx.stroke();
+
+  if (derived.currentIdeal > MAX_GRAPH_CURRENT) {
+    graphCtx.fillStyle = '#ffb16b';
+    graphCtx.font = '700 14px sans-serif';
+    graphCtx.fillText('↑', currentPoint.x, rect.top - 8);
+  }
+}
+
+function recordCurrentPoint() {
+  recordedPoints.push({
+    voltage: state.voltage,
+    resistance: state.resistance,
+    current: derived.currentIdeal,
+    power: derived.power,
+  });
+
+  if (recordedPoints.length > 20) {
+    recordedPoints.shift();
+  }
+
+  renderRecordList();
+  drawGraph();
+}
+
+function resetState() {
+  state.voltage = 6;
+  state.resistance = 10;
+  state.usageHours = 3;
+  state.showFlow = true;
+  state.showMeters = true;
+  state.safetyMode = false;
+  recordedPoints.length = 0;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  refreshAll();
+}
+
+function updateMetersAndLabels() {
+  ammeter.group.visible = state.showMeters;
+  voltmeter.group.visible = state.showMeters;
+
+  const currentForMeter = derived.currentActual;
+  const currentAngle = THREE.MathUtils.mapLinear(Math.min(currentForMeter, MAX_GRAPH_CURRENT), 0, MAX_GRAPH_CURRENT, THREE.MathUtils.degToRad(118), THREE.MathUtils.degToRad(-118));
+  const voltageAngle = THREE.MathUtils.mapLinear(state.voltage, 0, MAX_VOLTAGE, THREE.MathUtils.degToRad(118), THREE.MathUtils.degToRad(-118));
+  ammeter.pivot.rotation.z = currentAngle;
+  voltmeter.pivot.rotation.z = voltageAngle;
+
+  setHudLabel(batteryLabel, `${state.voltage}V 전원`, true);
+  setHudLabel(resistorLabel, `${state.resistance}Ω 저항`, true);
+  setHudLabel(bulbLabel, derived.breakerTripped ? '전구 꺼짐' : `전구 ${numberText(Math.min(derived.currentActual / MAX_GRAPH_CURRENT, 1) * 100, 0)}%`, true);
+  setHudLabel(ammeterLabel, `I = ${numberText(currentForMeter, 2)}A`, state.showMeters);
+  setHudLabel(voltmeterLabel, `V = ${numberText(state.voltage, 1)}V`, state.showMeters);
+}
+
+function updateSceneMaterials(time = 0) {
+  const currentRatio = THREE.MathUtils.clamp(derived.currentActual / MAX_GRAPH_CURRENT, 0, 1);
+  const heatRatio = THREE.MathUtils.clamp(derived.currentIdeal / MAX_GRAPH_CURRENT, 0, 1);
+  const pulse = 0.5 + 0.5 * Math.sin(time * 8);
+
+  filament.material.emissiveIntensity = 0.15 + currentRatio * 3.2;
+  bulbLight.intensity = 0.24 + currentRatio * 2.7;
+  bulbGlass.material.emissiveIntensity = 0.04 + currentRatio * 0.38;
+  bulbGlass.material.opacity = 0.24 + currentRatio * 0.14;
+
+  resistorShadow.material.opacity = 0.02 + heatRatio * 0.12;
+  wireMaterial.emissiveIntensity = 0.14 + heatRatio * 0.3;
+  wireGlow.material.opacity = state.safetyMode && (derived.overcurrent || derived.shortCircuit)
+    ? 0.18 + pulse * 0.22
+    : 0.04 + heatRatio * 0.08;
+
+  safetyGroup.visible = state.safetyMode;
+  shortMaterial.opacity = state.safetyMode && derived.shortCircuit ? 0.45 + pulse * 0.25 : 0;
+  leakageMaterial.opacity = state.safetyMode && derived.leakageRisk ? 0.18 + pulse * 0.2 : 0;
+  breakerPivot.rotation.z = THREE.MathUtils.lerp(breakerPivot.rotation.z, derived.breakerTripped ? -0.95 : 0.35, 0.12);
+  humanFigure.traverse((child) => {
+    if (child.isMesh) {
+      child.material.emissive = new THREE.Color(derived.leakageRisk ? 0x521414 : 0x10131a);
+      child.material.emissiveIntensity = derived.leakageRisk ? 0.18 + pulse * 0.18 : 0;
+    }
+  });
+}
+
+function refreshAll() {
+  computeDerived();
+  updateResistorBands();
+  refreshTextPanels();
+  updateMetersAndLabels();
+  renderRecordList();
+  drawGraph();
+}
+
+const gui = new GUI({ title: '회로 제어', width: 300 });
+gui.add(state, 'voltage', 1, 12, 1).name('전압 V').onChange(refreshAll);
+gui.add(state, 'resistance', 1, 100, 1).name('저항 R').onChange(refreshAll);
+gui.add(state, 'showFlow').name('전자 흐름 표시').onChange(refreshAll);
+gui.add(state, 'showMeters').name('전류계/전압계 표시').onChange(refreshAll);
+gui.add(state, 'recordPoint').name('V-I 그래프에 점 기록');
+gui.add(state, 'usageHours', 1, 24, 1).name('사용 시간').onChange(refreshAll);
+gui.add(state, 'safetyMode').name('전기 안전').onChange(refreshAll);
+gui.add(state, 'reset').name('초기화');
+
+if (window.innerWidth < 820) {
+  gui.close();
+}
+
+let elapsed = 0;
+let previousTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(0.05, (now - previousTime) / 1000);
+  previousTime = now;
+  elapsed += delta;
+
+  controls.update();
+
+  electronGroup.visible = state.showFlow && derived.currentActual > 0.001;
+  if (electronGroup.visible) {
+    const speed = 0.035 + THREE.MathUtils.clamp(derived.currentActual / MAX_GRAPH_CURRENT, 0, 1) * 0.18;
+    electrons.forEach((electron) => {
+      const progress = (electron.userData.offset + elapsed * speed) % 1;
+      currentCurve.getPoint(progress, tempVector);
+      electron.position.copy(tempVector);
+    });
+  }
+
+  updateSceneMaterials(elapsed);
+  renderer.render(scene, camera);
+  updateHudLabels();
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  drawGraph();
+}
+
+window.addEventListener('resize', onResize);
+
+refreshAll();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

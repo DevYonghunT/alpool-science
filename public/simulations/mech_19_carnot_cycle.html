@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>열기관과 카르노 사이클 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel: rgba(10, 18, 34, 0.82);
+    --panel-soft: rgba(255, 255, 255, 0.06);
+    --panel-line: rgba(255, 255, 255, 0.12);
+    --text-main: #f7f9fc;
+    --text-dim: rgba(247, 249, 252, 0.72);
+    --text-faint: rgba(247, 249, 252, 0.54);
+    --hot: #ff5b57;
+    --adiabatic: #3ad48d;
+    --cold: #4f8cff;
+    --compress: #b874ff;
+    --work: #45d38d;
+    --waste: #69a7ff;
+    --guide: #ffe2a8;
+    --area: rgba(255, 220, 122, 0.24);
+    --gauge: #f2d163;
+    --shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 12% 14%, rgba(255, 118, 91, 0.18), transparent 22%),
+      radial-gradient(circle at 86% 12%, rgba(79, 140, 255, 0.18), transparent 22%),
+      linear-gradient(180deg, #eef0f5 0%, #dfe6f2 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 30;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(10, 18, 34, 0.9);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 29;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(72vh, 660px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #d6ecff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    color: var(--guide);
+    font-size: 12px;
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(620px, calc(100vw - 220px));
+    padding: 12px 18px 14px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(680px, calc(100vw - 36px));
+    padding: 10px 15px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.94);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #fff;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.78;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #fff;
+  }
+
+  .formula-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .formula-row span:last-child {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    color: var(--text-dim);
+  }
+
+  .formula-ok {
+    color: #9bffce;
+    font-weight: 700;
+  }
+
+  #diagram-panel {
+    position: fixed;
+    top: 114px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(46vw, 620px);
+    min-width: 360px;
+    padding: 16px;
+    border-radius: 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .diagram-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .diagram-title-wrap h2 {
+    font-size: 20px;
+    color: #fff;
+  }
+
+  .diagram-title-wrap p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #gauge-card {
+    width: 160px;
+    flex: 0 0 auto;
+    padding: 12px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #gauge-card svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  #gauge-meta {
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  #gauge-label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  #gauge-value {
+    margin-top: 3px;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  #gauge-note {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  .metric-card .value {
+    margin-top: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .metric-card .sub {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #stage-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stage-card {
+    padding: 10px 10px 11px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+
+  .stage-card.active {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .stage-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stage-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+
+  .stage-card strong {
+    display: block;
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .stage-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  #pv-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 260px;
+    padding: 14px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #pv-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 16px;
+  }
+
+  #pv-caption {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #fridge-panel {
+    display: none;
+    padding: 14px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #fridge-panel.open {
+    display: block;
+  }
+
+  #fridge-panel h3 {
+    font-size: 16px;
+    color: #fff;
+  }
+
+  #fridge-panel p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .fridge-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .fridge-box {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .fridge-box .label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-family: "Space Grotesk", sans-serif;
+  }
+
+  .fridge-box .value {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .fridge-box .sub {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #compare-card {
+    padding: 14px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #compare-card.hidden {
+    display: none;
+  }
+
+  #compare-card h3 {
+    font-size: 16px;
+    color: #fff;
+  }
+
+  #compare-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+
+  th,
+  td {
+    padding: 9px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: left;
+  }
+
+  th {
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  td:last-child,
+  th:last-child {
+    text-align: right;
+  }
+
+  .compare-emphasis {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 214, 102, 0.08);
+    border: 1px solid rgba(255, 214, 102, 0.16);
+    color: #ffe7a9;
+    font-size: 11px;
+    line-height: 1.65;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  .lil-gui.root {
+    --width: 308px;
+    z-index: 40;
+  }
+
+  @media (max-width: 1080px) {
+    #diagram-panel {
+      width: min(48vw, 560px);
+      min-width: 320px;
+    }
+
+    #metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 860px) {
+    body {
+      overflow-y: auto;
+    }
+
+    #title-card {
+      width: calc(100vw - 90px);
+    }
+
+    #status-chip {
+      top: 110px;
+      width: calc(100vw - 24px);
+    }
+
+    #diagram-panel {
+      top: auto;
+      right: 12px;
+      left: 12px;
+      bottom: 12px;
+      width: auto;
+      min-width: 0;
+      max-height: 48vh;
+    }
+
+    #formula-panel {
+      bottom: calc(48vh + 24px);
+      width: min(340px, calc(100vw - 24px));
+    }
+
+    .diagram-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    #gauge-card {
+      width: 100%;
+    }
+
+    #stage-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fridge-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+    }
+
+    #title-card {
+      top: 58px;
+      width: calc(100vw - 24px);
+      padding: 10px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #status-chip {
+      top: 136px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      padding: 16px;
+      bottom: calc(48vh + 18px);
+    }
+
+    #diagram-panel {
+      padding: 12px;
+      gap: 12px;
+    }
+
+    #metric-grid,
+    .fridge-grid {
+      grid-template-columns: 1fr;
+    }
+
+    table {
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+<aside id="guide-panel" class="glass" aria-label="학습 가이드">
+  <h3>열기관과 카르노 사이클 학습 가이드</h3>
+  <p>열기관은 고온 열원에서 열을 흡수하여 일을 하고, 남은 에너지를 저온 열원으로 방출합니다. 카르노 효율 <strong>η<sub>C</sub> = 1 - T<sub>L</sub>/T<sub>H</sub></strong> 는 같은 온도 조건에서 가능한 최대 효율입니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ol>
+    <li>고온 열원 800K, 저온 열원 300K일 때 카르노 효율은 몇 %인가요?</li>
+    <li>열효율을 100%로 만들 수 없는 까닭을 폐열과 온도 차이 관점에서 설명해 볼까요?</li>
+    <li>냉장고는 열기관의 역과정입니다. 저온부, 압축기, 고온부 사이 에너지 흐름을 말해 보세요.</li>
+  </ol>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>자동차 엔진: 연료의 화학 에너지를 열과 일로 바꾸는 실제 열기관</li>
+    <li>화력 발전소: 증기 터빈을 돌려 전기를 생산하는 대규모 열기관</li>
+    <li>냉장고·에어컨·히트펌프: 외부 일을 이용해 열을 저온부에서 고온부로 이동</li>
+  </ul>
+
+  <div class="ref-box">
+    역학과 에너지 II편 p84~89 · 열기관과 열효율, 카르노 사이클
+  </div>
+</aside>
+
+<section id="title-card" class="glass">
+  <div class="eyebrow">Heat Engine · Carnot Cycle</div>
+  <h1>열기관과 카르노 사이클</h1>
+  <p>고온 열원, 저온 열원, 실제 효율, 카르노 한계, 역카르노 냉장고를 한 화면에서 비교합니다.</p>
+</section>
+
+<div id="status-chip" class="glass"></div>
+
+<section id="formula-panel" class="glass" aria-live="polite"></section>
+
+<aside id="diagram-panel" class="glass">
+  <div class="diagram-header">
+    <div class="diagram-title-wrap">
+      <div class="eyebrow">Thermodynamics Dashboard</div>
+      <h2 id="diagram-title">카르노 사이클 P-V 다이어그램</h2>
+      <p id="diagram-description">등온 팽창, 단열 팽창, 등온 압축, 단열 압축의 네 단계를 따라 이상적인 카르노 사이클을 관찰합니다.</p>
+    </div>
+    <div id="gauge-card">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="10"></circle>
+        <circle id="gauge-ring" cx="60" cy="60" r="42" fill="none" stroke="var(--gauge)" stroke-width="10" stroke-linecap="round" transform="rotate(-90 60 60)"></circle>
+        <circle cx="60" cy="60" r="4" fill="rgba(255,255,255,0.82)"></circle>
+      </svg>
+      <div id="gauge-meta">
+        <div id="gauge-label">Actual Efficiency</div>
+        <div id="gauge-value">0.0%</div>
+        <div id="gauge-note">항상 카르노 효율보다 작습니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="metric-grid">
+    <div class="metric-card">
+      <div class="label" id="metric-qh-label">Q_H</div>
+      <div class="value" id="metric-qh">500J</div>
+      <div class="sub" id="metric-qh-sub">고온 열원에서 흡수한 열</div>
+    </div>
+    <div class="metric-card">
+      <div class="label" id="metric-work-label">W</div>
+      <div class="value" id="metric-work">0J</div>
+      <div class="sub" id="metric-work-sub">실제 열기관이 만든 일</div>
+    </div>
+    <div class="metric-card">
+      <div class="label" id="metric-ql-label">Q_L</div>
+      <div class="value" id="metric-ql">0J</div>
+      <div class="sub" id="metric-ql-sub">저온 열원으로 방출한 폐열</div>
+    </div>
+    <div class="metric-card">
+      <div class="label" id="metric-carnot-label">η_C</div>
+      <div class="value" id="metric-carnot">0.0%</div>
+      <div class="sub" id="metric-carnot-sub">같은 온도에서 가능한 최대 효율</div>
+    </div>
+  </div>
+
+  <div id="stage-strip"></div>
+
+  <div id="pv-wrap">
+    <canvas id="pv-canvas"></canvas>
+  </div>
+  <p id="pv-caption">사이클 내부의 노란 면적은 카르노 기관이 한 순환에서 얻는 순 일입니다.</p>
+
+  <section id="fridge-panel" aria-live="polite">
+    <h3>냉장고와 에어컨: 역카르노 해석</h3>
+    <p id="fridge-description">외부에서 일을 넣어야만 열을 저온부에서 고온부로 옮길 수 있습니다. 성능 계수(COP)는 같은 일로 얼마나 많은 열을 옮겼는지 나타냅니다.</p>
+    <div class="fridge-grid">
+      <div class="fridge-box">
+        <div class="label">Q_L</div>
+        <div class="value" id="fridge-ql">0J</div>
+        <div class="sub">냉장실에서 가져온 열</div>
+      </div>
+      <div class="fridge-box">
+        <div class="label">W</div>
+        <div class="value" id="fridge-work">0J</div>
+        <div class="sub">압축기에 공급한 일</div>
+      </div>
+      <div class="fridge-box">
+        <div class="label">Q_H</div>
+        <div class="value" id="fridge-qh">0J</div>
+        <div class="sub">실외로 방출한 열</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="compare-card">
+    <h3>실제 열기관 효율 비교</h3>
+    <p>실제 효율은 마찰, 열손실, 비가역 과정 때문에 언제나 카르노 효율보다 작습니다.</p>
+    <table aria-label="실제 열기관 효율 비교 표">
+      <thead>
+        <tr>
+          <th>열기관</th>
+          <th>실제 효율</th>
+          <th>카르노 효율</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>증기 기관</td>
+          <td>~10%</td>
+          <td style="text-align:right;">~40%</td>
+        </tr>
+        <tr>
+          <td>가솔린 엔진</td>
+          <td>~25%</td>
+          <td style="text-align:right;">~55%</td>
+        </tr>
+        <tr>
+          <td>디젤 엔진</td>
+          <td>~35%</td>
+          <td style="text-align:right;">~65%</td>
+        </tr>
+        <tr>
+          <td>화력 발전소</td>
+          <td>~40%</td>
+          <td style="text-align:right;">~60%</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="compare-emphasis" id="compare-emphasis">실제 효율 &lt; 카르노 효율 (항상)</div>
+  </section>
+</aside>
+
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const canvas = document.getElementById('scene-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const statusChip = document.getElementById('status-chip');
+  const formulaPanel = document.getElementById('formula-panel');
+  const diagramTitleEl = document.getElementById('diagram-title');
+  const diagramDescriptionEl = document.getElementById('diagram-description');
+  const gaugeRing = document.getElementById('gauge-ring');
+  const gaugeLabelEl = document.getElementById('gauge-label');
+  const gaugeValueEl = document.getElementById('gauge-value');
+  const gaugeNoteEl = document.getElementById('gauge-note');
+  const metricQHEl = document.getElementById('metric-qh');
+  const metricQHLabelEl = document.getElementById('metric-qh-label');
+  const metricQHSubEl = document.getElementById('metric-qh-sub');
+  const metricWorkEl = document.getElementById('metric-work');
+  const metricWorkLabelEl = document.getElementById('metric-work-label');
+  const metricWorkSubEl = document.getElementById('metric-work-sub');
+  const metricQLEl = document.getElementById('metric-ql');
+  const metricQLLabelEl = document.getElementById('metric-ql-label');
+  const metricQLSubEl = document.getElementById('metric-ql-sub');
+  const metricCarnotEl = document.getElementById('metric-carnot');
+  const metricCarnotLabelEl = document.getElementById('metric-carnot-label');
+  const metricCarnotSubEl = document.getElementById('metric-carnot-sub');
+  const stageStripEl = document.getElementById('stage-strip');
+  const pvCanvas = document.getElementById('pv-canvas');
+  const pvWrap = document.getElementById('pv-wrap');
+  const pvCaptionEl = document.getElementById('pv-caption');
+  const fridgePanel = document.getElementById('fridge-panel');
+  const fridgeDescriptionEl = document.getElementById('fridge-description');
+  const fridgeQLEl = document.getElementById('fridge-ql');
+  const fridgeWorkEl = document.getElementById('fridge-work');
+  const fridgeQHEl = document.getElementById('fridge-qh');
+  const compareCard = document.getElementById('compare-card');
+  const compareEmphasisEl = document.getElementById('compare-emphasis');
+  const pvCtx = pvCanvas.getContext('2d');
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xeef0f5);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(3.6, 2.8, 12.2);
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.target.set(-2.3, 0.2, 0);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 7;
+  controls.maxDistance = 18;
+  controls.maxPolarAngle = Math.PI * 0.48;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambient);
+
+  const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+  directional.position.set(6, 9, 7);
+  directional.castShadow = true;
+  directional.shadow.mapSize.set(1024, 1024);
+  scene.add(directional);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(5.6, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0xd9dfeb,
+      roughness: 0.95,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.82,
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(-2.2, -4.05, 0);
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const glowDisc = new THREE.Mesh(
+    new THREE.RingGeometry(2.9, 4.8, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+    })
+  );
+  glowDisc.rotation.x = -Math.PI / 2;
+  glowDisc.position.copy(floor.position).add(new THREE.Vector3(0, 0.01, 0));
+  scene.add(glowDisc);
+
+  const STAGES = [
+    { title: 'A→B', name: '등온 팽창', color: '#ff5b57', note: '고온 열원에서 Q_H를 흡수하며 팽창' },
+    { title: 'B→C', name: '단열 팽창', color: '#3ad48d', note: '열교환 없이 팽창하며 온도 하강' },
+    { title: 'C→D', name: '등온 압축', color: '#4f8cff', note: '저온 열원으로 Q_L을 방출하며 압축' },
+    { title: 'D→A', name: '단열 압축', color: '#b874ff', note: '열교환 없이 압축하며 온도 상승' },
+  ];
+
+  stageStripEl.innerHTML = STAGES.map((stage, index) => `
+    <div class="stage-card${index === 0 ? ' active' : ''}" data-stage-index="${index}">
+      <div class="stage-top">
+        <span class="stage-dot" style="background:${stage.color}"></span>
+        <strong>${stage.title} ${stage.name}</strong>
+      </div>
+      <span>${stage.note}</span>
+    </div>
+  `).join('');
+
+  const params = {
+    view: '열기관 에너지 흐름',
+    hotTemp: 600,
+    coldTemp: 300,
+    inputHeat: 500,
+    showComparison: true,
+    showEnergyFlow: true,
+    playCycle() {
+      startCycle();
+    },
+    reset() {
+      resetSimulation();
+    },
+  };
+
+  const state = {
+    cyclePlaying: false,
+    cycleProgress: 0,
+    cycleDirection: 1,
+    idleTime: 0,
+    needsRebuild: true,
+    modeRoot: null,
+    currentMetrics: null,
+    viewRefs: null,
+    currentStage: 0,
+  };
+
+  const gui = new GUI({ title: '열기관 제어', width: 308 });
+  const viewController = gui
+    .add(params, 'view', ['열기관 에너지 흐름', '카르노 사이클 P-V', '냉장고(역카르노)'])
+    .name('보기')
+    .onChange(() => {
+      state.needsRebuild = true;
+      syncGui();
+      updatePanels();
+    });
+  gui.add(params, 'hotTemp', 400, 1200, 10).name('고온 T_H').onChange(() => {
+    enforceTemperatureOrder('hot');
+    state.needsRebuild = true;
+    updatePanels();
+  });
+  gui.add(params, 'coldTemp', 200, 500, 10).name('저온 T_L').onChange(() => {
+    enforceTemperatureOrder('cold');
+    state.needsRebuild = true;
+    updatePanels();
+  });
+  gui.add(params, 'inputHeat', 100, 1000, 10).name('Q_H').onChange(() => {
+    state.needsRebuild = true;
+    updatePanels();
+  });
+  gui.add(params, 'playCycle').name('사이클 재생');
+  gui.add(params, 'showComparison').name('실제 효율 비교').onChange(() => updatePanels());
+  gui.add(params, 'showEnergyFlow').name('에너지 흐름 표시').onChange(() => {
+    updateFlowVisibility();
+    updatePanels();
+  });
+  gui.add(params, 'reset').name('초기화');
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function enforceTemperatureOrder(changed) {
+    if (params.coldTemp > params.hotTemp) {
+      if (changed === 'hot') params.coldTemp = params.hotTemp;
+      else params.hotTemp = params.coldTemp;
+      syncGui();
+    }
+  }
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+  });
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function easeInOut(t) {
+    return 0.5 - 0.5 * Math.cos(Math.PI * clamp(t, 0, 1));
+  }
+
+  function formatNumber(value, digits = 0) {
+    return Number(value).toFixed(digits);
+  }
+
+  function formatEnergy(value, digits = 0) {
+    return `${formatNumber(value, digits)}J`;
+  }
+
+  function formatPercent(value, digits = 1) {
+    return `${formatNumber(value * 100, digits)}%`;
+  }
+
+  function roundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  }
+
+  function createTextSprite(text, options = {}) {
+    const {
+      background = 'rgba(10,18,34,0.88)',
+      border = 'rgba(255,255,255,0.16)',
+      color = '#ffffff',
+      fontSize = 34,
+      paddingX = 22,
+      paddingY = 14,
+    } = options;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const canvasEl = document.createElement('canvas');
+    const ctx = canvasEl.getContext('2d');
+    ctx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+    const textWidth = Math.ceil(ctx.measureText(text).width);
+    const width = textWidth + paddingX * 2;
+    const height = Math.ceil(fontSize * 1.45 + paddingY * 2);
+    canvasEl.width = width * dpr;
+    canvasEl.height = height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    roundedRect(ctx, 2, 2, width - 4, height - 4, 18);
+    ctx.fillStyle = background;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = border;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillText(text, width / 2, height / 2 + 1);
+
+    const texture = new THREE.CanvasTexture(canvasEl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(width * 0.0102, height * 0.0102, 1);
+    sprite.userData.dispose = () => {
+      texture.dispose();
+      material.dispose();
+    };
+    return sprite;
+  }
+
+  function disposeMaterial(material) {
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    if (!material) return;
+    Object.values(material).forEach((value) => {
+      if (value && typeof value === 'object' && 'dispose' in value && typeof value.dispose === 'function') {
+        value.dispose();
+      }
+    });
+    material.dispose();
+  }
+
+  function disposeObject(root) {
+    root.traverse((child) => {
+      if (child.userData && typeof child.userData.dispose === 'function') child.userData.dispose();
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) disposeMaterial(child.material);
+    });
+  }
+
+  function createReservoir(width, height, depth, colorHex) {
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const material = new THREE.MeshPhysicalMaterial({
+      color: colorHex,
+      roughness: 0.35,
+      metalness: 0.08,
+      clearcoat: 0.28,
+      emissive: new THREE.Color(colorHex).multiplyScalar(0.12),
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28 })
+    );
+    mesh.add(edge);
+    return mesh;
+  }
+
+  function createArrow(start, end, colorHex, radius) {
+    const group = new THREE.Group();
+    const direction = new THREE.Vector3().subVectors(end, start);
+    const length = direction.length();
+    const dirNorm = direction.clone().normalize();
+    const headLength = Math.min(Math.max(radius * 3.3, 0.42), length * 0.34);
+    const shaftLength = Math.max(0.2, length - headLength);
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.55, radius * 0.55, shaftLength, 24),
+      new THREE.MeshStandardMaterial({
+        color: colorHex,
+        emissive: new THREE.Color(colorHex).multiplyScalar(0.28),
+        roughness: 0.25,
+        metalness: 0.08,
+      })
+    );
+    shaft.castShadow = true;
+    shaft.receiveShadow = true;
+    shaft.position.copy(start).addScaledVector(dirNorm, shaftLength * 0.5);
+    shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
+    group.add(shaft);
+
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(radius * 1.08, headLength, 24),
+      new THREE.MeshStandardMaterial({
+        color: colorHex,
+        emissive: new THREE.Color(colorHex).multiplyScalar(0.38),
+        roughness: 0.2,
+        metalness: 0.12,
+      })
+    );
+    cone.castShadow = true;
+    cone.position.copy(end).addScaledVector(dirNorm, -headLength * 0.5);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
+    group.add(cone);
+
+    const glow = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.76, radius * 0.76, shaftLength, 18),
+      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.18 })
+    );
+    glow.position.copy(shaft.position);
+    glow.quaternion.copy(shaft.quaternion);
+    group.add(glow);
+    return group;
+  }
+
+  function createWheel(colorHex, radius = 0.78, thickness = 0.18) {
+    const group = new THREE.Group();
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(radius, thickness, 16, 64),
+      new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.25,
+        metalness: 0.32,
+        emissive: new THREE.Color(colorHex).multiplyScalar(0.12),
+      })
+    );
+    rim.castShadow = true;
+    group.add(rim);
+
+    for (let i = 0; i < 6; i += 1) {
+      const spoke = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, radius * 1.62, 12),
+        new THREE.MeshStandardMaterial({ color: 0xe7eef7, roughness: 0.28, metalness: 0.28 })
+      );
+      spoke.rotation.z = Math.PI / 2;
+      spoke.rotation.y = (Math.PI / 3) * i;
+      spoke.castShadow = true;
+      group.add(spoke);
+    }
+
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 0.32, 18),
+      new THREE.MeshStandardMaterial({ color: 0xf5f7fb, roughness: 0.24, metalness: 0.35 })
+    );
+    hub.rotation.x = Math.PI / 2;
+    hub.castShadow = true;
+    group.add(hub);
+    return group;
+  }
+
+  function createParticleFlow(curve, colorHex, count, speed, radius) {
+    const group = new THREE.Group();
+    const material = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.9 });
+    const particles = [];
+    for (let i = 0; i < count; i += 1) {
+      const particle = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 12), material);
+      particle.userData.offset = i / Math.max(count, 1);
+      group.add(particle);
+      particles.push(particle);
+    }
+    group.userData.dispose = () => {
+      material.dispose();
+      particles.forEach((particle) => particle.geometry.dispose());
+    };
+    return { group, particles, curve, speed };
+  }
+
+  function computeMetrics() {
+    const hot = params.hotTemp;
+    const cold = Math.min(params.coldTemp, params.hotTemp);
+    const qh = params.inputHeat;
+    const etaCarnot = hot <= 0 ? 0 : clamp(1 - cold / hot, 0, 1);
+    const realismFactor = clamp(0.56 + (hot - cold) / 1400 + qh / 8000, 0.48, 0.76);
+    const etaActual = etaCarnot <= 0 ? 0 : Math.min(etaCarnot * realismFactor, Math.max(etaCarnot - 0.02, 0));
+    const workActual = qh * etaActual;
+    const qlActual = qh - workActual;
+    const workCarnot = qh * etaCarnot;
+    const qlCarnot = qh - workCarnot;
+
+    const gamma = 1.4;
+    const volumeA = 1.18;
+    const volumeB = 2.04;
+    const adiabatScale = cold <= 0 ? 1 : Math.pow(Math.max(hot / Math.max(cold, 1), 1), 1 / (gamma - 1));
+    const volumeD = volumeA * adiabatScale;
+    const volumeC = volumeB * adiabatScale;
+    const ratio = Math.max(volumeB / volumeA, 1.0001);
+    const nR = qh / Math.max(hot * Math.log(ratio), 1e-4);
+
+    const stateA = { label: 'A', volume: volumeA, pressure: (nR * hot) / volumeA, temp: hot };
+    const stateB = { label: 'B', volume: volumeB, pressure: (nR * hot) / volumeB, temp: hot };
+    const stateC = { label: 'C', volume: volumeC, pressure: (nR * cold) / Math.max(volumeC, 1e-6), temp: cold };
+    const stateD = { label: 'D', volume: volumeD, pressure: (nR * cold) / Math.max(volumeD, 1e-6), temp: cold };
+
+    const adiabaticBC = stateB.pressure * Math.pow(stateB.volume, gamma);
+    const adiabaticDA = stateD.pressure * Math.pow(stateD.volume, gamma);
+
+    const deltaT = Math.max(hot - cold, 1);
+    const fridgeCopIdeal = cold / deltaT;
+    const fridgeCopActual = clamp(fridgeCopIdeal * 0.56, 0.4, 8.5);
+    const fridgeQL = qh;
+    const fridgeWork = fridgeQL / Math.max(fridgeCopActual, 0.1);
+    const fridgeQH = fridgeQL + fridgeWork;
+
+    return {
+      hot,
+      cold,
+      qh,
+      etaCarnot,
+      etaActual,
+      workActual,
+      qlActual,
+      workCarnot,
+      qlCarnot,
+      nR,
+      gamma,
+      states: { A: stateA, B: stateB, C: stateC, D: stateD },
+      adiabaticBC,
+      adiabaticDA,
+      fridge: { ql: fridgeQL, work: fridgeWork, qh: fridgeQH, copIdeal: fridgeCopIdeal, copActual: fridgeCopActual },
+    };
+  }
+
+  function getCycleSnapshot(progress, metrics) {
+    const t = ((progress % 1) + 1) % 1;
+    const local = (t % 0.25) / 0.25;
+    const eased = easeInOut(local);
+    const { A, B, C, D } = metrics.states;
+    const gamma = metrics.gamma;
+    let stageIndex = 0;
+    let volume = A.volume;
+    let pressure = A.pressure;
+    let temp = A.temp;
+    if (t < 0.25) {
+      stageIndex = 0;
+      volume = lerp(A.volume, B.volume, eased);
+      temp = metrics.hot;
+      pressure = (metrics.nR * temp) / volume;
+    } else if (t < 0.5) {
+      stageIndex = 1;
+      volume = lerp(B.volume, C.volume, eased);
+      pressure = metrics.adiabaticBC / Math.pow(volume, gamma);
+      temp = metrics.hot * Math.pow(B.volume / volume, gamma - 1);
+    } else if (t < 0.75) {
+      stageIndex = 2;
+      volume = lerp(C.volume, D.volume, eased);
+      temp = metrics.cold;
+      pressure = (metrics.nR * temp) / volume;
+    } else {
+      stageIndex = 3;
+      volume = lerp(D.volume, A.volume, eased);
+      pressure = metrics.adiabaticDA / Math.pow(volume, gamma);
+      temp = metrics.cold * Math.pow(D.volume / volume, gamma - 1);
+    }
+    return { stageIndex, stage: STAGES[stageIndex], volume, pressure, temp };
+  }
+
+  function buildEngineMode(metrics) {
+    const root = new THREE.Group();
+    const hotBox = createReservoir(3, 1, 1, 0xff5b57);
+    hotBox.position.set(-2.2, 2.55, 0);
+    root.add(hotBox);
+
+    const engineShell = new THREE.Mesh(
+      new THREE.BoxGeometry(3, 2, 1.5),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x8891a0,
+        roughness: 0.38,
+        metalness: 0.2,
+        clearcoat: 0.18,
+        transparent: true,
+        opacity: 0.96,
+        emissive: new THREE.Color(0x5d6675).multiplyScalar(0.16),
+      })
+    );
+    engineShell.position.set(-2.2, 0, 0);
+    engineShell.castShadow = true;
+    engineShell.receiveShadow = true;
+    root.add(engineShell);
+
+    const shellEdge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(3, 2, 1.5)),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 })
+    );
+    engineShell.add(shellEdge);
+
+    const pistonGroup = new THREE.Group();
+    pistonGroup.position.set(-2.75, 0, 0.6);
+    const pistonRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 1.2, 18),
+      new THREE.MeshStandardMaterial({ color: 0xdbe4f0, roughness: 0.22, metalness: 0.46 })
+    );
+    pistonRod.rotation.z = Math.PI / 2;
+    pistonGroup.add(pistonRod);
+
+    const pistonHead = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.48, 0.46),
+      new THREE.MeshStandardMaterial({ color: 0xf4f6fb, roughness: 0.18, metalness: 0.42 })
+    );
+    pistonHead.position.set(0.45, 0, 0);
+    pistonHead.castShadow = true;
+    pistonGroup.add(pistonHead);
+    root.add(pistonGroup);
+
+    const gearA = createWheel(0xbfd2e8, 0.42, 0.12);
+    gearA.position.set(-1.6, -0.2, 0.85);
+    const gearB = createWheel(0xe4edf9, 0.28, 0.1);
+    gearB.position.set(-2.45, 0.46, 0.86);
+    root.add(gearA, gearB);
+
+    const coldBox = createReservoir(3, 1, 1, 0x4f8cff);
+    coldBox.position.set(-2.2, -2.7, 0);
+    root.add(coldBox);
+
+    const outputWheel = createWheel(0x45d38d, 0.72, 0.18);
+    outputWheel.position.set(0.72, 0, 0.2);
+    root.add(outputWheel);
+
+    const qhRadius = 0.14 + (metrics.qh / 1000) * 0.14;
+    const workRadius = 0.12 + (metrics.workActual / Math.max(metrics.qh, 1)) * 0.15;
+    const qlRadius = 0.12 + (metrics.qlActual / Math.max(metrics.qh, 1)) * 0.15;
+
+    const qhStart = new THREE.Vector3(-2.2, 2.0, 0);
+    const qhEnd = new THREE.Vector3(-2.2, 1.02, 0);
+    const workStart = new THREE.Vector3(-0.72, 0, 0.16);
+    const workEnd = new THREE.Vector3(0.05, 0, 0.16);
+    const qlStart = new THREE.Vector3(-2.2, -1.0, 0);
+    const qlEnd = new THREE.Vector3(-2.2, -2.1, 0);
+
+    const qhArrow = createArrow(qhStart, qhEnd, 0xff6f61, qhRadius);
+    const workArrow = createArrow(workStart, workEnd, 0x45d38d, workRadius);
+    const qlArrow = createArrow(qlStart, qlEnd, 0x63a9ff, qlRadius);
+    root.add(qhArrow, workArrow, qlArrow);
+
+    const qhFlow = createParticleFlow(new THREE.CatmullRomCurve3([qhStart.clone(), qhEnd.clone()]), 0xff7a63, Math.round(10 + (metrics.qh / 1000) * 12), 0.16, 0.07);
+    const workFlow = createParticleFlow(new THREE.CatmullRomCurve3([workStart.clone(), workEnd.clone()]), 0x4ee39a, Math.round(7 + metrics.etaActual * 18), 0.18, 0.06);
+    const qlFlow = createParticleFlow(new THREE.CatmullRomCurve3([qlStart.clone(), qlEnd.clone()]), 0x7fb4ff, Math.round(8 + (metrics.qlActual / metrics.qh) * 12), 0.14, 0.06);
+    root.add(qhFlow.group, workFlow.group, qlFlow.group);
+
+    const labels = [
+      { sprite: createTextSprite(`T_H = ${Math.round(metrics.hot)}K`, { background: 'rgba(255,91,87,0.88)' }), position: new THREE.Vector3(-2.2, 3.35, 0) },
+      { sprite: createTextSprite('열기관', { background: 'rgba(86,97,117,0.92)' }), position: new THREE.Vector3(-2.2, 1.48, 0) },
+      { sprite: createTextSprite(`T_L = ${Math.round(metrics.cold)}K`, { background: 'rgba(79,140,255,0.88)' }), position: new THREE.Vector3(-2.2, -1.88, 0) },
+      { sprite: createTextSprite(`Q_H = ${formatNumber(metrics.qh, 0)}J`, { background: 'rgba(255,111,97,0.86)' }), position: new THREE.Vector3(-1.12, 1.55, 0) },
+      { sprite: createTextSprite(`W = ${formatNumber(metrics.workActual, 0)}J`, { background: 'rgba(69,211,141,0.86)' }), position: new THREE.Vector3(-0.28, 0.7, 0.16) },
+      { sprite: createTextSprite(`Q_L = ${formatNumber(metrics.qlActual, 0)}J`, { background: 'rgba(96,160,255,0.86)' }), position: new THREE.Vector3(-1.04, -1.66, 0) },
+    ];
+    labels.forEach((entry) => {
+      entry.sprite.position.copy(entry.position);
+      root.add(entry.sprite);
+    });
+
+    return { root, hotBox, coldBox, engineShell, pistonGroup, gearA, gearB, outputWheel, flows: [qhFlow, workFlow, qlFlow], arrows: [qhArrow, workArrow, qlArrow], labels: labels.map((entry) => entry.sprite) };
+  }
+
+  function buildFridgeMode(metrics) {
+    const root = new THREE.Group();
+    const hotBox = createReservoir(3, 1, 1, 0xff5b57);
+    hotBox.position.set(-2.2, 2.55, 0);
+    root.add(hotBox);
+
+    const fridgeBody = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 2.15, 1.55),
+      new THREE.MeshPhysicalMaterial({ color: 0xdfe9f6, roughness: 0.28, metalness: 0.16, clearcoat: 0.32 })
+    );
+    fridgeBody.position.set(-2.2, 0, 0);
+    fridgeBody.castShadow = true;
+    fridgeBody.receiveShadow = true;
+    root.add(fridgeBody);
+
+    const doorLine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 1.85, 1.58),
+      new THREE.MeshStandardMaterial({ color: 0xb9c9dc, roughness: 0.4, metalness: 0.14 })
+    );
+    doorLine.position.set(-1.35, 0, 0.01);
+    root.add(doorLine);
+
+    const fan = createWheel(0x7ea7c6, 0.36, 0.1);
+    fan.position.set(-2.2, 0.15, 0.9);
+    root.add(fan);
+
+    const coldBox = createReservoir(3, 1, 1, 0x4f8cff);
+    coldBox.position.set(-2.2, -2.7, 0);
+    root.add(coldBox);
+
+    const compressorWheel = createWheel(0x45d38d, 0.55, 0.14);
+    compressorWheel.position.set(0.28, 0, 0.25);
+    root.add(compressorWheel);
+
+    const qlRadius = 0.14 + (metrics.fridge.ql / 1000) * 0.14;
+    const workRadius = 0.12 + clamp(metrics.fridge.work / 400, 0.08, 0.18);
+    const qhRadius = 0.14 + clamp(metrics.fridge.qh / 1200, 0.08, 0.18);
+
+    const qlStart = new THREE.Vector3(-2.2, -2.02, 0);
+    const qlEnd = new THREE.Vector3(-2.2, -1.0, 0);
+    const workStart = new THREE.Vector3(0.62, 0, 0.15);
+    const workEnd = new THREE.Vector3(-0.4, 0, 0.15);
+    const qhStart = new THREE.Vector3(-2.2, 1.0, 0);
+    const qhEnd = new THREE.Vector3(-2.2, 2.05, 0);
+
+    const qlArrow = createArrow(qlStart, qlEnd, 0x63a9ff, qlRadius);
+    const workArrow = createArrow(workStart, workEnd, 0x45d38d, workRadius);
+    const qhArrow = createArrow(qhStart, qhEnd, 0xff6f61, qhRadius);
+    root.add(qlArrow, workArrow, qhArrow);
+
+    const qlFlow = createParticleFlow(new THREE.CatmullRomCurve3([qlStart.clone(), qlEnd.clone()]), 0x7fb4ff, Math.round(10 + (metrics.fridge.ql / 1000) * 10), 0.15, 0.06);
+    const workFlow = createParticleFlow(new THREE.CatmullRomCurve3([workStart.clone(), workEnd.clone()]), 0x4ee39a, Math.round(6 + clamp(metrics.fridge.work / 250, 0, 12)), 0.16, 0.06);
+    const qhFlow = createParticleFlow(new THREE.CatmullRomCurve3([qhStart.clone(), qhEnd.clone()]), 0xff7a63, Math.round(10 + clamp(metrics.fridge.qh / 1100, 0, 12)), 0.17, 0.06);
+    root.add(qlFlow.group, workFlow.group, qhFlow.group);
+
+    const labels = [
+      { sprite: createTextSprite(`T_H = ${Math.round(metrics.hot)}K`, { background: 'rgba(255,91,87,0.88)' }), position: new THREE.Vector3(-2.2, 3.35, 0) },
+      { sprite: createTextSprite('냉장고 / 역카르노', { background: 'rgba(203,219,235,0.92)', color: '#0b1425' }), position: new THREE.Vector3(-2.2, 1.7, 0) },
+      { sprite: createTextSprite(`T_L = ${Math.round(metrics.cold)}K`, { background: 'rgba(79,140,255,0.88)' }), position: new THREE.Vector3(-2.2, -1.88, 0) },
+      { sprite: createTextSprite(`Q_L = ${formatNumber(metrics.fridge.ql, 0)}J`, { background: 'rgba(96,160,255,0.86)' }), position: new THREE.Vector3(-1.08, -1.66, 0) },
+      { sprite: createTextSprite(`W = ${formatNumber(metrics.fridge.work, 0)}J`, { background: 'rgba(69,211,141,0.86)' }), position: new THREE.Vector3(-0.3, 0.7, 0.16) },
+      { sprite: createTextSprite(`Q_H = ${formatNumber(metrics.fridge.qh, 0)}J`, { background: 'rgba(255,111,97,0.86)' }), position: new THREE.Vector3(-1.08, 1.62, 0) },
+    ];
+    labels.forEach((entry) => {
+      entry.sprite.position.copy(entry.position);
+      root.add(entry.sprite);
+    });
+
+    return { root, hotBox, coldBox, fridgeBody, fan, compressorWheel, flows: [qlFlow, workFlow, qhFlow], arrows: [qlArrow, workArrow, qhArrow], labels: labels.map((entry) => entry.sprite) };
+  }
+
+  function rebuildMode() {
+    const metrics = computeMetrics();
+    state.currentMetrics = metrics;
+    if (state.modeRoot) {
+      scene.remove(state.modeRoot);
+      disposeObject(state.modeRoot);
+      state.modeRoot = null;
+    }
+    const refs = params.view === '냉장고(역카르노)' ? buildFridgeMode(metrics) : buildEngineMode(metrics);
+    state.viewRefs = refs;
+    state.modeRoot = refs.root;
+    scene.add(refs.root);
+    updateFlowVisibility();
+    updatePanels();
+    state.needsRebuild = false;
+  }
+
+  function updateFlowVisibility() {
+    if (!state.viewRefs) return;
+    const visible = params.showEnergyFlow;
+    state.viewRefs.flows.forEach((flow) => { flow.group.visible = visible; });
+    state.viewRefs.arrows.forEach((arrow) => { arrow.visible = visible; });
+  }
+
+  function updateStageCards(stageIndex) {
+    stageStripEl.querySelectorAll('.stage-card').forEach((card, index) => {
+      card.classList.toggle('active', index === stageIndex);
+    });
+  }
+
+  function updateGauge(value, label, note, max = 1, asPercent = true) {
+    const radius = 42;
+    const circumference = 2 * Math.PI * radius;
+    const normalized = max <= 0 ? 0 : clamp(value / max, 0, 1);
+    gaugeRing.style.strokeDasharray = `${circumference}`;
+    gaugeRing.style.strokeDashoffset = `${circumference * (1 - normalized)}`;
+    gaugeLabelEl.textContent = label;
+    gaugeValueEl.textContent = asPercent ? formatPercent(value, 1) : formatNumber(value, 2);
+    gaugeNoteEl.textContent = note;
+  }
+
+  function updatePanels() {
+    const metrics = state.currentMetrics ?? computeMetrics();
+    const snapshot = getCycleSnapshot(state.cycleProgress, metrics);
+    state.currentStage = snapshot.stageIndex;
+    const isFridge = params.view === '냉장고(역카르노)';
+    const isPV = params.view === '카르노 사이클 P-V';
+
+    if (isFridge) {
+      metricQHLabelEl.textContent = 'Q_H';
+      metricWorkLabelEl.textContent = 'W';
+      metricQLLabelEl.textContent = 'Q_L';
+      metricCarnotLabelEl.textContent = 'COP_C';
+      metricQHSubEl.textContent = '실외로 방출한 총열';
+      metricWorkSubEl.textContent = '압축기에 공급한 일';
+      metricQLSubEl.textContent = '냉장실에서 가져온 열';
+      metricCarnotSubEl.textContent = '이상 역카르노 성능 계수';
+      metricQHEl.textContent = formatEnergy(metrics.fridge.qh, 0);
+      metricWorkEl.textContent = formatEnergy(metrics.fridge.work, 0);
+      metricQLEl.textContent = formatEnergy(metrics.fridge.ql, 0);
+      metricCarnotEl.textContent = formatNumber(metrics.fridge.copIdeal, 2);
+      diagramTitleEl.textContent = '냉장고(역카르노) 에너지 흐름';
+      diagramDescriptionEl.textContent = '외부에서 일을 공급하면 열이 저온부에서 고온부로 이동합니다. 냉장고와 에어컨은 열기관의 역과정으로 이해할 수 있습니다.';
+      pvWrap.classList.add('hidden');
+      stageStripEl.classList.add('hidden');
+      pvCaptionEl.classList.add('hidden');
+      fridgePanel.classList.add('open');
+      fridgeQLEl.textContent = formatEnergy(metrics.fridge.ql, 0);
+      fridgeWorkEl.textContent = formatEnergy(metrics.fridge.work, 0);
+      fridgeQHEl.textContent = formatEnergy(metrics.fridge.qh, 0);
+      fridgeDescriptionEl.textContent = `이상 COP = Q_L / W = ${formatNumber(metrics.fridge.copIdeal, 2)} 이고, 실제 장치는 손실 때문에 항상 더 작습니다.`;
+      compareCard.classList.add('hidden');
+      updateGauge(metrics.fridge.copActual, 'Performance Coefficient', `이상 COP ${formatNumber(metrics.fridge.copIdeal, 2)}보다 작습니다.`, 10, false);
+    } else {
+      metricQHLabelEl.textContent = 'Q_H';
+      metricWorkLabelEl.textContent = 'W';
+      metricQLLabelEl.textContent = 'Q_L';
+      metricCarnotLabelEl.textContent = 'η_C';
+      metricQHSubEl.textContent = '고온 열원에서 흡수한 열';
+      metricWorkSubEl.textContent = '실제 열기관이 만든 일';
+      metricQLSubEl.textContent = '저온 열원으로 방출한 폐열';
+      metricCarnotSubEl.textContent = '같은 온도에서 가능한 최대 효율';
+      metricQHEl.textContent = formatEnergy(metrics.qh, 0);
+      metricWorkEl.textContent = formatEnergy(metrics.workActual, 0);
+      metricQLEl.textContent = formatEnergy(metrics.qlActual, 0);
+      metricCarnotEl.textContent = formatPercent(metrics.etaCarnot, 1);
+      diagramTitleEl.textContent = isPV ? '카르노 사이클 P-V 다이어그램' : '열기관 에너지 흐름과 카르노 한계';
+      diagramDescriptionEl.textContent = isPV
+        ? '현재 마커가 A→B→C→D 순환을 따라 이동하며 이상적인 카르노 순환의 압력-부피 변화를 보여 줍니다.'
+        : '좌측의 실제 열기관 에너지 흐름과 우측의 이상적인 카르노 P-V 다이어그램을 함께 비교합니다.';
+      pvWrap.classList.remove('hidden');
+      stageStripEl.classList.remove('hidden');
+      pvCaptionEl.classList.remove('hidden');
+      fridgePanel.classList.remove('open');
+      compareCard.classList.toggle('hidden', !params.showComparison);
+      updateGauge(metrics.etaActual, 'Actual Efficiency', `η < η_C (${formatPercent(metrics.etaCarnot, 1)})`, 1, true);
+    }
+
+    updateStageCards(snapshot.stageIndex);
+    compareEmphasisEl.textContent = `현재 조건에서 실제 효율 ${formatPercent(metrics.etaActual, 1)} < 카르노 효율 ${formatPercent(metrics.etaCarnot, 1)} (항상)`;
+
+    if (isFridge) {
+      statusChip.innerHTML = `<strong>역카르노 모드</strong> 압축기에 ${formatEnergy(metrics.fridge.work, 0)}를 공급하면 저온부에서 ${formatEnergy(metrics.fridge.ql, 0)}를 빼앗아 고온부로 ${formatEnergy(metrics.fridge.qh, 0)}를 보냅니다. COP = ${formatNumber(metrics.fridge.copActual, 2)}.`;
+      formulaPanel.innerHTML = `
+        <h2>🧊 냉장고(역카르노)</h2>
+        <div class="formula-row"><span>T_H</span><span>${Math.round(metrics.hot)}K</span></div>
+        <div class="formula-row"><span>T_L</span><span>${Math.round(metrics.cold)}K</span></div>
+        <div class="formula-row"><span>Q_L</span><span>${formatEnergy(metrics.fridge.ql, 0)}</span></div>
+        <div class="divider"></div>
+        <div class="formula-row"><span>W</span><span>${formatEnergy(metrics.fridge.work, 0)}</span></div>
+        <div class="formula-row"><span>Q_H = Q_L + W</span><span>${formatEnergy(metrics.fridge.qh, 0)}</span></div>
+        <div class="formula-row"><span>COP = Q_L / W</span><span>${formatNumber(metrics.fridge.copActual, 2)}</span></div>
+        <div class="divider"></div>
+        <div class="formula-row"><span>이상 COP_C</span><span>${formatNumber(metrics.fridge.copIdeal, 2)}</span></div>
+        <div class="formula-note">외부 일이 없으면 열은 저온부에서 고온부로 스스로 이동하지 않습니다.</div>
+      `;
+    } else {
+      statusChip.innerHTML = `<strong>${snapshot.stage.title} ${snapshot.stage.name}</strong> 고온 열원 ${metrics.hot}K, 저온 열원 ${metrics.cold}K 조건에서 실제 열기관은 ${formatEnergy(metrics.qh, 0)}를 받아 ${formatEnergy(metrics.workActual, 0)}의 일을 만들고 ${formatEnergy(metrics.qlActual, 0)}의 폐열을 내보냅니다.`;
+      formulaPanel.innerHTML = `
+        <h2>🔧 열기관과 카르노 사이클</h2>
+        <div class="formula-row"><span>T_H</span><span>${Math.round(metrics.hot)}K</span></div>
+        <div class="formula-row"><span>T_L</span><span>${Math.round(metrics.cold)}K</span></div>
+        <div class="formula-row"><span>Q_H</span><span>${formatEnergy(metrics.qh, 0)}</span></div>
+        <div class="divider"></div>
+        <div class="formula-row"><span>W = Q_H - Q_L</span><span>${formatEnergy(metrics.workActual, 0)}</span></div>
+        <div class="formula-row"><span>Q_L</span><span>${formatEnergy(metrics.qlActual, 0)}</span></div>
+        <div class="formula-row"><span>η = W / Q_H</span><span>${formatPercent(metrics.etaActual, 1)}</span></div>
+        <div class="divider"></div>
+        <div class="formula-row"><span>η_C = 1 - T_L / T_H</span><span>${formatPercent(metrics.etaCarnot, 1)}</span></div>
+        <div class="formula-row"><span>카르노 순일</span><span>${formatEnergy(metrics.workCarnot, 0)}</span></div>
+        <div class="formula-row"><span class="formula-ok">η &lt; η_C</span><span class="formula-ok">${formatPercent(metrics.etaActual, 1)} &lt; ${formatPercent(metrics.etaCarnot, 1)}</span></div>
+        <div class="formula-note">카르노 사이클: 등온 팽창 → 단열 팽창 → 등온 압축 → 단열 압축<br>P-V 내부 면적 = 이상적 순 일</div>
+      `;
+    }
+  }
+
+  function drawPV() {
+    if (!pvCtx || params.view === '냉장고(역카르노)') return;
+    const metrics = state.currentMetrics ?? computeMetrics();
+    const snapshot = getCycleSnapshot(state.cycleProgress, metrics);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = pvWrap.getBoundingClientRect();
+    const width = Math.max(rect.width - 28, 220);
+    const height = Math.max(rect.height - 28, 220);
+    pvCanvas.width = Math.round(width * dpr);
+    pvCanvas.height = Math.round(height * dpr);
+    pvCanvas.style.width = `${width}px`;
+    pvCanvas.style.height = `${height}px`;
+    pvCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pvCtx.clearRect(0, 0, width, height);
+
+    const pad = { top: 22, right: 24, bottom: 42, left: 56 };
+    const plotWidth = width - pad.left - pad.right;
+    const plotHeight = height - pad.top - pad.bottom;
+    const Vmin = metrics.states.A.volume * 0.82;
+    const Vmax = metrics.states.C.volume * 1.08;
+    const Pmax = Math.max(metrics.states.A.pressure, metrics.states.B.pressure, metrics.states.C.pressure, metrics.states.D.pressure) * 1.12;
+
+    function toCanvasPoint(volume, pressure) {
+      const x = pad.left + ((volume - Vmin) / Math.max(Vmax - Vmin, 1e-6)) * plotWidth;
+      const y = pad.top + plotHeight - (pressure / Math.max(Pmax, 1e-6)) * plotHeight;
+      return { x, y };
+    }
+
+    pvCtx.fillStyle = 'rgba(255,255,255,0.02)';
+    pvCtx.fillRect(pad.left, pad.top, plotWidth, plotHeight);
+    pvCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+    pvCtx.lineWidth = 1;
+    for (let i = 0; i <= 5; i += 1) {
+      const y = pad.top + (plotHeight / 5) * i;
+      pvCtx.beginPath();
+      pvCtx.moveTo(pad.left, y);
+      pvCtx.lineTo(width - pad.right, y);
+      pvCtx.stroke();
+    }
+    for (let i = 0; i <= 6; i += 1) {
+      const x = pad.left + (plotWidth / 6) * i;
+      pvCtx.beginPath();
+      pvCtx.moveTo(x, pad.top);
+      pvCtx.lineTo(x, height - pad.bottom);
+      pvCtx.stroke();
+    }
+
+    pvCtx.strokeStyle = 'rgba(255,255,255,0.28)';
+    pvCtx.lineWidth = 1.4;
+    pvCtx.beginPath();
+    pvCtx.moveTo(pad.left, pad.top);
+    pvCtx.lineTo(pad.left, height - pad.bottom);
+    pvCtx.lineTo(width - pad.right, height - pad.bottom);
+    pvCtx.stroke();
+
+    pvCtx.fillStyle = 'rgba(255,255,255,0.78)';
+    pvCtx.font = '12px Pretendard';
+    pvCtx.fillText('P', pad.left - 20, pad.top + 2);
+    pvCtx.fillText('V', width - pad.right + 8, height - pad.bottom + 18);
+
+    function sampleCurve(startVolume, endVolume, segment) {
+      const points = [];
+      for (let i = 0; i <= 44; i += 1) {
+        const t = i / 44;
+        const volume = lerp(startVolume, endVolume, t);
+        let pressure = 0;
+        if (segment === 'hot') pressure = (metrics.nR * metrics.hot) / volume;
+        else if (segment === 'cold') pressure = (metrics.nR * metrics.cold) / volume;
+        else if (segment === 'bc') pressure = metrics.adiabaticBC / Math.pow(volume, metrics.gamma);
+        else pressure = metrics.adiabaticDA / Math.pow(volume, metrics.gamma);
+        points.push({ volume, pressure });
+      }
+      return points;
+    }
+
+    const AB = sampleCurve(metrics.states.A.volume, metrics.states.B.volume, 'hot');
+    const BC = sampleCurve(metrics.states.B.volume, metrics.states.C.volume, 'bc');
+    const CD = sampleCurve(metrics.states.C.volume, metrics.states.D.volume, 'cold');
+    const DA = sampleCurve(metrics.states.D.volume, metrics.states.A.volume, 'da');
+    const fillPoints = [...AB, ...BC, ...CD, ...DA];
+
+    pvCtx.beginPath();
+    fillPoints.forEach((point, index) => {
+      const mapped = toCanvasPoint(point.volume, point.pressure);
+      if (index === 0) pvCtx.moveTo(mapped.x, mapped.y);
+      else pvCtx.lineTo(mapped.x, mapped.y);
+    });
+    pvCtx.closePath();
+    pvCtx.fillStyle = 'rgba(255, 220, 122, 0.24)';
+    pvCtx.fill();
+
+    function drawSegment(points, color) {
+      pvCtx.beginPath();
+      points.forEach((point, index) => {
+        const mapped = toCanvasPoint(point.volume, point.pressure);
+        if (index === 0) pvCtx.moveTo(mapped.x, mapped.y);
+        else pvCtx.lineTo(mapped.x, mapped.y);
+      });
+      pvCtx.strokeStyle = color;
+      pvCtx.lineWidth = 3;
+      pvCtx.stroke();
+    }
+
+    drawSegment(AB, '#ff5b57');
+    drawSegment(BC, '#3ad48d');
+    drawSegment(CD, '#4f8cff');
+    drawSegment(DA, '#b874ff');
+
+    [metrics.states.A, metrics.states.B, metrics.states.C, metrics.states.D].forEach((entry) => {
+      const point = toCanvasPoint(entry.volume, entry.pressure);
+      pvCtx.beginPath();
+      pvCtx.arc(point.x, point.y, 4.6, 0, Math.PI * 2);
+      pvCtx.fillStyle = '#ffffff';
+      pvCtx.fill();
+      pvCtx.strokeStyle = 'rgba(10,18,34,0.8)';
+      pvCtx.lineWidth = 2;
+      pvCtx.stroke();
+      pvCtx.fillStyle = 'rgba(255,255,255,0.92)';
+      pvCtx.font = '700 12px Pretendard';
+      pvCtx.fillText(entry.label, point.x + 9, point.y - 10);
+      pvCtx.font = '11px Pretendard';
+      pvCtx.fillStyle = 'rgba(255,255,255,0.68)';
+      pvCtx.fillText(`P=${formatNumber(entry.pressure, 1)}`, point.x + 9, point.y + 3);
+      pvCtx.fillText(`V=${formatNumber(entry.volume, 2)}  T=${Math.round(entry.temp)}K`, point.x + 9, point.y + 16);
+    });
+
+    const marker = toCanvasPoint(snapshot.volume, snapshot.pressure);
+    pvCtx.beginPath();
+    pvCtx.arc(marker.x, marker.y, 7, 0, Math.PI * 2);
+    pvCtx.fillStyle = '#ffdf77';
+    pvCtx.fill();
+    pvCtx.strokeStyle = '#ff5b57';
+    pvCtx.lineWidth = 3;
+    pvCtx.stroke();
+
+    pvCtx.fillStyle = 'rgba(255,255,255,0.7)';
+    pvCtx.font = '11px Pretendard';
+    pvCtx.fillText(`순 일(이상) = ${formatEnergy(metrics.workCarnot, 0)}`, pad.left + 8, pad.top + 16);
+    pvCtx.fillText(`η_C = ${formatPercent(metrics.etaCarnot, 1)}`, width - pad.right - 94, pad.top + 16);
+  }
+
+  function startCycle() {
+    if (params.view === '냉장고(역카르노)') {
+      params.view = '카르노 사이클 P-V';
+      viewController.updateDisplay();
+      state.needsRebuild = true;
+    }
+    state.cyclePlaying = true;
+    state.cycleDirection = 1;
+    if (state.cycleProgress >= 0.999 || state.cycleProgress <= 0.001) {
+      state.cycleProgress = 0;
+    }
+  }
+
+  function resetSimulation() {
+    params.view = '열기관 에너지 흐름';
+    params.hotTemp = 600;
+    params.coldTemp = 300;
+    params.inputHeat = 500;
+    params.showComparison = true;
+    params.showEnergyFlow = true;
+    state.cyclePlaying = false;
+    state.cycleProgress = 0;
+    state.idleTime = 0;
+    state.needsRebuild = true;
+    syncGui();
+    updatePanels();
+  }
+
+  function updateModeAnimation(delta) {
+    const metrics = state.currentMetrics;
+    const refs = state.viewRefs;
+    if (!metrics || !refs) return;
+
+    state.idleTime += delta;
+    if (state.cyclePlaying) {
+      state.cycleProgress += (delta / 10.5) * state.cycleDirection;
+      if (state.cycleDirection > 0 && state.cycleProgress >= 1) {
+        state.cycleProgress = 1;
+        state.cyclePlaying = false;
+      }
+      if (state.cycleDirection < 0 && state.cycleProgress <= 0) {
+        state.cycleProgress = 0;
+        state.cyclePlaying = false;
+      }
+    }
+
+    const snapshot = getCycleSnapshot(state.cycleProgress, metrics);
+    const volumeMin = metrics.states.A.volume;
+    const volumeMax = metrics.states.C.volume;
+    const volumeNorm = clamp((snapshot.volume - volumeMin) / Math.max(volumeMax - volumeMin, 1e-6), 0, 1);
+    const idleLift = 0.5 + Math.sin(state.idleTime * 2.2) * 0.18;
+    const currentLift = state.cyclePlaying || params.view === '카르노 사이클 P-V' ? volumeNorm : idleLift;
+
+    if (refs.pistonGroup) refs.pistonGroup.position.y = lerp(-0.38, 0.52, currentLift);
+    if (refs.gearA) refs.gearA.rotation.z += delta * (1.6 + metrics.etaActual * 4.2);
+    if (refs.gearB) refs.gearB.rotation.z -= delta * (2.0 + metrics.etaActual * 5.1);
+    if (refs.outputWheel) refs.outputWheel.rotation.z += delta * (1.1 + metrics.etaActual * 4.6);
+    if (refs.fan) refs.fan.rotation.z += delta * 2.2;
+    if (refs.compressorWheel) refs.compressorWheel.rotation.z -= delta * (1.4 + metrics.fridge.copActual * 0.16);
+
+    refs.flows.forEach((flow) => {
+      flow.particles.forEach((particle) => {
+        const offset = (particle.userData.offset + state.idleTime * flow.speed) % 1;
+        particle.position.copy(flow.curve.getPointAt(offset));
+      });
+    });
+
+    const hotEmissive = snapshot.stageIndex === 0 ? 0.42 : params.view === '냉장고(역카르노)' ? 0.2 : 0.14;
+    const coldEmissive = snapshot.stageIndex === 2 ? 0.32 : params.view === '냉장고(역카르노)' ? 0.24 : 0.12;
+    if (refs.hotBox) refs.hotBox.material.emissive = new THREE.Color(0xff5b57).multiplyScalar(hotEmissive);
+    if (refs.coldBox) refs.coldBox.material.emissive = new THREE.Color(0x4f8cff).multiplyScalar(coldEmissive);
+    if (refs.engineShell) refs.engineShell.material.emissive = new THREE.Color([0xff9b66, 0x53df98, 0x7ea7ff, 0xcf8fff][snapshot.stageIndex]).multiplyScalar(0.08);
+    if (refs.fridgeBody) refs.fridgeBody.material.emissive = new THREE.Color(0x87b5d8).multiplyScalar(0.08 + metrics.fridge.copActual * 0.01);
+
+    updatePanels();
+  }
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  window.addEventListener('resize', onResize);
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (state.needsRebuild) rebuildMode();
+    const delta = Math.min(clock.getDelta(), 0.05);
+    updateModeAnimation(delta);
+    drawPV();
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  enforceTemperatureOrder('hot');
+  state.currentMetrics = computeMetrics();
+  updatePanels();
+  animate();
+</script>
+</body>
+</html>

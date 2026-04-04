@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>중화 반응과 온도 변화 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base: #f0f0f5;
+    --panel-bg: rgba(255, 255, 255, 0.82);
+    --panel-strong: rgba(247, 249, 255, 0.93);
+    --panel-border: rgba(96, 119, 156, 0.16);
+    --panel-shadow: 0 18px 40px rgba(90, 104, 136, 0.18);
+    --text-main: #1e2b3c;
+    --text-sub: #68788e;
+    --accent-blue: #4b8fff;
+    --accent-green: #46b481;
+    --accent-yellow: #f2c44c;
+    --accent-red: #ff6e6e;
+    --particle-bg-top: #0f1c30;
+    --particle-bg-bottom: #08111d;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 14% 14%, rgba(255,255,255,0.94), transparent 24%),
+      linear-gradient(180deg, #f5f6fb 0%, var(--bg-base) 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, input, select {
+    font: inherit;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #app-shell {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-rows: 58vh 42vh;
+  }
+
+  #scene-panel,
+  #graph-panel,
+  #particle-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 16% 14%, rgba(255,255,255,0.96), transparent 18%),
+      linear-gradient(180deg, rgba(246,248,252,0.96), rgba(239,240,245,0.98));
+    border-bottom: 1px solid rgba(96, 119, 156, 0.1);
+  }
+
+  #bottom-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 15% 10%, rgba(97, 185, 255, 0.12), transparent 24%),
+      linear-gradient(180deg, #ffffff, #eef2fb);
+    border-right: 1px solid rgba(96, 119, 156, 0.1);
+  }
+
+  #particle-panel {
+    background:
+      radial-gradient(circle at 18% 12%, rgba(125, 204, 255, 0.12), transparent 24%),
+      linear-gradient(180deg, var(--particle-bg-top), var(--particle-bg-bottom));
+    color: #f4fbff;
+  }
+
+  #scene-canvas,
+  #graph-canvas,
+  #particle-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(760px, calc(100vw - 32px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(246,249,255,0.84));
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(16px);
+    text-align: center;
+  }
+
+  .hero-card h1 {
+    font-size: 23px;
+    letter-spacing: -0.04em;
+  }
+
+  .hero-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-sub);
+  }
+
+  #scene-caption,
+  #scene-status {
+    position: absolute;
+    z-index: 18;
+    padding: 13px 15px;
+    border-radius: 18px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  #scene-caption {
+    top: 16px;
+    left: 16px;
+    max-width: 280px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-sub);
+  }
+
+  #scene-caption strong {
+    color: var(--text-main);
+  }
+
+  #scene-status {
+    right: 16px;
+    bottom: 16px;
+    min-width: 260px;
+    text-align: right;
+  }
+
+  #scene-status .eyebrow,
+  .panel-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(103, 121, 145, 0.76);
+    font-weight: 800;
+  }
+
+  #scene-status .title {
+    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #314864;
+  }
+
+  #scene-status .sub {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-sub);
+  }
+
+  .panel-head {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    right: 20px;
+    z-index: 8;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    pointer-events: none;
+  }
+
+  .panel-head .copy h2 {
+    margin-top: 6px;
+    font-size: 21px;
+    letter-spacing: -0.03em;
+  }
+
+  .panel-head .copy p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  #graph-panel .panel-head .copy p {
+    color: var(--text-sub);
+  }
+
+  #particle-panel .panel-head .copy p {
+    color: rgba(244, 251, 255, 0.7);
+  }
+
+  #graph-callout,
+  #particle-equation {
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.4;
+    backdrop-filter: blur(10px);
+  }
+
+  #graph-callout {
+    color: #355784;
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(96, 119, 156, 0.14);
+  }
+
+  #particle-equation {
+    color: #d8f7ff;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    align-self: flex-start;
+  }
+
+  #graph-caption,
+  #particle-stats,
+  #particle-legend,
+  #particle-empty {
+    position: absolute;
+    z-index: 8;
+    border-radius: 18px;
+    backdrop-filter: blur(12px);
+  }
+
+  #graph-caption {
+    left: 18px;
+    right: 18px;
+    bottom: 14px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(96, 119, 156, 0.14);
+    box-shadow: 0 12px 28px rgba(119, 132, 162, 0.12);
+    font-size: 12px;
+    line-height: 1.72;
+    color: #5a6981;
+  }
+
+  #graph-caption strong {
+    color: #355784;
+  }
+
+  #particle-stats {
+    top: 106px;
+    right: 18px;
+    width: min(250px, calc(100% - 36px));
+    padding: 14px 15px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.18);
+    color: #edf8ff;
+  }
+
+  #particle-stats h3 {
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: #9fe4ff;
+  }
+
+  .particle-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .particle-row span {
+    color: rgba(237, 248, 255, 0.72);
+  }
+
+  #particle-legend {
+    left: 18px;
+    right: 18px;
+    bottom: 14px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.16);
+  }
+
+  #particle-legend .legend-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 11px;
+    color: rgba(244, 251, 255, 0.9);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #particle-legend p {
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(244, 251, 255, 0.72);
+  }
+
+  #particle-empty {
+    inset: 106px 18px 14px 18px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px dashed rgba(255,255,255,0.18);
+    color: rgba(244, 251, 255, 0.76);
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  #particle-panel.model-hidden #particle-empty {
+    display: flex;
+  }
+
+  #particle-panel.model-hidden #particle-canvas,
+  #particle-panel.model-hidden #particle-stats,
+  #particle-panel.model-hidden #particle-legend {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #formula-panel,
+  #guide-panel,
+  #life-panel,
+  #hint-chip {
+    position: fixed;
+    z-index: 28;
+    border-radius: 20px;
+    background: var(--panel-strong);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(16px);
+  }
+
+  #formula-panel {
+    left: 18px;
+    bottom: 18px;
+    width: min(360px, calc(100vw - 36px));
+    padding: 17px 18px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #345684;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .formula-label {
+    width: 88px;
+    flex-shrink: 0;
+    color: var(--text-sub);
+    font-size: 11px;
+  }
+
+  .formula-value {
+    flex: 1;
+    color: var(--text-main);
+  }
+
+  .formula-box {
+    margin-top: 11px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(75, 143, 255, 0.06);
+    border: 1px solid rgba(75, 143, 255, 0.08);
+  }
+
+  .formula-box strong {
+    color: #355784;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 132px;
+    left: 20px;
+    z-index: 30;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 119, 156, 0.16);
+    background: rgba(255,255,255,0.88);
+    color: #28405f;
+    box-shadow: var(--panel-shadow);
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    top: 60px;
+    left: 18px;
+    width: min(430px, calc(100vw - 36px));
+    max-height: min(70vh, 720px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    color: #355784;
+    margin-bottom: 6px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 11px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #8f5a28;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  #guide-panel .guide-note {
+    margin-top: 12px;
+    padding: 10px 11px;
+    border-radius: 12px;
+    background: rgba(75, 143, 255, 0.06);
+    color: var(--text-sub);
+    font-size: 11px;
+  }
+
+  #life-panel {
+    right: 18px;
+    bottom: 18px;
+    width: min(320px, calc(100vw - 36px));
+    padding: 16px;
+    display: none;
+    color: var(--text-main);
+  }
+
+  #life-panel h3 {
+    font-size: 15px;
+    color: #355784;
+    margin-bottom: 10px;
+  }
+
+  .example-card {
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: rgba(75, 143, 255, 0.05);
+    border: 1px solid rgba(75, 143, 255, 0.07);
+    margin-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .example-card strong {
+    color: #23466d;
+  }
+
+  #hint-chip {
+    right: 18px;
+    bottom: 18px;
+    max-width: min(480px, calc(100vw - 36px));
+    padding: 10px 14px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-sub);
+  }
+
+  .lil-gui.root {
+    z-index: 29 !important;
+    top: 20px !important;
+    right: 18px !important;
+    border-radius: 18px !important;
+    overflow: hidden;
+    box-shadow: var(--panel-shadow);
+    --background-color: rgba(255,255,255,0.9);
+    --title-background-color: rgba(75, 143, 255, 0.14);
+    --widget-color: rgba(75, 143, 255, 0.14);
+    --hover-color: rgba(75, 143, 255, 0.22);
+    --text-color: #22334a;
+  }
+
+  @media (max-width: 1180px) {
+    .hero-card {
+      width: min(640px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 980px) {
+    #app-shell {
+      grid-template-rows: 54vh 46vh;
+    }
+
+    #bottom-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+
+    #graph-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(96, 119, 156, 0.1);
+    }
+
+    #particle-stats {
+      width: min(230px, calc(100% - 36px));
+    }
+
+    #hint-chip {
+      bottom: 182px;
+    }
+
+    #life-panel {
+      bottom: 182px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .hero-card {
+      padding: 12px 14px;
+    }
+
+    .hero-card h1 {
+      font-size: 19px;
+    }
+
+    .hero-card p,
+    #scene-caption,
+    #scene-status .sub,
+    .panel-head .copy p {
+      font-size: 11px;
+    }
+
+    #scene-caption {
+      top: 76px;
+      max-width: 220px;
+    }
+
+    #scene-status {
+      min-width: 0;
+      max-width: 220px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      bottom: 12px;
+      padding: 14px 15px;
+    }
+
+    #guide-toggle {
+      top: 132px;
+      bottom: auto;
+      left: 12px;
+    }
+
+    #guide-panel {
+      left: 12px;
+      top: auto;
+      bottom: 56px;
+      width: calc(100vw - 24px);
+      max-height: 54vh;
+    }
+
+    #life-panel {
+      width: calc(100vw - 24px);
+      right: 12px;
+      bottom: 156px;
+    }
+
+    #hint-chip {
+      left: 12px;
+      right: 12px;
+      bottom: 156px;
+      max-width: none;
+    }
+
+    .lil-gui.root {
+      right: 12px !important;
+      top: 12px !important;
+      max-width: min(280px, calc(100vw - 24px));
+    }
+
+    .panel-head {
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      flex-direction: column;
+    }
+
+    .panel-head .copy h2 {
+      font-size: 17px;
+    }
+
+    #particle-stats {
+      top: 118px;
+      left: 14px;
+      right: 14px;
+      width: auto;
+    }
+
+    #graph-caption,
+    #particle-legend {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app-shell">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div class="hero-card">
+      <h1>🧪 중화 반응과 온도 변화</h1>
+      <p>농도와 온도가 같은 염산과 수산화 나트륨 수용액을 서로 다른 부피비로 혼합하고, BTB 지시약 색 변화와 최고 온도 변화를 함께 관찰해 보세요.</p>
+    </div>
+    <div id="scene-caption">
+      <strong>탐구 장면</strong><br>
+      왼쪽에서 HCl, 오른쪽에서 NaOH가 비커로 주입된 뒤 BTB 지시약이 떨어집니다.<br>
+      같은 부피인 <strong>다(6 mL / 6 mL)</strong>에서 중화열이 가장 크게 나타납니다.
+    </div>
+    <div id="scene-status">
+      <div class="eyebrow">Selected Beaker</div>
+      <div class="title" id="status-title">다 비커</div>
+      <div class="sub" id="status-sub">HCl 6 mL + NaOH 6 mL · 중성 · 최고 28.8°C</div>
+    </div>
+  </section>
+
+  <div id="bottom-grid">
+    <section id="graph-panel">
+      <div class="panel-head">
+        <div class="copy">
+          <div class="eyebrow">Textbook Graph I-27</div>
+          <h2>혼합 용액의 최고 온도 그래프</h2>
+          <p>같은 농도의 산과 염기가 같은 부피로 반응할 때 중화되는 H⁺와 OH⁻ 수가 가장 많아져 최고 온도가 가장 높아집니다.</p>
+        </div>
+        <div id="graph-callout">Y축 20~30°C · X축 HCl/NaOH(mL)</div>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-caption"><strong>다 비커</strong>는 H⁺와 OH⁻이 1:1로 가장 많이 중화되어 생성되는 물의 양과 중화열이 최대입니다.</div>
+    </section>
+
+    <section id="particle-panel">
+      <div class="panel-head">
+        <div class="copy">
+          <div class="eyebrow">Particle Model I-26</div>
+          <h2>H⁺ + OH⁻ → H₂O 입자 모형</h2>
+          <p>H⁺와 OH⁻는 서로 반응해 물이 되고, Na⁺와 Cl⁻는 구경꾼 이온으로 남아 용액의 산성·중성·염기성을 결정합니다.</p>
+        </div>
+        <div id="particle-equation">H⁺ + OH⁻ → H₂O</div>
+      </div>
+      <canvas id="particle-canvas"></canvas>
+      <div id="particle-stats">
+        <h3>현재 입자 요약</h3>
+        <div class="particle-row"><span>생성된 H₂O</span><strong id="particle-water">6개</strong></div>
+        <div class="particle-row"><span>남은 H⁺</span><strong id="particle-hplus">0개</strong></div>
+        <div class="particle-row"><span>남은 OH⁻</span><strong id="particle-ohminus">0개</strong></div>
+        <div class="particle-row"><span>구경꾼 Na⁺</span><strong id="particle-na">6개</strong></div>
+        <div class="particle-row"><span>구경꾼 Cl⁻</span><strong id="particle-cl">6개</strong></div>
+        <div class="particle-row"><span>액성 해석</span><strong id="particle-solution">중성 용액</strong></div>
+      </div>
+      <div id="particle-legend">
+        <div class="legend-wrap">
+          <span class="legend-chip"><span class="legend-dot" style="background:#ff6e6e;"></span>H⁺</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#4b8fff;"></span>OH⁻</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#ffb45b;"></span>Na⁺</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#67d883;"></span>Cl⁻</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#c9f3ff;"></span>H₂O</span>
+        </div>
+        <p id="particle-caption">다 비커에서는 H⁺와 OH⁻이 완전히 반응하여 물이 가장 많이 생성되고, 남는 H⁺나 OH⁻이 없어 중성이 됩니다.</p>
+      </div>
+      <div id="particle-empty">입자 모형이 꺼져 있습니다.<br>GUI에서 <strong>입자 모형</strong>을 다시 켜면 H⁺, OH⁻, H₂O 변화를 확인할 수 있습니다.</div>
+    </section>
+  </div>
+</div>
+
+<div id="formula-panel">
+  <h3>🧪 중화 반응과 온도 변화</h3>
+  <div class="formula-row"><span class="formula-label">현재 비커:</span><span class="formula-value" id="formula-beaker">다</span></div>
+  <div class="formula-row"><span class="formula-label">HCl:</span><span class="formula-value" id="formula-hcl">6 mL</span></div>
+  <div class="formula-row"><span class="formula-label">NaOH:</span><span class="formula-value" id="formula-naoh">6 mL</span></div>
+  <div class="formula-row"><span class="formula-label">BTB 색:</span><span class="formula-value" id="formula-btb">초록색</span></div>
+  <div class="formula-row"><span class="formula-label">최고 온도:</span><span class="formula-value" id="formula-peak">28.8°C</span></div>
+  <div class="formula-row"><span class="formula-label">액성:</span><span class="formula-value" id="formula-solution">중성</span></div>
+  <div class="formula-row"><span class="formula-label">현재 온도:</span><span class="formula-value" id="formula-current">22.0°C</span></div>
+
+  <div class="formula-box">
+    <strong>중화 반응: H⁺ + OH⁻ → H₂O</strong><br>
+    산의 H⁺와 염기의 OH⁻이 1:1로 반응하여 물을 생성합니다.<br>
+    중화되는 이온 수가 많을수록 생성되는 물의 양이 많아지고, 중화열도 커져 온도 상승이 크게 나타납니다.
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>산과 염기를 혼합하면 수소 이온(H⁺)과 수산화 이온(OH⁻)이 1:1의 개수비로 반응해 물(H₂O)을 생성합니다. 이를 중화 반응이라 하며, 중화열이 발생합니다. 같은 부피로 중화 반응하는 경우 최고 온도가 가장 높습니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>염산과 수산화 나트륨 수용액을 혼합할 때의 온도 변화를 설명해 보세요.</li>
+    <li>비커 "다"에서 최고 온도가 가장 높은 까닭은 무엇인가요?</li>
+    <li>일상생활에서 중화 반응을 이용하는 사례를 3가지 이상 찾아보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>제산제: 위산을 중화하여 속쓰림을 완화합니다.</li>
+    <li>치약: 산성 물질을 완화해 충치 발생을 줄입니다.</li>
+    <li>석회 살포: 산성 토양을 중화해 작물이 자라기 쉬운 환경을 만듭니다.</li>
+  </ul>
+
+  <div class="guide-note">미래엔 통합과학2 I편 p50~53 — 중화 반응, 온도 변화, 그림 I-26~28</div>
+</div>
+
+<div id="life-panel">
+  <h3>🌍 중화 반응의 이용</h3>
+  <div class="example-card"><strong>암모니아수</strong><br>벌레 물림의 산성 독을 염기성 암모니아수로 완화합니다.</div>
+  <div class="example-card"><strong>제산제</strong><br>염기성 제산제가 위산 과다를 중화해 불편함을 줄입니다.</div>
+  <div class="example-card"><strong>치약</strong><br>염기성 치약이 입 안의 산성 물질을 완화해 충치를 예방합니다.</div>
+  <div class="example-card"><strong>식초와 레몬즙</strong><br>생선 비린내의 염기성 성분을 산성 용액으로 중화합니다.</div>
+</div>
+
+<div id="hint-chip">드래그로 상단 3D 장면을 회전하고, GUI에서 비커 선택과 혼합을 제어할 수 있습니다. 전체 혼합을 실행하면 가→마 순으로 자동 실험이 진행됩니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const INITIAL_TEMPERATURE = 22.0;
+const MIX_DURATION = 3000;
+const beakerConfigs = [
+  { key: '가', hcl: 2, naoh: 10, solution: '염기성', btb: '파란색', color: '#4b8fff', peak: 23.1 },
+  { key: '나', hcl: 4, naoh: 8, solution: '염기성', btb: '파란색', color: '#4b8fff', peak: 25.9 },
+  { key: '다', hcl: 6, naoh: 6, solution: '중성', btb: '초록색', color: '#46b481', peak: 28.8 },
+  { key: '라', hcl: 8, naoh: 4, solution: '산성', btb: '노란색', color: '#f2c44c', peak: 26.0 },
+  { key: '마', hcl: 10, naoh: 2, solution: '산성', btb: '노란색', color: '#f2c44c', peak: 23.2 },
+];
+
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOutCubic = (t) => 1 - Math.pow(1 - clamp(t), 3);
+const easeInOutCubic = (t) => {
+  const x = clamp(t);
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+};
+
+const scenePanel = document.getElementById('scene-panel');
+const graphPanel = document.getElementById('graph-panel');
+const particlePanel = document.getElementById('particle-panel');
+const sceneCanvas = document.getElementById('scene-canvas');
+const graphCanvas = document.getElementById('graph-canvas');
+const particleCanvas = document.getElementById('particle-canvas');
+const graphContext = graphCanvas.getContext('2d');
+
+const statusTitle = document.getElementById('status-title');
+const statusSub = document.getElementById('status-sub');
+const graphCaption = document.getElementById('graph-caption');
+const particleCaption = document.getElementById('particle-caption');
+const formulaBeaker = document.getElementById('formula-beaker');
+const formulaHcl = document.getElementById('formula-hcl');
+const formulaNaoh = document.getElementById('formula-naoh');
+const formulaBtb = document.getElementById('formula-btb');
+const formulaPeak = document.getElementById('formula-peak');
+const formulaSolution = document.getElementById('formula-solution');
+const formulaCurrent = document.getElementById('formula-current');
+const particleWater = document.getElementById('particle-water');
+const particleHplus = document.getElementById('particle-hplus');
+const particleOhminus = document.getElementById('particle-ohminus');
+const particleNa = document.getElementById('particle-na');
+const particleCl = document.getElementById('particle-cl');
+const particleSolution = document.getElementById('particle-solution');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const lifePanel = document.getElementById('life-panel');
+const hintChip = document.getElementById('hint-chip');
+
+const appState = {
+  selectedKey: '다',
+  showParticleModel: true,
+  showLifeExamples: false,
+  activeMix: null,
+  mixSequence: null,
+  guideOpen: false,
+  lastFrameTime: performance.now(),
+};
+
+const beakerState = new Map(
+  beakerConfigs.map((config) => [config.key, {
+    mixed: false,
+    currentTemp: INITIAL_TEMPERATURE,
+    fill: 0.02,
+    colorMix: 0,
+  }])
+);
+
+function getConfig(key) {
+  return beakerConfigs.find((config) => config.key === key);
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width * 0.5, height * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function createCanvasSprite(width, height, scaleX, scaleY) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scaleX, scaleY, 1);
+  return { canvas, ctx, texture, sprite };
+}
+
+function updateBadgeSprite(spriteInfo, lines, options = {}) {
+  const {
+    background = 'rgba(255,255,255,0.92)',
+    border = 'rgba(0,0,0,0.08)',
+    textColor = '#22334a',
+    accentColor = '#4b8fff',
+    fontSize = 44,
+    subFontSize = 28,
+    radius = 26,
+  } = options;
+  const ctx = spriteInfo.ctx;
+  const { width, height } = spriteInfo.canvas;
+  ctx.clearRect(0, 0, width, height);
+  drawRoundedRect(ctx, 8, 8, width - 16, height - 16, radius);
+  ctx.fillStyle = background;
+  ctx.fill();
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  const items = Array.isArray(lines) ? lines : [lines];
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  items.forEach((line, index) => {
+    ctx.font = `${index === 0 ? 700 : 500} ${index === 0 ? fontSize : subFontSize}px Pretendard, sans-serif`;
+    ctx.fillStyle = index === 0 ? textColor : accentColor;
+    const y = items.length === 1 ? height * 0.52 : (index === 0 ? height * 0.42 : height * 0.72);
+    ctx.fillText(line, width * 0.5, y);
+  });
+  spriteInfo.texture.needsUpdate = true;
+}
+
+function createGlowTexture(colorA = 'rgba(255,220,120,0.92)', colorB = 'rgba(255,220,120,0)') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(128, 128, 6, 128, 128, 120);
+  gradient.addColorStop(0, colorA);
+  gradient.addColorStop(0.4, 'rgba(255,208,99,0.42)');
+  gradient.addColorStop(1, colorB);
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(128, 128, 120, 0, Math.PI * 2);
+  ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const topScene = new THREE.Scene();
+topScene.background = new THREE.Color(0xf0f0f5);
+
+const topCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+topCamera.position.set(0, 5.2, 12.2);
+
+const topRenderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvas,
+  antialias: true,
+});
+topRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+topRenderer.shadowMap.enabled = true;
+topRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(topCamera, topRenderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 0.95, 0);
+controls.minDistance = 8;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.47;
+
+topScene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const topDirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+topDirLight.position.set(7, 10, 5);
+topDirLight.castShadow = true;
+topDirLight.shadow.mapSize.set(2048, 2048);
+topDirLight.shadow.camera.left = -10;
+topDirLight.shadow.camera.right = 10;
+topDirLight.shadow.camera.top = 10;
+topDirLight.shadow.camera.bottom = -4;
+topScene.add(topDirLight);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(24, 12),
+  new THREE.MeshStandardMaterial({ color: 0xe7e8ef, roughness: 0.95, metalness: 0.02 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.52;
+floor.receiveShadow = true;
+topScene.add(floor);
+
+const wall = new THREE.Mesh(
+  new THREE.PlaneGeometry(24, 10),
+  new THREE.MeshStandardMaterial({ color: 0xf7f8fb, roughness: 0.98 })
+);
+wall.position.set(0, 4.2, -2.8);
+wall.receiveShadow = true;
+topScene.add(wall);
+
+const tray = new THREE.Mesh(
+  new THREE.BoxGeometry(12.8, 0.24, 3.3),
+  new THREE.MeshStandardMaterial({ color: 0xdfe4ef, roughness: 0.4, metalness: 0.16 })
+);
+tray.position.set(0, -0.38, 0.1);
+tray.castShadow = true;
+tray.receiveShadow = true;
+topScene.add(tray);
+
+for (let i = 0; i < 5; i += 1) {
+  const well = new THREE.Mesh(
+    new THREE.TorusGeometry(0.58, 0.045, 12, 40),
+    new THREE.MeshStandardMaterial({ color: 0xc6cfdf, roughness: 0.5, metalness: 0.18 })
+  );
+  well.rotation.x = Math.PI / 2;
+  well.position.set(-4.8 + i * 2.4, -0.25, 0.1);
+  topScene.add(well);
+}
+
+const beakerGlassMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0.28,
+  roughness: 0.08,
+  transmission: 0.32,
+  metalness: 0.02,
+});
+
+const beakerVisuals = [];
+const tempObject = new THREE.Object3D();
+const glowTexture = createGlowTexture();
+
+function createBeakerVisual(config, x) {
+  const group = new THREE.Group();
+  group.position.set(x, 0.12, 0);
+  topScene.add(group);
+
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.5, 40),
+    new THREE.MeshBasicMaterial({ color: 0x9aa9c4, transparent: true, opacity: 0.12 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -0.47;
+  group.add(shadow);
+
+  const glass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.46, 0.84, 48, 1, true),
+    beakerGlassMaterial
+  );
+  glass.castShadow = true;
+  group.add(glass);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.43, 0.018, 10, 48),
+    new THREE.MeshStandardMaterial({ color: 0xd9e4f2, metalness: 0.18, roughness: 0.24 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.42;
+  group.add(rim);
+
+  const bottom = new THREE.Mesh(
+    new THREE.CircleGeometry(0.4, 40),
+    new THREE.MeshStandardMaterial({ color: 0xecf2fb, roughness: 0.35, metalness: 0.05 })
+  );
+  bottom.rotation.x = -Math.PI / 2;
+  bottom.position.y = -0.42;
+  group.add(bottom);
+
+  const liquidMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color('#ffffff'),
+    transparent: true,
+    opacity: 0.08,
+    roughness: 0.12,
+    metalness: 0.0,
+  });
+
+  const liquid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.36, 0.39, 0.62, 40),
+    liquidMaterial
+  );
+  liquid.position.y = -0.39;
+  liquid.scale.y = 0.02;
+  group.add(liquid);
+
+  const surface = new THREE.Mesh(
+    new THREE.CircleGeometry(0.365, 40),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color('#ffffff'), transparent: true, opacity: 0.12 })
+  );
+  surface.rotation.x = -Math.PI / 2;
+  surface.position.y = -0.39;
+  group.add(surface);
+
+  const selectionRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.54, 0.03, 12, 48),
+    new THREE.MeshBasicMaterial({ color: 0xf7ca52, transparent: true, opacity: 0.25 })
+  );
+  selectionRing.rotation.x = Math.PI / 2;
+  selectionRing.position.y = -0.455;
+  group.add(selectionRing);
+
+  const labelInfo = createCanvasSprite(320, 120, 0.85, 0.34);
+  updateBadgeSprite(labelInfo, [config.key, `${config.hcl}/${config.naoh} mL`], {
+    background: 'rgba(255,255,255,0.86)',
+    border: 'rgba(61,85,117,0.12)',
+    textColor: '#21344d',
+    accentColor: '#6a7c93',
+    fontSize: 54,
+    subFontSize: 28,
+  });
+  labelInfo.sprite.position.set(0, -0.92, 0.18);
+  group.add(labelInfo.sprite);
+
+  const thermometerGroup = new THREE.Group();
+  thermometerGroup.position.set(0, 0.95, 0.12);
+  group.add(thermometerGroup);
+
+  const thermometerBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.92, 0.26, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0x243246, roughness: 0.4, metalness: 0.08 })
+  );
+  thermometerBody.castShadow = true;
+  thermometerGroup.add(thermometerBody);
+
+  const thermometerInfo = createCanvasSprite(420, 130, 0.82, 0.26);
+  updateBadgeSprite(thermometerInfo, [`${INITIAL_TEMPERATURE.toFixed(1)}°C`], {
+    background: 'rgba(24,39,58,0.96)',
+    border: 'rgba(109,137,177,0.26)',
+    textColor: '#8bffb4',
+    accentColor: '#8bffb4',
+    fontSize: 56,
+    radius: 24,
+  });
+  thermometerInfo.sprite.position.set(0, 0, 0.095);
+  thermometerGroup.add(thermometerInfo.sprite);
+
+  function createSourceBottle(labelText, accentColor) {
+    const bottle = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.16, 0.56, 24),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.56, roughness: 0.1 })
+    );
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.048, 0.06, 0.16, 18),
+      new THREE.MeshStandardMaterial({ color: 0xdde8f7, roughness: 0.2 })
+    );
+    neck.position.y = 0.33;
+    const fill = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.13, 0.28, 24),
+      new THREE.MeshStandardMaterial({ color: 0xf8fbff, transparent: true, opacity: 0.34 })
+    );
+    fill.position.y = -0.08;
+    bottle.add(body, neck, fill);
+    const badge = createCanvasSprite(280, 100, 0.54, 0.18);
+    updateBadgeSprite(badge, [labelText], {
+      background: 'rgba(255,255,255,0.95)',
+      border: 'rgba(0,0,0,0.08)',
+      textColor: accentColor,
+      accentColor,
+      fontSize: 44,
+      radius: 22,
+    });
+    badge.sprite.position.set(0, -0.52, 0.05);
+    bottle.add(badge.sprite);
+    bottle.visible = false;
+    group.add(bottle);
+    return bottle;
+  }
+
+  const leftBottle = createSourceBottle('HCl', '#ff7f7f');
+  const rightBottle = createSourceBottle('NaOH', '#4b8fff');
+
+  const streamMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.5,
+  });
+  const leftStream = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.2, 18), streamMaterial);
+  const rightStream = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.2, 18), streamMaterial);
+  leftStream.visible = false;
+  rightStream.visible = false;
+  group.add(leftStream, rightStream);
+
+  const drops = [];
+  for (let i = 0; i < 3; i += 1) {
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0x40b18a, emissive: 0x1b5a45, emissiveIntensity: 0.8 })
+    );
+    drop.visible = false;
+    group.add(drop);
+    drops.push(drop);
+  }
+
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }));
+  glow.scale.set(1.6, 1.6, 1);
+  glow.position.set(0, -0.1, 0.22);
+  group.add(glow);
+
+  return {
+    config,
+    group,
+    liquid,
+    surface,
+    liquidMaterial,
+    surfaceMaterial: surface.material,
+    selectionRing,
+    labelInfo,
+    thermometerInfo,
+    leftBottle,
+    rightBottle,
+    leftStream,
+    rightStream,
+    drops,
+    glow,
+  };
+}
+
+[-4.8, -2.4, 0, 2.4, 4.8].forEach((x, index) => {
+  beakerVisuals.push(createBeakerVisual(beakerConfigs[index], x));
+});
+
+function updateBeakerVisual(visual, fillLevel, colorMix) {
+  const fill = clamp(fillLevel, 0.02, 1);
+  const colorT = clamp(colorMix);
+  const clearColor = new THREE.Color('#ffffff');
+  const targetColor = new THREE.Color(visual.config.color);
+  visual.liquidMaterial.color.copy(clearColor).lerp(targetColor, colorT);
+  visual.surfaceMaterial.color.copy(clearColor).lerp(targetColor, colorT);
+  visual.liquidMaterial.opacity = lerp(0.07, 0.76, Math.max(fill * 0.82, colorT * 0.8));
+  visual.surfaceMaterial.opacity = lerp(0.08, 0.82, colorT * 0.9 + fill * 0.1);
+  visual.liquid.scale.y = fill;
+  visual.liquid.position.y = -0.41 + (0.62 * fill) * 0.5;
+  visual.surface.position.y = -0.41 + (0.62 * fill);
+}
+
+function updateThermometerDisplay(visual, temperature) {
+  updateBadgeSprite(visual.thermometerInfo, [`${temperature.toFixed(1)}°C`], {
+    background: 'rgba(24,39,58,0.96)',
+    border: 'rgba(109,137,177,0.26)',
+    textColor: '#8bffb4',
+    accentColor: '#8bffb4',
+    fontSize: 56,
+    radius: 24,
+  });
+}
+
+function applyStaticBeakerStates() {
+  beakerVisuals.forEach((visual) => {
+    const state = beakerState.get(visual.config.key);
+    updateBeakerVisual(visual, state.fill, state.colorMix);
+    updateThermometerDisplay(visual, state.currentTemp);
+  });
+}
+
+applyStaticBeakerStates();
+
+const particleScene = new THREE.Scene();
+const particleCamera = new THREE.PerspectiveCamera(44, 1, 0.1, 50);
+particleCamera.position.set(0, 0.6, 7.4);
+particleScene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const particleLight = new THREE.DirectionalLight(0xffffff, 0.65);
+particleLight.position.set(4, 6, 5);
+particleScene.add(particleLight);
+
+const particleRenderer = new THREE.WebGLRenderer({
+  canvas: particleCanvas,
+  antialias: true,
+  alpha: true,
+});
+particleRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const particleGroup = new THREE.Group();
+particleScene.add(particleGroup);
+
+const particleBeaker = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.2, 2.35, 3.2, 60, 1, true),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xe8f4ff,
+    transparent: true,
+    opacity: 0.1,
+    roughness: 0.1,
+    transmission: 0.24,
+  })
+);
+particleGroup.add(particleBeaker);
+
+const particleBottom = new THREE.Mesh(
+  new THREE.CircleGeometry(2.15, 60),
+  new THREE.MeshStandardMaterial({ color: 0x17304d, transparent: true, opacity: 0.72 })
+);
+particleBottom.rotation.x = -Math.PI / 2;
+particleBottom.position.y = -1.58;
+particleGroup.add(particleBottom);
+
+const particleGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTexture,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+}));
+particleGlow.scale.set(3.6, 3.6, 1);
+particleGlow.position.set(0, -0.2, 0.1);
+particleGroup.add(particleGlow);
+
+const sharedParticleGeometry = new THREE.SphereGeometry(1, 18, 18);
+const particleMeshes = {};
+const particleData = {
+  H: [],
+  OH: [],
+  Na: [],
+  Cl: [],
+  H2O: [],
+};
+
+function createSpeciesMesh(name, color, opacity = 1) {
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    transparent: opacity < 1,
+    opacity,
+    roughness: 0.24,
+    metalness: 0.0,
+    emissive: name === 'H2O' ? new THREE.Color(0x2a5f6d) : new THREE.Color(0x000000),
+    emissiveIntensity: name === 'H2O' ? 0.55 : 0,
+  });
+  const mesh = new THREE.InstancedMesh(sharedParticleGeometry, material, 40);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.count = 0;
+  particleGroup.add(mesh);
+  return mesh;
+}
+
+particleMeshes.H = createSpeciesMesh('H', 0xff6e6e, 1);
+particleMeshes.OH = createSpeciesMesh('OH', 0x4b8fff, 1);
+particleMeshes.Na = createSpeciesMesh('Na', 0xffb45b, 1);
+particleMeshes.Cl = createSpeciesMesh('Cl', 0x67d883, 1);
+particleMeshes.H2O = createSpeciesMesh('H2O', 0xc9f3ff, 0.9);
+
+let particleMetrics = {
+  water: 0,
+  hplus: 0,
+  ohminus: 0,
+  na: 0,
+  cl: 0,
+};
+
+function populateParticleLayout(config) {
+  particleData.H = [];
+  particleData.OH = [];
+  particleData.Na = [];
+  particleData.Cl = [];
+  particleData.H2O = [];
+
+  const reactionUnits = Math.min(config.hcl, config.naoh);
+  const hRemaining = config.hcl - reactionUnits;
+  const ohRemaining = config.naoh - reactionUnits;
+
+  for (let i = 0; i < config.hcl; i += 1) {
+    particleData.H.push({
+      x: -1.35 + (i % 4) * 0.24,
+      y: -0.6 + Math.floor(i / 4) * 0.34,
+      z: -0.45 + (i % 2) * 0.4,
+      phase: i * 0.17,
+    });
+  }
+
+  for (let i = 0; i < config.naoh; i += 1) {
+    particleData.OH.push({
+      x: 1.25 - (i % 4) * 0.24,
+      y: -0.55 + Math.floor(i / 4) * 0.34,
+      z: 0.42 - (i % 2) * 0.36,
+      phase: i * 0.21,
+    });
+  }
+
+  for (let i = 0; i < config.naoh; i += 1) {
+    const angle = (i / Math.max(1, config.naoh)) * Math.PI * 2;
+    particleData.Na.push({
+      radius: 1.5 + (i % 2) * 0.18,
+      angle,
+      y: -0.95 + (i % 3) * 0.5,
+      phase: i * 0.11,
+    });
+  }
+
+  for (let i = 0; i < config.hcl; i += 1) {
+    const angle = (i / Math.max(1, config.hcl)) * Math.PI * 2 + 0.6;
+    particleData.Cl.push({
+      radius: 1.15 + (i % 2) * 0.22,
+      angle,
+      y: -0.85 + (i % 3) * 0.48,
+      phase: i * 0.14,
+    });
+  }
+
+  for (let i = 0; i < reactionUnits; i += 1) {
+    const angle = (i / Math.max(1, reactionUnits)) * Math.PI * 2;
+    particleData.H2O.push({
+      radius: 0.35 + (i % 3) * 0.14,
+      angle,
+      y: -0.5 + (i % 2) * 0.36,
+      phase: i * 0.18,
+    });
+  }
+
+  particleMetrics = {
+    water: reactionUnits,
+    hplus: hRemaining,
+    ohminus: ohRemaining,
+    na: config.naoh,
+    cl: config.hcl,
+  };
+}
+
+function setInstanceVisibility(mesh, index, position, scale) {
+  tempObject.position.copy(position);
+  tempObject.scale.setScalar(scale);
+  tempObject.updateMatrix();
+  mesh.setMatrixAt(index, tempObject.matrix);
+}
+
+function updateParticleMeshes(time) {
+  const config = getConfig(appState.selectedKey);
+  const selectedState = beakerState.get(appState.selectedKey);
+  const normalizedReaction = clamp((selectedState.currentTemp - INITIAL_TEMPERATURE) / Math.max(0.1, config.peak - INITIAL_TEMPERATURE));
+  const reactedCount = Math.round(Math.min(config.hcl, config.naoh) * normalizedReaction);
+
+  particleMeshes.H.count = 0;
+  particleMeshes.OH.count = 0;
+  particleMeshes.Na.count = particleData.Na.length;
+  particleMeshes.Cl.count = particleData.Cl.length;
+  particleMeshes.H2O.count = reactedCount;
+
+  let visibleH = 0;
+  for (let i = reactedCount; i < particleData.H.length; i += 1) {
+    const item = particleData.H[i];
+    const pos = new THREE.Vector3(
+      item.x + Math.sin(time * 1.8 + item.phase) * 0.07,
+      item.y + Math.sin(time * 2.2 + item.phase) * 0.08,
+      item.z + Math.cos(time * 1.6 + item.phase) * 0.06
+    );
+    setInstanceVisibility(particleMeshes.H, visibleH, pos, 0.09);
+    visibleH += 1;
+  }
+  particleMeshes.H.count = visibleH;
+
+  let visibleOH = 0;
+  for (let i = reactedCount; i < particleData.OH.length; i += 1) {
+    const item = particleData.OH[i];
+    const pos = new THREE.Vector3(
+      item.x + Math.cos(time * 1.9 + item.phase) * 0.07,
+      item.y + Math.sin(time * 1.7 + item.phase) * 0.08,
+      item.z + Math.sin(time * 1.5 + item.phase) * 0.06
+    );
+    setInstanceVisibility(particleMeshes.OH, visibleOH, pos, 0.11);
+    visibleOH += 1;
+  }
+  particleMeshes.OH.count = visibleOH;
+
+  particleData.Na.forEach((item, index) => {
+    const angle = item.angle + time * 0.22 + item.phase;
+    const pos = new THREE.Vector3(
+      Math.cos(angle) * item.radius,
+      item.y + Math.sin(time * 1.4 + item.phase) * 0.06,
+      Math.sin(angle) * item.radius * 0.55
+    );
+    setInstanceVisibility(particleMeshes.Na, index, pos, 0.12);
+  });
+
+  particleData.Cl.forEach((item, index) => {
+    const angle = item.angle - time * 0.18 - item.phase * 0.2;
+    const pos = new THREE.Vector3(
+      Math.cos(angle) * item.radius * 0.82,
+      item.y + Math.cos(time * 1.35 + item.phase) * 0.07,
+      Math.sin(angle) * item.radius * 0.72
+    );
+    setInstanceVisibility(particleMeshes.Cl, index, pos, 0.12);
+  });
+
+  for (let i = 0; i < reactedCount; i += 1) {
+    const item = particleData.H2O[i];
+    const angle = item.angle + time * 0.34 + item.phase * 0.5;
+    const pos = new THREE.Vector3(
+      Math.cos(angle) * item.radius,
+      item.y + Math.sin(time * 1.6 + item.phase) * 0.09,
+      Math.sin(angle) * item.radius
+    );
+    setInstanceVisibility(particleMeshes.H2O, i, pos, 0.14);
+  }
+
+  Object.values(particleMeshes).forEach((mesh) => {
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  const normalizedHeat = (Math.min(config.hcl, config.naoh) / 6) * clamp(normalizedReaction);
+  particleGlow.material.opacity = 0.18 + normalizedHeat * 0.4;
+  particleGlow.scale.setScalar(2.5 + normalizedHeat * 2.2 + Math.sin(time * 4.0) * 0.12);
+}
+
+function updateParticlePanel() {
+  const config = getConfig(appState.selectedKey);
+  const reactionUnits = Math.min(config.hcl, config.naoh);
+  const hRemaining = Math.max(0, config.hcl - reactionUnits);
+  const ohRemaining = Math.max(0, config.naoh - reactionUnits);
+  particleWater.textContent = `${reactionUnits}개`;
+  particleHplus.textContent = `${hRemaining}개`;
+  particleOhminus.textContent = `${ohRemaining}개`;
+  particleNa.textContent = `${config.naoh}개`;
+  particleCl.textContent = `${config.hcl}개`;
+  particleSolution.textContent = `${config.solution} 용액`;
+
+  if (config.solution === '중성') {
+    particleCaption.textContent = `${config.key} 비커에서는 H⁺와 OH⁻이 완전히 반응하여 물이 가장 많이 생성되고, 남는 H⁺나 OH⁻이 없어 중성이 됩니다.`;
+  } else if (config.solution === '염기성') {
+    particleCaption.textContent = `${config.key} 비커에서는 OH⁻이 더 많이 남아 용액이 염기성을 띠며 BTB 지시약이 파란색으로 나타납니다.`;
+  } else {
+    particleCaption.textContent = `${config.key} 비커에서는 H⁺가 더 많이 남아 용액이 산성을 띠며 BTB 지시약이 노란색으로 나타납니다.`;
+  }
+}
+
+function resizeRenderer(renderer, camera, panel) {
+  const rect = panel.getBoundingClientRect();
+  renderer.setSize(rect.width, rect.height, false);
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+}
+
+function resizeGraphCanvas() {
+  const rect = graphPanel.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(1, Math.floor(rect.width * dpr));
+  const height = Math.max(1, Math.floor(rect.height * dpr));
+  if (graphCanvas.width !== width || graphCanvas.height !== height) {
+    graphCanvas.width = width;
+    graphCanvas.height = height;
+  }
+}
+
+function updateInfoPanels() {
+  const config = getConfig(appState.selectedKey);
+  const state = beakerState.get(appState.selectedKey);
+  statusTitle.textContent = `${config.key} 비커`;
+  statusSub.textContent = `HCl ${config.hcl} mL + NaOH ${config.naoh} mL · ${config.solution} · 최고 ${config.peak.toFixed(1)}°C`;
+
+  formulaBeaker.textContent = config.key;
+  formulaHcl.textContent = `${config.hcl} mL`;
+  formulaNaoh.textContent = `${config.naoh} mL`;
+  formulaBtb.textContent = config.btb;
+  formulaPeak.textContent = `${config.peak.toFixed(1)}°C`;
+  formulaSolution.textContent = config.solution;
+  formulaCurrent.textContent = `${state.currentTemp.toFixed(1)}°C`;
+
+  if (config.key === '다') {
+    graphCaption.innerHTML = `<strong>${config.key} 비커</strong>는 H⁺와 OH⁻이 1:1로 가장 많이 중화되어 생성되는 물의 양과 중화열이 최대입니다.`;
+  } else if (config.solution === '염기성') {
+    graphCaption.innerHTML = `<strong>${config.key} 비커</strong>는 OH⁻이 남아 염기성을 띱니다. 중화되는 이온 수가 다 비커보다 적어 최고 온도도 낮아집니다.`;
+  } else {
+    graphCaption.innerHTML = `<strong>${config.key} 비커</strong>는 H⁺가 남아 산성을 띱니다. 중화되는 이온 수가 다 비커보다 적어 최고 온도도 낮아집니다.`;
+  }
+
+  updateParticlePanel();
+}
+
+function updateSelectionVisuals(time) {
+  beakerVisuals.forEach((visual) => {
+    const isSelected = visual.config.key === appState.selectedKey;
+    visual.selectionRing.material.opacity = isSelected ? 0.78 : 0.2;
+    visual.selectionRing.material.color.set(isSelected ? 0xf6c848 : 0xb9c4d6);
+    const pulse = isSelected ? 1 + Math.sin(time * 4.8) * 0.05 : 1;
+    visual.selectionRing.scale.setScalar(pulse);
+  });
+}
+
+function refreshGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function selectBeaker(key, fromGui = false) {
+  appState.selectedKey = key;
+  if (!fromGui) {
+    guiState.selectedBeaker = key;
+    refreshGui();
+  }
+  populateParticleLayout(getConfig(key));
+  updateInfoPanels();
+}
+
+function hideMixProps(visual) {
+  visual.leftBottle.visible = false;
+  visual.rightBottle.visible = false;
+  visual.leftStream.visible = false;
+  visual.rightStream.visible = false;
+  visual.drops.forEach((drop) => {
+    drop.visible = false;
+  });
+  visual.glow.material.opacity = 0;
+}
+
+function resetSimulation() {
+  appState.activeMix = null;
+  appState.mixSequence = null;
+  appState.showParticleModel = true;
+  appState.showLifeExamples = false;
+  appState.guideOpen = false;
+  beakerConfigs.forEach((config) => {
+    beakerState.set(config.key, {
+      mixed: false,
+      currentTemp: INITIAL_TEMPERATURE,
+      fill: 0.02,
+      colorMix: 0,
+    });
+  });
+  applyStaticBeakerStates();
+  beakerVisuals.forEach((visual) => hideMixProps(visual));
+  guidePanel.style.display = 'none';
+  lifePanel.style.display = 'none';
+  hintChip.style.display = 'block';
+  particlePanel.classList.remove('model-hidden');
+  guiState.particleModel = true;
+  guiState.realLifeExamples = false;
+  selectBeaker('다');
+  refreshGui();
+}
+
+function startMix(key, preserveSequence = false) {
+  if (!preserveSequence) {
+    appState.mixSequence = null;
+  }
+  if (appState.activeMix && appState.activeMix.key !== key) {
+    const previousKey = appState.activeMix.key;
+    const previousVisual = beakerVisuals.find((item) => item.config.key === previousKey);
+    const previousState = beakerState.get(previousKey);
+    previousState.currentTemp = previousState.mixed ? getConfig(previousKey).peak : INITIAL_TEMPERATURE;
+    previousState.fill = previousState.mixed ? 1 : 0.02;
+    previousState.colorMix = previousState.mixed ? 1 : 0;
+    updateBeakerVisual(previousVisual, previousState.fill, previousState.colorMix);
+    updateThermometerDisplay(previousVisual, previousState.currentTemp);
+    hideMixProps(previousVisual);
+  }
+  const visual = beakerVisuals.find((item) => item.config.key === key);
+  const state = beakerState.get(key);
+  state.currentTemp = INITIAL_TEMPERATURE;
+  state.fill = 0.02;
+  state.colorMix = 0;
+  state.mixed = false;
+  updateBeakerVisual(visual, state.fill, state.colorMix);
+  updateThermometerDisplay(visual, state.currentTemp);
+  selectBeaker(key);
+  appState.activeMix = {
+    key,
+    startedAt: performance.now(),
+  };
+}
+
+function startMixSequence() {
+  appState.mixSequence = {
+    index: 0,
+    keys: beakerConfigs.map((config) => config.key),
+    nextAt: performance.now(),
+  };
+}
+
+function updateMixAnimation(now) {
+  const active = appState.activeMix;
+  if (!active) return;
+
+  const visual = beakerVisuals.find((item) => item.config.key === active.key);
+  const state = beakerState.get(active.key);
+  const config = visual.config;
+  const elapsed = now - active.startedAt;
+  const progress = clamp(elapsed / MIX_DURATION);
+  const pourProgress = easeOutCubic(clamp(progress / 0.62));
+  const indicatorProgress = easeInOutCubic(clamp((progress - 0.56) / 0.22));
+  const temperatureProgress = easeOutCubic(clamp((progress - 0.4) / 0.44));
+
+  visual.leftBottle.visible = true;
+  visual.rightBottle.visible = true;
+
+  visual.leftBottle.position.set(-0.86, 1.08 + (1 - pourProgress) * 0.16, 0.22);
+  visual.leftBottle.rotation.z = -0.85 * pourProgress;
+  visual.rightBottle.position.set(0.86, 1.08 + (1 - pourProgress) * 0.16, 0.22);
+  visual.rightBottle.rotation.z = 0.85 * pourProgress;
+
+  visual.leftStream.visible = progress > 0.1 && progress < 0.62;
+  visual.rightStream.visible = progress > 0.1 && progress < 0.62;
+  visual.leftStream.position.set(-0.22, 0.55, 0.12);
+  visual.rightStream.position.set(0.22, 0.55, 0.12);
+  visual.leftStream.scale.set(1, 0.24 + pourProgress * 0.82, 1);
+  visual.rightStream.scale.set(1, 0.24 + pourProgress * 0.82, 1);
+
+  visual.glow.material.opacity = 0.42 * clamp((progress - 0.58) / 0.16) * (1 - clamp((progress - 0.92) / 0.08));
+  visual.glow.scale.setScalar(1.5 + indicatorProgress * 0.45);
+
+  visual.drops.forEach((drop, index) => {
+    const local = clamp((progress - 0.58 - index * 0.03) / 0.12);
+    drop.visible = local > 0 && local < 1;
+    drop.position.set(-0.12 + index * 0.12, 1.48 - local * 1.0, 0.14);
+  });
+
+  state.fill = lerp(0.02, 1, pourProgress);
+  state.colorMix = indicatorProgress;
+  state.currentTemp = lerp(INITIAL_TEMPERATURE, config.peak, temperatureProgress);
+
+  updateBeakerVisual(visual, state.fill, state.colorMix);
+  updateThermometerDisplay(visual, state.currentTemp);
+  updateInfoPanels();
+
+  if (progress >= 1) {
+    state.fill = 1;
+    state.colorMix = 1;
+    state.currentTemp = config.peak;
+    state.mixed = true;
+    updateBeakerVisual(visual, state.fill, state.colorMix);
+    updateThermometerDisplay(visual, state.currentTemp);
+    hideMixProps(visual);
+    appState.activeMix = null;
+    updateInfoPanels();
+  }
+}
+
+function updateMixSequence(now) {
+  if (!appState.mixSequence || appState.activeMix) return;
+  if (appState.mixSequence.index >= appState.mixSequence.keys.length) {
+    appState.mixSequence = null;
+    return;
+  }
+  if (now >= appState.mixSequence.nextAt) {
+    const key = appState.mixSequence.keys[appState.mixSequence.index];
+    startMix(key, true);
+    appState.mixSequence.index += 1;
+    appState.mixSequence.nextAt = now + MIX_DURATION + 300;
+  }
+}
+
+function drawGraph(time) {
+  resizeGraphCanvas();
+  const width = graphCanvas.width;
+  const height = graphCanvas.height;
+  const ctx = graphContext;
+  ctx.clearRect(0, 0, width, height);
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const margin = {
+    left: 62 * dpr,
+    right: 28 * dpr,
+    top: 92 * dpr,
+    bottom: 98 * dpr,
+  };
+
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+  const xStep = chartWidth / (beakerConfigs.length - 1);
+  const yMin = 20;
+  const yMax = 30;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 4.0);
+
+  const pointX = (index) => margin.left + index * xStep;
+  const pointY = (temperature) => margin.top + (1 - (temperature - yMin) / (yMax - yMin)) * chartHeight;
+
+  ctx.strokeStyle = 'rgba(102, 121, 151, 0.18)';
+  ctx.lineWidth = 1 * dpr;
+  for (let t = yMin; t <= yMax; t += 2) {
+    const y = pointY(t);
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(width - margin.right, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(90, 105, 129, 0.84)';
+    ctx.font = `${11 * dpr}px Pretendard, sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${t}`, margin.left - 10 * dpr, y);
+  }
+
+  const selectedIndex = beakerConfigs.findIndex((config) => config.key === appState.selectedKey);
+  const selectedX = pointX(selectedIndex);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(70, 180, 129, 0.22)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.setLineDash([8 * dpr, 8 * dpr]);
+  ctx.beginPath();
+  ctx.moveTo(selectedX, margin.top);
+  ctx.lineTo(selectedX, margin.top + chartHeight);
+  ctx.stroke();
+  ctx.restore();
+
+  const gradient = ctx.createLinearGradient(0, margin.top, 0, margin.top + chartHeight);
+  gradient.addColorStop(0, 'rgba(70, 180, 129, 0.28)');
+  gradient.addColorStop(1, 'rgba(70, 180, 129, 0.02)');
+
+  ctx.beginPath();
+  beakerConfigs.forEach((config, index) => {
+    const x = pointX(index);
+    const y = pointY(config.peak);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pointX(beakerConfigs.length - 1), margin.top + chartHeight);
+  ctx.lineTo(pointX(0), margin.top + chartHeight);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.beginPath();
+  beakerConfigs.forEach((config, index) => {
+    const x = pointX(index);
+    const y = pointY(config.peak);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#3ea477';
+  ctx.lineWidth = 3 * dpr;
+  ctx.stroke();
+
+  beakerConfigs.forEach((config, index) => {
+    const x = pointX(index);
+    const y = pointY(config.peak);
+    const state = beakerState.get(config.key);
+    const isSelected = config.key === appState.selectedKey;
+    const radius = (state.mixed ? 7 : 5) * dpr + (isSelected ? pulse * 2 * dpr : 0);
+
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(246, 200, 72, 0.16)';
+      ctx.arc(x, y, radius + 9 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.fillStyle = state.mixed ? '#355784' : '#ffffff';
+    ctx.strokeStyle = config.color;
+    ctx.lineWidth = 3 * dpr;
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#27374c';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.font = `700 ${11 * dpr}px Pretendard, sans-serif`;
+    ctx.fillText(config.key, x, height - margin.bottom + 22 * dpr);
+    ctx.font = `500 ${10 * dpr}px Pretendard, sans-serif`;
+    ctx.fillStyle = 'rgba(80, 97, 121, 0.92)';
+    ctx.fillText(`${config.hcl}/${config.naoh}`, x, height - margin.bottom + 40 * dpr);
+
+    if (state.mixed || isSelected) {
+      ctx.fillStyle = '#244667';
+      ctx.font = `700 ${10.5 * dpr}px Pretendard, sans-serif`;
+      ctx.fillText(`${config.peak.toFixed(1)}°C`, x, y - 14 * dpr);
+    }
+  });
+
+  ctx.strokeStyle = 'rgba(60, 76, 98, 0.38)';
+  ctx.lineWidth = 1.6 * dpr;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, margin.top + chartHeight);
+  ctx.lineTo(width - margin.right, margin.top + chartHeight);
+  ctx.stroke();
+
+  ctx.fillStyle = '#516074';
+  ctx.font = `700 ${11 * dpr}px Pretendard, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText('온도 (°C)', margin.left, margin.top - 18 * dpr);
+}
+
+const guiState = {
+  selectedBeaker: '다',
+  startMix: () => startMix(guiState.selectedBeaker),
+  mixAll: () => startMixSequence(),
+  particleModel: true,
+  realLifeExamples: false,
+  reset: () => resetSimulation(),
+};
+
+const gui = new GUI({ title: '실험 제어', width: 308 });
+gui.add(guiState, 'selectedBeaker', {
+  '가 (HCl 2 + NaOH 10)': '가',
+  '나 (HCl 4 + NaOH 8)': '나',
+  '다 (HCl 6 + NaOH 6)': '다',
+  '라 (HCl 8 + NaOH 4)': '라',
+  '마 (HCl 10 + NaOH 2)': '마',
+}).name('비커 선택').onChange((value) => selectBeaker(value, true));
+gui.add(guiState, 'startMix').name('혼합 시작');
+gui.add(guiState, 'mixAll').name('전체 혼합');
+gui.add(guiState, 'particleModel').name('입자 모형').onChange((value) => {
+  appState.showParticleModel = value;
+  particlePanel.classList.toggle('model-hidden', !value);
+  refreshGui();
+});
+gui.add(guiState, 'realLifeExamples').name('실생활 예시').onChange((value) => {
+  appState.showLifeExamples = value;
+  lifePanel.style.display = value ? 'block' : 'none';
+  hintChip.style.display = value ? 'none' : 'block';
+  refreshGui();
+});
+gui.add(guiState, 'reset').name('초기화');
+
+guideToggle.addEventListener('click', () => {
+  appState.guideOpen = !appState.guideOpen;
+  guidePanel.style.display = appState.guideOpen ? 'block' : 'none';
+});
+
+window.addEventListener('resize', () => {
+  resizeRenderer(topRenderer, topCamera, scenePanel);
+  resizeRenderer(particleRenderer, particleCamera, particlePanel);
+  drawGraph(performance.now() * 0.001);
+});
+
+resizeRenderer(topRenderer, topCamera, scenePanel);
+resizeRenderer(particleRenderer, particleCamera, particlePanel);
+selectBeaker('다');
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const time = now * 0.001;
+  controls.update();
+  updateMixAnimation(now);
+  updateMixSequence(now);
+  updateSelectionVisuals(time);
+  updateParticleMeshes(time);
+  particleGroup.rotation.y = Math.sin(time * 0.45) * 0.08;
+  drawGraph(time);
+
+  topRenderer.render(topScene, topCamera);
+  if (appState.showParticleModel) {
+    particleRenderer.render(particleScene, particleCamera);
+  }
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

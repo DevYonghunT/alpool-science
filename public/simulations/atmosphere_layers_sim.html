@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기권의 층상 구조 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: #fff;
+    background:
+      radial-gradient(circle at 18% 18%, rgba(30, 76, 158, 0.18), transparent 32%),
+      radial-gradient(circle at 78% 12%, rgba(76, 137, 255, 0.12), transparent 28%),
+      linear-gradient(180deg, #02040a 0%, #000011 58%, #01030a 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  canvas { display: block; }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+  #scene-panel {
+    background:
+      radial-gradient(circle at 45% 36%, rgba(51, 110, 219, 0.18), transparent 34%),
+      linear-gradient(180deg, rgba(2, 7, 18, 0.95), rgba(1, 4, 12, 1));
+  }
+  #graph-panel {
+    background:
+      linear-gradient(180deg, rgba(7, 12, 26, 0.96), rgba(3, 7, 18, 1)),
+      radial-gradient(circle at 70% 8%, rgba(77, 129, 255, 0.08), transparent 26%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  #scene-canvas,
+  #graph-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  #title-pill {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(8, 14, 28, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    z-index: 40;
+    pointer-events: none;
+  }
+  .panel-label {
+    position: absolute;
+    left: 20px;
+    top: 18px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .panel-label h2 {
+    font-size: 18px;
+    font-weight: 700;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  }
+  .panel-label p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.68);
+    line-height: 1.55;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    width: min(360px, calc(50vw - 24px));
+    background: rgba(7, 11, 24, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(16px);
+    padding: 16px 18px;
+    z-index: 45;
+    font-size: 11px;
+    line-height: 1.72;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+  }
+  #formula-panel h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffd28f;
+  }
+  .divider {
+    height: 1px;
+    margin: 9px 0 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.02));
+  }
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+  .info-row .label {
+    width: 78px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+    font-size: 10px;
+  }
+  .info-row .value {
+    flex: 1;
+  }
+  .key-box,
+  .mass-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .key-box strong,
+  .mass-box strong {
+    color: #9fe3ff;
+  }
+  #layer-list {
+    display: grid;
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .layer-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  }
+  .layer-row.active {
+    background: rgba(113, 173, 255, 0.12);
+    border-color: rgba(157, 214, 255, 0.38);
+    transform: translateX(4px);
+  }
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+  }
+  .layer-copy {
+    flex: 1;
+    min-width: 0;
+  }
+  .layer-copy .name {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .layer-copy .desc {
+    display: block;
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    left: 188px;
+    top: 12px;
+    z-index: 50;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 7px 12px;
+    background: rgba(8, 14, 28, 0.8);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+  #guide-panel {
+    position: fixed;
+    top: 48px;
+    left: 12px;
+    width: min(430px, calc(100vw - 24px));
+    max-height: 66vh;
+    overflow-y: auto;
+    z-index: 49;
+    border-radius: 16px;
+    padding: 18px;
+    background: rgba(8, 13, 28, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+  #guide-panel.open { display: block; }
+  #guide-panel h3 {
+    font-size: 14px;
+    color: #9ddcff;
+    margin-bottom: 8px;
+  }
+  #guide-panel h4 {
+    font-size: 12px;
+    color: #ffc28c;
+    margin-top: 11px;
+    margin-bottom: 4px;
+  }
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 10px;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    max-width: 340px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(8, 13, 28, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 10px;
+    line-height: 1.45;
+    backdrop-filter: blur(10px);
+    z-index: 35;
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    z-index: 60 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 960px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: 58vh 42vh;
+    }
+    #graph-panel {
+      border-left: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #formula-panel {
+      width: min(420px, calc(100vw - 24px));
+      font-size: 10px;
+    }
+    #hint-chip {
+      left: 12px;
+      right: 12px;
+      max-width: none;
+      border-radius: 14px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-pill {
+      font-size: 11px;
+      padding: 7px 12px;
+    }
+    #guide-toggle {
+      left: 12px;
+      top: 48px;
+    }
+    #guide-panel {
+      top: 84px;
+      max-height: 54vh;
+    }
+    .panel-label {
+      left: 16px;
+      top: 16px;
+    }
+    .panel-label h2 {
+      font-size: 16px;
+    }
+    .panel-label p {
+      font-size: 10px;
+      max-width: 220px;
+    }
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+      max-height: 46vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="layout">
+  <section id="scene-panel" class="panel" aria-label="3D 지구와 기권 층상 구조">
+    <div class="panel-label">
+      <h2>3D 지구 + 대기층</h2>
+      <p>대류권, 성층권, 중간권, 열권을 지구 주변의 반투명 껍질로 확인하세요.</p>
+    </div>
+    <canvas id="scene-canvas"></canvas>
+  </section>
+  <section id="graph-panel" class="panel" aria-label="높이와 기온 그래프">
+    <div class="panel-label">
+      <h2>높이-기온 그래프</h2>
+      <p>현재 높이에 해당하는 기온과 층 경계를 함께 읽을 수 있습니다.</p>
+    </div>
+    <canvas id="graph-canvas"></canvas>
+  </section>
+</div>
+
+<div id="title-pill">19. 기권의 층상 구조</div>
+
+<div id="formula-panel" aria-live="polite">
+  <h3>🌍 기권의 층상 구조</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 높이:</span><span class="value" id="info-height">0 km</span></div>
+  <div class="info-row"><span class="label">현재 층:</span><span class="value" id="info-layer">대류권</span></div>
+  <div class="info-row"><span class="label">기온:</span><span class="value" id="info-temp">약 15°C</span></div>
+
+  <div class="key-box">
+    <strong>층별 특징</strong><br>
+    <span id="info-feature">기상 현상이 발생하며, 높이가 높아질수록 기온이 내려갑니다.</span>
+  </div>
+
+  <div id="layer-list">
+    <div class="layer-row active" data-layer="troposphere">
+      <span class="swatch" style="background:#88ccff;"></span>
+      <div class="layer-copy">
+        <span class="name">대류권 (0~12km)</span>
+        <span class="desc">기상 현상 발생, 높이↑ → 기온↓</span>
+      </div>
+    </div>
+    <div class="layer-row" data-layer="stratosphere">
+      <span class="swatch" style="background:#aaddff;"></span>
+      <div class="layer-copy">
+        <span class="name">성층권 (12~50km)</span>
+        <span class="desc">오존층(20~30km), 안정한 층, 높이↑ → 기온↑</span>
+      </div>
+    </div>
+    <div class="layer-row" data-layer="mesosphere">
+      <span class="swatch" style="background:#6688aa;"></span>
+      <div class="layer-copy">
+        <span class="name">중간권 (50~80km)</span>
+        <span class="desc">대류 O, 기상 현상 X, 유성 연소</span>
+      </div>
+    </div>
+    <div class="layer-row" data-layer="thermosphere">
+      <span class="swatch" style="background:#3344aa;"></span>
+      <div class="layer-copy">
+        <span class="name">열권 (80~1000km)</span>
+        <span class="desc">공기 희박, 오로라, 밤낮 기온 차 매우 큼</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mass-box">
+    <strong>대기 질량 분포</strong><br>
+    전체 대기 질량의 99%가 약 32km 이내에 집중되어 있습니다.
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 원리</h4>
+  <p>기권은 높이에 따른 기온 분포를 기준으로 대류권, 성층권, 중간권, 열권으로 구분됩니다. 대류권에서만 기상 현상이 활발하게 일어나며, 성층권의 오존층은 자외선을 흡수해 기온 분포와 생명 보호에 중요한 역할을 합니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>성층권에서 높이가 올라갈수록 기온이 높아지는 까닭은 무엇인가요? → 오존층이 자외선을 흡수하기 때문입니다.</li>
+    <li>비행기가 성층권 부근에서 비행하는 까닭은 무엇일까요? → 대류권보다 기상 변화가 적고 안정하기 때문입니다.</li>
+    <li>오로라는 왜 열권에서 주로 나타날까요? → 태양풍 입자가 희박한 상층 대기와 상호작용하기 때문입니다.</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li><strong>기상 예보</strong>: 구름과 비, 태풍 같은 날씨 현상은 대류권에서 일어납니다.</li>
+    <li><strong>항공 비행</strong>: 제트기 항로는 성층권 하부의 안정한 대기를 활용합니다.</li>
+    <li><strong>우주 정거장</strong>: 국제우주정거장은 열권 상부 약 400km에서 지구를 공전합니다.</li>
+    <li><strong>유성우 관측</strong>: 유성은 주로 중간권에서 공기와 마찰하며 밝게 타오릅니다.</li>
+  </ul>
+
+  <div class="textbook-ref">📚 교과서 연계: 미래엔 통합과학1 III편 p106~107 — 기권의 층상 구조 (그림 III-2, 그림 III-3)</div>
+</div>
+
+<div id="hint-chip">드래그로 회전, 휠 또는 핀치로 확대/축소, GUI에서 높이와 층별 보기를 바꿔 3D 장면과 그래프를 함께 비교해 보세요.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const LAYERS = [
+  {
+    key: 'troposphere',
+    name: '대류권',
+    min: 0,
+    max: 12,
+    graphMax: 12,
+    outerRadius: 3.36,
+    color: 0x88ccff,
+    cssColor: '#88ccff',
+    opacity: 0.12,
+    summary: '기상 현상이 발생하며, 높이가 높아질수록 기온이 내려갑니다.'
+  },
+  {
+    key: 'stratosphere',
+    name: '성층권',
+    min: 12,
+    max: 50,
+    graphMax: 50,
+    outerRadius: 4.5,
+    color: 0xaaddff,
+    cssColor: '#aaddff',
+    opacity: 0.06,
+    summary: '20~30km 부근의 오존층이 자외선을 흡수해 기온이 다시 올라갑니다.'
+  },
+  {
+    key: 'mesosphere',
+    name: '중간권',
+    min: 50,
+    max: 80,
+    graphMax: 80,
+    outerRadius: 5.4,
+    color: 0x6688aa,
+    cssColor: '#6688aa',
+    opacity: 0.04,
+    summary: '대류는 있지만 수증기가 거의 없어 일반적인 기상 현상은 없고, 유성이 타오릅니다.'
+  },
+  {
+    key: 'thermosphere',
+    name: '열권',
+    min: 80,
+    max: 1000,
+    graphMax: 110,
+    outerRadius: 8.0,
+    color: 0x3344aa,
+    cssColor: '#3344aa',
+    opacity: 0.02,
+    summary: '공기가 매우 희박하고 태양풍과 상호작용하는 오로라가 나타납니다.'
+  }
+];
+
+const VIEW_TO_LAYER = {
+  '전체': null,
+  '대류권만': 'troposphere',
+  '성층권만': 'stratosphere',
+  '중간권만': 'mesosphere',
+  '열권만': 'thermosphere'
+};
+
+const DEFAULTS = {
+  altitude: 0,
+  showAtmosphere: true,
+  showPhenomena: true,
+  emphasizeOzone: true,
+  layerView: '전체',
+  earthRotation: true
+};
+
+const scenePanel = document.getElementById('scene-panel');
+const graphPanel = document.getElementById('graph-panel');
+const sceneCanvas = document.getElementById('scene-canvas');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphCtx = graphCanvas.getContext('2d');
+
+const infoHeight = document.getElementById('info-height');
+const infoLayer = document.getElementById('info-layer');
+const infoTemp = document.getElementById('info-temp');
+const infoFeature = document.getElementById('info-feature');
+const layerRows = Array.from(document.querySelectorAll('.layer-row'));
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.classList.toggle('open', guideOpen);
+});
+
+const params = {
+  ...DEFAULTS,
+  reset: resetSimulation
+};
+
+const runtime = {
+  graphDirty: true,
+  meteorCooldown: 0,
+  disposed: false
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000011);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 120);
+camera.position.set(11.5, 7.5, 12.5);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvas,
+  antialias: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x000011, 1);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 6;
+controls.maxDistance = 30;
+controls.target.set(0, 0, 0);
+controls.update();
+controls.saveState();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+
+const sunlight = new THREE.DirectionalLight(0xf7f0ff, 0.6);
+sunlight.position.set(14, 8, 10);
+scene.add(sunlight);
+
+const rimLight = new THREE.DirectionalLight(0x77aaff, 0.28);
+rimLight.position.set(-8, -3, -10);
+scene.add(rimLight);
+
+const starGeometry = new THREE.BufferGeometry();
+const starCount = 1600;
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i += 1) {
+  const radius = 40 + Math.random() * 55;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+  starPositions[i * 3 + 1] = radius * Math.cos(phi);
+  starPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+}
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starField = new THREE.Points(
+  starGeometry,
+  new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.18,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false
+  })
+);
+scene.add(starField);
+
+const world = new THREE.Group();
+scene.add(world);
+
+function createEarthTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  const ocean = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  ocean.addColorStop(0, '#17305f');
+  ocean.addColorStop(0.38, '#2255aa');
+  ocean.addColorStop(1, '#10234f');
+  ctx.fillStyle = ocean;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < canvas.height; y += 4) {
+    const latNorm = (y / canvas.height) * 2 - 1;
+    for (let x = 0; x < canvas.width; x += 4) {
+      const lon = (x / canvas.width) * Math.PI * 2;
+      const terrain =
+        Math.sin(lon * 1.4) * 0.55 +
+        Math.cos(lon * 3.3 + latNorm * 2.8) * 0.45 +
+        Math.sin((lon + latNorm) * 4.7) * 0.34 +
+        Math.cos(latNorm * 10.5) * 0.18;
+
+      if (terrain > 0.66 && Math.abs(latNorm) < 0.84) {
+        const green = Math.floor(108 + (terrain - 0.66) * 90);
+        const red = Math.floor(63 + (terrain - 0.66) * 70);
+        ctx.fillStyle = `rgb(${red}, ${green}, 92)`;
+        ctx.fillRect(x, y, 4, 4);
+      } else if (terrain > 0.48 && Math.abs(latNorm) < 0.7) {
+        ctx.fillStyle = 'rgba(116, 160, 96, 0.65)';
+        ctx.fillRect(x, y, 4, 4);
+      } else if (Math.random() > 0.996) {
+        ctx.fillStyle = 'rgba(180, 220, 255, 0.12)';
+        ctx.fillRect(x, y, 4, 4);
+      }
+    }
+  }
+
+  const iceGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  iceGradient.addColorStop(0, 'rgba(230,245,255,0.85)');
+  iceGradient.addColorStop(0.16, 'rgba(230,245,255,0)');
+  iceGradient.addColorStop(0.84, 'rgba(230,245,255,0)');
+  iceGradient.addColorStop(1, 'rgba(230,245,255,0.88)');
+  ctx.fillStyle = iceGradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return texture;
+}
+
+function createTextSprite(text, color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '700 34px Pretendard, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(text, 128, 48);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2.7, 1.0, 1);
+  return sprite;
+}
+
+function latLonToVector(radius, latDeg, lonDeg) {
+  const lat = THREE.MathUtils.degToRad(latDeg);
+  const lon = THREE.MathUtils.degToRad(lonDeg);
+  const cosLat = Math.cos(lat);
+  return new THREE.Vector3(
+    radius * cosLat * Math.cos(lon),
+    radius * Math.sin(lat),
+    radius * cosLat * Math.sin(lon)
+  );
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function getLayerForHeight(height) {
+  if (height < 12) return LAYERS[0];
+  if (height < 50) return LAYERS[1];
+  if (height < 80) return LAYERS[2];
+  return LAYERS[3];
+}
+
+function heightToRadius(height) {
+  if (height <= 12) return lerp(3.0, 3.36, height / 12);
+  if (height <= 50) return lerp(3.36, 4.5, (height - 12) / 38);
+  if (height <= 80) return lerp(4.5, 5.4, (height - 50) / 30);
+  return lerp(5.4, 8.0, (height - 80) / 920);
+}
+
+function temperatureAtHeight(height) {
+  if (height <= 12) return lerp(15, -55, height / 12);
+  if (height <= 50) return lerp(-55, -3, (height - 12) / 38);
+  if (height <= 80) return lerp(-3, -90, (height - 50) / 30);
+  const delta = height - 80;
+  return -90 + 0.35 * delta * delta;
+}
+
+function temperatureLabel(temp) {
+  return `약 ${Math.round(temp)}°C`;
+}
+
+const earthMaterial = new THREE.MeshStandardMaterial({
+  map: createEarthTexture(),
+  roughness: 0.98,
+  metalness: 0.02
+});
+const earth = new THREE.Mesh(new THREE.SphereGeometry(3, 64, 64), earthMaterial);
+world.add(earth);
+
+const earthGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(3.08, 48, 48),
+  new THREE.MeshBasicMaterial({
+    color: 0x5fa9ff,
+    transparent: true,
+    opacity: 0.06,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+world.add(earthGlow);
+
+const layerObjects = [];
+for (const layer of LAYERS) {
+  const material = new THREE.MeshPhongMaterial({
+    color: layer.color,
+    transparent: true,
+    opacity: layer.opacity,
+    side: THREE.FrontSide,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(layer.outerRadius, 64, 64),
+    material
+  );
+  world.add(mesh);
+  layerObjects.push({
+    config: layer,
+    mesh,
+    material,
+    currentOpacity: layer.opacity,
+    targetOpacity: layer.opacity
+  });
+}
+
+const ozoneGroup = new THREE.Group();
+const ozoneRing = new THREE.Mesh(
+  new THREE.TorusGeometry(3.6, 0.15, 20, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x44ff44,
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false
+  })
+);
+ozoneRing.rotation.x = Math.PI / 2;
+ozoneGroup.add(ozoneRing);
+
+const ozoneGlow = new THREE.Mesh(
+  new THREE.TorusGeometry(3.6, 0.24, 20, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x7cff7c,
+    transparent: true,
+    opacity: 0.05,
+    depthWrite: false
+  })
+);
+ozoneGlow.rotation.x = Math.PI / 2;
+ozoneGroup.add(ozoneGlow);
+
+const ozoneLabel = createTextSprite('오존층', '#9eff9e');
+ozoneLabel.position.set(0, 0.7, 4.05);
+ozoneGroup.add(ozoneLabel);
+world.add(ozoneGroup);
+
+const markerRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.98, 1.04, 80),
+  new THREE.MeshBasicMaterial({
+    color: 0xff5f68,
+    transparent: true,
+    opacity: 0.72,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+markerRing.rotation.x = Math.PI / 2;
+markerRing.scale.setScalar(heightToRadius(params.altitude));
+world.add(markerRing);
+
+const cloudGroup = new THREE.Group();
+world.add(cloudGroup);
+
+const cloudGeometry = new THREE.SphereGeometry(1, 8, 8);
+const cloudData = [];
+for (let i = 0; i < 12; i += 1) {
+  const radius = 3.16 + Math.random() * 0.15;
+  const lat = THREE.MathUtils.randFloat(-52, 52);
+  const lon = Math.random() * 360;
+  const cloud = new THREE.Mesh(
+    cloudGeometry,
+    new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: THREE.MathUtils.randFloat(0.42, 0.58),
+      depthWrite: false
+    })
+  );
+  const scale = THREE.MathUtils.randFloat(0.16, 0.3);
+  cloud.position.copy(latLonToVector(radius, lat, lon));
+  cloud.scale.set(scale * 1.55, scale, scale * 1.1);
+  const normal = cloud.position.clone().normalize();
+  const tangentA = new THREE.Vector3().crossVectors(
+    Math.abs(normal.y) > 0.82 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0),
+    normal
+  ).normalize();
+  const tangentB = new THREE.Vector3().crossVectors(normal, tangentA).normalize();
+  cloudData.push({
+    mesh: cloud,
+    baseScale: cloud.scale.clone(),
+    normal,
+    tangentA,
+    tangentB,
+    radius,
+    pulse: Math.random() * Math.PI * 2
+  });
+  cloudGroup.add(cloud);
+}
+
+const rainGeometry = new THREE.BufferGeometry();
+const rainPositions = new Float32Array(50 * 3);
+const rainDrops = Array.from({ length: 50 }, () => ({
+  cloudIndex: Math.floor(Math.random() * cloudData.length),
+  progress: Math.random(),
+  speed: THREE.MathUtils.randFloat(0.5, 1.1),
+  offsetA: THREE.MathUtils.randFloatSpread(0.07),
+  offsetB: THREE.MathUtils.randFloatSpread(0.07)
+}));
+rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+const rainPoints = new THREE.Points(
+  rainGeometry,
+  new THREE.PointsMaterial({
+    color: 0x88bbff,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  })
+);
+cloudGroup.add(rainPoints);
+
+function updateRainDrops(delta) {
+  for (let i = 0; i < rainDrops.length; i += 1) {
+    const drop = rainDrops[i];
+    drop.progress += delta * drop.speed;
+    if (drop.progress > 1) {
+      drop.cloudIndex = Math.floor(Math.random() * cloudData.length);
+      drop.progress = 0;
+      drop.speed = THREE.MathUtils.randFloat(0.5, 1.1);
+      drop.offsetA = THREE.MathUtils.randFloatSpread(0.07);
+      drop.offsetB = THREE.MathUtils.randFloatSpread(0.07);
+    }
+
+    const cloud = cloudData[drop.cloudIndex];
+    const radius = cloud.radius - drop.progress * 0.34;
+    const position = cloud.normal.clone().multiplyScalar(radius)
+      .addScaledVector(cloud.tangentA, drop.offsetA)
+      .addScaledVector(cloud.tangentB, drop.offsetB);
+
+    rainPositions[i * 3] = position.x;
+    rainPositions[i * 3 + 1] = position.y;
+    rainPositions[i * 3 + 2] = position.z;
+  }
+  rainGeometry.attributes.position.needsUpdate = true;
+}
+
+const auroraGeometry = new THREE.BufferGeometry();
+const auroraCount = 200;
+const auroraPositions = new Float32Array(auroraCount * 3);
+const auroraColors = new Float32Array(auroraCount * 3);
+const auroraPointsData = [];
+for (let i = 0; i < auroraCount; i += 1) {
+  const sign = Math.random() > 0.5 ? 1 : -1;
+  auroraPointsData.push({
+    lat: sign * THREE.MathUtils.randFloat(60, 80),
+    lon: Math.random() * 360,
+    radius: THREE.MathUtils.randFloat(7.0, 7.65),
+    phase: Math.random() * Math.PI * 2,
+    arcShift: THREE.MathUtils.randFloat(-8, 8)
+  });
+}
+auroraGeometry.setAttribute('position', new THREE.BufferAttribute(auroraPositions, 3));
+auroraGeometry.setAttribute('color', new THREE.BufferAttribute(auroraColors, 3));
+const auroraPoints = new THREE.Points(
+  auroraGeometry,
+  new THREE.PointsMaterial({
+    size: 0.12,
+    transparent: true,
+    opacity: 0.8,
+    vertexColors: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+);
+world.add(auroraPoints);
+
+function updateAurora(time) {
+  for (let i = 0; i < auroraCount; i += 1) {
+    const aurora = auroraPointsData[i];
+    const lat = aurora.lat + Math.sin(time * 1.9 + aurora.phase) * 2.6;
+    const lon = aurora.lon + aurora.arcShift + Math.sin(time * 0.7 + aurora.phase) * 4.2;
+    const radius = aurora.radius + Math.sin(time * 2.5 + aurora.phase * 1.4) * 0.14;
+    const vector = latLonToVector(radius, lat, lon);
+    vector.y += Math.sin(time * 3.2 + aurora.phase) * 0.22;
+    auroraPositions[i * 3] = vector.x;
+    auroraPositions[i * 3 + 1] = vector.y;
+    auroraPositions[i * 3 + 2] = vector.z;
+
+    const mix = 0.5 + 0.5 * Math.sin(time * 2.2 + aurora.phase);
+    auroraColors[i * 3] = lerp(0.27, 0.53, mix);
+    auroraColors[i * 3 + 1] = 1.0;
+    auroraColors[i * 3 + 2] = lerp(0.53, 0.8, mix);
+  }
+  auroraGeometry.attributes.position.needsUpdate = true;
+  auroraGeometry.attributes.color.needsUpdate = true;
+}
+
+function createMeteor() {
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.03, 12, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xffddaa,
+      emissive: 0xffbb66,
+      emissiveIntensity: 2.0,
+      roughness: 0.12,
+      metalness: 0.02
+    })
+  );
+  const trailPositions = new Float32Array(5 * 3);
+  const trailGeometry = new THREE.BufferGeometry();
+  trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+  const trailMaterial = new THREE.LineBasicMaterial({
+    color: 0xffddaa,
+    transparent: true,
+    opacity: 0.0,
+    depthWrite: false
+  });
+  const trail = new THREE.Line(trailGeometry, trailMaterial);
+  group.visible = false;
+  group.add(trail);
+  group.add(head);
+  world.add(group);
+  return {
+    group,
+    head,
+    trailGeometry,
+    trailMaterial,
+    tailPoints: Array.from({ length: 5 }, () => new THREE.Vector3()),
+    active: false,
+    elapsed: 0,
+    duration: 1.5,
+    start: new THREE.Vector3(),
+    end: new THREE.Vector3(),
+    curve: new THREE.Vector3()
+  };
+}
+
+const meteors = [createMeteor(), createMeteor(), createMeteor()];
+
+function spawnMeteor() {
+  const meteor = meteors.find((item) => !item.active) ?? meteors[0];
+  meteor.active = true;
+  meteor.group.visible = true;
+  meteor.elapsed = 0;
+  meteor.duration = THREE.MathUtils.randFloat(1.1, 1.8);
+
+  const lat = THREE.MathUtils.randFloat(-32, 32);
+  const lon = Math.random() * 360;
+  const center = latLonToVector(4.95, lat, lon);
+  const normal = center.clone().normalize();
+  const tangent = new THREE.Vector3(-normal.z, 0.18 + Math.random() * 0.3, normal.x).normalize();
+  const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize();
+
+  meteor.start.copy(center).addScaledVector(tangent, 1.1).addScaledVector(bitangent, THREE.MathUtils.randFloatSpread(0.35));
+  meteor.end.copy(center).addScaledVector(tangent, -1.2).addScaledVector(bitangent, THREE.MathUtils.randFloatSpread(0.25)).addScaledVector(normal, -0.2);
+  meteor.curve.copy(bitangent).multiplyScalar(THREE.MathUtils.randFloatSpread(0.28));
+  meteor.head.position.copy(meteor.start);
+
+  for (const point of meteor.tailPoints) {
+    point.copy(meteor.start);
+  }
+}
+
+function updateMeteorTrail(meteor) {
+  const attribute = meteor.trailGeometry.attributes.position;
+  const array = attribute.array;
+  for (let i = 0; i < meteor.tailPoints.length; i += 1) {
+    const point = meteor.tailPoints[i];
+    array[i * 3] = point.x;
+    array[i * 3 + 1] = point.y;
+    array[i * 3 + 2] = point.z;
+  }
+  attribute.needsUpdate = true;
+}
+
+function deactivateMeteors() {
+  for (const meteor of meteors) {
+    meteor.active = false;
+    meteor.group.visible = false;
+    meteor.trailMaterial.opacity = 0;
+  }
+}
+
+function updateMeteors(delta) {
+  const selectedLayer = VIEW_TO_LAYER[params.layerView];
+  const allowMeteor = params.showPhenomena && (!selectedLayer || selectedLayer === 'mesosphere');
+
+  if (allowMeteor) {
+    runtime.meteorCooldown += delta;
+    if (runtime.meteorCooldown >= 5) {
+      runtime.meteorCooldown = 0;
+      spawnMeteor();
+    }
+  }
+
+  for (const meteor of meteors) {
+    if (!meteor.active) continue;
+
+    meteor.elapsed += delta;
+    const t = clamp(meteor.elapsed / meteor.duration, 0, 1);
+    const position = meteor.start.clone().lerp(meteor.end, t).addScaledVector(meteor.curve, Math.sin(t * Math.PI));
+    meteor.head.position.copy(position);
+
+    for (let i = meteor.tailPoints.length - 1; i > 0; i -= 1) {
+      meteor.tailPoints[i].copy(meteor.tailPoints[i - 1]);
+    }
+    meteor.tailPoints[0].copy(position);
+    updateMeteorTrail(meteor);
+
+    meteor.head.material.emissiveIntensity = 1.4 + (1 - t) * 3.0;
+    meteor.trailMaterial.opacity = allowMeteor ? (1 - t) * 0.6 : 0;
+    meteor.group.visible = allowMeteor;
+
+    if (t >= 1) {
+      meteor.active = false;
+      meteor.group.visible = false;
+      meteor.trailMaterial.opacity = 0;
+    }
+  }
+}
+
+function updateInfoPanel() {
+  const layer = getLayerForHeight(params.altitude);
+  infoHeight.textContent = `${Math.round(params.altitude)} km`;
+  infoLayer.textContent = layer.name;
+  infoTemp.textContent = temperatureLabel(temperatureAtHeight(params.altitude));
+  infoFeature.textContent = layer.summary;
+
+  for (const row of layerRows) {
+    row.classList.toggle('active', row.dataset.layer === layer.key);
+  }
+}
+
+function updateMarker() {
+  markerRing.scale.setScalar(heightToRadius(params.altitude));
+  runtime.graphDirty = true;
+}
+
+function updateLayerTargets() {
+  const selectedLayer = VIEW_TO_LAYER[params.layerView];
+  for (const layerObject of layerObjects) {
+    let target = 0;
+    if (params.showAtmosphere) {
+      if (!selectedLayer) target = layerObject.config.opacity;
+      else target = layerObject.config.key === selectedLayer ? 0.2 : 0.02;
+    }
+    layerObject.targetOpacity = target;
+    layerObject.mesh.visible = target > 0.001 || layerObject.currentOpacity > 0.001;
+  }
+
+  ozoneGroup.visible = params.emphasizeOzone && (!selectedLayer || selectedLayer === 'stratosphere');
+  runtime.graphDirty = true;
+}
+
+function updatePhenomenaVisibility() {
+  const selectedLayer = VIEW_TO_LAYER[params.layerView];
+  cloudGroup.visible = params.showPhenomena && (!selectedLayer || selectedLayer === 'troposphere');
+  auroraPoints.visible = params.showPhenomena && (!selectedLayer || selectedLayer === 'thermosphere');
+
+  if (!params.showPhenomena) {
+    deactivateMeteors();
+    runtime.meteorCooldown = 0;
+  }
+}
+
+function resetSimulation() {
+  Object.assign(params, DEFAULTS);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  controls.reset();
+  updateMarker();
+  updateLayerTargets();
+  updatePhenomenaVisibility();
+  updateInfoPanel();
+  runtime.meteorCooldown = 0;
+  deactivateMeteors();
+}
+
+function resize() {
+  const width = Math.max(1, scenePanel.clientWidth);
+  const height = Math.max(1, scenePanel.clientHeight);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const graphWidth = Math.max(1, graphPanel.clientWidth);
+  const graphHeight = Math.max(1, graphPanel.clientHeight);
+  graphCanvas.width = Math.floor(graphWidth * dpr);
+  graphCanvas.height = Math.floor(graphHeight * dpr);
+  graphCanvas.style.width = `${graphWidth}px`;
+  graphCanvas.style.height = `${graphHeight}px`;
+  graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  runtime.graphDirty = true;
+}
+
+function drawGraph() {
+  const width = graphCanvas.clientWidth;
+  const height = graphCanvas.clientHeight;
+  if (!width || !height) return;
+
+  graphCtx.clearRect(0, 0, width, height);
+  graphCtx.fillStyle = '#06101f';
+  graphCtx.fillRect(0, 0, width, height);
+
+  const padding = { top: 58, right: 28, bottom: 50, left: 74 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+  const selectedLayer = VIEW_TO_LAYER[params.layerView];
+  const graphTempMin = -110;
+  const graphTempMax = 240;
+
+  const xForTemp = (temp) => padding.left + ((temp - graphTempMin) / (graphTempMax - graphTempMin)) * innerWidth;
+  const yForHeight = (alt) => padding.top + innerHeight - (alt / 110) * innerHeight;
+
+  for (const layer of LAYERS) {
+    const yTop = yForHeight(layer.graphMax);
+    const yBottom = yForHeight(layer.min);
+    graphCtx.fillStyle = selectedLayer
+      ? `${layer.cssColor}${(selectedLayer === layer.key ? '3d' : '12')}`
+      : `${layer.cssColor}29`;
+    graphCtx.fillRect(padding.left, yTop, innerWidth, yBottom - yTop);
+  }
+
+  if (params.emphasizeOzone) {
+    const ozoneTop = yForHeight(30);
+    const ozoneBottom = yForHeight(20);
+    graphCtx.fillStyle = 'rgba(72, 255, 124, 0.14)';
+    graphCtx.fillRect(padding.left, ozoneTop, innerWidth, ozoneBottom - ozoneTop);
+    graphCtx.fillStyle = 'rgba(144, 255, 144, 0.95)';
+    graphCtx.font = '600 11px Pretendard, sans-serif';
+    graphCtx.fillText('오존층 20~30km', padding.left + 12, ozoneTop + 16);
+  }
+
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  graphCtx.lineWidth = 1;
+  for (let temp = -100; temp <= 220; temp += 40) {
+    const x = xForTemp(temp);
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, padding.top);
+    graphCtx.lineTo(x, height - padding.bottom);
+    graphCtx.stroke();
+  }
+  for (let altitude = 0; altitude <= 110; altitude += 10) {
+    const y = yForHeight(altitude);
+    graphCtx.beginPath();
+    graphCtx.moveTo(padding.left, y);
+    graphCtx.lineTo(width - padding.right, y);
+    graphCtx.stroke();
+  }
+
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  graphCtx.setLineDash([7, 6]);
+  for (const boundary of [12, 50, 80]) {
+    const y = yForHeight(boundary);
+    graphCtx.beginPath();
+    graphCtx.moveTo(padding.left, y);
+    graphCtx.lineTo(width - padding.right, y);
+    graphCtx.stroke();
+  }
+  graphCtx.setLineDash([]);
+
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  graphCtx.lineWidth = 2.8;
+  graphCtx.beginPath();
+  const profile = [
+    [15, 0],
+    [-55, 12],
+    [-3, 50],
+    [-90, 80],
+    [220, 110]
+  ];
+  profile.forEach(([temp, altitude], index) => {
+    const x = xForTemp(temp);
+    const y = yForHeight(altitude);
+    if (index === 0) graphCtx.moveTo(x, y);
+    else graphCtx.lineTo(x, y);
+  });
+  graphCtx.stroke();
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(xForTemp(220), yForHeight(110));
+  graphCtx.lineTo(xForTemp(235), yForHeight(103));
+  graphCtx.lineTo(xForTemp(228), yForHeight(99));
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  graphCtx.font = '600 11px Pretendard, sans-serif';
+  for (const [temp, altitude] of profile.slice(0, 4)) {
+    graphCtx.beginPath();
+    graphCtx.arc(xForTemp(temp), yForHeight(altitude), 3, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.fillText(`${temp}°C`, xForTemp(temp) + 8, yForHeight(altitude) - 8);
+  }
+  graphCtx.fillText('110km 이상에서 1000°C 이상으로 급상승', xForTemp(118), yForHeight(107));
+
+  graphCtx.strokeStyle = 'rgba(255, 95, 104, 0.98)';
+  graphCtx.lineWidth = 2;
+  const currentY = yForHeight(params.altitude);
+  graphCtx.beginPath();
+  graphCtx.moveTo(padding.left, currentY);
+  graphCtx.lineTo(width - padding.right, currentY);
+  graphCtx.stroke();
+
+  const currentTemp = temperatureAtHeight(params.altitude);
+  const currentX = xForTemp(clamp(currentTemp, graphTempMin, graphTempMax));
+  graphCtx.fillStyle = '#ff5f68';
+  graphCtx.beginPath();
+  graphCtx.arc(currentX, currentY, 5, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.fillText(`현재 높이 ${Math.round(params.altitude)}km`, padding.left + 10, currentY - 10);
+
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  graphCtx.lineWidth = 1.4;
+  graphCtx.beginPath();
+  graphCtx.moveTo(padding.left, padding.top);
+  graphCtx.lineTo(padding.left, height - padding.bottom);
+  graphCtx.lineTo(width - padding.right, height - padding.bottom);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  graphCtx.font = '600 12px Pretendard, sans-serif';
+  graphCtx.fillText('기온 (°C)', width - padding.right - 58, height - 16);
+  graphCtx.save();
+  graphCtx.translate(22, padding.top + innerHeight / 2);
+  graphCtx.rotate(-Math.PI / 2);
+  graphCtx.fillText('높이 (km)', 0, 0);
+  graphCtx.restore();
+
+  graphCtx.font = '500 10px Pretendard, sans-serif';
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+  for (let temp = -100; temp <= 220; temp += 40) {
+    const x = xForTemp(temp);
+    graphCtx.fillText(`${temp}`, x - 10, height - padding.bottom + 18);
+  }
+  for (let altitude = 0; altitude <= 110; altitude += 10) {
+    const y = yForHeight(altitude);
+    graphCtx.fillText(`${altitude}`, padding.left - 28, y + 3);
+  }
+
+  graphCtx.font = '600 11px Pretendard, sans-serif';
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.86)';
+  for (const layer of LAYERS) {
+    const centerAltitude = (layer.min + layer.graphMax) / 2;
+    graphCtx.fillText(layer.name, padding.left + 10, yForHeight(centerAltitude) - 4);
+  }
+
+  runtime.graphDirty = false;
+}
+
+const gui = new GUI({ title: '대기층 제어', width: 270 });
+gui.add(params, 'altitude', 0, 110, 1).name('높이 (km)').onChange(() => {
+  updateMarker();
+  updateInfoPanel();
+});
+gui.add(params, 'showAtmosphere').name('대기층 표시').onChange(() => {
+  updateLayerTargets();
+});
+gui.add(params, 'showPhenomena').name('기상 현상 표시').onChange(() => {
+  updatePhenomenaVisibility();
+});
+gui.add(params, 'emphasizeOzone').name('오존층 강조').onChange(() => {
+  updateLayerTargets();
+  runtime.graphDirty = true;
+});
+gui.add(params, 'layerView', ['전체', '대류권만', '성층권만', '중간권만', '열권만']).name('층별 보기').onChange(() => {
+  updateLayerTargets();
+  updatePhenomenaVisibility();
+});
+gui.add(params, 'earthRotation').name('지구 자전');
+gui.add(params, 'reset').name('초기화');
+
+if (window.innerWidth <= 768) {
+  gui.close();
+}
+
+const clock = new THREE.Clock();
+
+function animate() {
+  if (runtime.disposed) return;
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  if (params.earthRotation) {
+    earth.rotation.y += delta * 0.13;
+    earthGlow.rotation.y += delta * 0.09;
+  }
+
+  cloudGroup.rotation.y += delta * 0.03;
+  for (const cloud of cloudData) {
+    const pulse = 1 + Math.sin(elapsed * 1.6 + cloud.pulse) * 0.05;
+    cloud.mesh.scale.set(
+      cloud.baseScale.x * pulse,
+      cloud.baseScale.y * (1 + Math.sin(elapsed * 1.2 + cloud.pulse) * 0.03),
+      cloud.baseScale.z * pulse
+    );
+  }
+
+  updateRainDrops(delta);
+  updateAurora(elapsed);
+  updateMeteors(delta);
+
+  for (const layerObject of layerObjects) {
+    layerObject.currentOpacity += (layerObject.targetOpacity - layerObject.currentOpacity) * Math.min(1, delta * 5);
+    layerObject.material.opacity = layerObject.currentOpacity;
+    layerObject.mesh.visible = layerObject.currentOpacity > 0.002;
+  }
+
+  ozoneRing.material.opacity = params.emphasizeOzone ? 0.15 + Math.sin(elapsed * 1.5) * 0.02 : 0;
+  ozoneGlow.material.opacity = params.emphasizeOzone ? 0.05 + Math.sin(elapsed * 1.3 + 1.2) * 0.02 : 0;
+  markerRing.material.opacity = 0.52 + Math.sin(elapsed * 2.4) * 0.1;
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  if (runtime.graphDirty) {
+    drawGraph();
+  }
+}
+
+function dispose() {
+  if (runtime.disposed) return;
+  runtime.disposed = true;
+  window.removeEventListener('resize', resize);
+  controls.dispose();
+  gui.destroy();
+  renderer.dispose();
+}
+
+window.addEventListener('resize', resize);
+window.addEventListener('beforeunload', dispose);
+
+resize();
+updateInfoPanel();
+updateMarker();
+updateLayerTargets();
+updatePhenomenaVisibility();
+drawGraph();
+animate();
+</script>
+
+</body>
+</html>

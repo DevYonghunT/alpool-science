@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>등가속도 운동과 교통안전 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --panel-bg: rgba(9, 20, 33, 0.88);
+    --panel-soft: rgba(255, 255, 255, 0.05);
+    --panel-border: rgba(255, 255, 255, 0.11);
+    --text-main: #f6fbff;
+    --text-dim: rgba(246, 251, 255, 0.72);
+    --accent-yellow: #ffd54f;
+    --accent-orange: #ff9f45;
+    --accent-green: #74e3a3;
+    --accent-red: #ff6f6f;
+    --accent-blue: #78b8ff;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 14%, rgba(255, 238, 175, 0.24), transparent 20%),
+      linear-gradient(180deg, #cfe7ff 0%, #ddeeff 42%, #eff6fb 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(22, 52, 84, 0.66);
+  }
+
+  #scene-title h1 {
+    margin-top: 5px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #17344e;
+    text-shadow: 0 8px 18px rgba(255, 255, 255, 0.46);
+  }
+
+  #scene-title p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(24, 56, 88, 0.72);
+  }
+
+  .panel {
+    position: fixed;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 36px rgba(7, 14, 24, 0.22);
+    z-index: 18;
+  }
+
+  #status-card {
+    top: 16px;
+    left: 16px;
+    width: 332px;
+    padding: 16px 16px 14px;
+  }
+
+  .pill-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .pill.secondary {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  #status-title {
+    margin-top: 12px;
+    font-size: 19px;
+    line-height: 1.3;
+  }
+
+  #status-copy {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .mini-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mini-card span {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .mini-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  .mini-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  #safety-callout {
+    margin-top: 12px;
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 26;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background: rgba(11, 24, 39, 0.92);
+    box-shadow: 0 14px 28px rgba(7, 14, 24, 0.18);
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    right: 16px;
+    width: 408px;
+    max-height: calc(100vh - 88px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(10, 22, 35, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    color: var(--text-main);
+    display: none;
+    z-index: 25;
+    box-shadow: 0 20px 36px rgba(7, 14, 24, 0.24);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #ffe6a5;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .guide-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: 354px;
+    padding: 18px 18px 16px;
+    font-size: 11px;
+    line-height: 1.78;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #ffebaa;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .formula-row .key {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.98);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: #fff1bf;
+  }
+
+  #chart-panel {
+    left: 386px;
+    right: 16px;
+    bottom: 16px;
+    min-height: 230px;
+    padding: 16px 16px 14px;
+  }
+
+  #chart-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  #chart-head h2 {
+    font-size: 18px;
+  }
+
+  #chart-head p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #chart-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 360px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #chart-rows {
+    margin-top: 14px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .chart-row {
+    padding: 12px 12px 11px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .chart-row.active {
+    background: rgba(120, 184, 255, 0.11);
+    border-color: rgba(120, 184, 255, 0.28);
+  }
+
+  .chart-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chart-row-head strong {
+    font-size: 13px;
+  }
+
+  .result-chip {
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  .result-chip.good {
+    color: #d9ffea;
+    background: rgba(34, 129, 77, 0.34);
+  }
+
+  .result-chip.bad {
+    color: #ffe4e4;
+    background: rgba(164, 39, 39, 0.34);
+  }
+
+  .result-chip.wait {
+    color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .bar-track {
+    position: relative;
+    margin-top: 10px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+
+  .bar-segment {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+  }
+
+  .bar-segment.reaction {
+    background: linear-gradient(90deg, rgba(255, 213, 79, 0.98), rgba(255, 231, 138, 0.98));
+  }
+
+  .bar-segment.braking {
+    background: linear-gradient(90deg, rgba(255, 159, 69, 0.98), rgba(255, 121, 84, 0.98));
+  }
+
+  .bar-obstacle {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background:
+      repeating-linear-gradient(
+        180deg,
+        rgba(255, 95, 95, 0.98) 0 5px,
+        rgba(255, 95, 95, 0.12) 5px 9px
+      );
+    box-shadow: 0 0 0 1px rgba(255, 95, 95, 0.18);
+  }
+
+  .chart-values {
+    margin-top: 9px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #banner {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%) scale(0.96);
+    padding: 12px 20px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 22, 35, 0.92);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    box-shadow: 0 14px 28px rgba(7, 14, 24, 0.18);
+    z-index: 22;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #banner.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  #banner.good { background: rgba(17, 83, 47, 0.92); }
+  #banner.bad { background: rgba(122, 33, 33, 0.92); }
+  #banner.warn { background: rgba(129, 79, 20, 0.92); }
+
+  .lil-gui {
+    z-index: 24 !important;
+    --background-color: rgba(10, 22, 35, 0.95);
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #f7fbff;
+    --hover-color: rgba(255, 255, 255, 0.18);
+    --focus-color: rgba(120, 184, 255, 0.24);
+  }
+
+  @media (max-width: 1180px) {
+    #status-card,
+    #formula-panel {
+      width: 320px;
+    }
+
+    #chart-panel {
+      left: 352px;
+    }
+  }
+
+  @media (max-width: 980px) {
+    #scene-title {
+      top: 74px;
+      width: calc(100vw - 24px);
+    }
+
+    #status-card {
+      top: 16px;
+      left: 12px;
+      width: calc(100vw - 24px);
+      max-width: 470px;
+    }
+
+    #guide-panel {
+      width: min(92vw, 408px);
+    }
+
+    #formula-panel {
+      left: 12px;
+      width: calc(100vw - 24px);
+      max-width: 470px;
+      bottom: 214px;
+    }
+
+    #chart-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #scene-title h1 {
+      font-size: 22px;
+    }
+
+    #scene-title p {
+      font-size: 11px;
+    }
+
+    #status-card {
+      padding: 14px;
+    }
+
+    #guide-toggle {
+      top: 14px;
+      right: 12px;
+      padding: 9px 12px;
+    }
+
+    #guide-panel {
+      top: 52px;
+      right: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      bottom: 250px;
+      max-height: 28vh;
+      overflow-y: auto;
+    }
+
+    #chart-head {
+      flex-direction: column;
+    }
+
+    #chart-legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+
+    .mini-grid {
+      grid-template-columns: 1fr;
+    }
+
+    #banner {
+      top: 136px;
+      max-width: calc(100vw - 28px);
+      text-align: center;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="scene-title">
+  <div class="eyebrow">Physics I · Uniformly Accelerated Motion</div>
+  <h1>등가속도 운동과 교통안전</h1>
+  <p>정지 거리 = 반응 거리 + 제동 거리, 그리고 제동 거리는 속력의 제곱에 비례합니다.</p>
+</div>
+
+<div id="status-card" class="panel">
+  <div class="pill-row">
+    <span class="pill" id="mode-pill">단일 주행</span>
+    <span class="pill secondary" id="phase-pill">대기 중</span>
+  </div>
+  <h2 id="status-title">정지 거리 시뮬레이션</h2>
+  <p id="status-copy">속력, 반응 시간, 도로 상태를 바꾼 뒤 시뮬레이션을 시작해 보세요. 같은 반응 시간이라도 속력이 커질수록 반응 거리와 제동 거리가 모두 길어집니다.</p>
+  <div class="mini-grid">
+    <div class="mini-card">
+      <span>보행자 위치</span>
+      <strong id="metric-obstacle">30.0 m</strong>
+      <p>위험 인지 지점에서 보행자까지 남은 거리입니다.</p>
+    </div>
+    <div class="mini-card">
+      <span id="metric-secondary-label">현재 정지 거리</span>
+      <strong id="metric-secondary-value">28.4 m</strong>
+      <p id="metric-secondary-copy">반응 거리와 제동 거리를 합한 값입니다.</p>
+    </div>
+  </div>
+  <div id="safety-callout">안전띠와 에어백은 승객이 멈추는 시간을 늘려 평균 힘을 줄입니다. 충돌 시 F = Δp / Δt 에서 Δt가 커지면 힘은 작아집니다.</div>
+</div>
+
+<button id="guide-toggle">학습 가이드</button>
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>정지 거리는 반응 거리와 제동 거리의 합입니다. 반응 거리에서는 자동차가 아직 등속으로 움직이고, 제동 거리에서는 등가속도 감속으로 속력이 줄어듭니다. 따라서 속력이 2배가 되면 반응 거리는 2배, 제동 거리는 4배가 되어 과속이 매우 위험해집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>속력이 60 km/h에서 120 km/h로 2배가 되면 제동 거리는 몇 배가 되나요?</li>
+    <li>비가 올 때 정지 거리가 길어지는 까닭을 마찰력과 관련지어 설명할 수 있나요?</li>
+    <li>안전띠와 에어백이 충돌 시 승객을 보호하는 원리를 F = Δp / Δt 로 설명해 보세요.</li>
+  </ul>
+
+  <h3>실생활 연결</h3>
+  <ul>
+    <li>스쿨존 30 km/h 제한은 보행자 보호를 위한 정지 거리 확보와 직접 연결됩니다.</li>
+    <li>빗길과 빙판길은 제동력이 줄어들어 같은 속력에서도 정지 거리가 크게 증가합니다.</li>
+    <li>안전띠와 에어백은 탑승자의 운동량 변화는 같게 하면서도 충돌 시간을 늘려 몸에 작용하는 평균 힘을 줄입니다.</li>
+  </ul>
+
+  <h3>관찰 포인트</h3>
+  <ul>
+    <li>노란색 구간은 반응 거리, 주황색 구간은 제동 거리입니다.</li>
+    <li>빨간 점선은 보행자 위치이며, 그보다 앞에서 멈추면 안전하게 정지한 것입니다.</li>
+    <li>3차선 비교를 시작하면 30, 60, 90 km/h 차량이 같은 조건에서 얼마나 다르게 멈추는지 한눈에 비교할 수 있습니다.</li>
+  </ul>
+
+  <div class="guide-note">교과서 연계: 물리학 I편 p36~37 — 등가속도 운동과 교통안전 사고 예방 (그림 I-18)</div>
+</div>
+
+<div id="formula-panel" class="panel"></div>
+
+<div id="chart-panel" class="panel">
+  <div id="chart-head">
+    <div>
+      <h2>반응 거리 · 제동 거리 막대그래프</h2>
+      <p>노란색은 반응 거리, 주황색은 제동 거리입니다. 점선은 보행자 위치이며, 속력이 2배가 되면 제동 거리는 약 4배가 됩니다.</p>
+    </div>
+    <div id="chart-legend">
+      <div class="legend-chip"><span class="legend-dot" style="background:#ffd54f;"></span>반응 거리</div>
+      <div class="legend-chip"><span class="legend-dot" style="background:#ff9f45;"></span>제동 거리</div>
+      <div class="legend-chip"><span class="legend-dot" style="background:#ff6f6f;"></span>보행자 위치</div>
+    </div>
+  </div>
+  <div id="chart-rows"></div>
+</div>
+
+<div id="banner"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const WORLD_SCALE = 0.1;
+const BASE_DECEL = 8.35;
+const HAZARD_TIME = 2;
+const OBSTACLE_DISTANCE_M = 30;
+const PASSENGER_MASS = 70;
+const PRESET_SPEEDS = [30, 60, 90];
+const LANE_POSITIONS = [2.5, 0, -2.5];
+const ROAD_STATE_FACTORS = {
+  '마른 도로': 1,
+  '젖은 도로': 1.5,
+  '빙판': 3
+};
+const CAR_COLORS = {
+  current: 0x3d84ff,
+  compare30: 0x4d8bff,
+  compare60: 0xffd34f,
+  compare90: 0xff5d57
+};
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  modePill: document.getElementById('mode-pill'),
+  phasePill: document.getElementById('phase-pill'),
+  statusTitle: document.getElementById('status-title'),
+  statusCopy: document.getElementById('status-copy'),
+  metricObstacle: document.getElementById('metric-obstacle'),
+  metricSecondaryLabel: document.getElementById('metric-secondary-label'),
+  metricSecondaryValue: document.getElementById('metric-secondary-value'),
+  metricSecondaryCopy: document.getElementById('metric-secondary-copy'),
+  safetyCallout: document.getElementById('safety-callout'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  formulaPanel: document.getElementById('formula-panel'),
+  chartRows: document.getElementById('chart-rows'),
+  banner: document.getElementById('banner')
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xddeeff);
+scene.fog = new THREE.Fog(0xddeeff, 18, 86);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(8.5, 7.4, 18.5);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true,
+  alpha: false
+});
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.03;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(4.5, 0.75, 0);
+controls.minDistance = 8;
+controls.maxDistance = 32;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const clock = new THREE.Clock();
+const staticGroup = new THREE.Group();
+const dynamicGroup = new THREE.Group();
+scene.add(staticGroup, dynamicGroup);
+
+const params = {
+  initialSpeed: 60,
+  reactionTime: 0.7,
+  roadState: '마른 도로',
+  seatBelt: true,
+  airbag: true,
+  start: () => startSingleMode(),
+  compare: () => startCompareMode(),
+  reset: () => resetSimulation(true)
+};
+
+const state = {
+  mode: 'single',
+  running: false,
+  completed: false,
+  simTime: 0,
+  phaseKey: 'idle',
+  bannerTimer: 0,
+  activeCars: [],
+  gui: null
+};
+
+const sceneRefs = {
+  hazardLabel: null,
+  pedestrianLabel: null,
+  warningPulse: null,
+  obstaclePulse: null,
+  roadSegments: [],
+  pedestrian: null
+};
+
+const cars = LANE_POSITIONS.map((laneZ, index) => createCar(index, laneZ));
+
+initScene();
+createGUI();
+bindEvents();
+resetSimulation(false);
+animate();
+
+function metersToWorld(meters) {
+  return meters * WORLD_SCALE;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function formatMeters(value, digits = 1) {
+  return `${value.toFixed(digits)} m`;
+}
+
+function formatForce(value) {
+  return `${Math.round(value).toLocaleString('ko-KR')} N`;
+}
+
+function colorToCss(hex, alpha = 1) {
+  const color = new THREE.Color(hex);
+  return `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, ${alpha})`;
+}
+
+function createRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createLabelSprite(text, options = {}) {
+  const {
+    width = 420,
+    height = 110,
+    background = 'rgba(10, 22, 35, 0.82)',
+    border = 'rgba(255,255,255,0.14)',
+    color = '#ffffff',
+    font = '700 34px Pretendard'
+  } = options;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2.4, 0.62, 1);
+  sprite.renderOrder = 30;
+
+  sprite.userData.setText = (nextText) => {
+    ctx.clearRect(0, 0, width, height);
+    createRoundedRect(ctx, 4, 4, width - 8, height - 8, 28);
+    ctx.fillStyle = background;
+    ctx.fill();
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(nextText, width / 2, height / 2 + 2);
+    texture.needsUpdate = true;
+  };
+
+  sprite.userData.setText(text);
+  return sprite;
+}
+
+function createStrip(color, laneZ) {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1.46),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false
+    })
+  );
+  mesh.rotation.x = -Math.PI * 0.5;
+  mesh.position.set(0, 0.028, laneZ);
+  mesh.visible = false;
+  dynamicGroup.add(mesh);
+  return mesh;
+}
+
+function createCar(index, laneZ) {
+  const group = new THREE.Group();
+  group.position.z = laneZ;
+  dynamicGroup.add(group);
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: CAR_COLORS.current,
+    roughness: 0.42,
+    metalness: 0.18
+  });
+  const cabinMaterial = new THREE.MeshStandardMaterial({
+    color: 0x265dcb,
+    roughness: 0.3,
+    metalness: 0.2
+  });
+  const wheelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1a1c20,
+    roughness: 0.9,
+    metalness: 0.08
+  });
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0xaed7ff,
+    roughness: 0.08,
+    metalness: 0.45,
+    transparent: true,
+    opacity: 0.68
+  });
+  const brakeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff5d57,
+    emissive: 0x220000,
+    roughness: 0.3,
+    metalness: 0.18
+  });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 0.8), bodyMaterial);
+  body.position.set(0, 0.44, 0);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.35, 0.75), cabinMaterial);
+  cabin.position.set(0.08, 0.75, 0);
+  cabin.castShadow = true;
+  cabin.receiveShadow = true;
+  group.add(cabin);
+
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.22, 0.66), glassMaterial);
+  windshield.position.set(0.15, 0.76, 0);
+  windshield.castShadow = true;
+  group.add(windshield);
+
+  const wheelGeometry = new THREE.CylinderGeometry(0.17, 0.17, 0.12, 20);
+  const wheelOffsets = [
+    [-0.45, 0.17, 0.38],
+    [0.45, 0.17, 0.38],
+    [-0.45, 0.17, -0.38],
+    [0.45, 0.17, -0.38]
+  ];
+  const wheels = wheelOffsets.map(([x, y, z]) => {
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.rotation.x = Math.PI * 0.5;
+    wheel.position.set(x, y, z);
+    wheel.castShadow = true;
+    wheel.receiveShadow = true;
+    group.add(wheel);
+    return wheel;
+  });
+
+  const brakeLights = [-0.22, 0.22].map((z) => {
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 14), brakeMaterial);
+    light.position.set(-0.77, 0.46, z);
+    group.add(light);
+    return light;
+  });
+
+  const passenger = new THREE.Group();
+  const torso = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.26, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0xf7d7b5, roughness: 0.7, metalness: 0.04 })
+  );
+  torso.position.set(0, 0.02, 0);
+  torso.castShadow = true;
+  passenger.add(torso);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xf2c89d, roughness: 0.62, metalness: 0.04 })
+  );
+  head.position.set(0.02, 0.22, 0);
+  head.castShadow = true;
+  passenger.add(head);
+
+  const seatBelt = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.36, 0.18),
+    new THREE.MeshStandardMaterial({
+      color: 0x2f4054,
+      roughness: 0.8,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.95
+    })
+  );
+  seatBelt.position.set(0.06, 0.02, 0);
+  seatBelt.rotation.z = 0.58;
+  passenger.add(seatBelt);
+
+  passenger.position.set(-0.03, 0.64, 0);
+  group.add(passenger);
+
+  const airbag = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 20, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0xf4f7fa,
+      roughness: 0.72,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.92
+    })
+  );
+  airbag.position.set(0.59, 0.63, 0);
+  airbag.scale.setScalar(0.01);
+  airbag.visible = false;
+  group.add(airbag);
+
+  const speedLabel = createLabelSprite('현재 60 km/h', {
+    width: 420,
+    height: 104,
+    background: 'rgba(10, 22, 35, 0.86)',
+    font: '700 30px Pretendard'
+  });
+  speedLabel.position.set(0, 1.8, 0);
+  group.add(speedLabel);
+
+  const resultLabel = createLabelSprite('정지', {
+    width: 260,
+    height: 100,
+    background: 'rgba(17, 83, 47, 0.9)',
+    font: '800 34px Pretendard'
+  });
+  resultLabel.position.set(0, 2.6, 0);
+  resultLabel.visible = false;
+  dynamicGroup.add(resultLabel);
+
+  return {
+    index,
+    laneZ,
+    group,
+    bodyMaterial,
+    cabinMaterial,
+    brakeMaterial,
+    wheels,
+    brakeLights,
+    passenger,
+    seatBelt,
+    airbag,
+    speedLabel,
+    resultLabel,
+    reactionStrip: createStrip(0xffd54f, laneZ),
+    brakingStrip: createStrip(0xff9f45, laneZ),
+    skidMarks: [],
+    metrics: null,
+    speedKmh: 0,
+    done: false,
+    collided: false,
+    brakingStarted: false,
+    announcedCollision: false,
+    currentSpeedMS: 0,
+    currentMeters: 0,
+    lastWorldX: 0,
+    collisionTime: null
+  };
+}
+
+function initScene() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+  sun.position.set(10, 16, 8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -24;
+  sun.shadow.camera.right = 48;
+  sun.shadow.camera.top = 18;
+  sun.shadow.camera.bottom = -14;
+  sun.shadow.bias = -0.00012;
+  staticGroup.add(sun);
+
+  const hemi = new THREE.HemisphereLight(0xe7f6ff, 0xa7bb8d, 0.36);
+  staticGroup.add(hemi);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(110, 42),
+    new THREE.MeshStandardMaterial({ color: 0xb8c98e, roughness: 1, metalness: 0 })
+  );
+  ground.rotation.x = -Math.PI * 0.5;
+  ground.position.y = -0.001;
+  ground.receiveShadow = true;
+  staticGroup.add(ground);
+
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(70, 0.05, 8.4),
+    new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9, metalness: 0.04 })
+  );
+  road.position.set(9, 0.03, 0);
+  road.receiveShadow = true;
+  staticGroup.add(road);
+
+  const sidewalkMaterial = new THREE.MeshStandardMaterial({
+    color: 0xbbbbaa,
+    roughness: 0.95,
+    metalness: 0.02
+  });
+  [-5.35, 5.35].forEach((z) => {
+    const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(70, 0.18, 1.9), sidewalkMaterial);
+    sidewalk.position.set(9, 0.095, z);
+    sidewalk.receiveShadow = true;
+    staticGroup.add(sidewalk);
+  });
+
+  createLaneMarkings();
+  createCrosswalk();
+  createHazardMarkers();
+  createPedestrian();
+  createRoadsideDetails();
+
+  onResize();
+}
+
+function createLaneMarkings() {
+  for (let i = 0; i < 55; i += 1) {
+    const x = -24 + i * 1.25;
+    [-1.25, 1.25].forEach((z) => {
+      const mark = new THREE.Mesh(
+        new THREE.BoxGeometry(0.62, 0.02, 0.08),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      mark.position.set(x, 0.061, z);
+      staticGroup.add(mark);
+    });
+  }
+
+  for (let i = 0; i < 42; i += 1) {
+    const x = -24 + i * 1.65;
+    const centerMark = new THREE.Mesh(
+      new THREE.BoxGeometry(0.82, 0.02, 0.09),
+      new THREE.MeshBasicMaterial({ color: 0xffd04f })
+    );
+    centerMark.position.set(x, 0.062, 0);
+    staticGroup.add(centerMark);
+  }
+
+  [-3.05, 3.05].forEach((z) => {
+    const edgeLine = new THREE.Mesh(
+      new THREE.BoxGeometry(70, 0.015, 0.06),
+      new THREE.MeshBasicMaterial({ color: 0xe6e6e6 })
+    );
+    edgeLine.position.set(9, 0.061, z);
+    staticGroup.add(edgeLine);
+  });
+}
+
+function createCrosswalk() {
+  const obstacleWorldX = metersToWorld(OBSTACLE_DISTANCE_M);
+  for (let i = 0; i < 6; i += 1) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.03, 6.2),
+      new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.82, metalness: 0.02 })
+    );
+    stripe.position.set(obstacleWorldX - 1.1 + i * 0.45, 0.055, 0);
+    staticGroup.add(stripe);
+  }
+}
+
+function createHazardMarkers() {
+  const hazardLabel = createLabelSprite('⚠ 위험 인지 지점', {
+    width: 430,
+    height: 104,
+    background: 'rgba(131, 75, 16, 0.88)',
+    border: 'rgba(255,255,255,0.16)',
+    font: '700 30px Pretendard'
+  });
+  hazardLabel.position.set(0, 1.65, 3.8);
+  staticGroup.add(hazardLabel);
+  sceneRefs.hazardLabel = hazardLabel;
+
+  const warningPulse = new THREE.Mesh(
+    new THREE.RingGeometry(0.28, 0.54, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0xffcc4d,
+      transparent: true,
+      opacity: 0.46,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    })
+  );
+  warningPulse.rotation.x = -Math.PI * 0.5;
+  warningPulse.position.set(0, 0.04, 3.05);
+  staticGroup.add(warningPulse);
+  sceneRefs.warningPulse = warningPulse;
+
+  const obstaclePulse = new THREE.Mesh(
+    new THREE.RingGeometry(0.45, 0.8, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0xff6f6f,
+      transparent: true,
+      opacity: 0.36,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    })
+  );
+  obstaclePulse.rotation.x = -Math.PI * 0.5;
+  obstaclePulse.position.set(metersToWorld(OBSTACLE_DISTANCE_M), 0.045, 0);
+  staticGroup.add(obstaclePulse);
+  sceneRefs.obstaclePulse = obstaclePulse;
+
+  for (let i = 0; i < 16; i += 1) {
+    const dash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.05, 0.34),
+      new THREE.MeshBasicMaterial({ color: 0xff6f6f })
+    );
+    dash.position.set(metersToWorld(OBSTACLE_DISTANCE_M), 0.07, -2.72 + i * 0.36);
+    staticGroup.add(dash);
+    sceneRefs.roadSegments.push(dash);
+  }
+}
+
+function createPedestrian() {
+  const obstacleWorldX = metersToWorld(OBSTACLE_DISTANCE_M) + 0.12;
+  const person = new THREE.Group();
+
+  const legGeometry = new THREE.BoxGeometry(0.14, 0.52, 0.12);
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xddccbb, roughness: 0.75, metalness: 0.02 });
+  const shirtMaterial = new THREE.MeshStandardMaterial({ color: 0x6e7bb8, roughness: 0.72, metalness: 0.04 });
+
+  [-0.08, 0.08].forEach((z) => {
+    const leg = new THREE.Mesh(legGeometry, bodyMaterial);
+    leg.position.set(0, 0.28, z);
+    leg.castShadow = true;
+    person.add(leg);
+  });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, 0.22), shirtMaterial);
+  torso.position.set(0, 0.78, 0);
+  torso.castShadow = true;
+  person.add(torso);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xe8c7a8, roughness: 0.62, metalness: 0.04 })
+  );
+  head.position.set(0, 1.17, 0);
+  head.castShadow = true;
+  person.add(head);
+
+  [-0.22, 0.22].forEach((x) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.1), bodyMaterial);
+    arm.position.set(x, 0.8, 0);
+    arm.rotation.z = x < 0 ? 0.45 : -0.45;
+    arm.castShadow = true;
+    person.add(arm);
+  });
+
+  person.position.set(obstacleWorldX, 0, 0.85);
+  sceneRefs.pedestrian = person;
+  staticGroup.add(person);
+
+  const label = createLabelSprite('보행자', {
+    width: 240,
+    height: 92,
+    background: 'rgba(129, 42, 42, 0.88)',
+    border: 'rgba(255,255,255,0.14)',
+    font: '700 30px Pretendard'
+  });
+  label.position.set(obstacleWorldX, 2.08, 1.25);
+  staticGroup.add(label);
+  sceneRefs.pedestrianLabel = label;
+}
+
+function createRoadsideDetails() {
+  for (let i = 0; i < 6; i += 1) {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.12, 0.9, 10),
+      new THREE.MeshStandardMaterial({ color: 0x7a5a34, roughness: 0.92, metalness: 0.02 })
+    );
+    trunk.position.y = 0.45;
+    trunk.castShadow = true;
+    tree.add(trunk);
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.46, 18, 18),
+      new THREE.MeshStandardMaterial({ color: 0x7da961, roughness: 0.9, metalness: 0.02 })
+    );
+    crown.position.y = 1.16;
+    crown.castShadow = true;
+    tree.add(crown);
+
+    tree.position.set(-8 + i * 9.5, 0, i % 2 === 0 ? -7.4 : 7.2);
+    staticGroup.add(tree);
+  }
+
+  const signPost = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 1.6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8f97a1, roughness: 0.82, metalness: 0.28 })
+  );
+  signPost.position.set(-5.4, 0.8, 4.25);
+  staticGroup.add(signPost);
+
+  const signBoard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.8, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.74, metalness: 0.04 })
+  );
+  signBoard.position.set(-5.4, 1.6, 4.25);
+  staticGroup.add(signBoard);
+
+  const signLabel = createLabelSprite('30', {
+    width: 160,
+    height: 160,
+    background: 'rgba(255,255,255,0.96)',
+    border: 'rgba(206,54,54,0.9)',
+    color: '#cc3333',
+    font: '800 72px Pretendard'
+  });
+  signLabel.scale.set(0.72, 0.72, 1);
+  signLabel.position.set(-5.4, 1.6, 4.32);
+  staticGroup.add(signLabel);
+}
+
+function createGUI() {
+  const gui = new GUI({ title: '교통안전 제어', width: 304 });
+  state.gui = gui;
+
+  gui.add(params, 'initialSpeed', 20, 120, 10).name('초기 속력 (km/h)').onChange(() => resetSimulation(false));
+  gui.add(params, 'reactionTime', 0.3, 1.5, 0.1).name('반응 시간 (s)').onChange(() => resetSimulation(false));
+  gui.add(params, 'roadState', Object.keys(ROAD_STATE_FACTORS)).name('도로 상태').onChange(() => resetSimulation(false));
+  gui.add(params, 'start').name('시뮬레이션 시작');
+  gui.add(params, 'compare').name('3차선 비교');
+  gui.add(params, 'seatBelt').name('안전띠').onChange(() => {
+    applyProtectionVisibility();
+    updateStatusPanels();
+  });
+  gui.add(params, 'airbag').name('에어백').onChange(() => {
+    applyProtectionVisibility();
+    updateStatusPanels();
+  });
+  gui.add(params, 'reset').name('초기화');
+
+  if (window.innerWidth < 980) gui.close();
+}
+
+function bindEvents() {
+  window.addEventListener('resize', onResize);
+  dom.guideToggle.addEventListener('click', () => {
+    const visible = dom.guidePanel.style.display === 'block';
+    dom.guidePanel.style.display = visible ? 'none' : 'block';
+  });
+}
+
+function onResize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
+}
+
+function calculateMetrics(speedKmh) {
+  const speedMS = speedKmh / 3.6;
+  const factor = ROAD_STATE_FACTORS[params.roadState];
+  const decel = BASE_DECEL / factor;
+  const reactionDistance = speedMS * params.reactionTime;
+  const brakingDistance = (speedMS * speedMS) / (2 * decel);
+  const totalDistance = reactionDistance + brakingDistance;
+  const brakeDuration = speedMS / decel;
+  const distanceAfterReaction = OBSTACLE_DISTANCE_M - reactionDistance;
+  const collision = totalDistance > OBSTACLE_DISTANCE_M;
+
+  let collisionPhase = null;
+  let brakeToImpact = 0;
+  let impactSpeed = 0;
+  let collisionTime = Infinity;
+
+  if (collision) {
+    if (distanceAfterReaction <= 0) {
+      collisionPhase = 'reaction';
+      collisionTime = HAZARD_TIME + OBSTACLE_DISTANCE_M / speedMS;
+      impactSpeed = speedMS;
+    } else {
+      collisionPhase = 'braking';
+      const discriminant = Math.max(speedMS * speedMS - 2 * decel * distanceAfterReaction, 0);
+      brakeToImpact = (speedMS - Math.sqrt(discriminant)) / decel;
+      impactSpeed = Math.sqrt(discriminant);
+      collisionTime = HAZARD_TIME + params.reactionTime + brakeToImpact;
+    }
+  }
+
+  return {
+    speedKmh,
+    speedMS,
+    factor,
+    decel,
+    reactionDistance,
+    brakingDistance,
+    totalDistance,
+    brakeDuration,
+    collision,
+    collisionPhase,
+    brakeToImpact,
+    impactSpeed,
+    collisionTime,
+    stopTime: HAZARD_TIME + params.reactionTime + brakeDuration,
+    obstacleDistance: OBSTACLE_DISTANCE_M
+  };
+}
+
+function resetSimulation(announceReset = false) {
+  state.running = false;
+  state.completed = false;
+  state.simTime = 0;
+  state.phaseKey = 'idle';
+  state.activeCars = [];
+
+  configureCarsForMode();
+  applyProtectionVisibility();
+  updateStatusPanels();
+  updateChart();
+  hideBanner();
+
+  if (announceReset) {
+    announce('시뮬레이션을 초기화했습니다.', 'warn');
+  }
+
+  if (state.gui) {
+    state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function configureCarsForMode() {
+  cars.forEach((car) => {
+    disposeSkidMarks(car);
+    car.done = false;
+    car.collided = false;
+    car.brakingStarted = false;
+    car.announcedCollision = false;
+    car.currentSpeedMS = 0;
+    car.currentMeters = 0;
+    car.collisionTime = null;
+    car.resultLabel.visible = false;
+    car.reactionStrip.visible = false;
+    car.brakingStrip.visible = false;
+    car.airbag.visible = false;
+    car.airbag.scale.setScalar(0.01);
+  });
+
+  if (state.mode === 'single') {
+    const car = cars[1];
+    state.activeCars = [car];
+    configureCarAppearance(car, params.initialSpeed, CAR_COLORS.current, `현재 ${params.initialSpeed} km/h`);
+    car.group.visible = true;
+    cars[0].group.visible = false;
+    cars[2].group.visible = false;
+  } else {
+    const configs = [
+      { car: cars[0], speed: 30, color: CAR_COLORS.compare30, label: '30 km/h' },
+      { car: cars[1], speed: 60, color: CAR_COLORS.compare60, label: '60 km/h' },
+      { car: cars[2], speed: 90, color: CAR_COLORS.compare90, label: '90 km/h' }
+    ];
+    state.activeCars = configs.map((entry) => {
+      configureCarAppearance(entry.car, entry.speed, entry.color, entry.label);
+      entry.car.group.visible = true;
+      return entry.car;
+    });
+  }
+
+  updateStripLayouts();
+}
+
+function configureCarAppearance(car, speedKmh, color, label) {
+  car.speedKmh = speedKmh;
+  car.metrics = calculateMetrics(speedKmh);
+  car.bodyMaterial.color.setHex(color);
+  car.cabinMaterial.color.setHex(new THREE.Color(color).multiplyScalar(0.66).getHex());
+  car.speedLabel.userData.setText(label);
+  car.group.position.set(metersToWorld(-car.metrics.speedMS * HAZARD_TIME), 0, car.laneZ);
+  car.passenger.position.set(-0.03, 0.64, 0);
+  car.passenger.rotation.set(0, 0, 0);
+  car.seatBelt.visible = params.seatBelt;
+  car.resultLabel.position.set(metersToWorld(car.metrics.totalDistance), 2.4, car.laneZ);
+  car.lastWorldX = car.group.position.x;
+}
+
+function updateStripLayouts() {
+  state.activeCars.forEach((car) => {
+    const reactionLength = metersToWorld(car.metrics.reactionDistance);
+    car.reactionStrip.visible = reactionLength > 0.002;
+    car.reactionStrip.scale.x = Math.max(reactionLength, 0.001);
+    car.reactionStrip.position.set(metersToWorld(car.metrics.reactionDistance / 2), 0.028, car.laneZ);
+
+    const brakingLength = metersToWorld(car.metrics.brakingDistance);
+    car.brakingStrip.visible = brakingLength > 0.002;
+    car.brakingStrip.scale.x = Math.max(brakingLength, 0.001);
+    car.brakingStrip.position.set(
+      metersToWorld(car.metrics.reactionDistance + car.metrics.brakingDistance / 2),
+      0.028,
+      car.laneZ
+    );
+  });
+}
+
+function applyProtectionVisibility() {
+  state.activeCars.forEach((car) => {
+    car.seatBelt.visible = params.seatBelt;
+    if (!params.airbag && !car.collided) {
+      car.airbag.visible = false;
+      car.airbag.scale.setScalar(0.01);
+    }
+  });
+}
+
+function startSingleMode() {
+  state.mode = 'single';
+  resetSimulation(false);
+  state.running = true;
+  state.phaseKey = 'cruise';
+  announce('단일 주행을 시작합니다.', 'warn');
+  updateStatusPanels();
+}
+
+function startCompareMode() {
+  state.mode = 'compare';
+  resetSimulation(false);
+  state.running = true;
+  state.phaseKey = 'cruise';
+  announce('30, 60, 90 km/h 3차선 비교를 시작합니다.', 'warn');
+  updateStatusPanels();
+}
+
+function announce(message, tone = 'warn') {
+  dom.banner.textContent = message;
+  dom.banner.className = '';
+  dom.banner.id = 'banner';
+  dom.banner.classList.add('show', tone);
+  state.bannerTimer = 2.2;
+}
+
+function hideBanner() {
+  dom.banner.className = '';
+  dom.banner.id = 'banner';
+  state.bannerTimer = 0;
+}
+
+function updatePhaseAnnouncements() {
+  let nextPhase = 'idle';
+  if (state.running) {
+    const anyCollision = state.activeCars.some((car) => car.collided);
+    const allDone = state.activeCars.every((car) => car.done);
+    if (anyCollision) {
+      nextPhase = 'collision';
+    } else if (allDone) {
+      nextPhase = 'finished';
+    } else if (state.simTime < HAZARD_TIME) {
+      nextPhase = 'cruise';
+    } else if (state.simTime < HAZARD_TIME + params.reactionTime) {
+      nextPhase = 'reaction';
+    } else {
+      nextPhase = 'braking';
+    }
+  } else if (state.completed) {
+    nextPhase = state.activeCars.some((car) => car.collided) ? 'collision' : 'finished';
+  }
+
+  if (nextPhase !== state.phaseKey) {
+    state.phaseKey = nextPhase;
+    if (nextPhase === 'reaction') {
+      announce('위험 인지! 아직 반응 시간 동안은 등속으로 진행합니다.', 'warn');
+    } else if (nextPhase === 'braking') {
+      announce('브레이크 작동! 이제 등가속도 감속이 시작됩니다.', 'warn');
+    } else if (nextPhase === 'finished') {
+      announce('안전하게 정지했습니다.', 'good');
+    } else if (nextPhase === 'collision') {
+      announce('정지 거리가 부족해 충돌했습니다.', 'bad');
+    }
+  }
+}
+
+function updateCarMotion(car, dt) {
+  const metrics = car.metrics;
+  const t = state.simTime;
+  const speedMS = metrics.speedMS;
+  const reactionEnd = HAZARD_TIME + params.reactionTime;
+  let xMeters = -speedMS * HAZARD_TIME;
+  let currentSpeed = speedMS;
+
+  if (t < HAZARD_TIME) {
+    xMeters = -speedMS * (HAZARD_TIME - t);
+    currentSpeed = speedMS;
+  } else if (metrics.collision && t >= metrics.collisionTime) {
+    xMeters = OBSTACLE_DISTANCE_M;
+    currentSpeed = metrics.impactSpeed;
+    if (!car.collided) {
+      car.collided = true;
+      car.collisionTime = t;
+    }
+    car.done = true;
+  } else if (t < reactionEnd) {
+    xMeters = speedMS * (t - HAZARD_TIME);
+    currentSpeed = speedMS;
+  } else {
+    const tau = t - reactionEnd;
+    const brakingDistance = speedMS * tau - 0.5 * metrics.decel * tau * tau;
+    xMeters = metrics.reactionDistance + Math.max(0, brakingDistance);
+    currentSpeed = Math.max(0, speedMS - metrics.decel * tau);
+
+    if (metrics.collision && metrics.collisionPhase === 'braking' && t >= metrics.collisionTime) {
+      xMeters = OBSTACLE_DISTANCE_M;
+      currentSpeed = metrics.impactSpeed;
+      if (!car.collided) {
+        car.collided = true;
+        car.collisionTime = t;
+      }
+      car.done = true;
+    } else if (!metrics.collision && tau >= metrics.brakeDuration) {
+      xMeters = metrics.totalDistance;
+      currentSpeed = 0;
+      car.done = true;
+    }
+
+    if (!car.brakingStarted && t >= reactionEnd) {
+      car.brakingStarted = true;
+    }
+  }
+
+  car.currentMeters = xMeters;
+  car.currentSpeedMS = currentSpeed;
+  car.group.position.x = metersToWorld(xMeters);
+  animateCarVisuals(car, dt);
+  updateProtectionAnimation(car);
+  updateSkidMarks(car);
+  updateResultMarker(car);
+}
+
+function animateCarVisuals(car, dt) {
+  const deltaMeters = car.group.position.x - car.lastWorldX;
+  car.wheels.forEach((wheel) => {
+    wheel.rotation.z -= deltaMeters * 4.8;
+  });
+  car.lastWorldX = car.group.position.x;
+
+  const emissiveStrength = car.brakingStarted || car.collided ? 0.78 : 0.12;
+  car.brakeMaterial.emissive.setRGB(emissiveStrength, 0, 0);
+  car.brakeLights.forEach((light) => {
+    light.scale.setScalar(car.brakingStarted || car.collided ? 1.1 : 1);
+  });
+
+  if (!car.collided) {
+    car.passenger.position.x = THREE.MathUtils.lerp(car.passenger.position.x, -0.03, 0.14);
+    car.passenger.position.y = THREE.MathUtils.lerp(car.passenger.position.y, 0.64, 0.14);
+  }
+}
+
+function updateProtectionAnimation(car) {
+  if (!car.collided) {
+    if (!params.airbag) {
+      car.airbag.visible = false;
+      car.airbag.scale.setScalar(0.01);
+    }
+    return;
+  }
+
+  const elapsed = clamp((state.simTime - car.collisionTime) / 0.36, 0, 1);
+  const eased = easeOutCubic(elapsed);
+
+  if (params.seatBelt) {
+    car.passenger.position.x = -0.03 + 0.2 * eased;
+    car.passenger.position.y = 0.64 + 0.05 * Math.sin(elapsed * Math.PI);
+    car.passenger.rotation.z = 0.12 * eased;
+  } else {
+    car.passenger.position.x = -0.03 + 1.05 * eased;
+    car.passenger.position.y = 0.64 + 0.35 * eased;
+    car.passenger.rotation.z = -0.6 * eased;
+  }
+
+  if (params.airbag) {
+    car.airbag.visible = true;
+    const scale = 0.01 + 1.1 * eased;
+    car.airbag.scale.set(scale, scale * 0.88, scale);
+  }
+}
+
+function updateSkidMarks(car) {
+  if (!car.brakingStarted || car.collided && car.metrics.collisionPhase === 'reaction') {
+    return;
+  }
+
+  const brakingProgress = Math.max(0, car.currentMeters - car.metrics.reactionDistance);
+  const length = metersToWorld(brakingProgress);
+  if (length <= 0.001) return;
+
+  if (!car.skidMarks.length) {
+    const trackOffsets = [-0.32, 0.32];
+    trackOffsets.forEach((offset) => {
+      const mark = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 0.08),
+        new THREE.MeshBasicMaterial({
+          color: 0x0f0f0f,
+          transparent: true,
+          opacity: 0.38,
+          depthWrite: false
+        })
+      );
+      mark.rotation.x = -Math.PI * 0.5;
+      mark.position.y = 0.031;
+      mark.position.z = car.laneZ + offset;
+      dynamicGroup.add(mark);
+      car.skidMarks.push(mark);
+    });
+  }
+
+  car.skidMarks.forEach((mark) => {
+    mark.scale.x = Math.max(length, 0.001);
+    mark.position.x = metersToWorld(car.metrics.reactionDistance + brakingProgress / 2);
+  });
+}
+
+function disposeSkidMarks(car) {
+  car.skidMarks.forEach((mark) => {
+    dynamicGroup.remove(mark);
+    mark.geometry.dispose();
+    mark.material.dispose();
+  });
+  car.skidMarks.length = 0;
+}
+
+function updateResultMarker(car) {
+  if (!car.done) {
+    car.resultLabel.visible = false;
+    return;
+  }
+
+  if (car.collided) {
+    car.resultLabel.userData.setText('✕ 충돌');
+    car.resultLabel.material.color.setHex(0xffffff);
+    car.resultLabel.position.set(metersToWorld(OBSTACLE_DISTANCE_M), 2.45, car.laneZ);
+    car.resultLabel.material.rotation = 0;
+    car.resultLabel.visible = true;
+  } else {
+    car.resultLabel.userData.setText('✓ 정지');
+    car.resultLabel.position.set(metersToWorld(car.metrics.totalDistance), 2.45, car.laneZ);
+    car.resultLabel.visible = true;
+  }
+}
+
+function updateDynamicScene(dt) {
+  const warningScale = 1 + 0.18 * Math.sin(clock.elapsedTime * 3.4);
+  sceneRefs.warningPulse.scale.setScalar(warningScale);
+  sceneRefs.obstaclePulse.scale.setScalar(1 + 0.16 * Math.sin(clock.elapsedTime * 2.8 + 0.8));
+
+  if (!state.running) return;
+
+  state.simTime += dt;
+  state.activeCars.forEach((car) => updateCarMotion(car, dt));
+
+  const allDone = state.activeCars.every((car) => car.done);
+  if (allDone) {
+    state.running = false;
+    state.completed = true;
+  }
+
+  updatePhaseAnnouncements();
+  updateStatusPanels();
+}
+
+function getCurrentReferenceMetrics() {
+  if (state.mode === 'compare') {
+    return calculateMetrics(60);
+  }
+  return state.activeCars[0]?.metrics ?? calculateMetrics(params.initialSpeed);
+}
+
+function getProtectionDuration() {
+  let duration = 0.035;
+  if (params.seatBelt) duration += 0.055;
+  if (params.airbag) duration += 0.05;
+  return duration;
+}
+
+function updateStatusPanels() {
+  const metrics = getCurrentReferenceMetrics();
+  const anyCollision = state.activeCars.some((car) => car.collided || (state.completed && car.metrics.collision));
+  const phaseMap = {
+    idle: '대기 중',
+    cruise: '등속 주행',
+    reaction: '반응 시간',
+    braking: '제동 중',
+    finished: '정지 완료',
+    collision: '충돌'
+  };
+
+  dom.modePill.textContent = state.mode === 'single' ? '단일 주행' : '3차선 비교';
+  dom.phasePill.textContent = phaseMap[state.phaseKey] ?? '대기 중';
+  dom.metricObstacle.textContent = formatMeters(OBSTACLE_DISTANCE_M);
+
+  if (state.mode === 'single') {
+    dom.statusTitle.textContent = '정지 거리 시뮬레이션';
+    dom.metricSecondaryLabel.textContent = '현재 정지 거리';
+    dom.metricSecondaryValue.textContent = formatMeters(metrics.totalDistance);
+    dom.metricSecondaryCopy.textContent = '반응 거리와 제동 거리의 합입니다.';
+
+    if (state.running && state.phaseKey === 'reaction') {
+      dom.statusCopy.textContent = '위험을 본 뒤 브레이크를 밟기 전까지는 자동차가 계속 등속으로 이동합니다. 이 구간이 반응 거리입니다.';
+    } else if (state.running && state.phaseKey === 'braking') {
+      dom.statusCopy.textContent = '브레이크를 밟은 뒤에는 등가속도 감속이 일어나며, 속력이 클수록 제동 거리가 더 크게 늘어납니다.';
+    } else if (anyCollision) {
+      dom.statusCopy.textContent = '보행자 위치보다 정지 거리가 길어 충돌이 발생했습니다. 같은 반응 시간이라도 속력과 도로 상태가 결과를 크게 바꿉니다.';
+    } else if (state.completed) {
+      dom.statusCopy.textContent = '보행자 앞에서 안전하게 멈췄습니다. 정지 거리가 보행자 위치보다 짧아야 사고를 피할 수 있습니다.';
+    } else {
+      dom.statusCopy.textContent = '속력, 반응 시간, 도로 상태를 바꾼 뒤 시뮬레이션을 시작해 보세요. 같은 반응 시간이라도 속력이 커질수록 반응 거리와 제동 거리가 모두 길어집니다.';
+    }
+  } else {
+    const compareRows = PRESET_SPEEDS.map((speed) => calculateMetrics(speed));
+    const ratio = compareRows[1].brakingDistance / compareRows[0].brakingDistance;
+    dom.statusTitle.textContent = '3차선 속력 비교';
+    dom.metricSecondaryLabel.textContent = '60 km/h 제동 거리';
+    dom.metricSecondaryValue.textContent = formatMeters(compareRows[1].brakingDistance);
+    dom.metricSecondaryCopy.textContent = '30 km/h의 약 4배입니다.';
+    if (state.completed) {
+      dom.statusCopy.textContent = `30 → 60 km/h로 속력이 2배가 되면 제동 거리는 약 ${ratio.toFixed(1)}배가 됩니다. 90 km/h 차량은 훨씬 더 긴 거리가 필요합니다.`;
+    } else {
+      dom.statusCopy.textContent = '세 차량은 같은 반응 시간과 도로 상태를 공유합니다. 차이는 속력뿐이며, 그 차이가 정지 거리를 얼마나 크게 바꾸는지 비교해 보세요.';
+    }
+  }
+
+  dom.formulaPanel.innerHTML = `
+    <h3>🚗 등가속도 운동과 교통안전</h3>
+    <div class="formula-row"><span class="key">초기 속력</span><span class="value">${params.initialSpeed.toFixed(0)} km/h (${metrics.speedMS.toFixed(1)} m/s)</span></div>
+    <div class="formula-row"><span class="key">반응 시간</span><span class="value">${params.reactionTime.toFixed(1)} s</span></div>
+    <div class="formula-row"><span class="key">도로 상태</span><span class="value">${params.roadState}</span></div>
+    <div class="formula-block">
+      <div class="formula-row"><span class="key">반응 거리</span><span class="value">v₀ × t = ${metrics.reactionDistance.toFixed(1)} m</span></div>
+      <div class="formula-row"><span class="key">제동 거리</span><span class="value">v₀² / (2|a|) = ${metrics.brakingDistance.toFixed(1)} m</span></div>
+      <div class="formula-row"><span class="key">정지 거리</span><span class="value">반응 + 제동 = ${metrics.totalDistance.toFixed(1)} m</span></div>
+    </div>
+    <div class="formula-block">
+      <strong>핵심:</strong> 속력 2배 → 제동 거리 4배 (v²에 비례)<br>
+      <span>v² = v₀² + 2as 에서 s = v₀² / (2|a|)</span>
+    </div>
+  `;
+
+  if (anyCollision) {
+    const collisionCar = state.activeCars.find((car) => car.collided) || state.activeCars.find((car) => car.metrics.collision);
+    const impactSpeed = collisionCar ? collisionCar.metrics.impactSpeed || collisionCar.metrics.speedMS : metrics.speedMS;
+    const protectionDuration = getProtectionDuration();
+    const estimatedForce = (PASSENGER_MASS * impactSpeed) / protectionDuration;
+    dom.safetyCallout.textContent = params.seatBelt || params.airbag
+      ? `안전장치 적용: 충돌 시간을 약 ${protectionDuration.toFixed(2)} s 로 늘려 평균 힘을 ${formatForce(estimatedForce)} 수준으로 줄였습니다. F = Δp / Δt 에서 Δt가 커질수록 힘이 감소합니다.`
+      : `안전장치 없음: 승객이 짧은 시간(${protectionDuration.toFixed(2)} s) 안에 멈추며 평균 힘이 ${formatForce(estimatedForce)} 수준까지 커집니다. 안전띠와 에어백이 꼭 필요한 이유입니다.`;
+  } else {
+    dom.safetyCallout.textContent = '안전띠와 에어백은 승객이 멈추는 시간을 늘려 평균 힘을 줄입니다. 충돌 시 F = Δp / Δt 에서 Δt가 커지면 힘은 작아집니다.';
+  }
+}
+
+function updateChart() {
+  const rows = [];
+  const currentMetrics = calculateMetrics(params.initialSpeed);
+  rows.push({
+    label: `현재 설정 ${params.initialSpeed} km/h`,
+    metrics: currentMetrics,
+    active: state.mode === 'single'
+  });
+
+  PRESET_SPEEDS.forEach((speed) => {
+    if (speed === params.initialSpeed) return;
+    rows.push({
+      label: `${speed} km/h`,
+      metrics: calculateMetrics(speed),
+      active: state.mode === 'compare'
+    });
+  });
+
+  const maxDistance = Math.max(
+    OBSTACLE_DISTANCE_M,
+    ...rows.map((row) => row.metrics.totalDistance)
+  );
+
+  dom.chartRows.innerHTML = rows.map((row) => {
+    const reactionPct = (row.metrics.reactionDistance / maxDistance) * 100;
+    const brakingPct = (row.metrics.brakingDistance / maxDistance) * 100;
+    const obstaclePct = (OBSTACLE_DISTANCE_M / maxDistance) * 100;
+    let chipClass = 'wait';
+    let chipText = '비교 값';
+
+    if (state.running) {
+      chipText = '진행 중';
+    } else if (row.metrics.collision) {
+      chipClass = 'bad';
+      chipText = '충돌 위험';
+    } else {
+      chipClass = 'good';
+      chipText = '정지 성공';
+    }
+
+    return `
+      <div class="chart-row ${row.active ? 'active' : ''}">
+        <div class="chart-row-head">
+          <strong>${row.label}</strong>
+          <span class="result-chip ${chipClass}">${chipText}</span>
+        </div>
+        <div class="bar-track">
+          <span class="bar-obstacle" style="left:${obstaclePct}%"></span>
+          <span class="bar-segment reaction" style="left:0%; width:${reactionPct}%"></span>
+          <span class="bar-segment braking" style="left:${reactionPct}%; width:${brakingPct}%"></span>
+        </div>
+        <div class="chart-values">반응 ${row.metrics.reactionDistance.toFixed(1)} m · 제동 ${row.metrics.brakingDistance.toFixed(1)} m · 총 ${row.metrics.totalDistance.toFixed(1)} m</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state.bannerTimer > 0) {
+    state.bannerTimer -= dt;
+    if (state.bannerTimer <= 0) {
+      hideBanner();
+    }
+  }
+
+  updateDynamicScene(dt);
+  controls.update();
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

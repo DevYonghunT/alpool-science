@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>열역학 제1법칙 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel-dark: rgba(8, 18, 34, 0.84);
+    --panel-mid: rgba(12, 24, 42, 0.78);
+    --panel-light: rgba(252, 250, 244, 0.92);
+    --line-light: rgba(255, 255, 255, 0.1);
+    --line-dark: rgba(92, 76, 56, 0.12);
+    --text-main: #f6fbff;
+    --text-dim: rgba(246, 251, 255, 0.72);
+    --text-body: #2d241d;
+    --text-muted: #7f7267;
+    --q-color: #ff6b5f;
+    --u-color: #ffd34d;
+    --w-color: #51d38c;
+    --process-iso: #ff8a65;
+    --process-isochoric: #ffd75d;
+    --process-isobaric: #6fe0a7;
+    --process-adiabatic: #79a9ff;
+    --shadow-soft: 0 20px 46px rgba(10, 18, 30, 0.2);
+    --shadow-warm: 0 20px 52px rgba(82, 56, 36, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 16% 16%, rgba(255, 205, 165, 0.2), transparent 22%),
+      radial-gradient(circle at 84% 18%, rgba(124, 178, 255, 0.18), transparent 20%),
+      linear-gradient(180deg, #f5f7fb 0%, #eef0f5 40%, #dce3ee 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  #hero {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    width: min(620px, calc(100vw - 36px));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #hero .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(22, 36, 56, 0.58);
+  }
+
+  #hero h1 {
+    margin-top: 6px;
+    font-size: 30px;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    color: rgba(16, 28, 44, 0.96);
+    text-shadow: 0 4px 18px rgba(255, 255, 255, 0.48);
+  }
+
+  #hero p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(28, 40, 58, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 64;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(9, 22, 40, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 63;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(76vh, 760px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px;
+    border-radius: 20px;
+    background: rgba(7, 18, 34, 0.92);
+    color: #f7fbff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+    font-size: 13px;
+    line-height: 1.74;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9fd7ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #guide-panel .ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #status-card {
+    position: fixed;
+    top: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    width: min(560px, calc(100vw - 34px));
+    padding: 14px 18px;
+    border-radius: 22px;
+    background: rgba(9, 18, 32, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+  }
+
+  #status-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  #status-card h2 {
+    margin-top: 4px;
+    font-size: 19px;
+    letter-spacing: -0.02em;
+  }
+
+  #status-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #relation-chip {
+    margin-top: 10px;
+    padding: 9px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 244, 232, 0.94);
+    font-size: 12px;
+  }
+
+  .glass-dark {
+    background: var(--panel-dark);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 34;
+    width: min(392px, calc(100vw - 28px));
+    padding: 18px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(247, 242, 235, 0.92));
+    color: var(--text-body);
+    border: 1px solid var(--line-dark);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-warm);
+    font-size: 12px;
+    line-height: 1.74;
+    max-height: min(42vh, 340px);
+    overflow-y: auto;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ab562a;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(171, 86, 42, 0.42), rgba(171, 86, 42, 0.02));
+  }
+
+  #formula-panel .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  #formula-panel .label {
+    width: 118px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    font-weight: 700;
+  }
+
+  #formula-panel .equation-box,
+  #formula-panel .note-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(171, 86, 42, 0.14);
+    background: rgba(255, 156, 87, 0.08);
+  }
+
+  #formula-panel .equation-box strong,
+  #formula-panel .note-box strong {
+    color: #b55d2f;
+  }
+
+  #bars-panel,
+  #pv-panel {
+    position: fixed;
+    right: 14px;
+    width: min(370px, calc(100vw - 28px));
+    border-radius: 22px;
+    overflow: hidden;
+    z-index: 34;
+  }
+
+  #bars-panel.hidden,
+  #pv-panel.hidden {
+    display: none;
+  }
+
+  #bars-panel {
+    top: 114px;
+  }
+
+  #pv-panel {
+    bottom: 14px;
+  }
+
+  .panel-head {
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .panel-head h2 {
+    font-size: 18px;
+    letter-spacing: -0.03em;
+  }
+
+  .panel-head p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.64;
+    color: rgba(246, 251, 255, 0.68);
+  }
+
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-shadow: 0 0 14px currentColor;
+    flex-shrink: 0;
+  }
+
+  #bars-canvas,
+  #pv-canvas {
+    width: 100%;
+    height: 270px;
+  }
+
+  .q-value { color: var(--q-color); }
+  .u-value { color: #c98a00; }
+  .w-value { color: #169b57; }
+
+  .lil-gui.root {
+    z-index: 66 !important;
+  }
+
+  .lil-gui {
+    --background-color: rgba(9, 18, 32, 0.88);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --widget-height: 28px;
+    --name-width: 46%;
+    --slider-knob-width: 4px;
+    --title-background-color: rgba(255, 255, 255, 0.08);
+    --text-color: #f6fbff;
+    --number-color: #8fe4ff;
+    --string-color: #ffd67d;
+    --focus-color: rgba(143, 228, 255, 0.36);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+  }
+
+  @media (max-width: 980px) {
+    #hero h1 {
+      font-size: 26px;
+    }
+
+    #status-card {
+      top: 120px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    #hero {
+      top: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #hero h1 {
+      font-size: 24px;
+    }
+
+    #status-card {
+      top: 154px;
+      width: calc(100vw - 24px);
+    }
+
+    #bars-panel {
+      top: auto;
+      bottom: 282px;
+      left: 10px;
+      right: 10px;
+      width: auto;
+    }
+
+    #pv-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 564px;
+      max-height: 236px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    #status-card {
+      top: 186px;
+    }
+
+    #bars-panel {
+      bottom: 270px;
+    }
+
+    #formula-panel {
+      bottom: 548px;
+      font-size: 11px;
+    }
+
+    #bars-canvas,
+    #pv-canvas {
+      height: 236px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-root"></div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>열역학 제1법칙 <strong>Q = ΔU + W</strong>는 에너지 보존 법칙의 열역학적 표현입니다. 계에 드나든 열은 기체 분자들의 운동 상태를 바꾸어 내부 에너지로 저장되거나, 피스톤을 움직이며 외부에 하는 일로 전환됩니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>등온 과정에서 내부 에너지가 변하지 않는 까닭을 열역학 제1법칙으로 설명해 보세요.</li>
+    <li>단열 압축 시 기체 온도가 올라가는 까닭을 Q = ΔU + W로 설명해 보세요.</li>
+    <li>기체에 500J의 열을 가하고 기체가 200J의 일을 했다면 내부 에너지는 몇 J 변하나요?</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>자동차 엔진은 열에너지를 기체 팽창과 피스톤 운동을 통해 일로 바꿉니다.</li>
+    <li>냉장고와 에어컨은 외부에서 일을 받아 열을 이동시키는 장치입니다.</li>
+    <li>자전거 펌프를 빠르게 압축하면 단열 압축에 가까워져 공기가 뜨거워집니다.</li>
+    <li>전자레인지와 전기 주전자는 외부 에너지를 열로 전달해 내부 에너지를 높입니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <div class="ref">역학과 에너지 II편 p78~83<br>등온, 등적, 등압, 단열 과정을 한 화면에서 비교하도록 구성했습니다.</div>
+</div>
+
+<div id="hero">
+  <div class="eyebrow">Mechanics &amp; Energy · Thermodynamics</div>
+  <h1>열역학 제1법칙</h1>
+  <p>피스톤 속 기체, 에너지 막대그래프, P-V 다이어그램을 함께 보며 Q = ΔU + W 관계를 과정별로 비교하세요.</p>
+</div>
+
+<div id="status-card">
+  <div class="eyebrow">First Law of Thermodynamics</div>
+  <h2 id="status-title">등온 과정: 열이 모두 일로 전환됩니다.</h2>
+  <p id="status-body">온도가 일정하면 내부 에너지 변화는 0입니다. 따라서 계가 받은 열은 그대로 피스톤을 움직이는 일로 나타납니다.</p>
+  <div id="relation-chip">현재 관계식 · <strong id="relation-text">ΔU = 0 → Q = W</strong></div>
+</div>
+
+<div id="formula-panel"></div>
+
+<div id="bars-panel" class="glass-dark">
+  <div class="panel-head">
+    <h2>에너지 막대그래프</h2>
+    <p>빨간색 Q, 노란색 ΔU, 초록색 W의 크기와 부호를 비교해 보세요. 막대의 합이 언제나 Q = ΔU + W를 만족합니다.</p>
+    <div class="legend-row">
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--q-color); background: var(--q-color);"></span>Q (열)</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--u-color); background: var(--u-color);"></span>ΔU (내부E)</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--w-color); background: var(--w-color);"></span>W (일)</span>
+    </div>
+  </div>
+  <canvas id="bars-canvas"></canvas>
+</div>
+
+<div id="pv-panel" class="glass-dark">
+  <div class="panel-head">
+    <h2>P-V 다이어그램</h2>
+    <p>선택한 과정은 굵게 강조되고, 초록 음영은 현재 경로에서의 일의 방향을 나타냅니다. 등온, 등적, 등압, 단열 경로를 함께 비교해 보세요.</p>
+    <div class="legend-row">
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--process-iso); background: var(--process-iso);"></span>등온</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--process-isochoric); background: var(--process-isochoric);"></span>등적</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--process-isobaric); background: var(--process-isobaric);"></span>등압</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--process-adiabatic); background: var(--process-adiabatic);"></span>단열</span>
+    </div>
+  </div>
+  <canvas id="pv-canvas"></canvas>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const BASE_PRESSURE = 220;
+  const BASE_VOLUME = 4.0;
+  const BASE_TEMPERATURE = 300;
+  const BASE_INTERNAL_ENERGY = 1250;
+  const ADIABATIC_GAMMA = 1.4;
+  const MOLECULE_COUNT = 30;
+
+  const PROCESS_ORDER = ['등온', '등적', '등압', '단열'];
+  const PROCESS_COLORS = {
+    '등온': '#ff8a65',
+    '등적': '#ffd75d',
+    '등압': '#6fe0a7',
+    '단열': '#79a9ff'
+  };
+
+  const PROCESS_INFO = {
+    '등온': {
+      title: '등온 과정: 열이 모두 일로 전환됩니다.',
+      body: '온도가 일정하면 내부 에너지 변화는 0입니다. 따라서 계가 받은 열은 그대로 피스톤을 움직이는 일로 나타납니다.',
+      relation: 'ΔU = 0 → Q = W',
+      summary: '분자 속도는 거의 일정하고, 피스톤 이동만 크게 나타납니다.',
+      note: '온도 일정'
+    },
+    '등적': {
+      title: '등적 과정: 열이 모두 내부 에너지로 저장됩니다.',
+      body: '부피가 일정하면 기체가 외부에 한 일이 0이므로, 들어온 열은 전부 내부 에너지 변화로 이어집니다.',
+      relation: 'W = 0 → Q = ΔU',
+      summary: '피스톤은 고정되고, 분자 운동이 빨라지거나 느려집니다.',
+      note: '부피 일정'
+    },
+    '등압': {
+      title: '등압 과정: 열이 내부 에너지와 일로 나뉩니다.',
+      body: '압력이 일정한 동안 기체는 팽창하며 외부에 일을 합니다. 따라서 받은 열은 내부 에너지 증가와 일의 합으로 분배됩니다.',
+      relation: 'Q = ΔU + PΔV',
+      summary: '분자 속도와 피스톤 이동이 함께 증가합니다.',
+      note: '압력 일정'
+    },
+    '단열': {
+      title: '단열 과정: 열교환 없이 내부 에너지와 일이 서로 바뀝니다.',
+      body: '단열 과정에서는 Q = 0입니다. 팽창하면 내부 에너지가 줄어들어 일을 하고, 압축하면 외부가 한 일이 내부 에너지 증가로 바뀝니다.',
+      relation: 'Q = 0 → ΔU = -W',
+      summary: '슬라이더 부호는 팽창/압축 방향과 세기를 정합니다.',
+      note: '열교환 없음'
+    }
+  };
+
+  const dom = {
+    sceneRoot: document.getElementById('scene-root'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel'),
+    statusTitle: document.getElementById('status-title'),
+    statusBody: document.getElementById('status-body'),
+    relationText: document.getElementById('relation-text'),
+    formulaPanel: document.getElementById('formula-panel'),
+    barsPanel: document.getElementById('bars-panel'),
+    pvPanel: document.getElementById('pv-panel'),
+    barsCanvas: document.getElementById('bars-canvas'),
+    pvCanvas: document.getElementById('pv-canvas')
+  };
+
+  const params = {
+    process: '등온',
+    heatInput: 200,
+    showEnergyFlow: true,
+    showBars: true,
+    showPV: true,
+    showMolecules: true,
+    run: () => startSimulation(),
+    reset: () => resetSimulation()
+  };
+
+  const runtime = {
+    mix: 0,
+    running: false,
+    target: null,
+    current: null
+  };
+
+  let panelSignature = '';
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xeef0f5, 16, 34);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(7.8, 5.2, 9.6);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0xeef0f5, 1);
+  dom.sceneRoot.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.07;
+  controls.minDistance = 5.2;
+  controls.maxDistance = 18;
+  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.target.set(-1.6, 2.5, 0);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight.position.set(8, 14, 10);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  dirLight.shadow.camera.left = -14;
+  dirLight.shadow.camera.right = 14;
+  dirLight.shadow.camera.top = 14;
+  dirLight.shadow.camera.bottom = -10;
+  dirLight.shadow.camera.near = 1;
+  dirLight.shadow.camera.far = 50;
+  dirLight.shadow.bias = -0.00014;
+  scene.add(dirLight);
+
+  const hemi = new THREE.HemisphereLight(0xf8fbff, 0xcfd8e6, 0.22);
+  scene.add(hemi);
+
+  const ground = new THREE.Mesh(
+    new THREE.CylinderGeometry(8.4, 9.4, 0.36, 72),
+    new THREE.MeshStandardMaterial({
+      color: 0xc7cfdb,
+      roughness: 0.92,
+      metalness: 0.04
+    })
+  );
+  ground.position.y = -0.2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const stage = new THREE.Mesh(
+    new THREE.BoxGeometry(10.6, 0.36, 5.2),
+    new THREE.MeshStandardMaterial({
+      color: 0x4f6176,
+      roughness: 0.82,
+      metalness: 0.18
+    })
+  );
+  stage.position.set(-0.6, 0.08, 0);
+  stage.receiveShadow = true;
+  scene.add(stage);
+
+  const accentRing = new THREE.Mesh(
+    new THREE.TorusGeometry(6.6, 0.08, 18, 86),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.14
+    })
+  );
+  accentRing.rotation.x = Math.PI / 2;
+  accentRing.position.y = 0.05;
+  scene.add(accentRing);
+
+  function setShadows(mesh) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function formatSigned(value) {
+    const rounded = Math.round(value);
+    return `${rounded > 0 ? '+' : ''}${rounded} J`;
+  }
+
+  function formatAbs(value) {
+    return `${Math.round(value)} J`;
+  }
+
+  function signLabelForHeat(value) {
+    if (Math.abs(value) < 0.5) return '열출입 0';
+    return value > 0 ? '흡수' : '방출';
+  }
+
+  function signLabelForInternal(value) {
+    if (Math.abs(value) < 0.5) return '변화 0';
+    return value > 0 ? '증가' : '감소';
+  }
+
+  function signLabelForWork(value) {
+    if (Math.abs(value) < 0.5) return '일 0';
+    return value > 0 ? '팽창' : '압축';
+  }
+
+  function createParticleField(maxCount, color, size) {
+    const positions = new Float32Array(maxCount * 3);
+    const colors = new Float32Array(maxCount * 3);
+    const life = new Float32Array(maxCount);
+    const maxLife = new Float32Array(maxCount);
+    const velocities = Array.from({ length: maxCount }, () => new THREE.Vector3());
+    const baseColors = Array.from({ length: maxCount }, () => new THREE.Color(color));
+
+    for (let i = 0; i < maxCount; i += 1) {
+      positions[i * 3 + 1] = -999;
+      colors[i * 3] = baseColors[i].r;
+      colors[i * 3 + 1] = baseColors[i].g;
+      colors[i * 3 + 2] = baseColors[i].b;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+
+    return {
+      positions,
+      colors,
+      life,
+      maxLife,
+      velocities,
+      baseColors,
+      geometry,
+      material,
+      points,
+      cursor: 0
+    };
+  }
+
+  function spawnParticle(system, position, velocity, lifetime) {
+    const index = system.cursor % system.life.length;
+    const offset = index * 3;
+    system.cursor += 1;
+    system.positions[offset] = position.x;
+    system.positions[offset + 1] = position.y;
+    system.positions[offset + 2] = position.z;
+    system.velocities[index].copy(velocity);
+    system.life[index] = lifetime;
+    system.maxLife[index] = lifetime;
+    system.colors[offset] = system.baseColors[index].r;
+    system.colors[offset + 1] = system.baseColors[index].g;
+    system.colors[offset + 2] = system.baseColors[index].b;
+  }
+
+  function updateParticles(system, dt, drag = 0.9, gravity = 0) {
+    const dragFactor = Math.pow(drag, dt * 60);
+    for (let i = 0; i < system.life.length; i += 1) {
+      if (system.life[i] <= 0) continue;
+      const offset = i * 3;
+      system.life[i] -= dt;
+      if (system.life[i] <= 0) {
+        system.positions[offset] = 0;
+        system.positions[offset + 1] = -999;
+        system.positions[offset + 2] = 0;
+        continue;
+      }
+
+      system.velocities[i].multiplyScalar(dragFactor);
+      system.velocities[i].y += gravity * dt;
+      system.positions[offset] += system.velocities[i].x * dt;
+      system.positions[offset + 1] += system.velocities[i].y * dt;
+      system.positions[offset + 2] += system.velocities[i].z * dt;
+
+      const fade = clamp(system.life[i] / system.maxLife[i], 0, 1);
+      system.colors[offset] = system.baseColors[i].r * fade;
+      system.colors[offset + 1] = system.baseColors[i].g * fade;
+      system.colors[offset + 2] = system.baseColors[i].b * fade;
+    }
+
+    system.geometry.attributes.position.needsUpdate = true;
+    system.geometry.attributes.color.needsUpdate = true;
+  }
+
+  function clearParticles(system) {
+    system.life.fill(0);
+    updateParticles(system, 0);
+  }
+
+  function createArrow(color) {
+    const arrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(),
+      1,
+      color,
+      0.34,
+      0.18
+    );
+    arrow.line.material.transparent = true;
+    arrow.cone.material.transparent = true;
+    arrow.line.material.opacity = 0.2;
+    arrow.cone.material.opacity = 0.2;
+    return arrow;
+  }
+
+  function setArrow(arrow, start, end, intensity, visible) {
+    if (!visible) {
+      arrow.visible = false;
+      return;
+    }
+    const direction = new THREE.Vector3().subVectors(end, start);
+    const length = Math.max(direction.length(), 0.001);
+    arrow.visible = true;
+    arrow.position.copy(start);
+    arrow.setDirection(direction.normalize());
+    arrow.setLength(length, 0.34, 0.18);
+    arrow.line.material.opacity = 0.1 + intensity * 0.8;
+    arrow.cone.material.opacity = 0.1 + intensity * 0.8;
+  }
+
+  const apparatus = new THREE.Group();
+  apparatus.position.set(-2.3, 0, 0);
+  scene.add(apparatus);
+
+  const base = setShadows(new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 0.34, 3.2),
+    new THREE.MeshStandardMaterial({
+      color: 0x607187,
+      roughness: 0.76,
+      metalness: 0.22
+    })
+  ));
+  base.position.set(0.4, 0.34, 0);
+  apparatus.add(base);
+
+  const heater = setShadows(new THREE.Mesh(
+    new THREE.BoxGeometry(1.3, 1.05, 1.2),
+    new THREE.MeshStandardMaterial({
+      color: 0x6a3a2a,
+      roughness: 0.64,
+      metalness: 0.12,
+      emissive: 0x451204,
+      emissiveIntensity: 0.35
+    })
+  ));
+  heater.position.set(-2.1, 0.86, 0);
+  apparatus.add(heater);
+
+  const heaterCore = new THREE.Mesh(
+    new THREE.TorusGeometry(0.26, 0.07, 12, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0xffb34d,
+      emissive: 0xff6b2f,
+      emissiveIntensity: 0.85,
+      roughness: 0.34,
+      metalness: 0.18
+    })
+  );
+  heaterCore.rotation.x = Math.PI / 2;
+  heaterCore.position.set(-2.1, 0.92, 0);
+  apparatus.add(heaterCore);
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x7d8a98,
+    roughness: 0.42,
+    metalness: 0.72
+  });
+
+  const cylinderBottom = 0.62;
+  const cylinderRadius = 1.18;
+  const cylinderHeight = 4.3;
+  const baseGasHeight = 2.35;
+  const pistonThickness = 0.16;
+  const pistonMin = cylinderBottom + 1.1;
+  const pistonMax = cylinderBottom + 3.48;
+
+  const cylinderShell = setShadows(new THREE.Mesh(
+    new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, cylinderHeight, 48, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xb9d6ff,
+      transparent: true,
+      opacity: 0.18,
+      roughness: 0.04,
+      metalness: 0.04,
+      transmission: 0.72,
+      thickness: 0.4,
+      side: THREE.DoubleSide
+    })
+  ));
+  cylinderShell.position.set(0.35, cylinderBottom + cylinderHeight / 2, 0);
+  apparatus.add(cylinderShell);
+
+  const cylinderTopRing = setShadows(new THREE.Mesh(
+    new THREE.TorusGeometry(cylinderRadius, 0.06, 16, 52),
+    frameMaterial
+  ));
+  cylinderTopRing.rotation.x = Math.PI / 2;
+  cylinderTopRing.position.set(0.35, cylinderBottom + cylinderHeight, 0);
+  apparatus.add(cylinderTopRing);
+
+  const cylinderBottomRing = setShadows(new THREE.Mesh(
+    new THREE.TorusGeometry(cylinderRadius, 0.06, 16, 52),
+    frameMaterial
+  ));
+  cylinderBottomRing.rotation.x = Math.PI / 2;
+  cylinderBottomRing.position.set(0.35, cylinderBottom, 0);
+  apparatus.add(cylinderBottomRing);
+
+  const cylinderFloor = setShadows(new THREE.Mesh(
+    new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, 0.12, 42),
+    new THREE.MeshStandardMaterial({
+      color: 0x5a6a7c,
+      roughness: 0.58,
+      metalness: 0.4
+    })
+  ));
+  cylinderFloor.position.set(0.35, cylinderBottom - 0.02, 0);
+  apparatus.add(cylinderFloor);
+
+  const pillarLeft = setShadows(new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 5.4, 0.16),
+    frameMaterial
+  ));
+  pillarLeft.position.set(-0.95, 2.82, 0);
+  apparatus.add(pillarLeft);
+
+  const pillarRight = pillarLeft.clone();
+  pillarRight.position.x = 1.65;
+  apparatus.add(pillarRight);
+
+  const topBeam = setShadows(new THREE.Mesh(
+    new THREE.BoxGeometry(2.9, 0.18, 0.18),
+    frameMaterial
+  ));
+  topBeam.position.set(0.35, 5.46, 0);
+  apparatus.add(topBeam);
+
+  const gasMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(cylinderRadius * 0.96, cylinderRadius * 0.96, 1, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0x5bc0ff,
+      transparent: true,
+      opacity: 0.3,
+      emissive: 0x2b8dff,
+      emissiveIntensity: 0.26,
+      roughness: 0.28,
+      metalness: 0.05
+    })
+  );
+  apparatus.add(gasMesh);
+
+  const piston = setShadows(new THREE.Mesh(
+    new THREE.CylinderGeometry(cylinderRadius * 0.95, cylinderRadius * 0.95, pistonThickness, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0xd9e1ea,
+      roughness: 0.28,
+      metalness: 0.82
+    })
+  ));
+  piston.position.set(0.35, cylinderBottom + baseGasHeight, 0);
+  apparatus.add(piston);
+
+  const pistonRod = setShadows(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 2.0, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xc8d2dc,
+      roughness: 0.26,
+      metalness: 0.82
+    })
+  ));
+  apparatus.add(pistonRod);
+
+  const pistonCap = setShadows(new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.14, 0.18),
+    frameMaterial
+  ));
+  apparatus.add(pistonCap);
+
+  const qArrow = createArrow(0xff6b5f);
+  const uArrow = createArrow(0xffd34d);
+  const wArrow = createArrow(0x51d38c);
+  apparatus.add(qArrow, uArrow, wArrow);
+
+  const heatParticles = createParticleField(52, 0xff6b5f, 0.15);
+  const workParticles = createParticleField(40, 0x59de93, 0.15);
+  const internalParticles = createParticleField(44, 0xffd34d, 0.13);
+  apparatus.add(heatParticles.points, workParticles.points, internalParticles.points);
+
+  const moleculesGeometry = new THREE.SphereGeometry(0.095, 16, 16);
+  const moleculesMaterial = new THREE.MeshStandardMaterial({
+    color: 0xfff6d4,
+    emissive: 0xffcb63,
+    emissiveIntensity: 0.34,
+    roughness: 0.28,
+    metalness: 0.08
+  });
+  const moleculesMesh = new THREE.InstancedMesh(moleculesGeometry, moleculesMaterial, MOLECULE_COUNT);
+  moleculesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  apparatus.add(moleculesMesh);
+
+  const dummy = new THREE.Object3D();
+  const molecules = Array.from({ length: MOLECULE_COUNT }, () => ({
+    position: new THREE.Vector3(),
+    velocity: new THREE.Vector3()
+  }));
+
+  function randomPointInCylinder(radius, bottomY, topY) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.sqrt(Math.random()) * radius;
+    return new THREE.Vector3(
+      0.35 + Math.cos(angle) * dist,
+      lerp(bottomY, topY, Math.random()),
+      Math.sin(angle) * dist
+    );
+  }
+
+  function resetMolecules(topY = cylinderBottom + baseGasHeight) {
+    const top = Math.max(cylinderBottom + 0.4, topY - 0.18);
+    for (let i = 0; i < molecules.length; i += 1) {
+      molecules[i].position.copy(randomPointInCylinder(cylinderRadius * 0.74, cylinderBottom + 0.16, top));
+      molecules[i].velocity.set(
+        (Math.random() - 0.5) * 1.2,
+        (Math.random() - 0.5) * 1.0,
+        (Math.random() - 0.5) * 1.2
+      );
+    }
+  }
+
+  function updateMolecules(dt, pistonY, temperatureRatio) {
+    const topBound = Math.max(cylinderBottom + 0.38, pistonY - 0.18);
+    const radialLimit = cylinderRadius * 0.82;
+    const speedScale = 1.25 * Math.sqrt(Math.max(temperatureRatio, 0.18));
+
+    for (let i = 0; i < molecules.length; i += 1) {
+      const item = molecules[i];
+      item.position.addScaledVector(item.velocity, dt * speedScale);
+
+      const dx = item.position.x - 0.35;
+      const dz = item.position.z;
+      const radial = Math.hypot(dx, dz);
+      if (radial > radialLimit) {
+        const nx = dx / radial;
+        const nz = dz / radial;
+        const dot = item.velocity.x * nx + item.velocity.z * nz;
+        item.velocity.x -= 2 * dot * nx;
+        item.velocity.z -= 2 * dot * nz;
+        item.position.x = 0.35 + nx * radialLimit;
+        item.position.z = nz * radialLimit;
+      }
+
+      if (item.position.y < cylinderBottom + 0.15) {
+        item.position.y = cylinderBottom + 0.15;
+        item.velocity.y = Math.abs(item.velocity.y);
+      }
+      if (item.position.y > topBound) {
+        item.position.y = topBound;
+        item.velocity.y = -Math.abs(item.velocity.y);
+      }
+
+      item.velocity.x += (Math.random() - 0.5) * 0.018;
+      item.velocity.y += (Math.random() - 0.5) * 0.018;
+      item.velocity.z += (Math.random() - 0.5) * 0.018;
+      item.velocity.clampLength(0.22, 1.6);
+
+      dummy.position.copy(item.position);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      moleculesMesh.setMatrixAt(i, dummy.matrix);
+    }
+    moleculesMesh.instanceMatrix.needsUpdate = true;
+    moleculesMesh.visible = params.showMolecules;
+  }
+
+  function computeTarget(processName, rawQ) {
+    const q = clamp(rawQ, -500, 500);
+
+    if (processName === '등온') {
+      const volumeRatio = clamp(Math.exp(q / 1100), 0.62, 1.48);
+      const pressureRatio = 1 / volumeRatio;
+      return {
+        process: processName,
+        actualQ: q,
+        deltaU: 0,
+        work: q,
+        pressureRatio,
+        volumeRatio,
+        temperatureRatio: 1
+      };
+    }
+
+    if (processName === '등적') {
+      const temperatureRatio = clamp(1 + q / BASE_INTERNAL_ENERGY, 0.62, 1.42);
+      return {
+        process: processName,
+        actualQ: q,
+        deltaU: q,
+        work: 0,
+        pressureRatio: temperatureRatio,
+        volumeRatio: 1,
+        temperatureRatio
+      };
+    }
+
+    if (processName === '등압') {
+      const deltaU = q * 0.6;
+      const temperatureRatio = clamp(1 + deltaU / BASE_INTERNAL_ENERGY, 0.72, 1.34);
+      const actualDeltaU = BASE_INTERNAL_ENERGY * (temperatureRatio - 1);
+      const work = q - actualDeltaU;
+      return {
+        process: processName,
+        actualQ: q,
+        deltaU: actualDeltaU,
+        work,
+        pressureRatio: 1,
+        volumeRatio: temperatureRatio,
+        temperatureRatio
+      };
+    }
+
+    const volumeRatio = clamp(Math.exp(q / 1500), 0.72, 1.38);
+    const pressureRatio = Math.pow(1 / volumeRatio, ADIABATIC_GAMMA);
+    const temperatureRatio = pressureRatio * volumeRatio;
+    const deltaU = BASE_INTERNAL_ENERGY * (temperatureRatio - 1);
+    return {
+      process: processName,
+      actualQ: 0,
+      deltaU,
+      work: -deltaU,
+      pressureRatio,
+      volumeRatio,
+      temperatureRatio
+    };
+  }
+
+  function getStateAtMix(processName, target, mix) {
+    const eased = easeInOutCubic(clamp(mix, 0, 1));
+    let volumeRatio = 1;
+    let pressureRatio = 1;
+    let temperatureRatio = 1;
+    let actualQ = 0;
+    let deltaU = 0;
+    let work = 0;
+
+    if (processName === '등온') {
+      volumeRatio = lerp(1, target.volumeRatio, eased);
+      pressureRatio = 1 / volumeRatio;
+      temperatureRatio = 1;
+      actualQ = target.actualQ * eased;
+      deltaU = 0;
+      work = actualQ;
+    } else if (processName === '등적') {
+      volumeRatio = 1;
+      pressureRatio = lerp(1, target.pressureRatio, eased);
+      temperatureRatio = pressureRatio;
+      actualQ = target.actualQ * eased;
+      deltaU = BASE_INTERNAL_ENERGY * (temperatureRatio - 1);
+      work = 0;
+    } else if (processName === '등압') {
+      pressureRatio = 1;
+      volumeRatio = lerp(1, target.volumeRatio, eased);
+      temperatureRatio = volumeRatio;
+      deltaU = BASE_INTERNAL_ENERGY * (temperatureRatio - 1);
+      actualQ = target.actualQ * eased;
+      work = actualQ - deltaU;
+    } else {
+      volumeRatio = lerp(1, target.volumeRatio, eased);
+      pressureRatio = Math.pow(1 / volumeRatio, ADIABATIC_GAMMA);
+      temperatureRatio = pressureRatio * volumeRatio;
+      actualQ = 0;
+      deltaU = BASE_INTERNAL_ENERGY * (temperatureRatio - 1);
+      work = -deltaU;
+    }
+
+    return {
+      process: processName,
+      mix: eased,
+      actualQ,
+      deltaU,
+      work,
+      pressureRatio,
+      volumeRatio,
+      temperatureRatio,
+      pressure: BASE_PRESSURE * pressureRatio,
+      volume: BASE_VOLUME * volumeRatio,
+      temperature: BASE_TEMPERATURE * temperatureRatio
+    };
+  }
+
+  function samplePath(processName, target, progress = 1, steps = 48) {
+    const pts = [];
+    const endMix = clamp(progress, 0, 1);
+    for (let i = 0; i <= steps; i += 1) {
+      const localMix = endMix * (i / steps);
+      const state = getStateAtMix(processName, target, localMix);
+      pts.push({ p: state.pressure, v: state.volume });
+    }
+    return pts;
+  }
+
+  function resetSimulation() {
+    runtime.running = false;
+    runtime.mix = 0;
+    runtime.target = computeTarget(params.process, params.heatInput);
+    runtime.current = getStateAtMix(params.process, runtime.target, 0);
+    resetMolecules(cylinderBottom + baseGasHeight);
+    clearParticles(heatParticles);
+    clearParticles(workParticles);
+    clearParticles(internalParticles);
+    updatePanels();
+    applySceneState(runtime.current, 1 / 60);
+  }
+
+  function startSimulation() {
+    runtime.running = true;
+    runtime.mix = 0;
+    runtime.target = computeTarget(params.process, params.heatInput);
+    runtime.current = getStateAtMix(params.process, runtime.target, 0);
+    resetMolecules(cylinderBottom + baseGasHeight);
+    clearParticles(heatParticles);
+    clearParticles(workParticles);
+    clearParticles(internalParticles);
+    updatePanels();
+  }
+
+  function applySceneState(state, dt) {
+    const gasHeight = clamp(baseGasHeight * state.volumeRatio, pistonMin - cylinderBottom, pistonMax - cylinderBottom);
+    const pistonY = cylinderBottom + gasHeight;
+
+    piston.position.set(0.35, pistonY, 0);
+    pistonRod.position.set(0.35, lerp(pistonY, 5.46, 0.5), 0);
+    pistonRod.scale.set(1, clamp((5.46 - pistonY) / 2.0, 0.2, 2.0), 1);
+    pistonCap.position.set(0.35, 5.46, 0);
+
+    gasMesh.scale.set(1, gasHeight, 1);
+    gasMesh.position.set(0.35, cylinderBottom + gasHeight / 2, 0);
+
+    const tNorm = clamp((state.temperatureRatio - 0.68) / 0.7, 0, 1);
+    const gasColor = new THREE.Color().setHSL(0.57 - tNorm * 0.5, 0.84, 0.58);
+    gasMesh.material.color.copy(gasColor);
+    gasMesh.material.emissive.copy(gasColor);
+    gasMesh.material.emissiveIntensity = 0.18 + tNorm * 0.42;
+    gasMesh.material.opacity = 0.22 + tNorm * 0.12;
+
+    moleculesMaterial.color.set(gasColor.clone().lerp(new THREE.Color(0xffffff), 0.45));
+    moleculesMaterial.emissive.copy(gasColor);
+    moleculesMaterial.emissiveIntensity = 0.24 + tNorm * 0.45;
+
+    const qIntensity = clamp(Math.abs(state.actualQ) / 500, 0, 1);
+    const uIntensity = clamp(Math.abs(state.deltaU) / 500, 0, 1);
+    const wIntensity = clamp(Math.abs(state.work) / 500, 0, 1);
+
+    const heatStart = state.actualQ >= 0 ? new THREE.Vector3(-2.1, 1.12, 0) : new THREE.Vector3(-0.9, 2.4, 0.95);
+    const heatEnd = state.actualQ >= 0 ? new THREE.Vector3(-0.9, 2.4, 0.95) : new THREE.Vector3(-2.1, 1.12, 0);
+    setArrow(qArrow, heatStart, heatEnd, qIntensity, params.showEnergyFlow && qIntensity > 0.02);
+
+    const internalStart = state.deltaU >= 0 ? new THREE.Vector3(0.35, cylinderBottom + 0.8, 0.95) : new THREE.Vector3(0.35, pistonY - 0.45, 0.95);
+    const internalEnd = state.deltaU >= 0 ? new THREE.Vector3(0.35, pistonY - 0.45, 0.95) : new THREE.Vector3(0.35, cylinderBottom + 0.8, 0.95);
+    setArrow(uArrow, internalStart, internalEnd, uIntensity, params.showEnergyFlow && uIntensity > 0.02);
+
+    const workStart = state.work >= 0 ? new THREE.Vector3(1.3, pistonY + 0.05, 0.95) : new THREE.Vector3(1.3, 4.9, 0.95);
+    const workEnd = state.work >= 0 ? new THREE.Vector3(1.3, 4.9, 0.95) : new THREE.Vector3(1.3, pistonY + 0.05, 0.95);
+    setArrow(wArrow, workStart, workEnd, wIntensity, params.showEnergyFlow && wIntensity > 0.02);
+
+    heater.material.emissiveIntensity = 0.2 + qIntensity * 0.65;
+    heaterCore.material.emissiveIntensity = 0.45 + qIntensity * 0.8;
+
+    updateMolecules(dt, pistonY, state.temperatureRatio);
+  }
+
+  function updatePanels() {
+    const info = PROCESS_INFO[params.process];
+    dom.barsPanel.classList.toggle('hidden', !params.showBars);
+    dom.pvPanel.classList.toggle('hidden', !params.showPV);
+
+    const state = runtime.current || getStateAtMix(params.process, runtime.target || computeTarget(params.process, params.heatInput), 0);
+    const adiabaticHint = params.process === '단열'
+      ? '<div class="note-box"><strong>단열 주의:</strong> 단열에서는 실제 열출입이 0이므로, 슬라이더는 팽창 또는 압축의 세기를 정하는 역할만 합니다.</div>'
+      : '';
+
+    const html = `
+      <div class="panel-title">⚡ 열역학 제1법칙</div>
+      <div class="divider"></div>
+      <div class="row"><span class="label">과정</span><span class="value">${params.process} (${info.note})</span></div>
+      <div class="row"><span class="label">기본 식</span><span class="value">Q = ΔU + W</span></div>
+      <div class="row"><span class="label">Q (열)</span><span class="value q-value">${formatSigned(state.actualQ)} · ${signLabelForHeat(state.actualQ)}</span></div>
+      <div class="row"><span class="label">ΔU (내부E)</span><span class="value u-value">${formatSigned(state.deltaU)} · ${signLabelForInternal(state.deltaU)}</span></div>
+      <div class="row"><span class="label">W (일)</span><span class="value w-value">${formatSigned(state.work)} · ${signLabelForWork(state.work)}</span></div>
+      <div class="row"><span class="label">압력 P</span><span class="value">${state.pressure.toFixed(1)} kPa</span></div>
+      <div class="row"><span class="label">부피 V</span><span class="value">${state.volume.toFixed(2)} L</span></div>
+      <div class="row"><span class="label">온도 T</span><span class="value">${state.temperature.toFixed(0)} K</span></div>
+      <div class="equation-box"><strong>과정별 관계</strong><br>등온: ΔU = 0 → Q = W<br>등적: W = 0 → Q = ΔU<br>등압: Q = ΔU + PΔV<br>단열: Q = 0 → ΔU = -W</div>
+      <div class="note-box"><strong>해석</strong><br>${info.summary}<br>열역학 제1법칙은 열도 에너지의 한 형태임을 보여 줍니다.</div>
+      ${adiabaticHint}
+    `;
+
+    const signature = [
+      params.process,
+      params.showBars,
+      params.showPV,
+      Math.round(state.actualQ),
+      Math.round(state.deltaU),
+      Math.round(state.work),
+      state.pressure.toFixed(1),
+      state.volume.toFixed(2),
+      state.temperature.toFixed(0)
+    ].join('|');
+
+    if (signature !== panelSignature) {
+      panelSignature = signature;
+      dom.statusTitle.textContent = info.title;
+      dom.statusBody.textContent = info.body;
+      dom.relationText.textContent = info.relation;
+      dom.formulaPanel.innerHTML = html;
+    }
+
+    if (window.gui) {
+      window.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+  }
+
+  function drawBars() {
+    const canvas = dom.barsCanvas;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const state = runtime.current;
+    const values = [
+      { key: 'Q', label: 'Q', value: state.actualQ, color: '#ff6b5f' },
+      { key: 'ΔU', label: 'ΔU', value: state.deltaU, color: '#ffd34d' },
+      { key: 'W', label: 'W', value: state.work, color: '#51d38c' }
+    ];
+
+    const margin = { top: 20, right: 18, bottom: 36, left: 24 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+    const zeroY = margin.top + chartHeight * 0.5;
+    const barWidth = 68;
+    const gap = (chartWidth - barWidth * values.length) / (values.length + 1);
+    const maxMagnitude = Math.max(220, Math.abs(runtime.target.actualQ), Math.abs(runtime.target.deltaU), Math.abs(runtime.target.work), Math.abs(state.actualQ), Math.abs(state.deltaU), Math.abs(state.work));
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, zeroY);
+    ctx.lineTo(width - margin.right, zeroY);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    for (let i = 1; i <= 4; i += 1) {
+      const yUp = zeroY - (chartHeight * 0.5) * (i / 4);
+      const yDown = zeroY + (chartHeight * 0.5) * (i / 4);
+      ctx.beginPath();
+      ctx.moveTo(margin.left, yUp);
+      ctx.lineTo(width - margin.right, yUp);
+      ctx.moveTo(margin.left, yDown);
+      ctx.lineTo(width - margin.right, yDown);
+      ctx.stroke();
+    }
+
+    ctx.font = '11px Pretendard, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.56)';
+    ctx.fillText(`+${Math.round(maxMagnitude)} J`, margin.left, margin.top + 10);
+    ctx.fillText(`-${Math.round(maxMagnitude)} J`, margin.left, height - margin.bottom + 4);
+
+    values.forEach((entry, index) => {
+      const x = margin.left + gap + index * (barWidth + gap);
+      const ratio = clamp(entry.value / maxMagnitude, -1, 1);
+      const barHeight = Math.abs(ratio) * chartHeight * 0.46;
+      const y = ratio >= 0 ? zeroY - barHeight : zeroY;
+
+      const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
+      gradient.addColorStop(0, entry.color);
+      gradient.addColorStop(1, 'rgba(255,255,255,0.15)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      const radius = 14;
+      const w = barWidth;
+      const h = Math.max(barHeight, 2);
+      const rectY = ratio >= 0 ? y : y;
+      ctx.moveTo(x + radius, rectY);
+      ctx.arcTo(x + w, rectY, x + w, rectY + h, radius);
+      ctx.arcTo(x + w, rectY + h, x, rectY + h, radius);
+      ctx.arcTo(x, rectY + h, x, rectY, radius);
+      ctx.arcTo(x, rectY, x + w, rectY, radius);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 13px Pretendard, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(entry.label, x + barWidth / 2, height - 12);
+      ctx.font = '600 12px Pretendard, sans-serif';
+      const textY = ratio >= 0 ? y - 8 : y + h + 16;
+      ctx.fillText(formatSigned(entry.value), x + barWidth / 2, textY);
+    });
+  }
+
+  function drawPV() {
+    const canvas = dom.pvCanvas;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const previewTargets = Object.fromEntries(PROCESS_ORDER.map((name) => [name, computeTarget(name, params.heatInput)]));
+    const allStates = PROCESS_ORDER.map((name) => getStateAtMix(name, previewTargets[name], 1));
+    const maxPressure = Math.max(BASE_PRESSURE, ...allStates.map((item) => item.pressure), runtime.current.pressure) * 1.14;
+    const minPressure = 0;
+    const maxVolume = Math.max(BASE_VOLUME, ...allStates.map((item) => item.volume), runtime.current.volume) * 1.12;
+    const minVolume = Math.min(BASE_VOLUME, ...allStates.map((item) => item.volume), runtime.current.volume) * 0.86;
+
+    const margin = { top: 18, right: 18, bottom: 34, left: 44 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    function toX(volume) {
+      return margin.left + ((volume - minVolume) / (maxVolume - minVolume || 1)) * chartWidth;
+    }
+
+    function toY(pressure) {
+      return margin.top + chartHeight - ((pressure - minPressure) / (maxPressure - minPressure || 1)) * chartHeight;
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, height - margin.bottom);
+    ctx.lineTo(width - margin.right, height - margin.bottom);
+    ctx.stroke();
+
+    ctx.font = '11px Pretendard, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText('P (kPa)', margin.left - 24, margin.top + 4);
+    ctx.fillText('V (L)', width - margin.right - 18, height - 10);
+
+    for (let i = 1; i <= 4; i += 1) {
+      const y = margin.top + (chartHeight * i) / 4;
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(width - margin.right, y);
+      ctx.stroke();
+    }
+
+    PROCESS_ORDER.forEach((name) => {
+      const path = samplePath(name, previewTargets[name], 1, 54);
+      ctx.beginPath();
+      path.forEach((point, index) => {
+        const x = toX(point.v);
+        const y = toY(point.p);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.lineWidth = name === params.process ? 3.2 : 1.6;
+      ctx.strokeStyle = name === params.process ? PROCESS_COLORS[name] : `${PROCESS_COLORS[name]}88`;
+      ctx.stroke();
+    });
+
+    const currentPath = samplePath(params.process, runtime.target, runtime.mix, 48);
+    if (currentPath.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(toX(currentPath[0].v), height - margin.bottom);
+      currentPath.forEach((point) => {
+        ctx.lineTo(toX(point.v), toY(point.p));
+      });
+      ctx.lineTo(toX(currentPath[currentPath.length - 1].v), height - margin.bottom);
+      ctx.closePath();
+      ctx.fillStyle = runtime.current.work >= 0 ? 'rgba(81, 211, 140, 0.16)' : 'rgba(255, 132, 105, 0.12)';
+      ctx.fill();
+    }
+
+    const startX = toX(BASE_VOLUME);
+    const startY = toY(BASE_PRESSURE);
+    const endX = toX(runtime.current.volume);
+    const endY = toY(runtime.current.pressure);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(startX, startY, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = PROCESS_COLORS[params.process];
+    ctx.beginPath();
+    ctx.arc(endX, endY, 5.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '600 11px Pretendard, sans-serif';
+    ctx.fillText(`현재 W = ${formatSigned(runtime.current.work)}`, margin.left + 8, margin.top + 14);
+  }
+
+  function emitFlowParticles(dt) {
+    if (!params.showEnergyFlow) return;
+    const state = runtime.current;
+    const qIntensity = clamp(Math.abs(state.actualQ) / 500, 0, 1);
+    const uIntensity = clamp(Math.abs(state.deltaU) / 500, 0, 1);
+    const wIntensity = clamp(Math.abs(state.work) / 500, 0, 1);
+
+    if (qIntensity > 0.04) {
+      const direction = state.actualQ >= 0 ? 1 : -1;
+      for (let i = 0; i < 1 + qIntensity * 4; i += 1) {
+        const start = state.actualQ >= 0 ? new THREE.Vector3(-2.0, 1.08, 0) : new THREE.Vector3(-0.8, 2.38, 0.3);
+        const velocity = new THREE.Vector3(1.8 * direction, 0.9, (Math.random() - 0.5) * 0.5);
+        spawnParticle(
+          heatParticles,
+          start.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, Math.random() * 0.18, (Math.random() - 0.5) * 0.18)),
+          velocity,
+          0.8 + Math.random() * 0.28
+        );
+      }
+    }
+
+    if (wIntensity > 0.04) {
+      const pistonY = piston.position.y;
+      const direction = state.work >= 0 ? 1 : -1;
+      for (let i = 0; i < 1 + wIntensity * 3; i += 1) {
+        spawnParticle(
+          workParticles,
+          new THREE.Vector3(1.28, direction > 0 ? pistonY + 0.08 : 4.84, (Math.random() - 0.5) * 0.12),
+          new THREE.Vector3((Math.random() - 0.5) * 0.2, 1.6 * direction, (Math.random() - 0.5) * 0.25),
+          0.58 + Math.random() * 0.26
+        );
+      }
+    }
+
+    if (uIntensity > 0.04) {
+      const gasHeight = gasMesh.scale.y;
+      const bottom = cylinderBottom + 0.2;
+      const top = cylinderBottom + gasHeight - 0.18;
+      for (let i = 0; i < 1 + uIntensity * 3; i += 1) {
+        spawnParticle(
+          internalParticles,
+          randomPointInCylinder(cylinderRadius * 0.55, bottom, top),
+          new THREE.Vector3((Math.random() - 0.5) * 0.4, state.deltaU >= 0 ? 0.8 + Math.random() * 0.6 : -0.8 - Math.random() * 0.6, (Math.random() - 0.5) * 0.4),
+          0.42 + Math.random() * 0.22
+        );
+      }
+    }
+  }
+
+  function resize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    drawBars();
+    drawPV();
+  }
+
+  const gui = new GUI({ title: '열역학 제1법칙 제어', width: 298 });
+  window.gui = gui;
+  gui.domElement.style.position = 'fixed';
+  gui.domElement.style.top = '14px';
+  gui.domElement.style.right = '14px';
+
+  const processController = gui.add(params, 'process', {
+    '등온 과정': '등온',
+    '등적 과정': '등적',
+    '등압 과정': '등압',
+    '단열 과정': '단열'
+  }).name('과정');
+
+  const heatController = gui.add(params, 'heatInput', -500, 500, 10).name('열 Q 입력 (J)');
+  const arrowsController = gui.add(params, 'showEnergyFlow').name('에너지 흐름 화살표');
+  const barsController = gui.add(params, 'showBars').name('막대그래프');
+  const pvController = gui.add(params, 'showPV').name('P-V 다이어그램');
+  const moleculesController = gui.add(params, 'showMolecules').name('분자 표시');
+  gui.add(params, 'run').name('과정 실행');
+  gui.add(params, 'reset').name('초기화');
+
+  function handleConfigurationChange() {
+    resetSimulation();
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  processController.onChange(handleConfigurationChange);
+  heatController.onChange(handleConfigurationChange);
+  arrowsController.onChange(updatePanels);
+  barsController.onChange(updatePanels);
+  pvController.onChange(updatePanels);
+  moleculesController.onChange(updatePanels);
+
+  dom.guideToggle.addEventListener('click', () => {
+    dom.guidePanel.classList.toggle('open');
+  });
+
+  window.addEventListener('resize', resize);
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.033);
+
+    if (runtime.running) {
+      runtime.mix = clamp(runtime.mix + dt / 3.3, 0, 1);
+      if (runtime.mix >= 1) {
+        runtime.running = false;
+      }
+    }
+
+    runtime.current = getStateAtMix(params.process, runtime.target, runtime.mix);
+    applySceneState(runtime.current, dt);
+    emitFlowParticles(dt);
+    updateParticles(heatParticles, dt, 0.9, 0.18);
+    updateParticles(workParticles, dt, 0.9, 0.12);
+    updateParticles(internalParticles, dt, 0.88, 0.06);
+    updatePanels();
+    drawBars();
+    drawPV();
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  resetSimulation();
+  resize();
+  animate();
+</script>
+</body>
+</html>

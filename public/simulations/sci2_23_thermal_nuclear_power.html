@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화력 발전과 핵발전 비교 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --panel-bg: rgba(17, 26, 42, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f6f8ff;
+    --text-dim: rgba(246, 248, 255, 0.68);
+    --thermal: #ff8e4f;
+    --thermal-soft: rgba(255, 142, 79, 0.18);
+    --nuclear: #77a7ff;
+    --nuclear-soft: rgba(119, 167, 255, 0.18);
+    --common: #ffe59b;
+    --good: #73efb4;
+    --warn: #ffd479;
+    --danger: #ff8f8f;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 18%, rgba(255, 206, 132, 0.35), transparent 22%),
+      radial-gradient(circle at 84% 14%, rgba(160, 188, 255, 0.34), transparent 22%),
+      linear-gradient(180deg, #dfe4f1 0%, #d8deea 42%, #cad3e2 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    min-width: min(510px, calc(100vw - 180px));
+    padding: 11px 18px 13px;
+    border-radius: 20px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: rgba(11, 22, 40, 0.84);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 39;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(68vh, 620px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 7px;
+    font-size: 15px;
+    color: #c7e0ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffe6ae;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #compare-divider {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.4), rgba(255,255,255,0));
+    transform: translateX(-0.5px);
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  #compare-divider.visible {
+    opacity: 1;
+  }
+
+  .scene-label {
+    position: fixed;
+    top: 90px;
+    z-index: 22;
+    width: calc(50vw - 34px);
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  .scene-label.left {
+    left: 14px;
+    text-align: center;
+  }
+
+  .scene-label.right {
+    right: 14px;
+    text-align: center;
+  }
+
+  .scene-label.center {
+    left: 50%;
+    width: min(460px, calc(100vw - 28px));
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .scene-label.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .scene-label .label-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  }
+
+  .scene-label .label-subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .scene-label.thermal .label-title {
+    color: #ffb27f;
+  }
+
+  .scene-label.nuclear .label-title {
+    color: #c6d8ff;
+  }
+
+  #insight-chip {
+    position: fixed;
+    top: 156px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 23;
+    width: min(560px, calc(100vw - 28px));
+    padding: 11px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #insight-chip strong {
+    color: var(--common);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 34;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    line-height: 1.75;
+  }
+
+  #formula-panel h2 {
+    font-size: 16px;
+    color: #fdf6d1;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.28), rgba(255,255,255,0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 84px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .info-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .info-box strong {
+    color: #ffffff;
+  }
+
+  .info-box.thermal strong {
+    color: #ffbe91;
+  }
+
+  .info-box.nuclear strong {
+    color: #c7d8ff;
+  }
+
+  #impact-panel {
+    position: fixed;
+    top: 198px;
+    right: 14px;
+    z-index: 34;
+    width: min(368px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #impact-panel.hidden {
+    display: none;
+  }
+
+  #impact-panel h3 {
+    font-size: 15px;
+    margin-bottom: 6px;
+    color: #f4fbff;
+  }
+
+  #impact-panel p {
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  #impact-cards {
+    display: grid;
+    gap: 10px;
+  }
+
+  .impact-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .impact-card.thermal {
+    background: linear-gradient(180deg, rgba(255, 142, 79, 0.14), rgba(255, 255, 255, 0.05));
+    border-color: rgba(255, 156, 98, 0.22);
+  }
+
+  .impact-card.nuclear {
+    background: linear-gradient(180deg, rgba(119, 167, 255, 0.14), rgba(255, 255, 255, 0.05));
+    border-color: rgba(130, 176, 255, 0.24);
+  }
+
+  .impact-card h4 {
+    font-size: 13px;
+    margin-bottom: 7px;
+  }
+
+  .impact-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .impact-badge {
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .impact-badge.good {
+    background: rgba(115, 239, 180, 0.14);
+    color: #caffea;
+  }
+
+  .impact-badge.warn {
+    background: rgba(255, 212, 121, 0.14);
+    color: #fff0c7;
+  }
+
+  .impact-badge.danger {
+    background: rgba(255, 143, 143, 0.14);
+    color: #ffd7d7;
+  }
+
+  .impact-note {
+    margin-top: 8px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  #path-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 33;
+    width: min(980px, calc(100vw - 28px));
+    padding: 16px 18px 15px;
+    border-radius: 24px;
+  }
+
+  #path-panel.hidden {
+    display: none;
+  }
+
+  #path-panel h3 {
+    font-size: 16px;
+    color: #fff6d9;
+  }
+
+  #path-panel p {
+    margin-top: 4px;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #path-rows {
+    display: grid;
+    gap: 10px;
+  }
+
+  .path-row {
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+  }
+
+  .path-row.dimmed {
+    opacity: 0.45;
+  }
+
+  .path-row.active {
+    transform: translateY(-1px);
+  }
+
+  .path-row.thermal.active {
+    border-color: rgba(255, 156, 98, 0.26);
+  }
+
+  .path-row.nuclear.active {
+    border-color: rgba(130, 176, 255, 0.28);
+  }
+
+  .path-row .row-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .row-title {
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .row-sub {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .path-chain {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .path-step {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.68);
+    transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, transform 0.22s ease;
+  }
+
+  .path-step.active {
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .path-row.thermal .path-step.active {
+    background: rgba(255, 142, 79, 0.18);
+    border-color: rgba(255, 156, 98, 0.3);
+  }
+
+  .path-row.nuclear .path-step.active {
+    background: rgba(119, 167, 255, 0.18);
+    border-color: rgba(130, 176, 255, 0.34);
+  }
+
+  .path-arrow {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  #common-strip {
+    margin-top: 12px;
+    padding: 11px 13px;
+    border-radius: 16px;
+    background: rgba(255, 229, 155, 0.09);
+    border: 1px solid rgba(255, 229, 155, 0.12);
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 251, 237, 0.92);
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 220px;
+    z-index: 32;
+    max-width: 290px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    font-size: 10.5px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  @media (max-width: 960px) {
+    #title-card {
+      min-width: min(480px, calc(100vw - 28px));
+    }
+
+    #impact-panel {
+      top: 84px;
+      width: min(330px, calc(100vw - 28px));
+    }
+
+    .scene-label {
+      top: 96px;
+    }
+
+    #insight-chip {
+      top: 140px;
+      width: min(520px, calc(100vw - 28px));
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      min-width: calc(100vw - 24px);
+      padding: 10px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 19px;
+    }
+
+    .scene-label {
+      top: 150px;
+      width: calc(50vw - 18px);
+    }
+
+    .scene-label .label-title {
+      font-size: 15px;
+    }
+
+    .scene-label .label-subtitle {
+      font-size: 10px;
+    }
+
+    #insight-chip {
+      top: 210px;
+      font-size: 10.5px;
+      border-radius: 18px;
+    }
+
+    #guide-panel {
+      max-height: 52vh;
+    }
+
+    #impact-panel {
+      top: auto;
+      right: 12px;
+      bottom: 228px;
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      bottom: 426px;
+    }
+
+    #path-panel {
+      width: calc(100vw - 24px);
+      bottom: 12px;
+      padding: 14px;
+    }
+
+    #path-panel h3 {
+      font-size: 14px;
+    }
+
+    #hint-chip {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="compare-divider"></div>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Integrated Science II · Energy Conversion</div>
+  <h1>🏭 화력 발전과 핵발전 비교</h1>
+  <p>열에너지를 얻는 과정은 다르지만, 증기와 터빈을 거쳐 전기를 만드는 흐름은 매우 비슷합니다.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass">
+  <h3>핵심 원리</h3>
+  <p>
+    화력 발전은 화석 연료의 <strong>화학 에너지</strong>를, 핵발전은 핵연료의 <strong>핵에너지</strong>를
+    <strong>열에너지</strong>로 바꾸어 물을 끓입니다. 이후에는 두 발전 방식 모두
+    <strong>증기 → 터빈 회전 → 발전기 → 전기 에너지</strong>의 흐름으로 이어집니다.
+  </p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>화력 발전과 핵발전에서 공통으로 나타나는 에너지 전환 과정은 무엇인가요?</li>
+    <li>두 발전 방식이 열에너지를 얻는 방법은 어떻게 다른가요?</li>
+    <li>화력 발전소의 온실 기체 배출과 핵발전의 방사성 폐기물 문제를 어떻게 비교할 수 있을까요?</li>
+  </ul>
+
+  <h4>실생활 연결</h4>
+  <ul>
+    <li>전력 생산에서는 발전 효율, 비용, 탄소 배출, 안전성, 폐기물 관리가 함께 고려됩니다.</li>
+    <li>화력 발전은 기술이 성숙하고 대량 생산에 유리하지만, 이산화 탄소와 대기 오염 문제를 동반합니다.</li>
+    <li>핵발전은 발전 과정에서 이산화 탄소 배출이 적지만, 사고 위험과 방사성 폐기물 처리가 중요합니다.</li>
+  </ul>
+
+  <div class="ref-box">
+    📚 미래엔 통합과학2 II편 p106~109 — 화력 발전, 핵발전, 발전과 에너지 전환, 그림 II-22~24
+  </div>
+</div>
+
+<div id="scene-label-left" class="scene-label left thermal">
+  <div class="label-title">화력 발전소</div>
+  <div class="label-subtitle">화석 연료 연소로 열을 얻고, 증기로 터빈을 돌립니다.</div>
+</div>
+
+<div id="scene-label-right" class="scene-label right nuclear">
+  <div class="label-title">핵발전소</div>
+  <div class="label-subtitle">핵분열로 열을 얻고, 증기로 터빈을 돌립니다.</div>
+</div>
+
+<div id="scene-label-center" class="scene-label center hidden">
+  <div class="label-title">비교 장면을 준비하는 중</div>
+  <div class="label-subtitle">GUI에서 화력 발전, 핵발전, 비교 모드를 전환해 보세요.</div>
+</div>
+
+<div id="insight-chip" class="glass">
+  <strong>공통점:</strong> 열에너지를 얻은 뒤에는 <strong>증기 → 터빈 → 발전기 → 전기</strong> 흐름이 거의 같습니다.
+</div>
+
+<div id="formula-panel" class="glass"></div>
+
+<div id="impact-panel" class="glass">
+  <h3>인간 생활과 환경 영향</h3>
+  <p>발전 방식은 전기 생산량뿐 아니라 환경 영향, 안전, 폐기물 처리까지 함께 살펴봐야 합니다.</p>
+  <div id="impact-cards"></div>
+</div>
+
+<div id="path-panel" class="glass">
+  <h3>에너지 전환 경로 비교</h3>
+  <p>아래 단계는 하단 비교 다이어그램이며, 애니메이션 재생 시 현재 진행 중인 단계가 강조됩니다.</p>
+  <div id="path-rows"></div>
+  <div id="common-strip">
+    <strong>핵심 비교:</strong> 화력 발전은 <strong>화학 에너지</strong>, 핵발전은 <strong>핵에너지</strong>를 먼저 열에너지로 바꿉니다.
+    그 이후 증기와 터빈, 발전기로 이어지는 과정은 공통적입니다.
+  </div>
+</div>
+
+<div id="hint-chip" class="glass">
+  드래그 또는 터치로 카메라를 회전하고, 핀치/휠로 확대해 보세요. 오른쪽 위 GUI에서 비교 모드, 장단점, 에너지 흐름 재생을 바꿀 수 있습니다.
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const canvas = document.getElementById('scene-canvas');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const formulaPanel = document.getElementById('formula-panel');
+const impactPanel = document.getElementById('impact-panel');
+const impactCards = document.getElementById('impact-cards');
+const pathPanel = document.getElementById('path-panel');
+const pathRows = document.getElementById('path-rows');
+const compareDivider = document.getElementById('compare-divider');
+const insightChip = document.getElementById('insight-chip');
+const labelLeft = document.getElementById('scene-label-left');
+const labelRight = document.getElementById('scene-label-right');
+const labelCenter = document.getElementById('scene-label-center');
+
+const VIEW_MODES = ['화력 발전', '핵발전', '비교 모드'];
+const PLANT_LABELS = {
+  thermal: '화력 발전',
+  nuclear: '핵발전',
+  compare: '비교 모드'
+};
+
+const PATH_DATA = {
+  thermal: [
+    '화학 에너지(화석 연료)',
+    '열에너지(보일러·증기)',
+    '운동 에너지(터빈)',
+    '전기 에너지(발전기)',
+    'CO₂·오염물질 배출'
+  ],
+  nuclear: [
+    '핵에너지(핵연료)',
+    '열에너지(원자로·증기)',
+    '운동 에너지(터빈)',
+    '전기 에너지(발전기)',
+    '방사성 폐기물 관리'
+  ]
+};
+
+const IMPACT_DATA = {
+  thermal: {
+    title: '화력 발전',
+    badges: [
+      { text: '대량 생산', tone: 'good' },
+      { text: '경제적', tone: 'good' },
+      { text: '기술 성숙', tone: 'good' },
+      { text: 'CO₂ 배출', tone: 'danger' },
+      { text: '대기 오염', tone: 'danger' },
+      { text: '자원 고갈', tone: 'warn' }
+    ],
+    note: '화석 연료를 태우므로 이산화 탄소와 오염물질이 발생하지만, 인프라와 운전 기술은 매우 성숙해 있습니다.'
+  },
+  nuclear: {
+    title: '핵발전',
+    badges: [
+      { text: '대량 생산', tone: 'good' },
+      { text: 'CO₂ 미배출', tone: 'good' },
+      { text: '연료 효율', tone: 'good' },
+      { text: '폐기물 관리', tone: 'warn' },
+      { text: '사고 위험', tone: 'danger' },
+      { text: '안전 설비 중요', tone: 'warn' }
+    ],
+    note: '발전 중 이산화 탄소 배출은 적지만, 방사성 폐기물과 사고 대비 체계가 핵심 과제가 됩니다.'
+  }
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xddddee);
+scene.fog = new THREE.Fog(0xd8deea, 18, 40);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 8.2, 18.5);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 2.5, 0);
+controls.minDistance = 9;
+controls.maxDistance = 28;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+mainLight.position.set(10, 17, 8);
+mainLight.castShadow = true;
+mainLight.shadow.mapSize.set(2048, 2048);
+mainLight.shadow.camera.left = -18;
+mainLight.shadow.camera.right = 18;
+mainLight.shadow.camera.top = 18;
+mainLight.shadow.camera.bottom = -18;
+mainLight.shadow.camera.near = 1;
+mainLight.shadow.camera.far = 40;
+scene.add(mainLight);
+scene.add(mainLight.target);
+
+const fillLight = new THREE.DirectionalLight(0xa9c0ff, 0.35);
+fillLight.position.set(-12, 8, -6);
+scene.add(fillLight);
+
+const worldRoot = new THREE.Group();
+scene.add(worldRoot);
+
+const plantRoot = new THREE.Group();
+worldRoot.add(plantRoot);
+
+const overlayRoot = new THREE.Group();
+worldRoot.add(overlayRoot);
+
+const tempVecA = new THREE.Vector3();
+
+const state = {
+  viewMode: '비교 모드',
+  showPath: true,
+  showProsCons: true,
+  turbineSpeed: 2,
+  animationPlaying: false,
+  animationElapsed: 0,
+  animationDuration: 8.5,
+  plants: []
+};
+
+const guiState = {
+  발전종류: state.viewMode,
+  에너지전환경로: state.showPath,
+  장단점표시: state.showProsCons,
+  터빈속도: state.turbineSpeed
+};
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fill) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    width = 360,
+    height = 120,
+    color = '#ffffff',
+    font = '700 28px Pretendard, "Noto Sans KR", sans-serif',
+    bg = 'rgba(10, 18, 30, 0.55)'
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.userData.texture = texture;
+  sprite.userData.canvas = canvas;
+  sprite.userData.ctx = ctx;
+  sprite.userData.color = color;
+  sprite.userData.font = font;
+  sprite.userData.bg = bg;
+  updateTextSprite(sprite, text);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const ctx = sprite.userData.ctx;
+  const canvas = sprite.userData.canvas;
+  const texture = sprite.userData.texture;
+  const color = options.color || sprite.userData.color;
+  const font = options.font || sprite.userData.font;
+  const bg = options.bg === undefined ? sprite.userData.bg : options.bg;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (bg) {
+    drawRoundedRect(ctx, 10, 10, canvas.width - 20, canvas.height - 20, 22, bg);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = 10;
+
+  const lines = String(text).split('\n');
+  const lineHeight = canvas.height / Math.max(lines.length + 0.3, 1.4);
+  const startY = canvas.height * 0.5 - ((lines.length - 1) * lineHeight * 0.5);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width * 0.5, startY + index * lineHeight);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function createLabel(text, scale = 1, color = '#ffffff', bg = 'rgba(10, 18, 30, 0.55)') {
+  const sprite = createTextSprite(text, { color, bg });
+  sprite.scale.set(2.8 * scale, 0.9 * scale, 1);
+  return sprite;
+}
+
+function createPointsSystem(count, { color, size, opacity, blending = THREE.NormalBlending }) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color,
+    size,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    blending
+  });
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  return { geometry, positions, material, points };
+}
+
+function createVerticalEmitter(count, options) {
+  const {
+    color,
+    size,
+    opacity,
+    center = new THREE.Vector3(),
+    radiusX = 0.5,
+    radiusZ = 0.5,
+    minY = 0,
+    maxY = 2,
+    minSpeed = 0.4,
+    maxSpeed = 1.2,
+    drift = 0.08,
+    blending = THREE.AdditiveBlending
+  } = options;
+
+  const system = createPointsSystem(count, { color, size, opacity, blending });
+  const particles = Array.from({ length: count }, () => {
+    return {
+      x: center.x + THREE.MathUtils.randFloatSpread(radiusX * 2),
+      z: center.z + THREE.MathUtils.randFloatSpread(radiusZ * 2),
+      y: THREE.MathUtils.randFloat(minY, maxY),
+      speed: THREE.MathUtils.randFloat(minSpeed, maxSpeed),
+      drift: THREE.MathUtils.randFloatSpread(drift),
+      phase: Math.random() * Math.PI * 2
+    };
+  });
+
+  return {
+    ...system,
+    center,
+    particles,
+    update(delta, time, intensity = 1) {
+      const active = Math.max(intensity, 0.02);
+      for (let i = 0; i < count; i += 1) {
+        const particle = particles[i];
+        particle.y += particle.speed * delta * (0.35 + active);
+        if (particle.y > maxY) {
+          particle.y = minY;
+          particle.x = center.x + THREE.MathUtils.randFloatSpread(radiusX * 2);
+          particle.z = center.z + THREE.MathUtils.randFloatSpread(radiusZ * 2);
+        }
+        const index = i * 3;
+        system.positions[index] = particle.x + Math.sin(time * 3.2 + particle.phase) * particle.drift * active;
+        system.positions[index + 1] = particle.y;
+        system.positions[index + 2] = particle.z + Math.cos(time * 2.8 + particle.phase) * particle.drift * active;
+      }
+      system.geometry.attributes.position.needsUpdate = true;
+      system.material.opacity = opacity * active;
+    }
+  };
+}
+
+function createCurveEmitter(count, curve, options) {
+  const {
+    color,
+    size,
+    opacity,
+    minSpeed = 0.08,
+    maxSpeed = 0.18,
+    spread = 0.07,
+    blending = THREE.AdditiveBlending
+  } = options;
+
+  const system = createPointsSystem(count, { color, size, opacity, blending });
+  const particles = Array.from({ length: count }, () => {
+    return {
+      t: Math.random(),
+      speed: THREE.MathUtils.randFloat(minSpeed, maxSpeed),
+      offset: new THREE.Vector3(
+        THREE.MathUtils.randFloatSpread(spread),
+        THREE.MathUtils.randFloatSpread(spread),
+        THREE.MathUtils.randFloatSpread(spread)
+      )
+    };
+  });
+
+  return {
+    ...system,
+    particles,
+    curve,
+    update(delta, time, intensity = 1) {
+      const active = Math.max(intensity, 0.02);
+      for (let i = 0; i < count; i += 1) {
+        const particle = particles[i];
+        particle.t += particle.speed * delta * (0.35 + active);
+        if (particle.t > 1) particle.t -= 1;
+        const point = curve.getPointAt(particle.t, tempVecA);
+        const index = i * 3;
+        system.positions[index] = point.x + Math.sin(time * 5 + i) * particle.offset.x * active;
+        system.positions[index + 1] = point.y + Math.cos(time * 4 + i * 0.3) * particle.offset.y * active;
+        system.positions[index + 2] = point.z + Math.sin(time * 4.4 + i * 0.2) * particle.offset.z * active;
+      }
+      system.geometry.attributes.position.needsUpdate = true;
+      system.material.opacity = opacity * active;
+    }
+  };
+}
+
+function applyShadow(object) {
+  object.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+}
+
+function createGround() {
+  const ground = new THREE.Group();
+
+  const plane = new THREE.Mesh(
+    new THREE.CircleGeometry(26, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0xe5e8f1,
+      roughness: 0.98,
+      metalness: 0.02
+    })
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.receiveShadow = true;
+  ground.add(plane);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(13, 16, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.02;
+  ground.add(ring);
+
+  const horizon = new THREE.Group();
+  const hillMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc5cedd,
+    roughness: 1
+  });
+  [
+    { x: -16, y: 1.2, z: -9, r: 3.6 },
+    { x: -9, y: 1.6, z: -11, r: 4.4 },
+    { x: -2, y: 1.4, z: -10.5, r: 4.1 },
+    { x: 6, y: 1.8, z: -11.5, r: 4.8 },
+    { x: 14, y: 1.2, z: -9.5, r: 3.4 }
+  ].forEach((hill) => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(hill.r, 30, 18), hillMaterial);
+    mesh.position.set(hill.x, hill.y - hill.r * 0.65, hill.z);
+    mesh.scale.set(1.3, 0.55, 0.8);
+    mesh.receiveShadow = true;
+    horizon.add(mesh);
+  });
+  ground.add(horizon);
+
+  return ground;
+}
+
+worldRoot.add(createGround());
+
+function createArrow(start, end, color, labelText, labelScale = 0.62) {
+  const group = new THREE.Group();
+  const direction = tempVecA.subVectors(end, start);
+  const length = direction.length();
+  const shaftLength = Math.max(length - 0.35, 0.12);
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, shaftLength, 10),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.38
+    })
+  );
+  shaft.position.y = shaftLength * 0.5;
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.12, 0.28, 12),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.5
+    })
+  );
+  head.position.y = shaftLength + 0.14;
+  group.add(shaft, head);
+  group.position.copy(start);
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+
+  if (labelText) {
+    const label = createLabel(labelText, labelScale, '#ffffff', 'rgba(13, 20, 32, 0.48)');
+    label.position.copy(start).lerp(end, 0.5);
+    label.position.y += 0.5;
+    overlayRoot.add(label);
+    group.userData.label = label;
+  }
+
+  group.userData.materials = [shaft.material, head.material];
+  return group;
+}
+
+function createPipe(points, radius, materialOptions = {}) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const mesh = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 64, radius, 16, false),
+    new THREE.MeshStandardMaterial({
+      color: 0xa7adb8,
+      metalness: 0.6,
+      roughness: 0.3,
+      emissive: 0x191d24,
+      ...materialOptions
+    })
+  );
+  return { mesh, curve };
+}
+
+function createTransmissionTower(color = 0x8b8f99) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.35,
+    roughness: 0.68
+  });
+
+  const left = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 3.2, 8), material);
+  left.position.set(-0.45, 1.6, 0);
+  left.rotation.z = 0.09;
+  const right = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 3.2, 8), material);
+  right.position.set(0.45, 1.6, 0);
+  right.rotation.z = -0.09;
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 8), material);
+  top.rotation.z = Math.PI / 2;
+  top.position.set(0, 2.7, 0);
+  const mid = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.1, 8), material);
+  mid.rotation.z = Math.PI / 2;
+  mid.position.set(0, 1.8, 0);
+  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8), material);
+  lower.rotation.z = Math.PI / 2;
+  lower.position.set(0, 0.9, 0);
+  group.add(left, right, top, mid, lower);
+
+  const wireMaterial = new THREE.LineBasicMaterial({
+    color: 0x818999,
+    transparent: true,
+    opacity: 0.6
+  });
+  const wireGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-3.4, 2.7, 0),
+    new THREE.Vector3(-1.4, 2.5, 0),
+    new THREE.Vector3(0, 2.7, 0),
+    new THREE.Vector3(1.4, 2.5, 0),
+    new THREE.Vector3(3.4, 2.7, 0)
+  ]);
+  const wire = new THREE.Line(wireGeometry, wireMaterial);
+  group.add(wire);
+  group.userData.wireMaterial = wireMaterial;
+  return group;
+}
+
+function addBasePad(group, color) {
+  const pad = new THREE.Mesh(
+    new THREE.BoxGeometry(12.4, 0.35, 8.5),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.94,
+      metalness: 0.06
+    })
+  );
+  pad.position.y = 0.18;
+  pad.receiveShadow = true;
+  group.add(pad);
+  return pad;
+}
+
+function createThermalPlant(position, scale = 1) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+
+  const structureMat = new THREE.MeshStandardMaterial({ color: 0x8a8d93, roughness: 0.68, metalness: 0.38 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2f3238, roughness: 0.92, metalness: 0.08 });
+  const turbineMat = new THREE.MeshStandardMaterial({ color: 0xa0a7b3, roughness: 0.42, metalness: 0.7, emissive: 0x13171d });
+  const generatorMat = new THREE.MeshStandardMaterial({ color: 0x6b6ea5, roughness: 0.48, metalness: 0.58, emissive: 0x121528 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xff8f3f,
+    emissive: 0xff5e17,
+    emissiveIntensity: 0.55,
+    transparent: true,
+    opacity: 0.72
+  });
+  const smokeMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.84, metalness: 0.08 });
+  const electricityMat = new THREE.MeshStandardMaterial({ color: 0xf7e7a9, emissive: 0xffe777, emissiveIntensity: 0.4, roughness: 0.34 });
+
+  addBasePad(group, 0xcbd1dc);
+
+  const coalStorage = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.05, 1.6), darkMat);
+  coalStorage.position.set(-4.4, 0.72, 1.45);
+  group.add(coalStorage);
+
+  const coalPile = new THREE.Mesh(
+    new THREE.ConeGeometry(0.72, 0.8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x1f2024, roughness: 1 })
+  );
+  coalPile.position.set(-4.4, 1.25, 1.45);
+  group.add(coalPile);
+
+  const boiler = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.4, 2.1), structureMat);
+  boiler.position.set(-1.6, 1.95, 0.2);
+  group.add(boiler);
+
+  const flameWindow = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.14), glassMat);
+  flameWindow.position.set(-1.6, 1.55, 1.19);
+  group.add(flameWindow);
+
+  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 4.8, 18), smokeMat);
+  chimney.position.set(0.1, 2.6, -2.05);
+  group.add(chimney);
+
+  const coolingTower = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.15, 0.72, 3.6, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xd0d3d8, roughness: 0.9, metalness: 0.08, side: THREE.DoubleSide })
+  );
+  coolingTower.position.set(4.4, 1.95, 1.7);
+  group.add(coolingTower);
+
+  const coolingCap = new THREE.Mesh(
+    new THREE.TorusGeometry(1.12, 0.05, 10, 32),
+    new THREE.MeshStandardMaterial({ color: 0xe6e8ec, roughness: 0.8 })
+  );
+  coolingCap.rotation.x = Math.PI / 2;
+  coolingCap.position.set(4.4, 3.74, 1.7);
+  group.add(coolingCap);
+
+  const turbine = new THREE.Group();
+  const turbineBody = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 1.3, 20), turbineMat);
+  turbineBody.rotation.z = Math.PI / 2;
+  turbine.add(turbineBody);
+  const blades = [];
+  for (let i = 0; i < 4; i += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.85, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0xc4c9d1, metalness: 0.5, roughness: 0.35 })
+    );
+    blade.position.y = 0.44;
+    blade.rotation.z = (Math.PI * 2 * i) / 4;
+    turbine.add(blade);
+    blades.push(blade);
+  }
+  turbine.position.set(1.65, 1.45, 0.2);
+  group.add(turbine);
+
+  const generator = new THREE.Group();
+  const generatorBody = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.8, 24), generatorMat);
+  generatorBody.rotation.z = Math.PI / 2;
+  generator.add(generatorBody);
+  const generatorCap = new THREE.Mesh(new THREE.SphereGeometry(0.32, 18, 12), electricityMat);
+  generatorCap.position.x = 0.92;
+  generator.add(generatorCap);
+  generator.position.set(3.3, 1.45, 0.2);
+  group.add(generator);
+
+  const tower = createTransmissionTower();
+  tower.position.set(5.85, 0.2, -1.8);
+  group.add(tower);
+
+  const boilerPipe = createPipe([
+    new THREE.Vector3(-0.65, 3.4, 0.25),
+    new THREE.Vector3(0.4, 3.2, 0.25),
+    new THREE.Vector3(1.15, 2.25, 0.2),
+    new THREE.Vector3(1.3, 1.9, 0.2)
+  ], 0.13);
+  group.add(boilerPipe.mesh);
+
+  const powerPipe = createPipe([
+    new THREE.Vector3(2.25, 1.45, 0.2),
+    new THREE.Vector3(2.75, 1.45, 0.2),
+    new THREE.Vector3(3.05, 1.45, 0.2)
+  ], 0.05, { color: 0xe8db8e, emissive: 0x564919, emissiveIntensity: 0.18 });
+  group.add(powerPipe.mesh);
+
+  const conveyor = new THREE.Mesh(
+    new THREE.BoxGeometry(2.25, 0.15, 0.38),
+    new THREE.MeshStandardMaterial({ color: 0x50545f, metalness: 0.3, roughness: 0.66 })
+  );
+  conveyor.position.set(-3.05, 1.5, 0.85);
+  conveyor.rotation.z = -0.44;
+  group.add(conveyor);
+
+  const flameEmitter = createVerticalEmitter(16, {
+    color: 0xff8c3b,
+    size: 0.24,
+    opacity: 0.92,
+    center: new THREE.Vector3(-1.62, 1.0, 0.42),
+    radiusX: 0.28,
+    radiusZ: 0.18,
+    minY: 0.75,
+    maxY: 2.1,
+    minSpeed: 0.5,
+    maxSpeed: 1.3,
+    drift: 0.05
+  });
+  group.add(flameEmitter.points);
+
+  const steamEmitter = createCurveEmitter(20, boilerPipe.curve, {
+    color: 0xffffff,
+    size: 0.16,
+    opacity: 0.82,
+    minSpeed: 0.1,
+    maxSpeed: 0.18,
+    spread: 0.09,
+    blending: THREE.NormalBlending
+  });
+  group.add(steamEmitter.points);
+
+  const smokeEmitter = createVerticalEmitter(16, {
+    color: 0x9ca0a8,
+    size: 0.22,
+    opacity: 0.6,
+    center: new THREE.Vector3(0.1, 4.9, -2.05),
+    radiusX: 0.16,
+    radiusZ: 0.16,
+    minY: 4.85,
+    maxY: 6.6,
+    minSpeed: 0.4,
+    maxSpeed: 0.8,
+    drift: 0.09,
+    blending: THREE.NormalBlending
+  });
+  group.add(smokeEmitter.points);
+
+  const powerEmitter = createCurveEmitter(10, new THREE.CatmullRomCurve3([
+    new THREE.Vector3(4.18, 1.68, 0.2),
+    new THREE.Vector3(4.9, 2.1, -0.6),
+    new THREE.Vector3(5.85, 2.7, -1.8)
+  ]), {
+    color: 0xffef92,
+    size: 0.12,
+    opacity: 0.86,
+    minSpeed: 0.12,
+    maxSpeed: 0.2,
+    spread: 0.05
+  });
+  group.add(powerEmitter.points);
+
+  const labelBoiler = createLabel('보일러', 0.66, '#ffe9d1');
+  labelBoiler.position.set(-1.58, 4.35, 0.25);
+  const labelTurbine = createLabel('터빈', 0.6, '#f2f6ff');
+  labelTurbine.position.set(1.65, 3.2, 0.25);
+  const labelGenerator = createLabel('발전기', 0.62, '#e5e9ff');
+  labelGenerator.position.set(3.3, 3.3, 0.25);
+  const labelSmoke = createLabel('CO₂ + 오염물질', 0.66, '#f5f7fb');
+  labelSmoke.position.set(0.12, 6.6, -2.05);
+  overlayRoot.add(labelBoiler, labelTurbine, labelGenerator, labelSmoke);
+
+  const arrows = [
+    { key: 'source', object: createArrow(new THREE.Vector3(-4.0, 2.45, 1.3), new THREE.Vector3(-2.15, 2.55, 0.55), 0xff9b5e, '화학 → 열') },
+    { key: 'heat', object: createArrow(new THREE.Vector3(-1.15, 4.1, 0.35), new THREE.Vector3(1.15, 3.15, 0.3), 0xffd99f, '열 → 증기') },
+    { key: 'motion', object: createArrow(new THREE.Vector3(1.85, 2.5, 0.2), new THREE.Vector3(3.05, 2.5, 0.2), 0xa7cbff, '회전') },
+    { key: 'electric', object: createArrow(new THREE.Vector3(4.05, 2.35, -0.15), new THREE.Vector3(5.45, 3.0, -1.45), 0xffef92, '전기') },
+    { key: 'impact', object: createArrow(new THREE.Vector3(0.15, 5.6, -2.05), new THREE.Vector3(0.15, 7.15, -2.05), 0xc7ced6, '배출') }
+  ];
+  arrows.forEach((entry) => group.add(entry.object));
+
+  applyShadow(group);
+
+  return {
+    type: 'thermal',
+    group,
+    stageOrder: PATH_DATA.thermal,
+    turbine,
+    blades,
+    generatorCap,
+    flameEmitter,
+    steamEmitter,
+    smokeEmitter,
+    powerEmitter,
+    labelBoiler,
+    labelTurbine,
+    labelGenerator,
+    labelSmoke,
+    boiler,
+    coalStorage,
+    flameWindow,
+    boilerPipe: boilerPipe.mesh,
+    powerPipe: powerPipe.mesh,
+    coolingTower,
+    arrows
+  };
+}
+
+function createNuclearPlant(position, scale = 1) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0xcfd3da, roughness: 0.82, metalness: 0.12 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x4c5da5, roughness: 0.55, metalness: 0.45, emissive: 0x0f1330 });
+  const steelMat = new THREE.MeshStandardMaterial({ color: 0x8e959f, roughness: 0.48, metalness: 0.54, emissive: 0x13161b });
+  const fuelMat = new THREE.MeshStandardMaterial({ color: 0xd5cb52, roughness: 0.48, metalness: 0.4, emissive: 0x6f6620, emissiveIntensity: 0.26 });
+  const glowMat = new THREE.MeshStandardMaterial({ color: 0x91b5ff, emissive: 0x7399ff, emissiveIntensity: 0.58, transparent: true, opacity: 0.55 });
+  const electricityMat = new THREE.MeshStandardMaterial({ color: 0xf1ee9c, emissive: 0xffea73, emissiveIntensity: 0.34, roughness: 0.38 });
+
+  addBasePad(group, 0xc8d0dd);
+
+  const reactorBase = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.75, 2.4, 28), blueMat);
+  reactorBase.position.set(-3.15, 1.4, 0.1);
+  group.add(reactorBase);
+
+  const reactorDome = new THREE.Mesh(
+    new THREE.SphereGeometry(1.55, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.MeshStandardMaterial({
+      color: 0xd8dde4,
+      roughness: 0.78,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.86
+    })
+  );
+  reactorDome.position.set(-3.15, 2.6, 0.1);
+  group.add(reactorDome);
+
+  const coreGlow = new THREE.Mesh(new THREE.SphereGeometry(0.92, 20, 12), glowMat);
+  coreGlow.position.set(-3.15, 1.6, 0.1);
+  group.add(coreGlow);
+
+  const rodGroup = new THREE.Group();
+  for (let ix = -1; ix <= 1; ix += 1) {
+    for (let iz = -1; iz <= 1; iz += 1) {
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.25, 8), fuelMat);
+      rod.position.set(-3.15 + ix * 0.32, 1.45, 0.1 + iz * 0.32);
+      rodGroup.add(rod);
+    }
+  }
+  group.add(rodGroup);
+
+  const steamGenerator = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 2.3, 24), shellMat);
+  steamGenerator.position.set(-0.4, 1.55, 0.2);
+  group.add(steamGenerator);
+
+  const turbine = new THREE.Group();
+  const turbineBody = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 1.28, 20), steelMat);
+  turbineBody.rotation.z = Math.PI / 2;
+  turbine.add(turbineBody);
+  const blades = [];
+  for (let i = 0; i < 4; i += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.82, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0xd5dbe3, metalness: 0.52, roughness: 0.34 })
+    );
+    blade.position.y = 0.42;
+    blade.rotation.z = (Math.PI * 2 * i) / 4;
+    turbine.add(blade);
+    blades.push(blade);
+  }
+  turbine.position.set(2.1, 1.42, 0.2);
+  group.add(turbine);
+
+  const generator = new THREE.Group();
+  const generatorBody = new THREE.Mesh(new THREE.CylinderGeometry(0.76, 0.76, 1.8, 24), blueMat);
+  generatorBody.rotation.z = Math.PI / 2;
+  generator.add(generatorBody);
+  const generatorGlow = new THREE.Mesh(new THREE.SphereGeometry(0.31, 18, 12), electricityMat);
+  generatorGlow.position.x = 0.92;
+  generator.add(generatorGlow);
+  generator.position.set(3.85, 1.42, 0.2);
+  group.add(generator);
+
+  const coolingTower = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.35, 0.88, 4.2, 26, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xd5d9df, roughness: 0.88, metalness: 0.05, side: THREE.DoubleSide })
+  );
+  coolingTower.position.set(5.85, 2.25, 1.45);
+  group.add(coolingTower);
+
+  const coolingCap = new THREE.Mesh(
+    new THREE.TorusGeometry(1.31, 0.05, 10, 32),
+    new THREE.MeshStandardMaterial({ color: 0xe8edf3, roughness: 0.8 })
+  );
+  coolingCap.rotation.x = Math.PI / 2;
+  coolingCap.position.set(5.85, 4.32, 1.45);
+  group.add(coolingCap);
+
+  const wasteBarrel = new THREE.Group();
+  const barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.32, 0.84, 16),
+    new THREE.MeshStandardMaterial({ color: 0xf0c23d, roughness: 0.45, metalness: 0.25, emissive: 0x5a4712, emissiveIntensity: 0.08 })
+  );
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 16), steelMat);
+  lid.position.y = 0.45;
+  wasteBarrel.add(barrel, lid);
+  wasteBarrel.position.set(-4.85, 0.65, -2.0);
+  group.add(wasteBarrel);
+
+  const tower = createTransmissionTower(0x8a90a1);
+  tower.position.set(6.9, 0.2, -1.45);
+  group.add(tower);
+
+  const primaryPipe = createPipe([
+    new THREE.Vector3(-1.8, 2.8, 0.2),
+    new THREE.Vector3(-1.25, 2.9, 0.2),
+    new THREE.Vector3(-0.75, 2.55, 0.2),
+    new THREE.Vector3(-0.42, 2.15, 0.2)
+  ], 0.12, { color: 0x9da6b8, emissive: 0x1a2030 });
+  group.add(primaryPipe.mesh);
+
+  const steamPipe = createPipe([
+    new THREE.Vector3(0.2, 2.55, 0.2),
+    new THREE.Vector3(0.82, 2.55, 0.2),
+    new THREE.Vector3(1.52, 2.0, 0.2),
+    new THREE.Vector3(1.74, 1.78, 0.2)
+  ], 0.13, { color: 0xb6bcc7, emissive: 0x1b1f27 });
+  group.add(steamPipe.mesh);
+
+  const electricityPipe = createPipe([
+    new THREE.Vector3(4.76, 1.65, 0.2),
+    new THREE.Vector3(5.35, 2.15, -0.35),
+    new THREE.Vector3(6.9, 2.8, -1.45)
+  ], 0.05, { color: 0xe7dfa0, emissive: 0x5d531e, emissiveIntensity: 0.18 });
+  group.add(electricityPipe.mesh);
+
+  const fissionEmitter = createVerticalEmitter(14, {
+    color: 0xf7e771,
+    size: 0.18,
+    opacity: 0.9,
+    center: new THREE.Vector3(-3.15, 1.0, 0.1),
+    radiusX: 0.45,
+    radiusZ: 0.45,
+    minY: 0.95,
+    maxY: 2.2,
+    minSpeed: 0.32,
+    maxSpeed: 0.75,
+    drift: 0.06
+  });
+  group.add(fissionEmitter.points);
+
+  const steamEmitter = createCurveEmitter(18, steamPipe.curve, {
+    color: 0xffffff,
+    size: 0.16,
+    opacity: 0.84,
+    minSpeed: 0.1,
+    maxSpeed: 0.17,
+    spread: 0.08,
+    blending: THREE.NormalBlending
+  });
+  group.add(steamEmitter.points);
+
+  const towerSteamEmitter = createVerticalEmitter(16, {
+    color: 0xf7fbff,
+    size: 0.22,
+    opacity: 0.64,
+    center: new THREE.Vector3(5.85, 4.35, 1.45),
+    radiusX: 0.28,
+    radiusZ: 0.28,
+    minY: 4.26,
+    maxY: 6.15,
+    minSpeed: 0.38,
+    maxSpeed: 0.84,
+    drift: 0.08,
+    blending: THREE.NormalBlending
+  });
+  group.add(towerSteamEmitter.points);
+
+  const powerEmitter = createCurveEmitter(10, electricityPipe.curve, {
+    color: 0xfff59e,
+    size: 0.12,
+    opacity: 0.88,
+    minSpeed: 0.12,
+    maxSpeed: 0.2,
+    spread: 0.05
+  });
+  group.add(powerEmitter.points);
+
+  const labelReactor = createLabel('원자로', 0.66, '#dce6ff');
+  labelReactor.position.set(-3.15, 4.55, 0.1);
+  const labelSteam = createLabel('증기 발생기', 0.62, '#f0f5ff');
+  labelSteam.position.set(-0.4, 3.8, 0.2);
+  const labelTurbine = createLabel('터빈', 0.6, '#f2f6ff');
+  labelTurbine.position.set(2.08, 3.2, 0.2);
+  const labelGenerator = createLabel('발전기', 0.62, '#dce6ff');
+  labelGenerator.position.set(3.86, 3.25, 0.2);
+  const labelWaste = createLabel('방사성 폐기물', 0.66, '#fff0a5');
+  labelWaste.position.set(-4.85, 2.25, -2.0);
+  const radiationLabel = createLabel('☢', 0.64, '#ffe96f', 'rgba(35, 42, 58, 0.76)');
+  radiationLabel.position.set(-3.15, 5.4, 0.1);
+  overlayRoot.add(labelReactor, labelSteam, labelTurbine, labelGenerator, labelWaste, radiationLabel);
+
+  const arrows = [
+    { key: 'source', object: createArrow(new THREE.Vector3(-3.15, 2.6, 0.1), new THREE.Vector3(-3.15, 4.15, 0.1), 0xffef8f, '핵 → 열') },
+    { key: 'heat', object: createArrow(new THREE.Vector3(-1.1, 3.1, 0.2), new THREE.Vector3(1.32, 2.75, 0.2), 0xbdd4ff, '열 → 증기') },
+    { key: 'motion', object: createArrow(new THREE.Vector3(2.38, 2.45, 0.2), new THREE.Vector3(3.56, 2.45, 0.2), 0xa7cbff, '회전') },
+    { key: 'electric', object: createArrow(new THREE.Vector3(4.55, 2.3, -0.1), new THREE.Vector3(6.5, 3.05, -1.15), 0xffef92, '전기') },
+    { key: 'impact', object: createArrow(new THREE.Vector3(-4.85, 1.25, -2.0), new THREE.Vector3(-4.85, 2.95, -2.0), 0xffe16a, '폐기물') }
+  ];
+  arrows.forEach((entry) => group.add(entry.object));
+
+  applyShadow(group);
+
+  return {
+    type: 'nuclear',
+    group,
+    stageOrder: PATH_DATA.nuclear,
+    turbine,
+    blades,
+    generatorGlow,
+    coreGlow,
+    wasteBarrel,
+    fissionEmitter,
+    steamEmitter,
+    towerSteamEmitter,
+    powerEmitter,
+    labelReactor,
+    labelSteam,
+    labelTurbine,
+    labelGenerator,
+    labelWaste,
+    radiationLabel,
+    steamPipe: steamPipe.mesh,
+    primaryPipe: primaryPipe.mesh,
+    electricityPipe: electricityPipe.mesh,
+    coolingTower,
+    arrows,
+    rodGroup
+  };
+}
+
+function getActiveStageInfo(plantType) {
+  if (!state.animationPlaying) {
+    return { key: null, index: -1, progress: 0 };
+  }
+  const steps = PATH_DATA[plantType];
+  const normalized = THREE.MathUtils.clamp(state.animationElapsed / state.animationDuration, 0, 0.9999);
+  const scaled = normalized * steps.length;
+  const index = Math.min(Math.floor(scaled), steps.length - 1);
+  return {
+    key: ['source', 'heat', 'motion', 'electric', 'impact'][index],
+    index,
+    progress: scaled - index
+  };
+}
+
+function stageIntensity(targetKey, activeInfo) {
+  const order = ['source', 'heat', 'motion', 'electric', 'impact'];
+  const targetIndex = order.indexOf(targetKey);
+  if (activeInfo.index === -1) return 0.16;
+  if (activeInfo.key === targetKey) return 1;
+  if (targetIndex < activeInfo.index) return 0.34;
+  return 0.08;
+}
+
+function updateThermalPlant(plant, delta, time) {
+  const active = getActiveStageInfo('thermal');
+  const sourceBoost = stageIntensity('source', active);
+  const heatBoost = stageIntensity('heat', active);
+  const motionBoost = stageIntensity('motion', active);
+  const electricBoost = stageIntensity('electric', active);
+  const impactBoost = stageIntensity('impact', active);
+
+  const spin = delta * (0.4 + state.turbineSpeed * 1.35) * (0.75 + motionBoost * 0.7);
+  plant.turbine.rotation.x += spin;
+  plant.blades.forEach((blade) => {
+    blade.rotation.z += spin * 0.25;
+  });
+
+  plant.flameEmitter.update(delta, time, 0.42 + sourceBoost * 0.58);
+  plant.steamEmitter.update(delta, time, 0.28 + heatBoost * 0.72);
+  plant.smokeEmitter.update(delta, time, 0.18 + impactBoost * 0.72);
+  plant.powerEmitter.update(delta, time, 0.16 + electricBoost * 0.84);
+
+  plant.flameWindow.material.emissiveIntensity = 0.45 + sourceBoost * 1.1;
+  plant.boiler.material.emissive.setHSL(0.06, 0.4, 0.12 + heatBoost * 0.08);
+  plant.boilerPipe.material.emissiveIntensity = 0.08 + heatBoost * 0.42;
+  plant.powerPipe.material.emissiveIntensity = 0.12 + electricBoost * 0.68;
+  plant.generatorCap.material.emissiveIntensity = 0.34 + electricBoost * 1.1;
+  plant.coolingTower.material.emissive.setScalar(impactBoost * 0.02);
+
+  plant.labelSmoke.visible = state.showPath || impactBoost > 0.2;
+  plant.arrows.forEach((entry) => {
+    const intensity = stageIntensity(entry.key, active);
+    entry.object.visible = state.showPath;
+    entry.object.userData.materials.forEach((material) => {
+      material.opacity = state.showPath ? 0.18 + intensity * 0.42 : 0;
+    });
+    if (entry.object.userData.label) {
+      entry.object.userData.label.visible = state.showPath;
+      entry.object.userData.label.material.opacity = 0.3 + intensity * 0.7;
+    }
+  });
+}
+
+function updateNuclearPlant(plant, delta, time) {
+  const active = getActiveStageInfo('nuclear');
+  const sourceBoost = stageIntensity('source', active);
+  const heatBoost = stageIntensity('heat', active);
+  const motionBoost = stageIntensity('motion', active);
+  const electricBoost = stageIntensity('electric', active);
+  const impactBoost = stageIntensity('impact', active);
+
+  const spin = delta * (0.42 + state.turbineSpeed * 1.3) * (0.75 + motionBoost * 0.72);
+  plant.turbine.rotation.x += spin;
+  plant.blades.forEach((blade) => {
+    blade.rotation.z += spin * 0.25;
+  });
+
+  plant.fissionEmitter.update(delta, time, 0.38 + sourceBoost * 0.62);
+  plant.steamEmitter.update(delta, time, 0.26 + heatBoost * 0.74);
+  plant.towerSteamEmitter.update(delta, time, 0.24 + heatBoost * 0.42);
+  plant.powerEmitter.update(delta, time, 0.16 + electricBoost * 0.84);
+
+  plant.coreGlow.material.emissiveIntensity = 0.4 + sourceBoost * 1.05;
+  plant.coreGlow.material.opacity = 0.34 + sourceBoost * 0.4;
+  plant.steamPipe.material.emissiveIntensity = 0.08 + heatBoost * 0.42;
+  plant.primaryPipe.material.emissiveIntensity = 0.08 + sourceBoost * 0.28;
+  plant.electricityPipe.material.emissiveIntensity = 0.1 + electricBoost * 0.72;
+  plant.generatorGlow.material.emissiveIntensity = 0.3 + electricBoost * 1.1;
+  plant.wasteBarrel.children[0].material.emissiveIntensity = 0.08 + impactBoost * 0.42;
+  plant.coolingTower.material.emissive.setScalar(heatBoost * 0.014);
+  plant.radiationLabel.material.opacity = 0.46 + sourceBoost * 0.54;
+
+  plant.arrows.forEach((entry) => {
+    const intensity = stageIntensity(entry.key, active);
+    entry.object.visible = state.showPath;
+    entry.object.userData.materials.forEach((material) => {
+      material.opacity = state.showPath ? 0.18 + intensity * 0.42 : 0;
+    });
+    if (entry.object.userData.label) {
+      entry.object.userData.label.visible = state.showPath;
+      entry.object.userData.label.material.opacity = 0.3 + intensity * 0.7;
+    }
+  });
+}
+
+function disposeObject(object) {
+  const disposedGeometries = new Set();
+  const disposedMaterials = new Set();
+  const disposedTextures = new Set();
+
+  object.traverse((child) => {
+    if (child.geometry && !disposedGeometries.has(child.geometry)) {
+      child.geometry.dispose();
+      disposedGeometries.add(child.geometry);
+    }
+
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        if (disposedMaterials.has(material)) return;
+        if (material.map && !disposedTextures.has(material.map)) {
+          material.map.dispose();
+          disposedTextures.add(material.map);
+        }
+        material.dispose();
+        disposedMaterials.add(material);
+      });
+    }
+
+    if (child.userData && child.userData.texture && !disposedTextures.has(child.userData.texture)) {
+      child.userData.texture.dispose();
+      disposedTextures.add(child.userData.texture);
+    }
+  });
+}
+
+function clearOverlaySprites() {
+  const toRemove = [...overlayRoot.children];
+  toRemove.forEach((child) => {
+    overlayRoot.remove(child);
+    disposeObject(child);
+  });
+}
+
+// 장면 모드에 따라 발전소 객체를 완전히 다시 만든다.
+function rebuildPlants() {
+  state.plants.forEach((plant) => {
+    plantRoot.remove(plant.group);
+    disposeObject(plant.group);
+  });
+  state.plants = [];
+  clearOverlaySprites();
+
+  if (state.viewMode === '비교 모드') {
+    const thermal = createThermalPlant(new THREE.Vector3(-6.7, 0, 0), 0.92);
+    const nuclear = createNuclearPlant(new THREE.Vector3(6.8, 0, 0), 0.92);
+    plantRoot.add(thermal.group, nuclear.group);
+    state.plants.push(thermal, nuclear);
+    camera.position.set(0, 8.2, 18.5);
+    controls.target.set(0, 2.45, 0);
+  } else if (state.viewMode === '화력 발전') {
+    const thermal = createThermalPlant(new THREE.Vector3(0, 0, 0), 1.22);
+    plantRoot.add(thermal.group);
+    state.plants.push(thermal);
+    camera.position.set(0.2, 7.2, 14.8);
+    controls.target.set(0.3, 2.45, 0);
+  } else {
+    const nuclear = createNuclearPlant(new THREE.Vector3(0, 0, 0), 1.22);
+    plantRoot.add(nuclear.group);
+    state.plants.push(nuclear);
+    camera.position.set(0.35, 7.3, 15.4);
+    controls.target.set(0.2, 2.55, 0);
+  }
+
+  controls.update();
+}
+
+function renderPathRows() {
+  pathRows.innerHTML = '';
+  [['thermal', '화력 발전', '화학 에너지로 열을 만듦'], ['nuclear', '핵발전', '핵에너지로 열을 만듦']].forEach(([key, title, sub]) => {
+    const row = document.createElement('div');
+    row.className = `path-row ${key}`;
+    row.dataset.type = key;
+
+    const head = document.createElement('div');
+    head.className = 'row-head';
+    head.innerHTML = `<div class="row-title">${title}</div><div class="row-sub">${sub}</div>`;
+    row.appendChild(head);
+
+    const chain = document.createElement('div');
+    chain.className = 'path-chain';
+    PATH_DATA[key].forEach((step, index) => {
+      const stepEl = document.createElement('span');
+      stepEl.className = 'path-step';
+      stepEl.textContent = step;
+      stepEl.dataset.index = String(index);
+      chain.appendChild(stepEl);
+      if (index < PATH_DATA[key].length - 1) {
+        const arrow = document.createElement('span');
+        arrow.className = 'path-arrow';
+        arrow.textContent = '→';
+        chain.appendChild(arrow);
+      }
+    });
+
+    row.appendChild(chain);
+    pathRows.appendChild(row);
+  });
+}
+
+// 하단 에너지 전환 경로 다이어그램을 현재 상태와 동기화한다.
+function updatePathPanel() {
+  pathPanel.classList.toggle('hidden', !state.showPath);
+  const thermalRow = pathRows.querySelector('.path-row.thermal');
+  const nuclearRow = pathRows.querySelector('.path-row.nuclear');
+  const compare = state.viewMode === '비교 모드';
+  const showThermal = compare || state.viewMode === '화력 발전';
+  const showNuclear = compare || state.viewMode === '핵발전';
+
+  thermalRow.classList.toggle('dimmed', !showThermal);
+  nuclearRow.classList.toggle('dimmed', !showNuclear);
+  thermalRow.classList.toggle('active', showThermal);
+  nuclearRow.classList.toggle('active', showNuclear);
+
+  [
+    ['thermal', getActiveStageInfo('thermal')],
+    ['nuclear', getActiveStageInfo('nuclear')]
+  ].forEach(([type, info]) => {
+    const steps = pathRows.querySelectorAll(`.path-row.${type} .path-step`);
+    steps.forEach((stepEl) => {
+      const index = Number(stepEl.dataset.index);
+      stepEl.classList.toggle('active', info.index === index && state.animationPlaying);
+    });
+  });
+}
+
+function updateSceneLabels() {
+  const compare = state.viewMode === '비교 모드';
+  labelLeft.classList.toggle('hidden', !compare);
+  labelRight.classList.toggle('hidden', !compare);
+  labelCenter.classList.toggle('hidden', compare);
+  compareDivider.classList.toggle('visible', compare);
+
+  if (state.viewMode === '화력 발전') {
+    labelCenter.querySelector('.label-title').textContent = '화력 발전소';
+    labelCenter.querySelector('.label-subtitle').textContent = '화석 연료를 태운 열로 물을 끓여 증기를 만들고, 터빈을 돌려 전기를 생산합니다.';
+  } else if (state.viewMode === '핵발전') {
+    labelCenter.querySelector('.label-title').textContent = '핵발전소';
+    labelCenter.querySelector('.label-subtitle').textContent = '핵분열에서 나온 열로 물을 끓여 증기를 만들고, 터빈을 돌려 전기를 생산합니다.';
+  }
+}
+
+function updateFormulaPanel() {
+  const viewText = PLANT_LABELS[state.viewMode === '비교 모드' ? 'compare' : state.viewMode === '화력 발전' ? 'thermal' : 'nuclear'];
+  formulaPanel.innerHTML = `
+    <h2>🏭 화력 발전과 핵발전 비교</h2>
+    <div class="divider"></div>
+    <div class="info-row"><span class="label">현재 보기</span><span class="value">${viewText}</span></div>
+    <div class="info-row"><span class="label">터빈 속도</span><span class="value">${state.turbineSpeed.toFixed(1)} RPM</span></div>
+    <div class="info-row"><span class="label">애니메이션</span><span class="value">${state.animationPlaying ? '에너지 전환 재생 중' : '대기 중'}</span></div>
+
+    <div class="info-box thermal">
+      <strong>화력 발전</strong><br>
+      화석 연료 연소 → 열 → 증기 → 터빈 → 전기<br>
+      장점: 대량 생산, 경제적, 기술 성숙<br>
+      단점: CO₂ 배출, 대기 오염, 화석 연료 고갈
+    </div>
+
+    <div class="info-box nuclear">
+      <strong>핵발전</strong><br>
+      핵분열 → 열 → 증기 → 터빈 → 전기<br>
+      장점: CO₂ 미배출, 연료 효율 높음, 대량 생산<br>
+      단점: 방사성 폐기물, 사고 위험, 안전 설비 중요
+    </div>
+
+    <div class="info-box">
+      <strong>공통점</strong><br>
+      열에너지를 얻는 과정만 다르고, 증기와 터빈을 거쳐 전기를 생산하는 나머지 에너지 전환 과정은 거의 같습니다.
+    </div>
+  `;
+}
+
+function makeImpactCard(type) {
+  const data = IMPACT_DATA[type];
+  const card = document.createElement('div');
+  card.className = `impact-card ${type}`;
+  const title = document.createElement('h4');
+  title.textContent = data.title;
+  const badges = document.createElement('div');
+  badges.className = 'impact-badge-row';
+  data.badges.forEach((badge) => {
+    const el = document.createElement('span');
+    el.className = `impact-badge ${badge.tone}`;
+    el.textContent = badge.text;
+    badges.appendChild(el);
+  });
+  const note = document.createElement('div');
+  note.className = 'impact-note';
+  note.textContent = data.note;
+  card.append(title, badges, note);
+  return card;
+}
+
+function updateImpactPanel() {
+  impactPanel.classList.toggle('hidden', !state.showProsCons);
+  if (!state.showProsCons) return;
+
+  impactCards.innerHTML = '';
+  if (state.viewMode === '비교 모드') {
+    impactCards.append(makeImpactCard('thermal'), makeImpactCard('nuclear'));
+  } else if (state.viewMode === '화력 발전') {
+    impactCards.append(makeImpactCard('thermal'));
+  } else {
+    impactCards.append(makeImpactCard('nuclear'));
+  }
+}
+
+function updateInsightChip() {
+  if (state.viewMode === '화력 발전') {
+    insightChip.innerHTML = '<strong>차이점:</strong> 화석 연료의 <strong>화학 에너지</strong>를 연소시켜 열을 얻습니다.';
+  } else if (state.viewMode === '핵발전') {
+    insightChip.innerHTML = '<strong>차이점:</strong> 핵연료의 <strong>핵에너지</strong>를 핵분열로 열에너지로 바꿉니다.';
+  } else {
+    insightChip.innerHTML = '<strong>공통점:</strong> 열에너지를 얻은 뒤에는 <strong>증기 → 터빈 → 발전기 → 전기</strong> 흐름이 거의 같습니다.';
+  }
+}
+
+function refreshScene() {
+  rebuildPlants();
+  updateSceneLabels();
+  updateFormulaPanel();
+  updateImpactPanel();
+  updatePathPanel();
+  updateInsightChip();
+}
+
+function setViewMode(mode, syncGui = true) {
+  state.viewMode = mode;
+  refreshScene();
+  if (syncGui) {
+    guiState.발전종류 = mode;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function playAnimation() {
+  state.animationPlaying = true;
+  state.animationElapsed = 0;
+}
+
+function resetAll() {
+  state.animationPlaying = false;
+  state.animationElapsed = 0;
+  state.showPath = true;
+  state.showProsCons = true;
+  state.turbineSpeed = 2;
+  guiState.발전종류 = '비교 모드';
+  guiState.에너지전환경로 = true;
+  guiState.장단점표시 = true;
+  guiState.터빈속도 = 2;
+  setViewMode('비교 모드', false);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+const gui = new GUI({ title: '발전 비교 제어', width: 286 });
+gui.add(guiState, '발전종류', VIEW_MODES).name('발전 종류').onChange((value) => {
+  setViewMode(value, false);
+});
+gui.add({ 재생: playAnimation }, '재생').name('에너지 흐름 애니메이션');
+gui.add(guiState, '에너지전환경로').name('에너지 전환 경로').onChange((value) => {
+  state.showPath = value;
+  updatePathPanel();
+});
+gui.add(guiState, '장단점표시').name('장단점 표시').onChange((value) => {
+  state.showProsCons = value;
+  updateImpactPanel();
+});
+gui.add(guiState, '터빈속도', 0, 5, 0.1).name('터빈 속도').onChange((value) => {
+  state.turbineSpeed = value;
+  updateFormulaPanel();
+});
+gui.add({ 초기화: resetAll }, '초기화').name('초기화');
+if (window.innerWidth <= 900) gui.close();
+
+renderPathRows();
+refreshScene();
+
+const clock = new THREE.Clock();
+let frameId = 0;
+
+function animate() {
+  frameId = requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+  const time = clock.elapsedTime;
+
+  if (state.animationPlaying) {
+    state.animationElapsed += delta;
+    if (state.animationElapsed >= state.animationDuration) {
+      state.animationElapsed = state.animationDuration;
+      state.animationPlaying = false;
+    }
+    updatePathPanel();
+    updateFormulaPanel();
+  }
+
+  state.plants.forEach((plant) => {
+    if (plant.type === 'thermal') {
+      updateThermalPlant(plant, delta, time);
+    } else {
+      updateNuclearPlant(plant, delta, time);
+    }
+  });
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.addEventListener('resize', resize);
+animate();
+
+// 페이지를 벗어날 때 생성한 Three.js 자원을 정리한다.
+function disposeScene() {
+  cancelAnimationFrame(frameId);
+  window.removeEventListener('resize', resize);
+  controls.dispose();
+  gui.destroy();
+
+  state.plants.forEach((plant) => {
+    plantRoot.remove(plant.group);
+    disposeObject(plant.group);
+  });
+  clearOverlaySprites();
+  disposeObject(worldRoot);
+  renderer.dispose();
+}
+
+window.addEventListener('beforeunload', disposeScene, { once: true });
+</script>
+</body>
+</html>

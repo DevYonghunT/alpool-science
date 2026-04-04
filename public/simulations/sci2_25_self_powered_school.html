@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자가발전 학교 설계 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --panel-bg: rgba(9, 24, 38, 0.82);
+    --panel-line: rgba(255, 255, 255, 0.14);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.72);
+    --accent: #ffd67c;
+    --accent-2: #8df0ff;
+    --shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 20% 18%, rgba(255, 231, 153, 0.2), transparent 28%),
+      radial-gradient(circle at 82% 16%, rgba(120, 221, 255, 0.18), transparent 26%),
+      linear-gradient(180deg, #82c7e1 0%, #9ed3d6 30%, #c1d8bd 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-line);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    left: 50%;
+    top: 16px;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 32;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.2);
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  #status-pill {
+    position: fixed;
+    left: 50%;
+    top: 82px;
+    transform: translateX(-50%);
+    min-width: min(560px, calc(100vw - 30px));
+    max-width: min(680px, calc(100vw - 30px));
+    padding: 12px 18px;
+    border-radius: 999px;
+    z-index: 34;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #fefefe;
+  }
+
+  #status-pill.good {
+    background: linear-gradient(135deg, rgba(40, 184, 114, 0.32), rgba(109, 243, 167, 0.18));
+    border-color: rgba(150, 255, 201, 0.3);
+  }
+
+  #status-pill.warn {
+    background: linear-gradient(135deg, rgba(255, 171, 52, 0.3), rgba(255, 216, 110, 0.18));
+    border-color: rgba(255, 215, 140, 0.32);
+  }
+
+  #status-pill.low {
+    background: linear-gradient(135deg, rgba(20, 58, 94, 0.58), rgba(29, 108, 126, 0.42));
+    border-color: rgba(171, 232, 255, 0.18);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 42;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(6, 24, 38, 0.74);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+
+  #guide-toggle:hover,
+  #guide-toggle:focus-visible {
+    transform: translateY(-1px);
+    background: rgba(10, 30, 46, 0.84);
+    outline: none;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    right: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: 70vh;
+    padding: 18px 18px 16px;
+    border-radius: 18px;
+    z-index: 41;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.8;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #guide-panel.closed {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+  }
+
+  #guide-panel h2,
+  #guide-panel h3 {
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h2 {
+    font-size: 16px;
+    color: var(--accent);
+  }
+
+  #guide-panel h3 {
+    margin-top: 12px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #b8f1ff;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: var(--text-dim);
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    margin-top: 8px;
+    margin-left: 18px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    z-index: 36;
+    font-size: 11px;
+    line-height: 1.72;
+    pointer-events: auto;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .formula-row .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.03));
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 10.5px;
+  }
+
+  #analysis-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(72vh, 780px);
+    padding: 18px;
+    border-radius: 22px;
+    z-index: 36;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+
+  #analysis-panel h3 {
+    font-size: 15px;
+    color: var(--accent-2);
+    margin-bottom: 10px;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .summary-chip {
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .summary-chip .k {
+    display: block;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.58);
+    margin-bottom: 4px;
+  }
+
+  .summary-chip .v {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff7d5;
+  }
+
+  .metric-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .metric-row .top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 5px;
+    font-size: 11px;
+  }
+
+  .metric-row .top span:first-child {
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  .metric-row .top strong {
+    color: #fff;
+  }
+
+  .bar {
+    width: 100%;
+    height: 11px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .bar > div {
+    width: 0%;
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.25s ease;
+  }
+
+  #gen-bar { background: linear-gradient(90deg, #ffe07c, #ffb055); }
+  #load-bar { background: linear-gradient(90deg, #9bd9ff, #4da8ff); }
+  #suff-bar { background: linear-gradient(90deg, #6be0ae, #c5ff7c); }
+
+  #recommend-box {
+    margin-top: 14px;
+    padding: 12px 13px;
+    border-radius: 15px;
+    background: rgba(141, 240, 255, 0.09);
+    border: 1px solid rgba(141, 240, 255, 0.16);
+    font-size: 11px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #facility-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .facility-card {
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .facility-card.is-on {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .facility-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .facility-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+  }
+
+  .facility-card .meta {
+    display: grid;
+    gap: 3px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.74);
+    line-height: 1.55;
+  }
+
+  .textbook-ref {
+    margin-top: 14px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 10px;
+  }
+
+  .lil-gui {
+    --background-color: rgba(6, 25, 42, 0.82);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --focus-color: rgba(255, 255, 255, 0.14);
+    --hover-color: rgba(255, 255, 255, 0.1);
+    --number-color: #baf3ff;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --text-color: #eefaff;
+    --folder-indent: 10px;
+    z-index: 48 !important;
+  }
+
+  @media (max-width: 980px) {
+    #status-pill {
+      top: 96px;
+      min-width: 0;
+      width: calc(100vw - 24px);
+      border-radius: 18px;
+    }
+
+    #formula-panel,
+    #analysis-panel {
+      width: min(360px, calc(100vw - 22px));
+      padding: 15px;
+    }
+
+    #formula-panel {
+      left: 11px;
+      bottom: 11px;
+    }
+
+    #analysis-panel {
+      right: 11px;
+      bottom: 11px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-card {
+      top: 12px;
+      width: calc(100vw - 26px);
+    }
+
+    #title-card h1 {
+      font-size: 19px;
+    }
+
+    #title-card p {
+      font-size: 10px;
+    }
+
+    #status-pill {
+      top: 84px;
+      font-size: 11px;
+      line-height: 1.6;
+      padding: 10px 12px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 56px;
+      right: 12px;
+      max-height: min(54vh, 420px);
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      width: auto;
+      max-width: 100%;
+      z-index: 35;
+    }
+
+    #analysis-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 272px;
+      width: auto;
+      max-height: min(34vh, 300px);
+    }
+
+    #facility-grid,
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui.root {
+      transform: scale(0.94);
+      transform-origin: top right;
+      margin-top: 120px;
+      margin-right: -8px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="title-card">
+  <div class="eyebrow">통합과학2 · 환경과 에너지</div>
+  <h1>자가발전 학교 설계</h1>
+  <p>태양광, 풍력, 압전, 캐노피, 창문 필름, 빗물 수력 설비를 조합해 학교 전력 자급률을 높여 보세요.</p>
+</div>
+
+<div id="status-pill" class="glass low">설비를 배치해 학교가 스스로 전기를 생산하도록 설계해 보세요.</div>
+
+<button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+<aside id="guide-panel" class="glass closed" aria-hidden="true">
+  <h2>신재생 에너지로 자가발전 학교 만들기</h2>
+  <p>신재생 에너지 기술을 활용하면 화석 연료에 의존하지 않고도 전기 에너지를 생산할 수 있습니다. 여러 설비를 조합하면 날씨와 시간 변화에 따라 달라지는 발전량을 보완해 더 안정적인 전력 공급이 가능합니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ol>
+    <li>우리 학교에 어떤 신재생 에너지 기술을 적용하면 가장 효율적일까요?</li>
+    <li>맑은 날과 흐린 날에 발전량이 달라지는 까닭은 무엇인가요?</li>
+    <li>여러 가지 신재생 에너지를 조합해야 하는 까닭은 무엇인가요?</li>
+  </ol>
+
+  <h3>실생활 연결</h3>
+  <ul>
+    <li>제로 에너지 빌딩은 건물 외피, 태양광, 환기 시스템을 함께 설계해 에너지 사용을 최소화합니다.</li>
+    <li>서울의 에너지 자립 마을은 지역 단위 태양광 설비와 절전 활동을 결합해 전력 자립도를 높입니다.</li>
+    <li>학교 옥상 태양광 사업은 유휴 공간을 발전 공간으로 전환하는 대표적 사례입니다.</li>
+  </ul>
+
+  <h3>관찰 포인트</h3>
+  <ul>
+    <li>시간대가 바뀌면 태양의 고도와 태양광 설비 효율이 함께 변합니다.</li>
+    <li>바람이 강해지면 풍력 터빈 날개 회전이 빨라지고 풍력 발전 비중이 커집니다.</li>
+    <li>비가 오면 태양광은 불리하지만 빗물 수력 설비가 새로 작동합니다.</li>
+    <li>복도 압전 타일은 학생 통행량이 많은 시간대에 더 큰 효과를 냅니다.</li>
+  </ul>
+
+  <div class="textbook-ref">미래엔 통합과학2 II편 p116~117 · 탐구: 신재생 에너지 기술로 자가발전 학교 설계</div>
+</aside>
+
+<section id="formula-panel" class="glass" aria-live="polite">
+  <h3>🏫 자가발전 학교 설계</h3>
+  <div id="formula-content"></div>
+  <div class="formula-note">드래그로 시점을 회전하고, 휠 또는 핀치로 확대·축소할 수 있습니다.</div>
+</section>
+
+<section id="analysis-panel" class="glass">
+  <h3>에너지 수지와 비용 분석</h3>
+  <div class="summary-grid">
+    <div class="summary-chip">
+      <span class="k">총 설치비</span>
+      <span class="v" id="summary-cost">0만원</span>
+    </div>
+    <div class="summary-chip">
+      <span class="k">예상 연간 발전량</span>
+      <span class="v" id="summary-annual">0kWh</span>
+    </div>
+    <div class="summary-chip">
+      <span class="k">회수 기간</span>
+      <span class="v" id="summary-payback">-</span>
+    </div>
+  </div>
+
+  <div class="metric-list">
+    <div class="metric-row">
+      <div class="top"><span>총 발전량</span><strong id="gen-value">0kW</strong></div>
+      <div class="bar"><div id="gen-bar"></div></div>
+    </div>
+    <div class="metric-row">
+      <div class="top"><span>학교 소비량</span><strong id="load-value">0kW</strong></div>
+      <div class="bar"><div id="load-bar"></div></div>
+    </div>
+    <div class="metric-row">
+      <div class="top"><span>자급률</span><strong id="suff-value">0%</strong></div>
+      <div class="bar"><div id="suff-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="recommend-box">설비를 조합하면 자급률과 회수 기간이 함께 달라집니다.</div>
+
+  <div id="facility-grid"></div>
+
+  <div class="textbook-ref">비용은 비교를 위한 상대값이며, 예상 연간 발전량과 회수 기간은 현재 설계 조건을 바탕으로 단순화한 추정치입니다.</div>
+</section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const WEATHER_PROFILES = {
+  '맑음': { solar: 1.0, cloud: 0.12, windBase: 4.8, windVar: 1.1, annualSolar: 1.0, annualWind: 0.94, rain: false },
+  '흐림': { solar: 0.58, cloud: 0.74, windBase: 3.9, windVar: 0.9, annualSolar: 0.74, annualWind: 0.9, rain: false },
+  '비': { solar: 0.32, cloud: 0.98, windBase: 5.6, windVar: 1.2, annualSolar: 0.56, annualWind: 1.02, rain: true },
+  '바람 강함': { solar: 0.87, cloud: 0.42, windBase: 10.6, windVar: 2.2, annualSolar: 0.92, annualWind: 1.22, rain: false }
+};
+
+const FACILITY_META = {
+  rooftop: { label: '옥상 태양광', color: '#ffd978' },
+  wind: { label: '풍력 발전기', color: '#9bdcff' },
+  piezo: { label: '압전 타일', color: '#7ff0b1' },
+  canopy: { label: '주차장 캐노피', color: '#ffc06d' },
+  window: { label: '창문 태양광 필름', color: '#8cd6ff' },
+  hydro: { label: '빗물 수력', color: '#73a8ff' }
+};
+
+const defaultParams = {
+  rooftopSolar: 0,
+  windTurbines: 0,
+  piezoTiles: 0,
+  canopy: false,
+  windowFilm: false,
+  rainHydro: false,
+  weather: '맑음',
+  time: 12,
+  consumption: 50
+};
+
+const params = {
+  ...defaultParams,
+  reset() {
+    Object.assign(params, defaultParams);
+    refreshInstallations();
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+};
+
+const dom = {
+  formulaContent: document.getElementById('formula-content'),
+  statusPill: document.getElementById('status-pill'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  summaryCost: document.getElementById('summary-cost'),
+  summaryAnnual: document.getElementById('summary-annual'),
+  summaryPayback: document.getElementById('summary-payback'),
+  genValue: document.getElementById('gen-value'),
+  loadValue: document.getElementById('load-value'),
+  suffValue: document.getElementById('suff-value'),
+  genBar: document.getElementById('gen-bar'),
+  loadBar: document.getElementById('load-bar'),
+  suffBar: document.getElementById('suff-bar'),
+  recommendBox: document.getElementById('recommend-box'),
+  facilityGrid: document.getElementById('facility-grid')
+};
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x88ccdd);
+scene.fog = new THREE.Fog(0x94cdd8, 28, 90);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 160);
+camera.position.set(22, 16, 18);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 14;
+controls.maxDistance = 38;
+controls.minPolarAngle = Math.PI / 5;
+controls.maxPolarAngle = Math.PI / 2.08;
+controls.target.set(1, 2.8, 0.6);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.42);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.78);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -28;
+sunLight.shadow.camera.right = 28;
+sunLight.shadow.camera.top = 28;
+sunLight.shadow.camera.bottom = -28;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 80;
+scene.add(sunLight);
+scene.add(sunLight.target);
+
+const sunOrb = new THREE.Mesh(
+  new THREE.SphereGeometry(1.15, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffe09a })
+);
+scene.add(sunOrb);
+
+const campus = new THREE.Group();
+scene.add(campus);
+
+const rooftopPanels = [];
+const windTurbines = [];
+const piezoTiles = [];
+const windowPanes = [];
+const cloudClusters = [];
+const hydroBeads = [];
+
+const solarColor = new THREE.Color(0x88bbdd);
+const filmColor = new THREE.Color(0x6688aa);
+const rainState = {
+  points: null,
+  positions: null,
+  baseX: [],
+  baseZ: [],
+  speeds: []
+};
+
+const skyColors = {
+  dawn: new THREE.Color(0xf3b37c),
+  day: new THREE.Color(0x88ccdd),
+  cool: new THREE.Color(0x79bddd),
+  cloudy: new THREE.Color(0x8fb3bf)
+};
+
+const campusData = {
+  canopyArea: 36,
+  windowCount: 0,
+  hydroCurve: new THREE.CatmullRomCurve3([
+    new THREE.Vector3(4.9, 4.6, -2.8),
+    new THREE.Vector3(5.15, 3.6, -2.8),
+    new THREE.Vector3(5.15, 2.4, -2.85),
+    new THREE.Vector3(5.15, 1.5, -2.95),
+    new THREE.Vector3(5.05, 1.05, -3.55)
+  ])
+};
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function mix(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function gauss(x, center, width, amplitude) {
+  const v = (x - center) / width;
+  return amplitude * Math.exp(-0.5 * v * v);
+}
+
+function formatNumber(value, digits = 1) {
+  return Number.isFinite(value) ? value.toFixed(digits) : '-';
+}
+
+function formatKwh(value) {
+  if (!Number.isFinite(value) || value <= 0) return '0kWh';
+  return `${Math.round(value).toLocaleString('ko-KR')}kWh`;
+}
+
+function formatMoney(value) {
+  return `${Math.round(value).toLocaleString('ko-KR')}만원`;
+}
+
+function createGround() {
+  const base = new THREE.Mesh(
+    new THREE.PlaneGeometry(42, 34),
+    new THREE.MeshStandardMaterial({ color: 0x7fb06b, roughness: 0.98, metalness: 0.02 })
+  );
+  base.rotation.x = -Math.PI / 2;
+  base.receiveShadow = true;
+  campus.add(base);
+
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(30, 4.4),
+    new THREE.MeshStandardMaterial({ color: 0xaab294, roughness: 0.96 })
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.position.set(1, 0.012, 9.4);
+  road.receiveShadow = true;
+  campus.add(road);
+
+  for (let i = 0; i < 9; i += 1) {
+    const stripe = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.16),
+      new THREE.MeshBasicMaterial({ color: 0xf6f1d1 })
+    );
+    stripe.rotation.x = -Math.PI / 2;
+    stripe.position.set(-12 + i * 3, 0.02, 9.4);
+    campus.add(stripe);
+  }
+}
+
+function createTrees() {
+  const treePositions = [
+    [-17, 0, -10], [-12, 0, -12], [-7, 0, -10], [7, 0, -11], [13, 0, -10],
+    [16, 0, 5], [13, 0, 9], [8, 0, 11], [-6, 0, 11], [-14, 0, 10]
+  ];
+  treePositions.forEach(([x, y, z], index) => {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.28, 1.8, 10),
+      new THREE.MeshStandardMaterial({ color: 0x7a5237, roughness: 1 })
+    );
+    trunk.position.y = 0.9;
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(1.05 + (index % 3) * 0.08, 18, 16),
+      new THREE.MeshStandardMaterial({ color: 0x4d8f4d, roughness: 0.88 })
+    );
+    crown.position.y = 2.25;
+    crown.castShadow = true;
+
+    tree.add(trunk, crown);
+    tree.position.set(x, y, z);
+    campus.add(tree);
+  });
+}
+
+function createMainBuilding() {
+  const building = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 4, 6),
+    new THREE.MeshStandardMaterial({ color: 0xeeddcc, roughness: 0.96, metalness: 0.04 })
+  );
+  body.position.y = 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  building.add(body);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(10.6, 0.26, 6.6),
+    new THREE.MeshStandardMaterial({ color: 0x886644, roughness: 0.92 })
+  );
+  roof.position.y = 4.14;
+  roof.castShadow = true;
+  roof.receiveShadow = true;
+  building.add(roof);
+
+  const rooftopDeck = new THREE.Mesh(
+    new THREE.PlaneGeometry(9.5, 5.4),
+    new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.94 })
+  );
+  rooftopDeck.rotation.x = -Math.PI / 2;
+  rooftopDeck.position.y = 4.275;
+  rooftopDeck.receiveShadow = true;
+  building.add(rooftopDeck);
+
+  const entranceRoof = new THREE.Mesh(
+    new THREE.BoxGeometry(2.8, 0.18, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0x77563d, roughness: 0.92 })
+  );
+  entranceRoof.position.set(0, 2.55, 3.25);
+  entranceRoof.castShadow = true;
+  building.add(entranceRoof);
+
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 2.2, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x664422, roughness: 0.78 })
+  );
+  door.position.set(0, 1.1, 3.1);
+  door.castShadow = true;
+  building.add(door);
+
+  const steps = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.32, 1.8),
+    new THREE.MeshStandardMaterial({ color: 0xd5d6d0, roughness: 1.0 })
+  );
+  steps.position.set(0, 0.16, 4.0);
+  steps.receiveShadow = true;
+  building.add(steps);
+
+  const stairFront = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 0.18, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0xe1e2db, roughness: 1.0 })
+  );
+  stairFront.position.set(0, 0.34, 4.3);
+  stairFront.receiveShadow = true;
+  building.add(stairFront);
+
+  function addWindow(x, y, z, rx = 0, ry = 0) {
+    const material = new THREE.MeshStandardMaterial({
+      color: solarColor.clone(),
+      roughness: 0.24,
+      metalness: 0.14,
+      transparent: true,
+      opacity: 0.92,
+      emissive: 0x18354a,
+      emissiveIntensity: 0.08
+    });
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.72), material);
+    pane.position.set(x, y, z);
+    pane.rotation.set(rx, ry, 0);
+    building.add(pane);
+    windowPanes.push(material);
+    campusData.windowCount += 1;
+  }
+
+  const frontXs = [-3.4, -1.1, 1.1, 3.4];
+  const rows = [1.25, 2.55];
+  frontXs.forEach((x) => rows.forEach((y) => addWindow(x, y, 3.02)));
+  frontXs.forEach((x) => rows.forEach((y) => addWindow(x, y, -3.02, 0, Math.PI)));
+
+  const sideZs = [-1.8, 0, 1.8];
+  const sideRows = [1.3, 2.55];
+  sideZs.forEach((z) => sideRows.forEach((y) => addWindow(5.02, y, z, 0, Math.PI / 2)));
+  sideZs.forEach((z) => sideRows.forEach((y) => addWindow(-5.02, y, z, 0, -Math.PI / 2)));
+
+  building.position.set(0, 0, 0);
+  campus.add(building);
+}
+
+function createWalkwayAndPiezo() {
+  const corridor = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.2, 10),
+    new THREE.MeshStandardMaterial({ color: 0xcfd3c7, roughness: 0.94 })
+  );
+  corridor.rotation.x = -Math.PI / 2;
+  corridor.position.set(0, 0.025, 6.5);
+  corridor.receiveShadow = true;
+  campus.add(corridor);
+
+  const tileGeometry = new THREE.BoxGeometry(0.46, 0.02, 0.46);
+  for (let row = 0; row < 5; row += 1) {
+    for (let col = 0; col < 10; col += 1) {
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x44aa88,
+        roughness: 0.48,
+        metalness: 0.1,
+        emissive: 0x114534,
+        emissiveIntensity: 0.08
+      });
+      const tile = new THREE.Mesh(tileGeometry, material);
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      const x = -2.1 + col * 0.47;
+      const z = 4.3 + row * 0.47;
+      tile.position.set(x, 0.035, z);
+      campus.add(tile);
+      piezoTiles.push({ mesh: tile, material, baseY: 0.035 });
+    }
+  }
+}
+
+function createFieldAndTrack() {
+  const field = new THREE.Group();
+  field.position.set(-12.8, 0, 1.5);
+
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(15, 15),
+    new THREE.MeshStandardMaterial({ color: 0x557744, roughness: 1 })
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.position.y = 0.02;
+  grass.receiveShadow = true;
+  field.add(grass);
+
+  const track = new THREE.Mesh(
+    new THREE.RingGeometry(4.55, 5.75, 72),
+    new THREE.MeshStandardMaterial({ color: 0xcc8855, roughness: 0.94, side: THREE.DoubleSide })
+  );
+  track.rotation.x = -Math.PI / 2;
+  track.position.y = 0.03;
+  field.add(track);
+
+  const inner = new THREE.Mesh(
+    new THREE.CircleGeometry(4.5, 64),
+    new THREE.MeshStandardMaterial({ color: 0x68944c, roughness: 0.98 })
+  );
+  inner.rotation.x = -Math.PI / 2;
+  inner.position.y = 0.04;
+  field.add(inner);
+
+  const spotPositions = [
+    new THREE.Vector3(-6.8, 0, -4.5),
+    new THREE.Vector3(-12.8, 0, 7.3),
+    new THREE.Vector3(-18.8, 0, 0.7)
+  ];
+
+  const bladeGeometry = new THREE.BoxGeometry(0.12, 2.2, 0.3);
+  spotPositions.forEach((pos, index) => {
+    const towerGroup = new THREE.Group();
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.17, 0.24, 5, 16),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.72, metalness: 0.28 })
+    );
+    pole.position.y = 2.5;
+    pole.castShadow = true;
+    pole.receiveShadow = true;
+    towerGroup.add(pole);
+
+    const nacelle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.65, 0.42, 1.05),
+      new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.66, metalness: 0.2 })
+    );
+    nacelle.position.set(0, 5.05, 0.34);
+    nacelle.castShadow = true;
+    towerGroup.add(nacelle);
+
+    const rotor = new THREE.Group();
+    rotor.position.set(0, 5.05, 0.84);
+    const hub = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 18, 18),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })
+    );
+    rotor.add(hub);
+    for (let i = 0; i < 3; i += 1) {
+      const blade = new THREE.Mesh(
+        bladeGeometry,
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.58 })
+      );
+      blade.position.y = 1.08;
+      blade.castShadow = true;
+      const arm = new THREE.Group();
+      arm.rotation.z = (Math.PI * 2 * i) / 3;
+      arm.add(blade);
+      rotor.add(arm);
+    }
+    towerGroup.add(rotor);
+    towerGroup.position.copy(pos);
+    campus.add(towerGroup);
+    windTurbines.push({ group: towerGroup, rotor, phase: index * 1.6 });
+  });
+
+  campus.add(field);
+}
+
+function createParkingAndCanopy() {
+  const parking = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.2, 8.2),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.95 })
+  );
+  parking.rotation.x = -Math.PI / 2;
+  parking.position.set(12.5, 0.02, -1.2);
+  parking.receiveShadow = true;
+  campus.add(parking);
+
+  for (let i = 0; i < 3; i += 1) {
+    const stripe = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.12, 7.2),
+      new THREE.MeshBasicMaterial({ color: 0xf5f0d0 })
+    );
+    stripe.rotation.x = -Math.PI / 2;
+    stripe.position.set(11 + i * 1.7, 0.03, -1.2);
+    campus.add(stripe);
+  }
+
+  const canopyGroup = new THREE.Group();
+  canopyGroup.name = 'canopyGroup';
+
+  const postGeometry = new THREE.CylinderGeometry(0.1, 0.12, 2.8, 10);
+  const postMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.76, metalness: 0.22 });
+  [
+    [10.2, 1.4, -4.1], [14.8, 1.4, -4.1], [10.2, 1.4, 1.7], [14.8, 1.4, 1.7]
+  ].forEach(([x, y, z]) => {
+    const post = new THREE.Mesh(postGeometry, postMaterial);
+    post.position.set(x, y, z);
+    post.castShadow = true;
+    post.receiveShadow = true;
+    canopyGroup.add(post);
+  });
+
+  const canopyRoof = new THREE.Mesh(
+    new THREE.BoxGeometry(5.3, 0.18, 6.8),
+    new THREE.MeshStandardMaterial({
+      color: 0x1f3558,
+      roughness: 0.44,
+      metalness: 0.18,
+      emissive: 0x102040,
+      emissiveIntensity: 0.16
+    })
+  );
+  canopyRoof.position.set(12.5, 2.92, -1.2);
+  canopyRoof.rotation.x = THREE.MathUtils.degToRad(-8);
+  canopyRoof.castShadow = true;
+  canopyRoof.receiveShadow = true;
+  canopyGroup.add(canopyRoof);
+
+  const canopyModules = [];
+  for (let row = 0; row < 2; row += 1) {
+    for (let col = 0; col < 4; col += 1) {
+      const module = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.1, 1.45),
+        new THREE.MeshStandardMaterial({
+          color: 0x152543,
+          roughness: 0.24,
+          metalness: 0.18,
+          side: THREE.DoubleSide,
+          emissive: 0x10204a,
+          emissiveIntensity: 0.18
+        })
+      );
+      module.rotation.x = -Math.PI / 2 + THREE.MathUtils.degToRad(8);
+      module.position.set(10.9 + col * 1.05, 3.03 + row * 0.02, -3.2 + row * 2.7);
+      canopyGroup.add(module);
+      canopyModules.push(module.material);
+    }
+  }
+
+  campus.add(canopyGroup);
+  campus.userData.canopyGroup = canopyGroup;
+  campus.userData.canopyMaterials = canopyModules;
+}
+
+function createRooftopPanels() {
+  const panelGroup = new THREE.Group();
+  const panelPositions = [];
+  for (let row = 0; row < 4; row += 1) {
+    for (let col = 0; col < 5; col += 1) {
+      panelPositions.push({ x: -3.6 + col * 1.8, y: 4.38, z: -1.85 + row * 1.25 });
+    }
+  }
+
+  panelPositions.forEach((pos) => {
+    const group = new THREE.Group();
+    group.position.set(pos.x, pos.y, pos.z);
+
+    const panel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 1.0),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a1a44,
+        roughness: 0.22,
+        metalness: 0.22,
+        side: THREE.DoubleSide,
+        emissive: 0x14244d,
+        emissiveIntensity: 0.18
+      })
+    );
+    panel.rotation.x = -Math.PI / 2 + THREE.MathUtils.degToRad(30);
+    panel.castShadow = true;
+    group.add(panel);
+
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(1.56, 0.05, 1.05),
+      new THREE.MeshStandardMaterial({ color: 0x8c939d, roughness: 0.68, metalness: 0.46 })
+    );
+    frame.position.y = -0.02;
+    frame.castShadow = true;
+    frame.receiveShadow = true;
+    group.add(frame);
+
+    const support1 = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.54, 8),
+      new THREE.MeshStandardMaterial({ color: 0x87909a, roughness: 0.72 })
+    );
+    support1.position.set(-0.42, -0.22, -0.16);
+    support1.rotation.z = THREE.MathUtils.degToRad(18);
+    group.add(support1);
+
+    const support2 = support1.clone();
+    support2.position.x = 0.42;
+    group.add(support2);
+
+    panelGroup.add(group);
+    rooftopPanels.push({ group, material: panel.material });
+  });
+
+  campus.add(panelGroup);
+}
+
+function createHydroSystem() {
+  const hydroGroup = new THREE.Group();
+  hydroGroup.name = 'hydroGroup';
+
+  const gutter = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.07, 2.6, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8ba0b5, roughness: 0.66, metalness: 0.24 })
+  );
+  gutter.rotation.z = Math.PI / 2;
+  gutter.position.set(4.6, 4.65, -2.8);
+  hydroGroup.add(gutter);
+
+  const downPipe = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 3.1, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8ba0b5, roughness: 0.66, metalness: 0.24 })
+  );
+  downPipe.position.set(5.15, 2.95, -2.85);
+  hydroGroup.add(downPipe);
+
+  const elbow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 1.25, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8ba0b5, roughness: 0.66, metalness: 0.24 })
+  );
+  elbow.position.set(5.05, 0.98, -3.45);
+  elbow.rotation.z = THREE.MathUtils.degToRad(60);
+  hydroGroup.add(elbow);
+
+  const housing = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.42, 0.45, 20),
+    new THREE.MeshStandardMaterial({ color: 0x557799, roughness: 0.44, metalness: 0.22 })
+  );
+  housing.rotation.z = Math.PI / 2;
+  housing.position.set(5.05, 0.98, -3.55);
+  housing.castShadow = true;
+  hydroGroup.add(housing);
+
+  const rotor = new THREE.Group();
+  rotor.position.copy(housing.position);
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.7, 10),
+    new THREE.MeshStandardMaterial({ color: 0xe0edf6, roughness: 0.58 })
+  );
+  axle.rotation.z = Math.PI / 2;
+  rotor.add(axle);
+  for (let i = 0; i < 4; i += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.7, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0xbfe0ff, roughness: 0.32, metalness: 0.12 })
+    );
+    blade.position.y = 0.36;
+    const holder = new THREE.Group();
+    holder.rotation.x = (Math.PI / 2) * i;
+    holder.add(blade);
+    rotor.add(holder);
+  }
+  hydroGroup.add(rotor);
+  campus.userData.hydroRotor = rotor;
+
+  const beadGeometry = new THREE.SphereGeometry(0.08, 10, 10);
+  const beadMaterial = new THREE.MeshBasicMaterial({ color: 0x79bcff, transparent: true, opacity: 0.92 });
+  for (let i = 0; i < 14; i += 1) {
+    const bead = new THREE.Mesh(beadGeometry, beadMaterial.clone());
+    bead.visible = false;
+    bead.userData.offset = i / 14;
+    hydroGroup.add(bead);
+    hydroBeads.push(bead);
+  }
+
+  campus.add(hydroGroup);
+  campus.userData.hydroGroup = hydroGroup;
+}
+
+function createClouds() {
+  for (let i = 0; i < 6; i += 1) {
+    const cloud = new THREE.Group();
+    for (let j = 0; j < 4; j += 1) {
+      const puff = new THREE.Mesh(
+        new THREE.SphereGeometry(1 + Math.random() * 0.7, 16, 16),
+        new THREE.MeshLambertMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.28
+        })
+      );
+      puff.position.set(j * 1.3, Math.sin(j) * 0.24, (j % 2) * 0.7);
+      cloud.add(puff);
+    }
+    cloud.position.set(-18 + i * 7.6, 12 + (i % 2) * 1.7, -12 + (i % 3) * 8);
+    cloud.scale.setScalar(0.9 + i * 0.08);
+    cloud.userData.speed = 0.006 + i * 0.0015;
+    scene.add(cloud);
+    cloudClusters.push(cloud);
+  }
+}
+
+function createRain() {
+  const count = 260;
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    const x = -20 + Math.random() * 40;
+    const y = 2 + Math.random() * 16;
+    const z = -16 + Math.random() * 28;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+    rainState.baseX.push(x);
+    rainState.baseZ.push(z);
+    rainState.speeds.push(0.22 + Math.random() * 0.16);
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color: 0x77aef5,
+    size: 0.13,
+    transparent: true,
+    opacity: 0.74,
+    depthWrite: false
+  });
+  const rain = new THREE.Points(geometry, material);
+  rain.visible = false;
+  scene.add(rain);
+  rainState.points = rain;
+  rainState.positions = positions;
+}
+
+function createCampus() {
+  createGround();
+  createTrees();
+  createMainBuilding();
+  createWalkwayAndPiezo();
+  createFieldAndTrack();
+  createParkingAndCanopy();
+  createRooftopPanels();
+  createHydroSystem();
+  createClouds();
+  createRain();
+}
+
+function createGui() {
+  const gui = new GUI({ title: '설계 컨트롤', width: 302 });
+  gui.close();
+
+  const installFolder = gui.addFolder('설비 배치');
+  installFolder.add(params, 'rooftopSolar', 0, 20, 1).name('옥상 태양광').onChange(refreshInstallations);
+  installFolder.add(params, 'windTurbines', 0, 3, 1).name('풍력 발전기').onChange(refreshInstallations);
+  installFolder.add(params, 'piezoTiles', 0, 50, 1).name('압전 타일').onChange(refreshInstallations);
+  installFolder.add(params, 'canopy').name('주차장 캐노피').onChange(refreshInstallations);
+  installFolder.add(params, 'windowFilm').name('창문 태양광').onChange(refreshInstallations);
+  installFolder.add(params, 'rainHydro').name('빗물 수력').onChange(refreshInstallations);
+
+  const envFolder = gui.addFolder('환경 설정');
+  envFolder.add(params, 'weather', ['맑음', '흐림', '비', '바람 강함']).name('날씨').onChange(refreshInstallations);
+  envFolder.add(params, 'time', 6, 18, 1).name('시간대').onChange(refreshInstallations);
+  envFolder.add(params, 'consumption', 30, 80, 1).name('학교 소비량').onChange(refreshInstallations);
+
+  gui.add(params, 'reset').name('초기화');
+  installFolder.open();
+  envFolder.open();
+
+  if (window.innerWidth > 980) {
+    gui.open();
+  }
+
+  return gui;
+}
+
+function computeMetrics(elapsedTime = 0) {
+  const weatherProfile = WEATHER_PROFILES[params.weather];
+  const solarCurve = Math.max(0, Math.sin(((params.time - 6) / 12) * Math.PI));
+  const solarEfficiency = solarCurve * weatherProfile.solar;
+  const windSpeed = clamp(
+    weatherProfile.windBase + Math.sin(elapsedTime * 0.65 + params.time * 0.4) * weatherProfile.windVar,
+    1.5,
+    14.5
+  );
+
+  let traffic = 8;
+  traffic += gauss(params.time, 8.1, 0.55, 18);
+  traffic += gauss(params.time, 10.4, 0.9, 9);
+  traffic += gauss(params.time, 12.5, 0.65, 22);
+  traffic += gauss(params.time, 15.6, 0.85, 15);
+  traffic *= params.weather === '비' ? 0.92 : 1;
+  traffic *= params.time < 7.2 || params.time > 17.1 ? 0.56 : 1;
+  traffic = clamp(traffic, 4, 48);
+
+  const rooftop = params.rooftopSolar * 0.3 * solarEfficiency;
+  const wind = params.windTurbines * windSpeed * 0.5;
+  const piezo = params.piezoTiles * traffic * 0.001;
+  const canopy = params.canopy ? campusData.canopyArea * 0.15 * solarEfficiency : 0;
+  const window = params.windowFilm ? campusData.windowCount * 0.05 * solarEfficiency : 0;
+  const hydro = params.rainHydro && weatherProfile.rain ? 5.2 : 0;
+
+  const totalPower = rooftop + wind + piezo + canopy + window + hydro;
+  const selfSufficiency = params.consumption > 0 ? (totalPower / params.consumption) * 100 : 0;
+
+  const annual = {
+    rooftop: params.rooftopSolar * 0.3 * 1100 * weatherProfile.annualSolar,
+    wind: params.windTurbines * 1800 * weatherProfile.annualWind,
+    piezo: params.piezoTiles * (9 + traffic * 1.8),
+    canopy: params.canopy ? 5.4 * 1080 * weatherProfile.annualSolar : 0,
+    window: params.windowFilm ? campusData.windowCount * 0.05 * 880 * weatherProfile.annualSolar : 0,
+    hydro: params.rainHydro ? (weatherProfile.rain ? 1600 : 520) : 0
+  };
+  const totalAnnual = annual.rooftop + annual.wind + annual.piezo + annual.canopy + annual.window + annual.hydro;
+
+  const cost = {
+    rooftop: params.rooftopSolar * 130,
+    wind: params.windTurbines * 780,
+    piezo: params.piezoTiles * 12,
+    canopy: params.canopy ? 1150 : 0,
+    window: params.windowFilm ? 460 : 0,
+    hydro: params.rainHydro ? 520 : 0
+  };
+  const totalCost = cost.rooftop + cost.wind + cost.piezo + cost.canopy + cost.window + cost.hydro;
+  const annualSavings = totalAnnual * 0.018;
+  const paybackYears = annualSavings > 0 ? totalCost / annualSavings : Infinity;
+
+  const powers = { rooftop, wind, piezo, canopy, window, hydro };
+  const contributors = Object.entries(powers)
+    .map(([key, value]) => ({ key, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const upgradeOptions = [];
+  if (params.rooftopSolar < 20) {
+    upgradeOptions.push({ label: '옥상 태양광 패널', gain: 0.3 * solarEfficiency, cost: 130 });
+  }
+  if (params.windTurbines < 3) {
+    upgradeOptions.push({ label: '운동장 풍력 발전기', gain: windSpeed * 0.5, cost: 780 });
+  }
+  if (params.piezoTiles < 50) {
+    upgradeOptions.push({ label: '복도 압전 타일', gain: traffic * 0.001, cost: 12 });
+  }
+  if (!params.canopy) {
+    upgradeOptions.push({ label: '주차장 태양광 캐노피', gain: campusData.canopyArea * 0.15 * solarEfficiency, cost: 1150 });
+  }
+  if (!params.windowFilm) {
+    upgradeOptions.push({ label: '창문 태양광 필름', gain: campusData.windowCount * 0.05 * solarEfficiency, cost: 460 });
+  }
+  if (!params.rainHydro && weatherProfile.rain) {
+    upgradeOptions.push({ label: '빗물 수력 설비', gain: 5.2, cost: 520 });
+  }
+
+  const bestUpgrade = upgradeOptions.sort((a, b) => (b.gain / b.cost) - (a.gain / a.cost))[0] ?? null;
+
+  return {
+    weatherProfile,
+    solarCurve,
+    solarEfficiency,
+    windSpeed,
+    traffic,
+    powers,
+    annual,
+    cost,
+    totalPower,
+    totalAnnual,
+    totalCost,
+    paybackYears,
+    selfSufficiency,
+    contributors,
+    bestUpgrade
+  };
+}
+
+function refreshInstallations() {
+  rooftopPanels.forEach((panel, index) => {
+    panel.group.visible = index < params.rooftopSolar;
+  });
+
+  windTurbines.forEach((turbine, index) => {
+    turbine.group.visible = index < params.windTurbines;
+  });
+
+  piezoTiles.forEach((tile, index) => {
+    tile.mesh.visible = index < params.piezoTiles;
+  });
+
+  campus.userData.canopyGroup.visible = params.canopy;
+  campus.userData.hydroGroup.visible = params.rainHydro;
+
+  updateWindowFilm(params.windowFilm ? 1 : 0);
+}
+
+function updateWindowFilm(amount) {
+  windowPanes.forEach((material) => {
+    material.color.copy(solarColor).lerp(filmColor, amount);
+    material.opacity = mix(0.92, 0.84, amount);
+    material.emissiveIntensity = mix(0.08, 0.18, amount);
+  });
+}
+
+function updateSky(metrics) {
+  const warm = 1 - Math.pow(metrics.solarCurve, 0.65);
+  const cloudyBlend = metrics.weatherProfile.cloud;
+  const sky = skyColors.day.clone().lerp(skyColors.dawn, warm * 0.66);
+  sky.lerp(skyColors.cloudy, cloudyBlend * 0.55);
+  scene.background = sky;
+  scene.fog.color.copy(sky.clone().lerp(skyColors.cool, 0.18));
+
+  const theta = ((params.time - 6) / 12) * Math.PI;
+  const radius = 28;
+  const x = Math.cos(theta) * radius;
+  const y = 6 + Math.sin(theta) * 18;
+  const z = -12 + Math.sin(theta) * 8;
+  sunOrb.position.set(x, y, z);
+  sunLight.position.copy(sunOrb.position);
+  sunLight.target.position.set(0, 0, 0);
+
+  ambientLight.intensity = mix(0.24, 0.5, metrics.solarCurve);
+  sunLight.intensity = 0.28 + metrics.solarCurve * 0.7 * mix(0.6, 1.0, 1 - metrics.weatherProfile.cloud * 0.6);
+  sunOrb.material.color.copy(new THREE.Color(0xffdd96).lerp(new THREE.Color(0xffbd84), warm * 0.4));
+}
+
+function updateClouds(metrics, delta) {
+  cloudClusters.forEach((cloud, index) => {
+    cloud.position.x += (metrics.windSpeed * 0.012 + cloud.userData.speed) * delta * 60;
+    if (cloud.position.x > 24) {
+      cloud.position.x = -24 - index * 2;
+    }
+    cloud.children.forEach((mesh) => {
+      mesh.material.opacity = mix(0.18, 0.52, metrics.weatherProfile.cloud);
+    });
+  });
+}
+
+function updateRain(metrics, delta) {
+  if (!rainState.points) return;
+  const active = metrics.weatherProfile.rain;
+  rainState.points.visible = active;
+  if (!active) return;
+  const positions = rainState.positions;
+  for (let i = 0; i < rainState.baseX.length; i += 1) {
+    const idx = i * 3;
+    positions[idx] += metrics.windSpeed * 0.004 * delta * 60;
+    positions[idx + 1] -= rainState.speeds[i] * delta * 60;
+    positions[idx + 2] += 0.015 * delta * 60;
+    if (positions[idx + 1] < 0.1) {
+      positions[idx] = rainState.baseX[i] - 6 + Math.random() * 12;
+      positions[idx + 1] = 15 + Math.random() * 4;
+      positions[idx + 2] = rainState.baseZ[i];
+    }
+  }
+  rainState.points.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateRooftopSolar(metrics) {
+  rooftopPanels.forEach((panel, index) => {
+    panel.material.emissiveIntensity = index < params.rooftopSolar ? 0.18 + metrics.solarEfficiency * 0.65 : 0.08;
+  });
+
+  campus.userData.canopyMaterials.forEach((material) => {
+    material.emissiveIntensity = 0.14 + metrics.solarEfficiency * 0.54;
+  });
+}
+
+function updateWindTurbines(metrics, delta, elapsedTime) {
+  windTurbines.forEach((turbine, index) => {
+    if (index >= params.windTurbines) return;
+    turbine.rotor.rotation.z -= delta * (0.8 + metrics.windSpeed * 0.36 + Math.sin(elapsedTime + turbine.phase) * 0.06);
+  });
+}
+
+function updatePiezo(metrics, elapsedTime) {
+  const stride = clamp(Math.round(11 - metrics.traffic / 4), 2, 10);
+  const phase = Math.floor(elapsedTime * (1.4 + metrics.traffic * 0.05)) % stride;
+  piezoTiles.forEach((tile, index) => {
+    if (index >= params.piezoTiles) {
+      tile.mesh.visible = false;
+      return;
+    }
+    tile.mesh.visible = true;
+    const active = index % stride === phase || (index + 3) % stride === phase;
+    tile.mesh.position.y = tile.baseY - (active ? 0.009 : 0);
+    tile.mesh.scale.y = active ? 0.58 : 1.0;
+    tile.material.emissiveIntensity = active ? 0.72 : 0.08;
+    tile.material.color.setHex(active ? 0x67d4a8 : 0x44aa88);
+  });
+}
+
+function updateHydro(metrics, delta, elapsedTime) {
+  const active = params.rainHydro && metrics.weatherProfile.rain;
+  const rotor = campus.userData.hydroRotor;
+  rotor.visible = params.rainHydro;
+  if (params.rainHydro) {
+    rotor.rotation.x += delta * (active ? 7.4 : 0.4);
+  }
+
+  hydroBeads.forEach((bead) => {
+    bead.visible = active;
+    if (!active) return;
+    const t = (elapsedTime * 0.35 + bead.userData.offset) % 1;
+    const point = campusData.hydroCurve.getPointAt(t);
+    bead.position.copy(point);
+    bead.material.opacity = 0.4 + 0.5 * (1 - t);
+  });
+}
+
+function updateOverlay(metrics) {
+  const self = metrics.selfSufficiency;
+  const total = metrics.totalPower;
+  const shortfall = params.consumption - total;
+  let statusText = '';
+  let statusClass = 'low';
+
+  if (self >= 100) {
+    statusClass = 'good';
+    statusText = `🎉 자가발전 학교 달성! 현재 설계는 학교 소비량을 넘어 ${formatNumber(total - params.consumption, 1)}kW의 여유 전력을 확보합니다.`;
+  } else if (self >= 70) {
+    statusClass = 'warn';
+    statusText = metrics.bestUpgrade
+      ? `거의 도달했습니다. 현재 조건에서는 ${metrics.bestUpgrade.label}이 가장 효율적인 보강 후보입니다. 부족 전력은 ${formatNumber(shortfall, 1)}kW입니다.`
+      : '자급률이 높아졌습니다. 시간대와 날씨를 바꾸며 조건별 설계를 비교해 보세요.';
+  } else {
+    statusClass = 'low';
+    statusText = metrics.bestUpgrade
+      ? `아직 외부 전력 의존이 큽니다. ${metrics.bestUpgrade.label}을 중심으로 설계를 보강하고, 여러 설비를 함께 조합해 보세요.`
+      : '설비를 추가하고 날씨·시간을 조절해 자급률 변화를 비교해 보세요.';
+  }
+
+  dom.statusPill.className = `glass ${statusClass}`;
+  dom.statusPill.textContent = statusText;
+
+  dom.formulaContent.innerHTML = `
+    <div class="formula-row"><span class="label">날씨</span><span class="value">${params.weather}</span></div>
+    <div class="formula-row"><span class="label">시간</span><span class="value">${params.time}시</span></div>
+    <div class="formula-row"><span class="label">태양 효율</span><span class="value">${formatNumber(metrics.solarEfficiency * 100, 0)}%</span></div>
+    <div class="formula-row"><span class="label">풍속</span><span class="value">${formatNumber(metrics.windSpeed, 1)}m/s</span></div>
+    <div class="formula-row"><span class="label">통행량</span><span class="value">${formatNumber(metrics.traffic, 0)}명/분</span></div>
+    <div class="divider"></div>
+    <div class="formula-row"><span class="label">옥상 태양광</span><span class="value">${formatNumber(metrics.powers.rooftop, 1)}kW (${params.rooftopSolar}장)</span></div>
+    <div class="formula-row"><span class="label">풍력</span><span class="value">${formatNumber(metrics.powers.wind, 1)}kW (${params.windTurbines}기)</span></div>
+    <div class="formula-row"><span class="label">압전</span><span class="value">${formatNumber(metrics.powers.piezo, 1)}kW (${params.piezoTiles}장)</span></div>
+    <div class="formula-row"><span class="label">캐노피</span><span class="value">${formatNumber(metrics.powers.canopy, 1)}kW (${params.canopy ? 'ON' : 'OFF'})</span></div>
+    <div class="formula-row"><span class="label">창문필름</span><span class="value">${formatNumber(metrics.powers.window, 1)}kW (${params.windowFilm ? 'ON' : 'OFF'})</span></div>
+    <div class="formula-row"><span class="label">빗물수력</span><span class="value">${formatNumber(metrics.powers.hydro, 1)}kW (${params.rainHydro ? 'ON' : 'OFF'})</span></div>
+    <div class="divider"></div>
+    <div class="formula-row"><span class="label">총 발전</span><span class="value">${formatNumber(metrics.totalPower, 1)}kW</span></div>
+    <div class="formula-row"><span class="label">학교 소비</span><span class="value">${params.consumption}kW</span></div>
+    <div class="formula-row"><span class="label">자급률</span><span class="value">${formatNumber(metrics.selfSufficiency, 1)}%</span></div>
+  `;
+
+  dom.summaryCost.textContent = formatMoney(metrics.totalCost);
+  dom.summaryAnnual.textContent = formatKwh(metrics.totalAnnual);
+  dom.summaryPayback.textContent = Number.isFinite(metrics.paybackYears) ? `${formatNumber(metrics.paybackYears, 1)}년` : '-';
+
+  const powerMax = Math.max(params.consumption, metrics.totalPower, 1);
+  dom.genValue.textContent = `${formatNumber(metrics.totalPower, 1)}kW`;
+  dom.loadValue.textContent = `${params.consumption}kW`;
+  dom.suffValue.textContent = `${formatNumber(metrics.selfSufficiency, 1)}%`;
+  dom.genBar.style.width = `${(metrics.totalPower / powerMax) * 100}%`;
+  dom.loadBar.style.width = `${(params.consumption / powerMax) * 100}%`;
+  dom.suffBar.style.width = `${Math.min(metrics.selfSufficiency, 100)}%`;
+
+  const leader = metrics.contributors[0];
+  const leaderText = leader && leader.value > 0
+    ? `${FACILITY_META[leader.key].label}이(가) 현재 발전량 비중이 가장 큽니다.`
+    : '아직 배치된 설비가 없습니다.';
+  const recommendationText = metrics.bestUpgrade
+    ? `추천 보강: ${metrics.bestUpgrade.label}. 현재 조건에서 추가 1단위당 상대 효율이 가장 높습니다. ${leaderText}`
+    : leaderText;
+  dom.recommendBox.textContent = recommendationText;
+
+  dom.facilityGrid.innerHTML = Object.entries(FACILITY_META).map(([key, meta]) => {
+    const on = metrics.powers[key] > 0;
+    const facilityPayback = metrics.annual[key] > 0 ? metrics.cost[key] / (metrics.annual[key] * 0.018) : Infinity;
+    return `
+      <div class="facility-card ${on ? 'is-on' : ''}">
+        <div class="facility-name">
+          <span class="facility-dot" style="background:${meta.color}"></span>
+          ${meta.label}
+        </div>
+        <div class="meta">
+          <span>현재 발전량: ${formatNumber(metrics.powers[key], 1)}kW</span>
+          <span>설치비: ${formatMoney(metrics.cost[key])}</span>
+          <span>연간 발전량: ${formatKwh(metrics.annual[key])}</span>
+          <span>회수 기간: ${Number.isFinite(facilityPayback) ? `${formatNumber(facilityPayback, 1)}년` : '-'}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function animate() {
+  let previousTime = performance.now();
+
+  function tick(now) {
+    const elapsedTime = now * 0.001;
+    const delta = Math.min((now - previousTime) * 0.001, 0.032);
+    previousTime = now;
+
+    const metrics = computeMetrics(elapsedTime);
+    updateSky(metrics);
+    updateClouds(metrics, delta);
+    updateRain(metrics, delta);
+    updateRooftopSolar(metrics);
+    updateWindTurbines(metrics, delta, elapsedTime);
+    updatePiezo(metrics, elapsedTime);
+    updateHydro(metrics, delta, elapsedTime);
+    updateOverlay(metrics);
+
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+let guideOpen = false;
+function setGuide(open) {
+  guideOpen = open;
+  dom.guidePanel.classList.toggle('closed', !open);
+  dom.guidePanel.setAttribute('aria-hidden', String(!open));
+  dom.guideToggle.setAttribute('aria-expanded', String(open));
+}
+
+dom.guideToggle.addEventListener('click', () => setGuide(!guideOpen));
+window.addEventListener('resize', onResize);
+
+createCampus();
+const gui = createGui();
+refreshInstallations();
+animate();
+</script>
+</body>
+</html>

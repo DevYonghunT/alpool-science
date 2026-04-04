@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가속도 법칙 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #eef0f5;
+    --scene-glass: rgba(255, 255, 255, 0.68);
+    --panel-bg: rgba(8, 17, 28, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.72);
+    --ink: #102235;
+    --accent-blue: #69b7ff;
+    --accent-orange: #ff9b64;
+    --accent-red: #ff6f7f;
+    --accent-green: #89f0bb;
+    --accent-yellow: #ffd36f;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.78), transparent 22%),
+      linear-gradient(180deg, #f5f7fb 0%, #eef0f5 100%);
+  }
+
+  body {
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(360px, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 15% 12%, rgba(255, 255, 255, 0.85), transparent 18%),
+      linear-gradient(180deg, #f6f8fb 0%, #eef0f5 100%);
+    border-right: 1px solid rgba(10, 24, 42, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 18% 10%, rgba(74, 155, 255, 0.18), transparent 22%),
+      linear-gradient(180deg, rgba(8, 18, 34, 0.98) 0%, rgba(4, 12, 24, 1) 100%);
+    color: var(--text-main);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(18, 36, 58, 0.6);
+  }
+
+  #scene-title h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: rgba(14, 31, 49, 0.96);
+    text-shadow: 0 6px 20px rgba(255, 255, 255, 0.58);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 12px;
+    color: rgba(22, 41, 65, 0.72);
+  }
+
+  #status-chip {
+    position: absolute;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    min-width: 320px;
+    max-width: min(80vw, 720px);
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(16, 34, 54, 0.08);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 40px rgba(105, 129, 161, 0.12);
+    text-align: center;
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(11, 28, 46, 0.94);
+  }
+
+  #status-chip .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(23, 43, 65, 0.72);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 18;
+    padding: 10px 15px;
+    border: 1px solid rgba(13, 31, 50, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    color: rgba(10, 27, 45, 0.95);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 24px rgba(69, 97, 131, 0.14);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 14px;
+    z-index: 18;
+    width: min(430px, calc(100vw - 28px));
+    max-height: 76vh;
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 18, 30, 0.9);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 20px 46px rgba(8, 18, 30, 0.22);
+    line-height: 1.7;
+    font-size: 13px;
+  }
+
+  #guide-panel.open { display: block; }
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #a7d5ff;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 15;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 22px 42px rgba(7, 17, 30, 0.24);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff3ce;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 108px;
+    flex-shrink: 0;
+    color: rgba(245, 251, 255, 0.62);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(245, 251, 255, 0.96);
+  }
+
+  #formula-panel .highlight {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  #formula-panel .mono {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  #mode-pill {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    z-index: 16;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(12, 29, 47, 0.08);
+    box-shadow: 0 10px 24px rgba(69, 97, 131, 0.12);
+    color: rgba(11, 28, 46, 0.88);
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(12px);
+  }
+
+  #gui-mount {
+    position: absolute;
+    right: 14px;
+    top: 54px;
+    z-index: 30;
+  }
+
+  #gui-mount .lil-gui {
+    --widget-color: #dcecff;
+    --background-color: rgba(7, 17, 30, 0.86);
+    --title-background-color: rgba(14, 32, 54, 0.92);
+    --text-color: #f5fbff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --font-size: 12px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 16px 36px rgba(8, 18, 30, 0.24);
+  }
+
+  #graph-header {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 6;
+  }
+
+  #graph-header h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #graph-header p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .legend-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-summary {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 18px;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .summary-card {
+    padding: 12px 13px;
+    min-height: 92px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .summary-card .label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .summary-card strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 16px;
+    color: #fff;
+  }
+
+  .summary-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  @media (max-width: 1080px) {
+    #layout {
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr);
+    }
+
+    #formula-panel {
+      width: min(340px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.2fr) minmax(310px, 0.82fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(10, 24, 42, 0.08);
+    }
+
+    #scene-title {
+      left: 50%;
+    }
+
+    #status-chip {
+      top: 88px;
+      width: calc(100vw - 40px);
+      min-width: 0;
+    }
+
+    #gui-mount {
+      top: 52px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #scene-title h1 { font-size: 22px; }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+
+    #graph-summary {
+      grid-template-columns: 1fr;
+    }
+
+    #status-chip {
+      top: 82px;
+    }
+
+    #mode-pill {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+
+    <button id="guide-toggle">📖 학습 가이드</button>
+    <div id="guide-panel">
+      <h3>핵심 원리</h3>
+      <p>물체의 가속도 크기는 물체에 작용하는 <strong>알짜힘의 크기에 비례</strong>하고, <strong>질량에 반비례</strong>합니다. 이를 뉴턴 제2법칙 또는 가속도 법칙이라고 하며 <strong>F = ma</strong>로 나타냅니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>같은 힘으로 무거운 물체와 가벼운 물체를 밀면 어느 쪽이 더 빨리 가속되나요?</li>
+        <li>수레에 매다는 추의 질량을 증가시키면 수레의 가속도는 어떻게 변하나요?</li>
+        <li>야구공과 볼링공에 같은 힘을 가했을 때 가속도가 다른 까닭은 무엇인가요?</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>빈 쇼핑 카트는 같은 힘으로도 쉽게 출발하지만, 가득 찬 카트는 더 천천히 가속됩니다.</li>
+        <li>가벼운 스포츠카는 같은 추진력에서도 무거운 트럭보다 빠르게 속도를 올립니다.</li>
+        <li>로켓은 연료가 줄어 질량이 감소할수록 같은 추력에서도 더 크게 가속될 수 있습니다.</li>
+      </ul>
+
+      <h3>교과서 연계</h3>
+      <p>물리학 I편 p24~29</p>
+      <p>가속도 법칙, 등가속도 운동, 수레-추 실험 장치를 시각적으로 재구성했습니다.</p>
+    </div>
+
+    <div id="scene-title">
+      <div class="eyebrow">Physics I Interactive Lab</div>
+      <h1>가속도 법칙 (뉴턴 제2법칙)</h1>
+      <p>수레-도르래 실험으로 F = ma 와 등가속도 운동을 함께 확인합니다.</p>
+    </div>
+
+    <div id="status-chip">
+      <div class="title" id="status-title">실험 준비 완료</div>
+      <div class="body" id="status-body">질량 일정 모드에서는 힘을 바꾸고, 힘 일정 모드에서는 질량을 바꿔 가속도의 변화를 비교해 보세요.</div>
+    </div>
+
+    <div id="mode-pill">현재 모드: 질량 일정(힘 변화)</div>
+    <div id="gui-mount"></div>
+    <div id="formula-panel"></div>
+  </section>
+
+  <aside id="graph-panel">
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="graph-header">
+      <h2 id="graph-title">a-F 그래프</h2>
+      <p id="graph-subtitle">수레 질량을 0.5kg으로 고정하고 매달린 추 개수를 바꾸며, 힘이 커질수록 가속도가 비례해서 증가하는지 확인합니다.</p>
+      <div id="graph-legend">
+        <div class="legend-chip"><span class="dot" style="background:#69b7ff;"></span>현재 실험값</div>
+        <div class="legend-chip"><span class="dot" style="background:#ff9b64;"></span>기록된 데이터</div>
+        <div class="legend-chip"><span class="dot" style="background:#89f0bb;"></span>추세선</div>
+      </div>
+    </div>
+
+    <div id="graph-summary">
+      <div class="summary-card">
+        <div class="label">현재 측정</div>
+        <strong id="summary-current">F 3.0N · m 0.5kg</strong>
+        <p id="summary-current-body">현재 가속도는 6.00m/s² 입니다.</p>
+      </div>
+      <div class="summary-card">
+        <div class="label">관계 해석</div>
+        <strong id="summary-relation">a ∝ F</strong>
+        <p id="summary-relation-body">질량이 일정하면 힘이 커질수록 가속도도 같은 비율로 증가합니다.</p>
+      </div>
+      <div class="summary-card">
+        <div class="label">데이터 추세</div>
+        <strong id="summary-trend">기록 0개</strong>
+        <p id="summary-trend-body">최소 3회 기록하면 자동으로 추세선이 표시됩니다.</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MODE_FORCE = '질량 일정(힘 변화)';
+const MODE_MASS = '힘 일정(질량 변화)';
+const BASE_CART_MASS_KG = 0.5;
+const TOP_MASS_UNIT_KG = 0.5;
+const HANGING_FORCE_UNIT_N = 1;
+const FIXED_HANGING_COUNT = 3;
+const WORLD_PER_METER = 0.55;
+const TRACK_METERS = 10;
+const TRACK_START_X = -2.75;
+const MAX_TRAVEL_M = 9.5;
+const RAIL_Y = 0.55;
+const CART_BASE_Y = 0.68;
+const PULLEY_X = 3.45;
+const PULLEY_Y = 1.24;
+const HANGING_START_Y = 0.52;
+const WHEEL_RADIUS = 0.1;
+
+const scenePanelEl = document.getElementById('scene-panel');
+const graphPanelEl = document.getElementById('graph-panel');
+const sceneCanvasEl = document.getElementById('scene-canvas');
+const graphCanvasEl = document.getElementById('graph-canvas');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const formulaPanelEl = document.getElementById('formula-panel');
+const modePillEl = document.getElementById('mode-pill');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const graphTitleEl = document.getElementById('graph-title');
+const graphSubtitleEl = document.getElementById('graph-subtitle');
+const summaryCurrentEl = document.getElementById('summary-current');
+const summaryCurrentBodyEl = document.getElementById('summary-current-body');
+const summaryRelationEl = document.getElementById('summary-relation');
+const summaryRelationBodyEl = document.getElementById('summary-relation-body');
+const summaryTrendEl = document.getElementById('summary-trend');
+const summaryTrendBodyEl = document.getElementById('summary-trend-body');
+const guiMountEl = document.getElementById('gui-mount');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 12, 28);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+camera.position.set(8.8, 4.6, 11.2);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvasEl,
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, -1.1, 0);
+controls.minDistance = 6.5;
+controls.maxDistance = 20;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(-8, 10, 8);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -12;
+directionalLight.shadow.camera.right = 12;
+directionalLight.shadow.camera.top = 12;
+directionalLight.shadow.camera.bottom = -12;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 40;
+directionalLight.shadow.bias = -0.00008;
+scene.add(directionalLight);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xc2cfdd, 0.22));
+
+const clock = new THREE.Clock();
+const graphContext = graphCanvasEl.getContext('2d');
+
+const params = {
+  mode: MODE_FORCE,
+  topMassCount: 0,
+  hangingMassCount: 3,
+  speedMultiplier: 1,
+  startExperiment: () => startExperiment(),
+  recordData: () => recordDataPoint(),
+  clearGraph: () => clearGraphData(),
+  resetExperiment: () => resetExperiment(true)
+};
+
+const runtime = {
+  isRunning: false,
+  elapsed: 0,
+  distanceMeters: 0,
+  speedMps: 0,
+  forceN: 0,
+  massKg: 0,
+  acceleration: 0,
+  guideOpen: false,
+  records: {
+    [MODE_FORCE]: [],
+    [MODE_MASS]: []
+  }
+};
+
+const apparatus = {
+  root: new THREE.Group(),
+  cart: new THREE.Group(),
+  cartTopMasses: new THREE.Group(),
+  hangingMasses: new THREE.Group(),
+  forceArrow: new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 1.1, 0xff6f7f, 0.22, 0.14),
+  stringHorizontal: null,
+  stringVertical: null,
+  wheelMeshes: []
+};
+
+const materials = {
+  floor: new THREE.MeshStandardMaterial({ color: 0xd9dfe7, roughness: 0.94, metalness: 0.03 }),
+  bench: new THREE.MeshStandardMaterial({ color: 0xc6ccd5, roughness: 0.85, metalness: 0.08 }),
+  rail: new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.45, metalness: 0.72 }),
+  tick: new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.72, metalness: 0.1 }),
+  cart: new THREE.MeshStandardMaterial({ color: 0x4488aa, roughness: 0.45, metalness: 0.22 }),
+  cartTrim: new THREE.MeshStandardMaterial({ color: 0x2b5366, roughness: 0.5, metalness: 0.2 }),
+  wheel: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.72, metalness: 0.14 }),
+  topMass: new THREE.MeshStandardMaterial({ color: 0xff8844, roughness: 0.45, metalness: 0.22 }),
+  hangingMass: new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.4, metalness: 0.16 }),
+  rope: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, metalness: 0.02 }),
+  shaft: new THREE.MeshStandardMaterial({ color: 0x8ea4ba, roughness: 0.8, metalness: 0.08, transparent: true, opacity: 0.16 }),
+  marker: new THREE.MeshStandardMaterial({ color: 0x4c87ff, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.22 })
+};
+
+const sharedGeometry = {
+  rope: new THREE.CylinderGeometry(0.012, 0.012, 1, 12),
+  topMass: new THREE.CylinderGeometry(0.15, 0.15, 0.1, 28),
+  hangingMass: new THREE.CylinderGeometry(0.15, 0.15, 0.15, 28)
+};
+
+buildScene();
+buildGui();
+applyModePreset(false);
+resetExperiment(false);
+resize();
+animate();
+
+guideToggleEl.addEventListener('click', () => {
+  runtime.guideOpen = !runtime.guideOpen;
+  guidePanelEl.classList.toggle('open', runtime.guideOpen);
+  guideToggleEl.textContent = runtime.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+window.addEventListener('resize', resize);
+
+function buildScene() {
+  scene.add(apparatus.root);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(32, 20), materials.floor);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -4.85;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const floorGrid = new THREE.GridHelper(30, 24, 0xc8d1dc, 0xdbe2ea);
+  floorGrid.position.y = -4.84;
+  floorGrid.material.opacity = 0.45;
+  floorGrid.material.transparent = true;
+  scene.add(floorGrid);
+
+  const benchTop = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.26, 2.1), materials.bench);
+  benchTop.position.set(-0.5, 0.18, 0);
+  benchTop.castShadow = true;
+  benchTop.receiveShadow = true;
+  apparatus.root.add(benchTop);
+
+  const benchLegOffsets = [-3.4, -1.1, 1.2];
+  benchLegOffsets.forEach((x) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.18), materials.bench);
+    leg.position.set(x, -0.32, -0.75);
+    leg.castShadow = true;
+    apparatus.root.add(leg);
+  });
+
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(12, 0.1, 0.5), materials.rail);
+  rail.position.set(0, RAIL_Y, 0);
+  rail.castShadow = true;
+  rail.receiveShadow = true;
+  apparatus.root.add(rail);
+
+  const railMarker = new THREE.Mesh(new THREE.BoxGeometry(TRACK_METERS * WORLD_PER_METER, 0.02, 0.54), materials.marker);
+  railMarker.position.set(TRACK_START_X + (TRACK_METERS * WORLD_PER_METER) / 2, RAIL_Y + 0.07, 0);
+  apparatus.root.add(railMarker);
+
+  for (let meter = 0; meter <= TRACK_METERS; meter += 1) {
+    const x = TRACK_START_X + meter * WORLD_PER_METER;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(meter % 5 === 0 ? 0.032 : 0.018, meter % 5 === 0 ? 0.2 : 0.13, 0.36),
+      materials.tick
+    );
+    tick.position.set(x, RAIL_Y + 0.12, 0);
+    apparatus.root.add(tick);
+
+    const label = createTextSprite(`${meter}m`, {
+      color: '#24384e',
+      background: 'rgba(255,255,255,0.76)',
+      border: 'rgba(32,52,76,0.14)',
+      scale: [0.6, 0.24]
+    });
+    label.position.set(x, RAIL_Y + 0.33, 0.34);
+    apparatus.root.add(label);
+  }
+
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.72, 9.6, 0.72), materials.shaft);
+  shaft.position.set(PULLEY_X, -1.85, 0);
+  apparatus.root.add(shaft);
+
+  const shaftFrame = new THREE.Group();
+  const framePositions = [
+    [0.34, 0, 0.34],
+    [-0.34, 0, 0.34],
+    [0.34, 0, -0.34],
+    [-0.34, 0, -0.34]
+  ];
+  framePositions.forEach(([x, y, z]) => {
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 9.6, 10), materials.tick);
+    line.position.set(PULLEY_X + x, -1.85 + y, z);
+    shaftFrame.add(line);
+  });
+  apparatus.root.add(shaftFrame);
+
+  const supportPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6.2, 20), materials.rail);
+  supportPole.position.set(PULLEY_X, -1.9, 0);
+  supportPole.castShadow = true;
+  apparatus.root.add(supportPole);
+
+  const supportArm = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.18), materials.rail);
+  supportArm.position.set(PULLEY_X - 0.42, PULLEY_Y + 0.14, 0);
+  supportArm.castShadow = true;
+  apparatus.root.add(supportArm);
+
+  const pulley = new THREE.Mesh(
+    new THREE.TorusGeometry(0.1, 0.03, 14, 40),
+    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.36, metalness: 0.62 })
+  );
+  pulley.position.set(PULLEY_X, PULLEY_Y, 0);
+  pulley.rotation.y = Math.PI / 2;
+  pulley.castShadow = true;
+  apparatus.root.add(pulley);
+
+  apparatus.stringHorizontal = new THREE.Mesh(sharedGeometry.rope, materials.rope);
+  apparatus.stringHorizontal.castShadow = true;
+  apparatus.root.add(apparatus.stringHorizontal);
+
+  apparatus.stringVertical = new THREE.Mesh(sharedGeometry.rope, materials.rope);
+  apparatus.stringVertical.castShadow = true;
+  apparatus.root.add(apparatus.stringVertical);
+
+  buildCart();
+  apparatus.root.add(apparatus.cart);
+  apparatus.root.add(apparatus.hangingMasses);
+  apparatus.root.add(apparatus.forceArrow);
+
+  const caption = createTextSprite('도르래-수레 실험 장치', {
+    color: '#143046',
+    background: 'rgba(255,255,255,0.84)',
+    border: 'rgba(32,52,76,0.14)',
+    scale: [1.7, 0.34]
+  });
+  caption.position.set(-1.3, 2.35, 0.48);
+  apparatus.root.add(caption);
+}
+
+function buildCart() {
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.5), materials.cart);
+  body.position.set(0, 0.25, 0);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  apparatus.cart.add(body);
+
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.44), materials.cartTrim);
+  tray.position.set(0, 0.48, 0);
+  tray.castShadow = true;
+  apparatus.cart.add(tray);
+
+  const hook = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.08), materials.cartTrim);
+  hook.position.set(0.42, 0.26, 0);
+  hook.castShadow = true;
+  apparatus.cart.add(hook);
+
+  const wheelOffsets = [
+    [-0.24, 0.05, 0.23],
+    [0.24, 0.05, 0.23],
+    [-0.24, 0.05, -0.23],
+    [0.24, 0.05, -0.23]
+  ];
+
+  wheelOffsets.forEach(([x, y, z]) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.08, 24), materials.wheel);
+    wheel.position.set(x, y, z);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.castShadow = true;
+    wheel.receiveShadow = true;
+    apparatus.cart.add(wheel);
+    apparatus.wheelMeshes.push(wheel);
+  });
+
+  apparatus.cart.add(apparatus.cartTopMasses);
+}
+
+function buildGui() {
+  const gui = new GUI({ container: guiMountEl, title: '실험 제어', width: 300 });
+
+  const controllers = {
+    mode: gui.add(params, 'mode', [MODE_FORCE, MODE_MASS]).name('실험 모드'),
+    topMass: gui.add(params, 'topMassCount', 0, 4, 1).name('수레 위 추'),
+    hangingMass: gui.add(params, 'hangingMassCount', 1, 5, 1).name('매달린 추'),
+    speed: gui.add(params, 'speedMultiplier', 0.5, 3, 0.1).name('속도 배율'),
+    start: gui.add(params, 'startExperiment').name('실험 시작'),
+    record: gui.add(params, 'recordData').name('데이터 기록'),
+    clear: gui.add(params, 'clearGraph').name('그래프 초기화'),
+    reset: gui.add(params, 'resetExperiment').name('초기화')
+  };
+
+  controllers.mode.onChange(() => {
+    applyModePreset(true);
+    resetExperiment(false);
+    setStatus(
+      '모드 전환 완료',
+      params.mode === MODE_FORCE
+        ? '수레 질량을 0.5kg으로 고정했습니다. 매달린 추를 바꿔 힘과 가속도의 비례 관계를 확인해 보세요.'
+        : '매달린 추를 3개로 고정했습니다. 수레 위 추를 바꿔 질량이 커질수록 가속도가 감소하는지 비교해 보세요.'
+    );
+  });
+
+  controllers.topMass.onChange(() => {
+    if (params.mode === MODE_FORCE) {
+      params.topMassCount = 0;
+    }
+    if (typeof window.syncNewtonGui === 'function') {
+      window.syncNewtonGui();
+    }
+    resetExperiment(false);
+  });
+
+  controllers.hangingMass.onChange(() => {
+    if (params.mode === MODE_MASS) {
+      params.hangingMassCount = FIXED_HANGING_COUNT;
+    }
+    if (typeof window.syncNewtonGui === 'function') {
+      window.syncNewtonGui();
+    }
+    resetExperiment(false);
+  });
+
+  controllers.speed.onChange(() => {
+    updateInfoPanels();
+  });
+
+  function setControllerEnabled(controller, enabled) {
+    controller.domElement.style.opacity = enabled ? '1' : '0.45';
+    controller.domElement.style.pointerEvents = enabled ? 'auto' : 'none';
+    controller.domElement.querySelectorAll('input, select').forEach((el) => {
+      el.disabled = !enabled;
+    });
+  }
+
+  function syncControllerState() {
+    setControllerEnabled(controllers.topMass, params.mode === MODE_MASS);
+    setControllerEnabled(controllers.hangingMass, params.mode === MODE_FORCE);
+    controllers.topMass.name(params.mode === MODE_MASS ? '수레 위 추' : '수레 위 추 (고정 0개)');
+    controllers.hangingMass.name(params.mode === MODE_FORCE ? '매달린 추' : '매달린 추 (고정 3개)');
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  window.syncNewtonGui = syncControllerState;
+  syncControllerState();
+
+  if (window.innerWidth < 920) {
+    gui.close();
+  }
+}
+
+function applyModePreset(syncGuiNow = true) {
+  if (params.mode === MODE_FORCE) {
+    params.topMassCount = 0;
+    params.hangingMassCount = Math.min(Math.max(params.hangingMassCount, 1), 5);
+  } else {
+    params.hangingMassCount = FIXED_HANGING_COUNT;
+    params.topMassCount = Math.min(Math.max(params.topMassCount, 0), 4);
+  }
+
+  if (syncGuiNow && typeof window.syncNewtonGui === 'function') {
+    window.syncNewtonGui();
+  }
+}
+
+function resetExperiment(showMessage = true) {
+  runtime.isRunning = false;
+  runtime.elapsed = 0;
+  runtime.distanceMeters = 0;
+  runtime.speedMps = 0;
+  updateDerivedValues();
+  rebuildTopMasses();
+  rebuildHangingMasses();
+  updateMechanics();
+  updateInfoPanels();
+
+  if (showMessage) {
+    setStatus(
+      '원위치로 초기화되었습니다',
+      params.mode === MODE_FORCE
+        ? '질량은 0.5kg으로 고정되어 있습니다. 매달린 추 개수를 바꾸고 실험을 다시 시작할 수 있습니다.'
+        : '힘은 3N으로 고정되어 있습니다. 수레 위 추 개수를 바꾸고 실험을 다시 시작할 수 있습니다.'
+    );
+  }
+}
+
+function startExperiment() {
+  resetExperiment(false);
+  runtime.isRunning = true;
+  setStatus(
+    '실험 진행 중',
+    `알짜힘 ${formatNumber(runtime.forceN, 1)}N, 질량 ${formatNumber(runtime.massKg, 1)}kg에서 가속도 ${formatNumber(runtime.acceleration, 2)}m/s² 로 운동합니다.`
+  );
+}
+
+function recordDataPoint() {
+  const bucket = runtime.records[params.mode];
+  bucket.push({
+    force: runtime.forceN,
+    mass: runtime.massKg,
+    acceleration: runtime.acceleration
+  });
+  updateInfoPanels();
+  setStatus(
+    '데이터 기록 완료',
+    `현재 실험값 F=${formatNumber(runtime.forceN, 1)}N, m=${formatNumber(runtime.massKg, 1)}kg, a=${formatNumber(runtime.acceleration, 2)}m/s² 를 그래프에 추가했습니다.`
+  );
+}
+
+function clearGraphData() {
+  runtime.records[params.mode] = [];
+  updateInfoPanels();
+  setStatus(
+    '그래프를 초기화했습니다',
+    params.mode === MODE_FORCE
+      ? 'a-F 그래프의 기록이 삭제되었습니다. 다양한 힘으로 다시 측정해 보세요.'
+      : 'a-m 그래프의 기록이 삭제되었습니다. 다양한 질량으로 다시 측정해 보세요.'
+  );
+}
+
+function updateDerivedValues() {
+  runtime.forceN = params.mode === MODE_FORCE
+    ? params.hangingMassCount * HANGING_FORCE_UNIT_N
+    : FIXED_HANGING_COUNT * HANGING_FORCE_UNIT_N;
+
+  runtime.massKg = params.mode === MODE_FORCE
+    ? BASE_CART_MASS_KG
+    : BASE_CART_MASS_KG + params.topMassCount * TOP_MASS_UNIT_KG;
+
+  runtime.acceleration = runtime.forceN / runtime.massKg;
+}
+
+function rebuildTopMasses() {
+  apparatus.cartTopMasses.clear();
+  for (let i = 0; i < params.topMassCount; i += 1) {
+    const mass = new THREE.Mesh(sharedGeometry.topMass, materials.topMass);
+    mass.position.set(0, 0.57 + i * 0.12, 0);
+    mass.castShadow = true;
+    mass.receiveShadow = true;
+    apparatus.cartTopMasses.add(mass);
+  }
+}
+
+function rebuildHangingMasses() {
+  apparatus.hangingMasses.clear();
+  const count = params.mode === MODE_FORCE ? params.hangingMassCount : FIXED_HANGING_COUNT;
+
+  for (let i = 0; i < count; i += 1) {
+    const mass = new THREE.Mesh(sharedGeometry.hangingMass, materials.hangingMass);
+    mass.position.set(0, -i * 0.17, 0);
+    mass.castShadow = true;
+    mass.receiveShadow = true;
+    apparatus.hangingMasses.add(mass);
+  }
+}
+
+function updateMechanics() {
+  const worldDistance = runtime.distanceMeters * WORLD_PER_METER;
+  apparatus.cart.position.set(TRACK_START_X + worldDistance, CART_BASE_Y, 0);
+  apparatus.hangingMasses.position.set(PULLEY_X, HANGING_START_Y - worldDistance, 0);
+
+  const cartAnchor = new THREE.Vector3(apparatus.cart.position.x + 0.42, 1.22, 0);
+  const pulleyPoint = new THREE.Vector3(PULLEY_X, PULLEY_Y, 0);
+  const hangingTop = new THREE.Vector3(PULLEY_X, apparatus.hangingMasses.position.y + 0.075, 0);
+
+  const horizontalLength = Math.max(0.08, pulleyPoint.x - cartAnchor.x);
+  apparatus.stringHorizontal.position.set(cartAnchor.x + horizontalLength / 2, pulleyPoint.y, 0);
+  apparatus.stringHorizontal.rotation.z = Math.PI / 2;
+  apparatus.stringHorizontal.scale.set(1, horizontalLength, 1);
+
+  const verticalLength = Math.max(0.08, pulleyPoint.y - hangingTop.y);
+  apparatus.stringVertical.position.set(PULLEY_X, hangingTop.y + verticalLength / 2, 0);
+  apparatus.stringVertical.rotation.set(0, 0, 0);
+  apparatus.stringVertical.scale.set(1, verticalLength, 1);
+
+  const arrowLength = 0.75 + runtime.forceN * 0.18;
+  apparatus.forceArrow.position.set(apparatus.cart.position.x - 0.38, 1.12, 0);
+  apparatus.forceArrow.setLength(arrowLength, 0.22, 0.14);
+  apparatus.forceArrow.setColor(new THREE.Color(0xff6f7f));
+
+  apparatus.wheelMeshes.forEach((wheel) => {
+    wheel.rotation.x = -(runtime.distanceMeters * WORLD_PER_METER) / WHEEL_RADIUS;
+  });
+}
+
+function updateInfoPanels() {
+  modePillEl.textContent = `현재 모드: ${params.mode}`;
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">🚗 가속도 법칙 (뉴턴 제2법칙)</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">실험 모드</div><div class="value">${params.mode}</div></div>
+    <div class="line"><div class="label">알짜힘 F</div><div class="value">${formatNumber(runtime.forceN, 1)} N</div></div>
+    <div class="line"><div class="label">질량 m</div><div class="value">${formatNumber(runtime.massKg, 1)} kg</div></div>
+    <div class="line"><div class="label">가속도 a</div><div class="value">${formatNumber(runtime.forceN, 1)} / ${formatNumber(runtime.massKg, 1)} = ${formatNumber(runtime.acceleration, 2)} m/s²</div></div>
+    <div class="line"><div class="label">현재 속도</div><div class="value">${formatNumber(runtime.speedMps, 2)} m/s</div></div>
+    <div class="line"><div class="label">이동 거리</div><div class="value">${formatNumber(runtime.distanceMeters, 2)} m</div></div>
+    <div class="line"><div class="label">속도 배율</div><div class="value">${formatNumber(params.speedMultiplier, 1)}x</div></div>
+    <div class="highlight">
+      <div class="mono">F = ma</div>
+      <div>가속도 ∝ 알짜힘</div>
+      <div>가속도 ∝ 1 / 질량</div>
+      <div style="margin-top:6px;color:rgba(245,251,255,0.72);">1N = 질량 1kg에 1m/s² 의 가속도를 주는 힘</div>
+    </div>
+  `;
+
+  const graphRecords = runtime.records[params.mode];
+  const currentLabel = params.mode === MODE_FORCE
+    ? `F ${formatNumber(runtime.forceN, 1)}N · m ${formatNumber(runtime.massKg, 1)}kg`
+    : `m ${formatNumber(runtime.massKg, 1)}kg · F ${formatNumber(runtime.forceN, 1)}N`;
+  summaryCurrentEl.textContent = currentLabel;
+  summaryCurrentBodyEl.textContent = `현재 가속도는 ${formatNumber(runtime.acceleration, 2)}m/s² 입니다. 속도는 ${formatNumber(runtime.speedMps, 2)}m/s 까지 증가합니다.`;
+
+  if (params.mode === MODE_FORCE) {
+    graphTitleEl.textContent = 'a-F 그래프';
+    graphSubtitleEl.textContent = '수레 질량을 0.5kg으로 고정하고 매달린 추 개수를 바꾸며, 힘이 커질수록 가속도가 비례해서 증가하는지 확인합니다.';
+    summaryRelationEl.textContent = 'a ∝ F';
+    summaryRelationBodyEl.textContent = '질량이 일정하면 힘이 2배가 될 때 가속도도 2배가 됩니다. 그래프는 원점에 가까운 직선으로 나타납니다.';
+  } else {
+    graphTitleEl.textContent = 'a-m 그래프';
+    graphSubtitleEl.textContent = '매달린 추를 3개로 고정하고 수레 위 추를 늘리며, 질량이 커질수록 가속도가 반비례해서 감소하는지 확인합니다.';
+    summaryRelationEl.textContent = 'a ∝ 1/m';
+    summaryRelationBodyEl.textContent = '힘이 일정하면 질량이 커질수록 같은 힘으로 얻는 가속도는 작아집니다. 그래프는 반비례 곡선 형태로 내려갑니다.';
+  }
+
+  const trend = getTrendline(graphRecords, params.mode);
+  summaryTrendEl.textContent = `기록 ${graphRecords.length}개`;
+  summaryTrendBodyEl.textContent = trend
+    ? trend.description
+    : '최소 3회 기록하면 자동으로 추세선이 표시됩니다.';
+
+  drawGraph();
+}
+
+function drawGraph() {
+  if (!graphContext) return;
+
+  const rect = graphPanelEl.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width));
+  const height = Math.max(280, Math.floor(rect.height));
+  const dpr = Math.min(window.devicePixelRatio, 2);
+
+  if (graphCanvasEl.width !== Math.floor(width * dpr) || graphCanvasEl.height !== Math.floor(height * dpr)) {
+    graphCanvasEl.width = Math.floor(width * dpr);
+    graphCanvasEl.height = Math.floor(height * dpr);
+  }
+
+  graphContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphContext.clearRect(0, 0, width, height);
+
+  const gradient = graphContext.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(11, 22, 42, 1)');
+  gradient.addColorStop(1, 'rgba(3, 10, 20, 1)');
+  graphContext.fillStyle = gradient;
+  graphContext.fillRect(0, 0, width, height);
+
+  const plot = {
+    left: 62,
+    top: 136,
+    right: width - 26,
+    bottom: height - 146
+  };
+  plot.right = Math.max(plot.left + 140, plot.right);
+  plot.bottom = Math.max(plot.top + 90, plot.bottom);
+  plot.width = plot.right - plot.left;
+  plot.height = plot.bottom - plot.top;
+
+  graphContext.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphContext.lineWidth = 1;
+  graphContext.fillStyle = 'rgba(255,255,255,0.035)';
+  graphContext.fillRect(plot.left, plot.top, plot.width, plot.height);
+
+  const records = runtime.records[params.mode];
+  const currentPoint = {
+    x: params.mode === MODE_FORCE ? runtime.forceN : runtime.massKg,
+    y: runtime.acceleration
+  };
+
+  const xTicks = params.mode === MODE_FORCE
+    ? [0, 1, 2, 3, 4, 5, 6]
+    : [0.5, 1, 1.5, 2, 2.5, 3];
+  const yMax = params.mode === MODE_FORCE
+    ? Math.max(11, ...records.map((point) => point.acceleration), currentPoint.y) * 1.08
+    : Math.max(6.6, ...records.map((point) => point.acceleration), currentPoint.y) * 1.12;
+  const yTicks = buildTicks(0, yMax, 5);
+  const xMin = params.mode === MODE_FORCE ? 0 : 0.4;
+  const xMax = params.mode === MODE_FORCE ? 6 : 3;
+
+  const mapX = (value) => plot.left + ((value - xMin) / (xMax - xMin)) * plot.width;
+  const mapY = (value) => plot.bottom - (value / yMax) * plot.height;
+
+  graphContext.font = '11px Pretendard, sans-serif';
+  graphContext.fillStyle = 'rgba(255,255,255,0.48)';
+  graphContext.textAlign = 'right';
+  graphContext.textBaseline = 'middle';
+
+  yTicks.forEach((tick) => {
+    const y = mapY(tick);
+    graphContext.strokeStyle = 'rgba(255,255,255,0.08)';
+    graphContext.beginPath();
+    graphContext.moveTo(plot.left, y);
+    graphContext.lineTo(plot.right, y);
+    graphContext.stroke();
+    graphContext.fillText(formatNumber(tick, tick < 10 ? 1 : 0), plot.left - 10, y);
+  });
+
+  graphContext.textAlign = 'center';
+  graphContext.textBaseline = 'top';
+  xTicks.forEach((tick) => {
+    if (tick < xMin || tick > xMax) return;
+    const x = mapX(tick);
+    graphContext.strokeStyle = 'rgba(255,255,255,0.08)';
+    graphContext.beginPath();
+    graphContext.moveTo(x, plot.top);
+    graphContext.lineTo(x, plot.bottom);
+    graphContext.stroke();
+    graphContext.fillStyle = 'rgba(255,255,255,0.56)';
+    graphContext.fillText(formatNumber(tick, tick % 1 === 0 ? 0 : 1), x, plot.bottom + 10);
+  });
+
+  graphContext.strokeStyle = 'rgba(255,255,255,0.28)';
+  graphContext.lineWidth = 1.4;
+  graphContext.beginPath();
+  graphContext.moveTo(plot.left, plot.top);
+  graphContext.lineTo(plot.left, plot.bottom);
+  graphContext.lineTo(plot.right, plot.bottom);
+  graphContext.stroke();
+
+  graphContext.fillStyle = 'rgba(255,255,255,0.82)';
+  graphContext.textAlign = 'center';
+  graphContext.fillText(
+    params.mode === MODE_FORCE ? '알짜힘 F (N)' : '질량 m (kg)',
+    plot.left + plot.width / 2,
+    plot.bottom + 32
+  );
+
+  graphContext.save();
+  graphContext.translate(18, plot.top + plot.height / 2);
+  graphContext.rotate(-Math.PI / 2);
+  graphContext.fillText('가속도 a (m/s²)', 0, 0);
+  graphContext.restore();
+
+  const trend = getTrendline(records, params.mode);
+  if (trend) {
+    graphContext.strokeStyle = '#89f0bb';
+    graphContext.lineWidth = 2;
+    graphContext.setLineDash([7, 7]);
+    graphContext.beginPath();
+    const segments = 80;
+    for (let i = 0; i <= segments; i += 1) {
+      const xValue = xMin + ((xMax - xMin) * i) / segments;
+      const yValue = trend.evaluate(xValue);
+      const px = mapX(xValue);
+      const py = mapY(Math.min(yValue, yMax));
+      if (i === 0) {
+        graphContext.moveTo(px, py);
+      } else {
+        graphContext.lineTo(px, py);
+      }
+    }
+    graphContext.stroke();
+    graphContext.setLineDash([]);
+  }
+
+  records.forEach((point, index) => {
+    const x = mapX(params.mode === MODE_FORCE ? point.force : point.mass);
+    const y = mapY(point.acceleration);
+    graphContext.fillStyle = '#ff9b64';
+    graphContext.beginPath();
+    graphContext.arc(x, y, 6.2, 0, Math.PI * 2);
+    graphContext.fill();
+    graphContext.fillStyle = 'rgba(7,17,30,0.72)';
+    graphContext.font = '10px Pretendard, sans-serif';
+    graphContext.fillText(String(index + 1), x, y - 18);
+  });
+
+  const currentX = mapX(currentPoint.x);
+  const currentY = mapY(currentPoint.y);
+  graphContext.strokeStyle = '#69b7ff';
+  graphContext.lineWidth = 2.4;
+  graphContext.beginPath();
+  graphContext.arc(currentX, currentY, 9, 0, Math.PI * 2);
+  graphContext.stroke();
+  graphContext.fillStyle = 'rgba(105,183,255,0.18)';
+  graphContext.beginPath();
+  graphContext.arc(currentX, currentY, 8.5, 0, Math.PI * 2);
+  graphContext.fill();
+  graphContext.fillStyle = '#d9eeff';
+  graphContext.beginPath();
+  graphContext.arc(currentX, currentY, 4.3, 0, Math.PI * 2);
+  graphContext.fill();
+
+  if (!records.length) {
+    graphContext.fillStyle = 'rgba(255,255,255,0.58)';
+    graphContext.font = '13px Pretendard, sans-serif';
+    graphContext.textAlign = 'center';
+    graphContext.fillText('데이터 기록 버튼으로 실험 결과를 누적해 보세요.', plot.left + plot.width / 2, plot.top + plot.height / 2);
+  }
+}
+
+function getTrendline(records, mode) {
+  if (records.length < 3) return null;
+
+  if (mode === MODE_FORCE) {
+    const numerator = records.reduce((sum, point) => sum + point.force * point.acceleration, 0);
+    const denominator = records.reduce((sum, point) => sum + point.force * point.force, 0);
+    const slope = denominator > 0 ? numerator / denominator : 0;
+    return {
+      evaluate: (force) => slope * force,
+      description: `추세선은 a ≈ ${formatNumber(slope, 2)}F 로 보입니다. 질량이 일정할 때 그래프가 거의 직선으로 나타납니다.`
+    };
+  }
+
+  const transformed = records.map((point) => ({ inverseMass: 1 / point.mass, acceleration: point.acceleration }));
+  const numerator = transformed.reduce((sum, point) => sum + point.inverseMass * point.acceleration, 0);
+  const denominator = transformed.reduce((sum, point) => sum + point.inverseMass * point.inverseMass, 0);
+  const coefficient = denominator > 0 ? numerator / denominator : 0;
+  return {
+    evaluate: (mass) => coefficient / mass,
+    description: `추세선은 a ≈ ${formatNumber(coefficient, 2)} / m 로 보입니다. 힘이 일정할 때 질량이 커질수록 가속도가 감소합니다.`
+  };
+}
+
+function buildTicks(min, max, count) {
+  const ticks = [];
+  const step = max / count;
+  for (let i = 0; i <= count; i += 1) {
+    ticks.push(step * i);
+  }
+  return ticks;
+}
+
+function setStatus(title, body) {
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+}
+
+function resize() {
+  const sceneRect = scenePanelEl.getBoundingClientRect();
+  renderer.setSize(sceneRect.width, sceneRect.height, false);
+  camera.aspect = sceneRect.width / sceneRect.height;
+  camera.updateProjectionMatrix();
+  drawGraph();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+
+  if (runtime.isRunning) {
+    runtime.elapsed += delta * params.speedMultiplier;
+    runtime.distanceMeters = Math.min(0.5 * runtime.acceleration * runtime.elapsed * runtime.elapsed, MAX_TRAVEL_M);
+    runtime.speedMps = runtime.acceleration * runtime.elapsed;
+
+    if (runtime.distanceMeters >= MAX_TRAVEL_M - 1e-6) {
+      runtime.isRunning = false;
+      setStatus(
+        '실험 완료',
+        `수레가 ${formatNumber(runtime.distanceMeters, 2)}m 이동했습니다. 같은 조건으로 기록하거나, 힘/질량을 바꿔 비교해 보세요.`
+      );
+    }
+
+    updateMechanics();
+    updateInfoPanels();
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function createTextSprite(text, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? [0.8, 0.26];
+  sprite.scale.set(scale[0], scale[1], 1);
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  roundRect(context, 22, 18, canvas.width - 44, canvas.height - 36, 24);
+  context.fillStyle = options.background ?? 'rgba(255,255,255,0.78)';
+  context.fill();
+  context.strokeStyle = options.border ?? 'rgba(23,40,62,0.12)';
+  context.lineWidth = 2;
+  context.stroke();
+  context.fillStyle = options.color ?? '#12283d';
+  context.font = '700 34px Pretendard, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+  texture.needsUpdate = true;
+  return sprite;
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function formatNumber(value, digits = 2) {
+  return value.toLocaleString('ko-KR', {
+    minimumFractionDigits: value !== 0 && Math.abs(value) < 1 ? Math.min(2, digits) : 0,
+    maximumFractionDigits: digits
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아날로그 vs 디지털 신호 변환 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #fafafa;
+    color: #333;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 4단 수직 레이아웃 ── */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .section {
+    position: relative;
+    overflow: hidden;
+  }
+  #analog-section {
+    height: 35%;
+    background: #f8f8ff;
+    border-bottom: 1px solid #e0e0e8;
+  }
+  #sensor-section {
+    height: 15%;
+    background: linear-gradient(180deg, #e8eef4 0%, #d8e4f0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #ccd8e4;
+  }
+  #digital-section {
+    height: 35%;
+    background: #fff8f0;
+    border-bottom: 1px solid #e8e0d8;
+  }
+  #examples-section {
+    height: 15%;
+    background: #f4f4f8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 0 20px;
+  }
+
+  /* 캔버스 */
+  .graph-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 섹션 라벨 */
+  .section-label {
+    position: absolute;
+    top: 8px;
+    left: 16px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* ── 센서 영역 ── */
+  #sensor-canvas {
+    width: 200px;
+    height: 100%;
+  }
+  .sensor-label {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #556;
+    white-space: nowrap;
+    z-index: 5;
+    pointer-events: none;
+  }
+  #camera-toggle {
+    position: absolute;
+    right: 12px;
+    top: 8px;
+    background: rgba(60,60,80,0.8);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s;
+  }
+  #camera-toggle:hover { background: rgba(60,60,80,1); }
+
+  /* ── 디지털 품질 피드백 ── */
+  #quality-feedback {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 5;
+    padding: 3px 10px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  #quality-feedback.low { background: rgba(255,50,50,0.15); color: #d32f2f; }
+  #quality-feedback.mid { background: rgba(255,180,0,0.15); color: #e6a800; }
+  #quality-feedback.high { background: rgba(0,180,80,0.15); color: #1b8c4e; }
+
+  /* 디지털 영역 테두리 피드백 */
+  #digital-section.border-low { box-shadow: inset 0 0 0 3px rgba(255,50,50,0.4); }
+  #digital-section.border-mid { box-shadow: inset 0 0 0 3px rgba(255,180,0,0.4); }
+  #digital-section.border-high { box-shadow: inset 0 0 0 3px rgba(0,180,80,0.4); }
+
+  /* ── 오차율 표시 ── */
+  #error-display {
+    position: absolute;
+    bottom: 8px;
+    left: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* ── 실생활 예시 영역 ── */
+  .speedo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .speedo-canvas {
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .speedo-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
+  }
+  #speed-control {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 200px;
+  }
+  #speed-slider {
+    width: 180px;
+    accent-color: #3388ff;
+  }
+  #speed-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+  }
+  .comparison-text {
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+    max-width: 180px;
+  }
+
+  /* ── 수식 패널 ── */
+  #formula-panel {
+    position: fixed;
+    left: 12px;
+    bottom: calc(15% + 12px);
+    width: 300px;
+    background: rgba(20,20,40,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    z-index: 30;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #e0e0e0;
+  }
+  #formula-panel h3 {
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: #7ecfff;
+  }
+  #formula-panel .row { display: flex; margin-bottom: 2px; }
+  #formula-panel .row .label {
+    width: 95px;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.5);
+    font-size: 11px;
+  }
+  #formula-panel .row .value {
+    flex: 1;
+    font-size: 12px;
+    color: #fff;
+  }
+  .formula-note {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.6;
+  }
+  .formula-note strong { color: #ffcf7e; }
+
+  /* ── 학습 가이드 ── */
+  #guide-toggle {
+    position: fixed;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    background: rgba(20,20,40,0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 4px 12px;
+    color: #fff;
+    font-size: 11px;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    z-index: 35;
+    transition: background 0.2s;
+  }
+  #guide-toggle:hover { background: rgba(40,40,80,0.95); }
+
+  #guide-panel {
+    position: fixed;
+    left: 50%;
+    top: 36px;
+    transform: translateX(-50%);
+    width: 440px;
+    max-height: 65vh;
+    overflow-y: auto;
+    background: rgba(20,20,40,0.95);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 18px;
+    z-index: 34;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #ddd;
+    display: none;
+  }
+  #guide-panel h3 { font-size: 14px; margin-bottom: 8px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 12px; margin-top: 10px; margin-bottom: 4px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 16px; }
+  #guide-panel li { margin-bottom: 3px; }
+  .textbook-ref {
+    margin-top: 10px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── 반응형 ── */
+  @media (max-width: 768px) {
+    #formula-panel { width: 240px; left: 8px; font-size: 11px; padding: 10px; }
+    #guide-panel { width: calc(100vw - 40px); }
+    .section-label { font-size: 11px; }
+    #examples-section { gap: 8px; padding: 0 8px; }
+    #speed-control { flex: 0 0 120px; }
+    #speed-slider { width: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 상단: 아날로그 신호 (35%) -->
+  <div id="analog-section" class="section">
+    <div class="section-label" style="color:#3388ff">아날로그 신호 — 연속적으로 변하는 자연계의 신호</div>
+    <canvas id="analog-canvas" class="graph-canvas"></canvas>
+  </div>
+
+  <!-- 중단: 센서/변환 과정 (15%) -->
+  <div id="sensor-section" class="section">
+    <canvas id="sensor-canvas"></canvas>
+    <div class="sensor-label">센서 — 자연계의 신호를 전기 신호로 바꾸어 주는 장치</div>
+    <button id="camera-toggle">🔄 3D 보기</button>
+  </div>
+
+  <!-- 하단: 디지털 신호 (35%) -->
+  <div id="digital-section" class="section">
+    <div class="section-label" style="color:#ff6633">디지털 신호 — 불연속적인 특정 값으로 변환된 신호</div>
+    <canvas id="digital-canvas" class="graph-canvas"></canvas>
+    <div id="quality-feedback"></div>
+    <div id="error-display"></div>
+  </div>
+
+  <!-- 최하단: 실생활 예시 (15%) -->
+  <div id="examples-section" class="section">
+    <div class="speedo-container">
+      <canvas id="analog-speedo" class="speedo-canvas" width="140" height="100"></canvas>
+      <div class="speedo-label">아날로그</div>
+    </div>
+    <div id="speed-control">
+      <div id="speed-value">60 km/h</div>
+      <input type="range" id="speed-slider" min="0" max="200" value="60">
+      <div class="comparison-text">아날로그는 연속적 변화, 디지털은 불연속적 값</div>
+    </div>
+    <div class="speedo-container">
+      <canvas id="digital-speedo" class="speedo-canvas" width="140" height="100"></canvas>
+      <div class="speedo-label">디지털</div>
+    </div>
+  </div>
+</div>
+
+<!-- 수식 패널 -->
+<div id="formula-panel">
+  <h3>📡 아날로그 → 디지털 변환</h3>
+  <div class="row"><span class="label">샘플링 주파수:</span><span class="value" id="fp-freq">16 Hz (초당 16번 측정)</span></div>
+  <div class="row"><span class="label">비트 수:</span><span class="value" id="fp-bits">8 bit (2⁸ = 256단계 양자화)</span></div>
+  <div class="row"><span class="label">샘플 수:</span><span class="value" id="fp-samples">16개</span></div>
+  <div class="row"><span class="label">양자화 단계:</span><span class="value" id="fp-steps">256단계</span></div>
+  <div class="row"><span class="label">변환 오차율:</span><span class="value" id="fp-error">—</span></div>
+  <div class="formula-note">
+    <strong>나이퀴스트 정리:</strong><br>
+    f_sampling ≥ 2 × f_signal<br>
+    (원본 주파수의 2배 이상 샘플링해야 원본 복원 가능)
+  </div>
+</div>
+
+<!-- 학습 가이드 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>자연계의 신호는 연속적으로 변하는 아날로그 형태입니다. 센서를 이용하면 이를 디지털 형태로 변환할 수 있으며, 디지털 정보는 저장·분석·전송이 쉬워 현대 문명에 큰 영향을 미쳤습니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>샘플링 주파수를 낮추면 디지털 신호는 원본과 어떻게 달라지나요?</li>
+    <li>비트 수를 높이면 왜 원본에 더 가까운 디지털 신호를 얻을 수 있나요?</li>
+    <li>CD 음악은 44,100Hz로 샘플링합니다. 사람이 들을 수 있는 최대 주파수(20,000Hz)와 어떤 관계가 있을까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>CD 음악</strong>: 44.1kHz, 16bit 샘플링</li>
+    <li><strong>전화 음성</strong>: 8kHz, 8bit 샘플링</li>
+    <li><strong>4K 영상</strong>: 디지털 이미지 센서로 촬영</li>
+    <li><strong>스마트워치</strong>: 심박 센서로 생체 신호를 디지털 변환</li>
+  </ul>
+
+  <div class="textbook-ref">
+    📚 교과서 참고: 미래엔 통합과학1 I편 p32~34 — 신호와 정보, 센서, 디지털 정보와 현대 문명
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 상수 ───
+const ANALOG_COLOR = '#3388ff';
+const DIGITAL_COLOR = '#ff6633';
+const SCAN_COLOR = '#ee2222';
+const GRAPH_PADDING = { top: 32, right: 20, bottom: 28, left: 50 };
+
+// ─── 상태 관리 ───
+const state = {
+  signalType: 'sunlight',
+  samplingFreq: 16,
+  bitDepth: 8,
+  showOverlay: true,
+  sampling: false,
+  scanProgress: 0,         // 0~1 (샘플링 애니메이션 진행도)
+  sampledPoints: [],        // 샘플링된 점 배열
+  speedValue: 60,
+  customFreq: 2,
+  customAmp: 50,
+  use3DCamera: false,       // 센서 3D 카메라 전환
+  errorRate: 0
+};
+
+// ─── 신호 생성 함수 ───
+function getSignalValue(t) {
+  // t: 0~1 (정규화된 시간)
+  switch (state.signalType) {
+    case 'sunlight':
+      // 햇빛 세기: 사인파 (0시 최저, 12시 최고)
+      return 50 + 45 * Math.sin((t - 0.25) * Math.PI * 2);
+    case 'temperature':
+      // 기온 변화: 사인파 + 노이즈
+      return 50 + 35 * Math.sin((t - 0.25) * Math.PI * 2) + (Math.sin(t * 47) * 8 + Math.sin(t * 97) * 4);
+    case 'heartbeat': {
+      // 심박수: 톱니파 형태
+      const cycle = (t * 4) % 1;
+      if (cycle < 0.1) return 50 + 45 * (cycle / 0.1);
+      if (cycle < 0.2) return 50 + 45 * (1 - (cycle - 0.1) / 0.1);
+      if (cycle < 0.3) return 50 - 15 * ((cycle - 0.2) / 0.1);
+      if (cycle < 0.4) return 50 - 15 * (1 - (cycle - 0.3) / 0.1);
+      return 50 + Math.sin((cycle - 0.4) * Math.PI / 0.6) * 5;
+    }
+    case 'custom':
+      return 50 + state.customAmp * Math.sin(t * state.customFreq * Math.PI * 2);
+    default:
+      return 50;
+  }
+}
+
+// 양자화 함수
+function quantize(value, bitDepth) {
+  const levels = Math.pow(2, bitDepth);
+  const step = 100 / levels;
+  return Math.round(value / step) * step;
+}
+
+// 오차율 계산
+function calculateErrorRate() {
+  const n = 500;
+  const freq = state.samplingFreq;
+  let sumSqDiff = 0;
+  let sumSqOrig = 0;
+
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const analog = getSignalValue(t);
+
+    // 디지털: 가장 가까운 샘플 포인트의 양자화된 값
+    const sampleIdx = Math.floor(t * freq);
+    const sampleT = sampleIdx / freq;
+    const digital = quantize(getSignalValue(sampleT), state.bitDepth);
+
+    const diff = analog - digital;
+    sumSqDiff += diff * diff;
+    sumSqOrig += analog * analog;
+  }
+
+  const rmsOrig = Math.sqrt(sumSqOrig / n);
+  if (rmsOrig === 0) return 0;
+  return (Math.sqrt(sumSqDiff / n) / rmsOrig) * 100;
+}
+
+// ─── DOM 참조 ───
+const analogCanvas = document.getElementById('analog-canvas');
+const digitalCanvas = document.getElementById('digital-canvas');
+const sensorCanvas = document.getElementById('sensor-canvas');
+const analogSpeedoCanvas = document.getElementById('analog-speedo');
+const digitalSpeedoCanvas = document.getElementById('digital-speedo');
+const qualityFeedback = document.getElementById('quality-feedback');
+const errorDisplay = document.getElementById('error-display');
+const digitalSection = document.getElementById('digital-section');
+const speedSlider = document.getElementById('speed-slider');
+const speedValueEl = document.getElementById('speed-value');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const cameraToggle = document.getElementById('camera-toggle');
+
+// 수식 패널 참조
+const fpFreq = document.getElementById('fp-freq');
+const fpBits = document.getElementById('fp-bits');
+const fpSamples = document.getElementById('fp-samples');
+const fpSteps = document.getElementById('fp-steps');
+const fpError = document.getElementById('fp-error');
+
+// ─── 이벤트 ───
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.style.display = guideOpen ? 'block' : 'none';
+});
+
+speedSlider.addEventListener('input', (e) => {
+  state.speedValue = parseInt(e.target.value);
+  speedValueEl.textContent = `${state.speedValue} km/h`;
+  drawSpeedometers();
+});
+
+cameraToggle.addEventListener('click', () => {
+  state.use3DCamera = !state.use3DCamera;
+  cameraToggle.textContent = state.use3DCamera ? '🔄 2D 보기' : '🔄 3D 보기';
+  updateSensorCamera();
+});
+
+// ─── 캔버스 크기 동기화 ───
+function resizeCanvases() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+
+  // 아날로그 캔버스
+  const aRect = analogCanvas.parentElement.getBoundingClientRect();
+  analogCanvas.width = aRect.width * dpr;
+  analogCanvas.height = aRect.height * dpr;
+  analogCanvas.style.width = aRect.width + 'px';
+  analogCanvas.style.height = aRect.height + 'px';
+
+  // 디지털 캔버스
+  const dRect = digitalCanvas.parentElement.getBoundingClientRect();
+  digitalCanvas.width = dRect.width * dpr;
+  digitalCanvas.height = dRect.height * dpr;
+  digitalCanvas.style.width = dRect.width + 'px';
+  digitalCanvas.style.height = dRect.height + 'px';
+
+  // 센서 캔버스
+  const sRect = sensorCanvas.parentElement.getBoundingClientRect();
+  sensorCanvas.width = Math.min(sRect.width * 0.4, 300) * dpr;
+  sensorCanvas.height = sRect.height * dpr;
+  const sW = sensorCanvas.width / dpr;
+  const sH = sensorCanvas.height / dpr;
+  sensorCanvas.style.width = sW + 'px';
+  sensorCanvas.style.height = sH + 'px';
+
+  // 센서 Three.js 리사이즈
+  sensorRenderer.setSize(sW, sH);
+  if (sensorCameraOrtho) {
+    const aspect = sW / sH;
+    sensorCameraOrtho.left = -2 * aspect;
+    sensorCameraOrtho.right = 2 * aspect;
+    sensorCameraOrtho.top = 2;
+    sensorCameraOrtho.bottom = -2;
+    sensorCameraOrtho.updateProjectionMatrix();
+  }
+  if (sensorCameraPerspective) {
+    sensorCameraPerspective.aspect = sW / sH;
+    sensorCameraPerspective.updateProjectionMatrix();
+  }
+}
+
+// ─── 아날로그 신호 그리기 ───
+function drawAnalog() {
+  const canvas = analogCanvas;
+  const ctx = canvas.getContext('2d');
+  const dpr = canvas.width / parseFloat(canvas.style.width);
+  const w = canvas.width;
+  const h = canvas.height;
+  const pad = {
+    top: GRAPH_PADDING.top * dpr,
+    right: GRAPH_PADDING.right * dpr,
+    bottom: GRAPH_PADDING.bottom * dpr,
+    left: GRAPH_PADDING.left * dpr
+  };
+
+  ctx.clearRect(0, 0, w, h);
+
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  // 그리드 (점선)
+  ctx.strokeStyle = '#d8d8e4';
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([4 * dpr, 4 * dpr]);
+
+  // 수평 그리드선 (5개)
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * gh;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + gw, y);
+    ctx.stroke();
+  }
+
+  // 수직 그리드선 (24시간, 6시간 간격)
+  for (let i = 0; i <= 4; i++) {
+    const x = pad.left + (i / 4) * gw;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + gh);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 축 라벨
+  ctx.fillStyle = '#888';
+  ctx.font = `${10 * dpr}px Pretendard, sans-serif`;
+  ctx.textAlign = 'center';
+
+  // X축 라벨
+  for (let i = 0; i <= 4; i++) {
+    const x = pad.left + (i / 4) * gw;
+    ctx.fillText(`${i * 6}시`, x, pad.top + gh + 16 * dpr);
+  }
+
+  // Y축 라벨
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (1 - i / 4) * gh;
+    ctx.fillText(`${i * 25}%`, pad.left - 6 * dpr, y + 4 * dpr);
+  }
+
+  // X/Y축 타이틀
+  ctx.fillStyle = '#666';
+  ctx.font = `${11 * dpr}px Pretendard, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('시간', pad.left + gw / 2, h - 2 * dpr);
+  ctx.save();
+  ctx.translate(12 * dpr, pad.top + gh / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('신호 세기 (%)', 0, 0);
+  ctx.restore();
+
+  // 아날로그 파형 그리기
+  ctx.strokeStyle = ANALOG_COLOR;
+  ctx.lineWidth = 3 * dpr;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  const steps = Math.max(gw, 300);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = pad.left + t * gw;
+    const val = getSignalValue(t);
+    const y = pad.top + (1 - val / 100) * gh;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // 샘플링 애니메이션: 스캔 라인 + 빨간 점
+  if (state.sampling || state.sampledPoints.length > 0) {
+    // 스캔 라인
+    if (state.sampling) {
+      const scanX = pad.left + state.scanProgress * gw;
+      ctx.strokeStyle = SCAN_COLOR;
+      ctx.lineWidth = 2 * dpr;
+      ctx.setLineDash([6 * dpr, 4 * dpr]);
+      ctx.beginPath();
+      ctx.moveTo(scanX, pad.top);
+      ctx.lineTo(scanX, pad.top + gh);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 샘플링 포인트 (빨간 점)
+    ctx.fillStyle = SCAN_COLOR;
+    state.sampledPoints.forEach(p => {
+      const x = pad.left + p.t * gw;
+      const y = pad.top + (1 - p.value / 100) * gh;
+      ctx.beginPath();
+      ctx.arc(x, y, 5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+}
+
+// ─── 디지털 신호 그리기 ───
+function drawDigital() {
+  const canvas = digitalCanvas;
+  const ctx = canvas.getContext('2d');
+  const dpr = canvas.width / parseFloat(canvas.style.width);
+  const w = canvas.width;
+  const h = canvas.height;
+  const pad = {
+    top: GRAPH_PADDING.top * dpr,
+    right: GRAPH_PADDING.right * dpr,
+    bottom: GRAPH_PADDING.bottom * dpr,
+    left: GRAPH_PADDING.left * dpr
+  };
+
+  ctx.clearRect(0, 0, w, h);
+
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  // 그리드
+  ctx.strokeStyle = '#e4dcd4';
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([4 * dpr, 4 * dpr]);
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * gh;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + gw, y);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= 4; i++) {
+    const x = pad.left + (i / 4) * gw;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + gh);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 축 라벨
+  ctx.fillStyle = '#888';
+  ctx.font = `${10 * dpr}px Pretendard, sans-serif`;
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 4; i++) {
+    ctx.fillText(`${i * 6}시`, pad.left + (i / 4) * gw, pad.top + gh + 16 * dpr);
+  }
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    ctx.fillText(`${i * 25}%`, pad.left - 6 * dpr, pad.top + (1 - i / 4) * gh + 4 * dpr);
+  }
+
+  // 오버레이: 원본 아날로그 파형 (반투명)
+  if (state.showOverlay) {
+    ctx.strokeStyle = 'rgba(51,136,255,0.2)';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    const steps = Math.max(gw, 300);
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = pad.left + t * gw;
+      const val = getSignalValue(t);
+      const y = pad.top + (1 - val / 100) * gh;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // 디지털 신호 (수직 막대 = 계단 형태)
+  const freq = state.samplingFreq;
+  const barWidth = gw / freq;
+
+  // 양자화 노이즈 영역 (비트 수 ≤ 4일 때 원본과의 차이 빨간 영역)
+  if (state.bitDepth <= 4 && state.showOverlay) {
+    ctx.fillStyle = 'rgba(255,80,50,0.12)';
+    for (let i = 0; i < freq; i++) {
+      const t = i / freq;
+      const digital = quantize(getSignalValue(t), state.bitDepth);
+      // 해당 구간의 아날로그 vs 디지털 차이 영역 채우기
+      const subSteps = Math.max(Math.floor(barWidth / dpr), 4);
+      for (let s = 0; s < subSteps; s++) {
+        const st = t + (s / subSteps) / freq;
+        if (st > 1) break;
+        const ax = pad.left + st * gw;
+        const analog = getSignalValue(st);
+        const ay = pad.top + (1 - analog / 100) * gh;
+        const dy = pad.top + (1 - digital / 100) * gh;
+        const rectH = Math.abs(ay - dy);
+        ctx.fillRect(ax, Math.min(ay, dy), Math.max(gw / freq / subSteps, 1), rectH);
+      }
+    }
+  }
+
+  // 디지털 막대 그리기
+  ctx.fillStyle = DIGITAL_COLOR;
+  for (let i = 0; i < freq; i++) {
+    const t = i / freq;
+    const val = quantize(getSignalValue(t), state.bitDepth);
+    const x = pad.left + t * gw;
+    const barH = (val / 100) * gh;
+    const y = pad.top + gh - barH;
+    ctx.fillRect(x, y, Math.max(barWidth - dpr, 1), barH);
+  }
+
+  // 계단 형태 윤곽선
+  ctx.strokeStyle = DIGITAL_COLOR;
+  ctx.lineWidth = 2 * dpr;
+  ctx.beginPath();
+  for (let i = 0; i < freq; i++) {
+    const t = i / freq;
+    const val = quantize(getSignalValue(t), state.bitDepth);
+    const x = pad.left + t * gw;
+    const y = pad.top + (1 - val / 100) * gh;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(x + barWidth, y);
+  }
+  ctx.stroke();
+
+  // 샘플링 애니메이션: 수직 점선 (위에서 내려옴)
+  if (state.sampling) {
+    ctx.strokeStyle = SCAN_COLOR;
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    state.sampledPoints.forEach(p => {
+      const x = pad.left + p.t * gw;
+      const y = pad.top + (1 - p.quantized / 100) * gh;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+}
+
+// ─── 속력계 그리기 ───
+function drawSpeedometers() {
+  drawAnalogSpeedometer();
+  drawDigitalSpeedometer();
+}
+
+function drawAnalogSpeedometer() {
+  const canvas = analogSpeedoCanvas;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const cx = w / 2;
+  const cy = h * 0.75;
+  const radius = Math.min(w, h) * 0.4;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // 다이얼 배경
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, Math.PI, 0, false);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 눈금
+  for (let i = 0; i <= 10; i++) {
+    const angle = Math.PI + (i / 10) * Math.PI;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const inner = i % 2 === 0 ? 0.75 : 0.85;
+    ctx.strokeStyle = i % 2 === 0 ? '#fff' : '#888';
+    ctx.lineWidth = i % 2 === 0 ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + cos * radius * inner, cy + sin * radius * inner);
+    ctx.lineTo(cx + cos * radius * 0.95, cy + sin * radius * 0.95);
+    ctx.stroke();
+
+    // 숫자
+    if (i % 2 === 0) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '8px Pretendard';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${i * 20}`, cx + cos * radius * 0.62, cy + sin * radius * 0.62 + 3);
+    }
+  }
+
+  // 바늘 — 연속적으로 부드럽게
+  const needleAngle = Math.PI + (state.speedValue / 200) * Math.PI;
+  ctx.strokeStyle = '#ff3333';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(needleAngle) * radius * 0.85, cy + Math.sin(needleAngle) * radius * 0.85);
+  ctx.stroke();
+
+  // 중심 점
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff3333';
+  ctx.fill();
+}
+
+function drawDigitalSpeedometer() {
+  const canvas = digitalSpeedoCanvas;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // 배경
+  ctx.fillStyle = '#0a0a1e';
+  ctx.beginPath();
+  ctx.roundRect(10, 10, w - 20, h - 20, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 디지털 숫자 — 정수로 표시 (불연속적)
+  const displayValue = Math.floor(state.speedValue);
+  ctx.fillStyle = '#00ff88';
+  ctx.font = 'bold 32px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,255,136,0.3)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(displayValue.toString(), w / 2, h / 2 - 5);
+  ctx.shadowBlur = 0;
+
+  // 단위
+  ctx.fillStyle = '#66aa88';
+  ctx.font = '10px Pretendard';
+  ctx.fillText('km/h', w / 2, h / 2 + 20);
+}
+
+// ─── Three.js 센서 설정 ───
+const sensorScene = new THREE.Scene();
+sensorScene.background = new THREE.Color(0xe8eef4);
+
+// 카메라
+const sAspect = 1.5;
+const sensorCameraOrtho = new THREE.OrthographicCamera(-2 * sAspect, 2 * sAspect, 2, -2, 0.1, 100);
+sensorCameraOrtho.position.set(0, 0, 5);
+
+const sensorCameraPerspective = new THREE.PerspectiveCamera(45, sAspect, 0.1, 100);
+sensorCameraPerspective.position.set(2, 1.5, 4);
+sensorCameraPerspective.lookAt(0, 0, 0);
+
+let currentSensorCamera = sensorCameraOrtho;
+
+const sensorRenderer = new THREE.WebGLRenderer({ canvas: sensorCanvas, antialias: true, alpha: true });
+sensorRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// 센서 OrbitControls (3D 모드용)
+const sensorControls = new OrbitControls(sensorCameraPerspective, sensorCanvas);
+sensorControls.enableDamping = true;
+sensorControls.enabled = false;
+
+function updateSensorCamera() {
+  if (state.use3DCamera) {
+    currentSensorCamera = sensorCameraPerspective;
+    sensorControls.enabled = true;
+  } else {
+    currentSensorCamera = sensorCameraOrtho;
+    sensorControls.enabled = false;
+  }
+}
+
+// 조명
+sensorScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sDirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+sDirLight.position.set(2, 3, 4);
+sensorScene.add(sDirLight);
+
+// 센서 본체
+const sensorBody = new THREE.Mesh(
+  new THREE.BoxGeometry(1.0, 0.6, 0.4),
+  new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.5, metalness: 0.4 })
+);
+sensorScene.add(sensorBody);
+
+// 렌즈 (반구)
+const lensGeo = new THREE.SphereGeometry(0.2, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+const lensMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.7, roughness: 0.1, metalness: 0.3 });
+const lens = new THREE.Mesh(lensGeo, lensMat);
+lens.position.set(0, 0.31, 0);
+sensorScene.add(lens);
+
+// 전선 (커브)
+const wireCurve = new THREE.CubicBezierCurve3(
+  new THREE.Vector3(0.5, -0.1, 0),
+  new THREE.Vector3(0.8, -0.3, 0.2),
+  new THREE.Vector3(1.0, -0.6, 0),
+  new THREE.Vector3(1.2, -0.8, 0)
+);
+const wireGeo = new THREE.TubeGeometry(wireCurve, 20, 0.03, 8, false);
+const wireMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+sensorScene.add(new THREE.Mesh(wireGeo, wireMat));
+
+// 파티클 (위→아래 흐름)
+const PARTICLE_COUNT = 30;
+const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+const particleSpeeds = new Float32Array(PARTICLE_COUNT);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particlePositions[i * 3] = (Math.random() - 0.5) * 0.6;
+  particlePositions[i * 3 + 1] = Math.random() * 3 - 0.5;
+  particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+  particleSpeeds[i] = 0.5 + Math.random() * 1.0;
+}
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+const particleMat = new THREE.PointsMaterial({ color: 0x3388ff, size: 0.06, transparent: true, opacity: 0.7 });
+const particles = new THREE.Points(particleGeo, particleMat);
+sensorScene.add(particles);
+
+// 위→아래 화살표 표시
+const arrowGroup = new THREE.Group();
+const arrowShaft = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6),
+  new THREE.MeshBasicMaterial({ color: 0x3388ff, transparent: true, opacity: 0.4 })
+);
+arrowShaft.position.y = -0.6;
+arrowGroup.add(arrowShaft);
+const arrowHead = new THREE.Mesh(
+  new THREE.ConeGeometry(0.06, 0.15, 6),
+  new THREE.MeshBasicMaterial({ color: 0x3388ff, transparent: true, opacity: 0.4 })
+);
+arrowHead.position.y = -1.25;
+arrowHead.rotation.x = Math.PI;
+arrowGroup.add(arrowHead);
+sensorScene.add(arrowGroup);
+
+// ─── 시각 피드백 업데이트 ───
+function updateVisualFeedback() {
+  // 샘플링 주파수 피드백
+  digitalSection.classList.remove('border-low', 'border-mid', 'border-high');
+  qualityFeedback.classList.remove('low', 'mid', 'high');
+
+  if (state.samplingFreq <= 8) {
+    digitalSection.classList.add('border-low');
+    qualityFeedback.classList.add('low');
+    qualityFeedback.textContent = '⚠️ 샘플링 부족 — 원본 신호 손실 큼';
+  } else if (state.samplingFreq <= 32) {
+    digitalSection.classList.add('border-mid');
+    qualityFeedback.classList.add('mid');
+    qualityFeedback.textContent = '⚡ 적절한 샘플링';
+  } else {
+    digitalSection.classList.add('border-high');
+    qualityFeedback.classList.add('high');
+    qualityFeedback.textContent = '✅ 고품질 디지털 변환';
+  }
+
+  // 오차율
+  state.errorRate = calculateErrorRate();
+  const errText = `디지털 변환 오차율: ${state.errorRate.toFixed(1)}%`;
+  let errColor = '#1b8c4e';
+  if (state.errorRate > 20) errColor = '#d32f2f';
+  else if (state.errorRate >= 5) errColor = '#e6a800';
+  errorDisplay.textContent = errText;
+  errorDisplay.style.color = errColor;
+}
+
+// ─── 수식 패널 업데이트 ───
+function updateFormulaPanel() {
+  const freq = state.samplingFreq;
+  const bits = state.bitDepth;
+  const levels = Math.pow(2, bits);
+
+  fpFreq.textContent = `${freq} Hz (초당 ${freq}번 측정)`;
+  fpBits.textContent = `${bits} bit (2${superscript(bits)} = ${levels.toLocaleString()}단계 양자화)`;
+  fpSamples.textContent = `${freq}개`;
+  fpSteps.textContent = `${levels.toLocaleString()}단계`;
+
+  const errColor = state.errorRate > 20 ? '#ff6666' : state.errorRate >= 5 ? '#ffcc44' : '#66ff88';
+  fpError.textContent = `${state.errorRate.toFixed(1)}%`;
+  fpError.style.color = errColor;
+}
+
+// 위첨자 생성
+function superscript(n) {
+  const sup = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+  return String(n).split('').map(c => sup[c] || c).join('');
+}
+
+// ─── 샘플링 애니메이션 ───
+function startSampling() {
+  state.sampling = true;
+  state.scanProgress = 0;
+  state.sampledPoints = [];
+}
+
+function updateSampling(dt) {
+  if (!state.sampling) return;
+  state.scanProgress += dt / 2; // 2초 동안 전체 스캔
+
+  // 현재 스캔 위치까지 샘플 포인트 생성
+  const freq = state.samplingFreq;
+  const targetCount = Math.floor(state.scanProgress * freq);
+  while (state.sampledPoints.length < targetCount && state.sampledPoints.length < freq) {
+    const idx = state.sampledPoints.length;
+    const t = idx / freq;
+    const value = getSignalValue(t);
+    const quantized = quantize(value, state.bitDepth);
+    state.sampledPoints.push({ t, value, quantized });
+  }
+
+  if (state.scanProgress >= 1) {
+    state.sampling = false;
+    state.scanProgress = 1;
+  }
+}
+
+// ─── lil-gui 설정 ───
+const gui = new GUI({ title: '아날로그 vs 디지털' });
+
+const SIGNAL_NAMES = {
+  sunlight: '햇빛 세기 (사인파)',
+  temperature: '기온 변화 (사인+노이즈)',
+  heartbeat: '심박수 (톱니파)',
+  custom: '사용자 정의'
+};
+
+const params = {
+  신호유형: 'sunlight',
+  샘플링주파수: 16,
+  비트수: 8,
+  샘플링시작: () => startSampling(),
+  오버레이비교: true,
+  초기화: () => resetAll(),
+  사용자주파수: 2,
+  사용자진폭: 50
+};
+
+gui.add(params, '신호유형', SIGNAL_NAMES).name('신호 유형').onChange(val => {
+  state.signalType = val;
+  state.sampledPoints = [];
+  state.sampling = false;
+  updateAll();
+});
+
+gui.add(params, '샘플링주파수', [2, 4, 8, 16, 32, 64, 128]).name('샘플링 주파수 (Hz)').onChange(val => {
+  state.samplingFreq = val;
+  state.sampledPoints = [];
+  state.sampling = false;
+  updateAll();
+});
+
+gui.add(params, '비트수', 2, 16, 1).name('비트 수 (양자화)').onChange(val => {
+  state.bitDepth = val;
+  updateAll();
+});
+
+gui.add(params, '샘플링시작').name('▶ 샘플링 시작');
+
+gui.add(params, '오버레이비교').name('오버레이 비교').onChange(val => {
+  state.showOverlay = val;
+});
+
+gui.add(params, '초기화').name('↩ 초기화');
+
+// 사용자 정의 폴더
+const customFolder = gui.addFolder('사용자 정의 설정');
+customFolder.add(params, '사용자주파수', 0.5, 10, 0.5).name('주파수').onChange(val => {
+  state.customFreq = val;
+  updateAll();
+});
+customFolder.add(params, '사용자진폭', 10, 50, 5).name('진폭').onChange(val => {
+  state.customAmp = val;
+  updateAll();
+});
+customFolder.close();
+
+if (window.innerWidth < 768) gui.close();
+
+function resetAll() {
+  state.signalType = 'sunlight';
+  state.samplingFreq = 16;
+  state.bitDepth = 8;
+  state.showOverlay = true;
+  state.sampling = false;
+  state.scanProgress = 0;
+  state.sampledPoints = [];
+  state.customFreq = 2;
+  state.customAmp = 50;
+
+  params.신호유형 = 'sunlight';
+  params.샘플링주파수 = 16;
+  params.비트수 = 8;
+  params.오버레이비교 = true;
+  params.사용자주파수 = 2;
+  params.사용자진폭 = 50;
+
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+  updateAll();
+}
+
+// ─── 전체 업데이트 ───
+function updateAll() {
+  updateVisualFeedback();
+  updateFormulaPanel();
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 센서 파티클 애니메이션 ───
+function updateSensorParticles(dt) {
+  const positions = particleGeo.attributes.position.array;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    positions[i * 3 + 1] -= particleSpeeds[i] * dt;
+    if (positions[i * 3 + 1] < -1.5) {
+      positions[i * 3 + 1] = 1.5;
+      positions[i * 3] = (Math.random() - 0.5) * 0.6;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+    }
+  }
+  particleGeo.attributes.position.needsUpdate = true;
+}
+
+// ─── 메인 애니메이션 루프 ───
+let lastTime = performance.now();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  // 샘플링 애니메이션 업데이트
+  updateSampling(dt);
+
+  // 그래프 그리기
+  drawAnalog();
+  drawDigital();
+
+  // 센서 파티클 업데이트
+  updateSensorParticles(dt);
+
+  // 센서 렌더링
+  if (state.use3DCamera) sensorControls.update();
+  sensorRenderer.render(sensorScene, currentSensorCamera);
+}
+
+// ─── 리사이즈 ───
+window.addEventListener('resize', () => {
+  resizeCanvases();
+  drawSpeedometers();
+  if (window.innerWidth < 768) gui.close();
+});
+
+// ─── 초기화 ───
+resizeCanvases();
+drawSpeedometers();
+updateAll();
+animate();
+
+</script>
+</body>
+</html>

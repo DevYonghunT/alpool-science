@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>열기관과 에너지 전환 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --panel-bg: rgba(13, 24, 40, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-soft: rgba(255, 255, 255, 0.07);
+    --text-main: #f6f8fb;
+    --text-dim: rgba(246, 248, 251, 0.72);
+    --accent-heat: #ff7655;
+    --accent-work: #45d38d;
+    --accent-waste: #ffb562;
+    --accent-steam: #d8ecff;
+    --accent-intake: #64b8ff;
+    --accent-exhaust: #a6b0bb;
+    --accent-guide: #ffe6aa;
+    --accent-spark: #ffd766;
+    --scene-bg: #eef0f5;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 205, 155, 0.45), transparent 22%),
+      radial-gradient(circle at 84% 16%, rgba(172, 206, 255, 0.36), transparent 22%),
+      linear-gradient(180deg, #eef0f5 0%, #dde2eb 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.16);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(560px, calc(100vw - 220px));
+    padding: 12px 18px 14px;
+    border-radius: 20px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 25;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(12, 24, 42, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 24;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(72vh, 640px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 7px;
+    font-size: 15px;
+    color: #d0e8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--accent-guide);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 11px 13px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(540px, calc(100vw - 36px));
+    padding: 10px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #ffffff;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #ffffff;
+  }
+
+  #formula-panel .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  #formula-panel .row span:last-child {
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #formula-panel .note {
+    margin-top: 10px;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .ok {
+    color: #9bffce;
+    font-weight: 700;
+  }
+
+  #energy-panel {
+    position: fixed;
+    top: 114px;
+    right: 14px;
+    z-index: 18;
+    width: min(370px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  #energy-panel.hidden {
+    display: none;
+  }
+
+  #energy-panel h2 {
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  #energy-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #energy-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    margin-top: 12px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .energy-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .energy-stat {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .energy-stat .label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.62);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .energy-stat .value {
+    margin-top: 6px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .energy-stat .sub {
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  #perpetual-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(370px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 22px;
+    display: none;
+  }
+
+  #perpetual-panel.visible {
+    display: block;
+  }
+
+  #perpetual-panel h3 {
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  #perpetual-panel p {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .mini-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mini-card h4 {
+    font-size: 12px;
+    color: #fff;
+  }
+
+  .mini-card .caption {
+    margin-top: 8px;
+    font-size: 10px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .mini-illustration {
+    position: relative;
+    height: 90px;
+    margin-top: 10px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(10, 20, 35, 0.8), rgba(10, 20, 35, 0.45));
+    overflow: hidden;
+  }
+
+  .mini-illustration .wheel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    width: 44px;
+    height: 44px;
+    border: 5px solid #8fb4d8;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.08);
+  }
+
+  .mini-illustration .wheel::before,
+  .mini-illustration .wheel::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 100%;
+    background: rgba(143, 180, 216, 0.7);
+    transform: translate(-50%, -50%);
+  }
+
+  .mini-illustration .wheel::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+
+  .mini-illustration .water-stream {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    width: 28px;
+    height: 72px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(94, 182, 255, 0.94), rgba(94, 182, 255, 0.1));
+    transform: skewX(-12deg);
+  }
+
+  .mini-illustration .magnet {
+    position: absolute;
+    top: 16px;
+    width: 26px;
+    height: 38px;
+    border-radius: 12px 12px 10px 10px;
+    border: 6px solid #ff7b61;
+    border-bottom: 0;
+  }
+
+  .mini-illustration .magnet.left {
+    left: 16px;
+  }
+
+  .mini-illustration .magnet.right {
+    right: 16px;
+    border-color: #63b7ff;
+  }
+
+  .mini-illustration .magnet::before,
+  .mini-illustration .magnet::after {
+    content: "";
+    position: absolute;
+    bottom: -12px;
+    width: 8px;
+    height: 14px;
+    border-radius: 0 0 5px 5px;
+    background: currentColor;
+  }
+
+  .mini-illustration .magnet::before {
+    left: 0;
+  }
+
+  .mini-illustration .magnet::after {
+    right: 0;
+  }
+
+  .mini-illustration .cart {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 18px;
+    border-radius: 8px;
+    background: #d5dfeb;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  }
+
+  .mini-illustration .cart::before,
+  .mini-illustration .cart::after {
+    content: "";
+    position: absolute;
+    bottom: -10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #95a3b3;
+  }
+
+  .mini-illustration .cart::before {
+    left: 4px;
+  }
+
+  .mini-illustration .cart::after {
+    right: 4px;
+  }
+
+  #overlay-labels {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 17;
+  }
+
+  .flow-label {
+    position: absolute;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(8, 18, 34, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .flow-label.visible {
+    opacity: 1;
+  }
+
+  .flow-label.heat {
+    color: #ffb08b;
+  }
+
+  .flow-label.motion {
+    color: #acffd1;
+  }
+
+  .flow-label.steam {
+    color: #ddefff;
+  }
+
+  .flow-label.waste {
+    color: #ffd390;
+  }
+
+  .flow-label.intake {
+    color: #8bd0ff;
+  }
+
+  .flow-label.compression {
+    color: #ffe08b;
+  }
+
+  .flow-label.power {
+    color: #ff9f78;
+  }
+
+  .flow-label.exhaust {
+    color: #d1d7dd;
+  }
+
+  .stroke-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .lil-gui.root {
+    --width: 308px;
+    z-index: 26 !important;
+    margin-top: 54px;
+    margin-right: 12px;
+  }
+
+  .lil-gui {
+    --background-color: rgba(10, 20, 36, 0.88);
+    --widget-color: rgba(255, 255, 255, 0.06);
+    --widget-height: 28px;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --title-text-color: #f6f8fb;
+    --text-color: #f6f8fb;
+    --focus-color: rgba(69, 211, 141, 0.44);
+    --number-color: #86ffbe;
+    --string-color: #ffd87d;
+  }
+
+  @media (max-width: 1180px) {
+    #title-card {
+      width: min(520px, calc(100vw - 32px));
+    }
+
+    #status-chip {
+      top: 108px;
+      width: min(520px, calc(100vw - 32px));
+    }
+
+    #energy-panel,
+    #perpetual-panel {
+      width: min(340px, calc(100vw - 28px));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #title-card {
+      width: calc(100vw - 28px);
+    }
+
+    #energy-panel {
+      top: auto;
+      bottom: 14px;
+      right: 14px;
+    }
+
+    #perpetual-panel {
+      right: 14px;
+      bottom: 14px;
+      max-height: 42vh;
+      overflow-y: auto;
+    }
+
+    #formula-panel {
+      bottom: 14px;
+      width: min(340px, calc(100vw - 390px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #guide-toggle {
+      top: auto;
+      bottom: 14px;
+      left: 14px;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 54px;
+      max-height: min(56vh, 520px);
+    }
+
+    #status-chip {
+      top: 116px;
+      border-radius: 18px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 148px;
+      width: auto;
+    }
+
+    #energy-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      width: auto;
+    }
+
+    #perpetual-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+    }
+
+    .energy-stat-grid,
+    .mini-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui.root {
+      margin-top: 150px;
+      margin-right: 8px;
+      transform: scale(0.96);
+      transform-origin: top right;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+<div id="overlay-labels"></div>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Physics · Heat Engine</div>
+  <h1>열기관과 에너지 전환</h1>
+  <p>증기 기관과 4행정 내연 기관을 비교하며 열에너지가 역학적 에너지로 전환되는 과정을 살펴보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass">
+  <h3>핵심 원리</h3>
+  <p>열기관은 열에너지를 역학적 에너지로 전환하는 장치입니다. 공급한 열에너지가 모두 유용한 일로 바뀌지는 않으며, 일부는 폐열로 방출됩니다. 효율은 <strong>η = W / Q<sub>in</sub> × 100%</strong> 로 나타냅니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>증기 기관에서 연소한 열이 어떤 과정을 거쳐 바퀴 회전으로 이어질까요?</li>
+    <li>내연 기관의 4행정 중 실제로 동력을 만들어내는 행정은 어느 단계일까요?</li>
+    <li>열기관의 효율이 왜 100%가 될 수 없는지 에너지 보존 관점에서 설명해 볼까요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>자동차 엔진: 내연 기관의 대표 사례</li>
+    <li>화력 발전소: 증기로 터빈을 돌려 전기를 생산</li>
+    <li>제트 엔진: 연소와 팽창을 이용해 추진력을 생성</li>
+  </ul>
+
+  <div class="ref-box">
+    물리학 I편 p62~67 · 열기관, 에너지 전환, 영구 기관
+  </div>
+</div>
+
+<div id="status-chip" class="glass"></div>
+
+<div id="formula-panel" class="glass"></div>
+
+<div id="energy-panel" class="glass">
+  <h2>에너지 흐름 다이어그램</h2>
+  <p>입력된 열에너지 Q<sub>in</sub>이 역학적 에너지 W와 폐열 Q<sub>out</sub>으로 나뉘는 모습을 Sankey 스타일로 보여줍니다.</p>
+  <svg id="energy-svg" viewBox="0 0 360 280" aria-label="에너지 흐름 다이어그램">
+    <defs>
+      <linearGradient id="heatGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#ff7756"></stop>
+        <stop offset="100%" stop-color="#ffcf82"></stop>
+      </linearGradient>
+      <linearGradient id="workGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#4ddf99"></stop>
+        <stop offset="100%" stop-color="#84f0ba"></stop>
+      </linearGradient>
+      <linearGradient id="wasteGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#ffab58"></stop>
+        <stop offset="100%" stop-color="#ffd485"></stop>
+      </linearGradient>
+    </defs>
+    <rect x="24" y="58" width="34" height="164" rx="12" fill="url(#heatGrad)" opacity="0.96"></rect>
+    <path id="work-band" fill="url(#workGrad)" opacity="0.92"></path>
+    <path id="waste-band" fill="url(#wasteGrad)" opacity="0.88"></path>
+    <rect id="work-node" x="302" y="72" width="34" height="56" rx="12" fill="#39cf87"></rect>
+    <rect id="waste-node" x="302" y="150" width="34" height="56" rx="12" fill="#ffb15f"></rect>
+    <g id="flow-dots"></g>
+    <text x="18" y="42" fill="#ffffff" font-size="13" font-weight="700">Q_in</text>
+    <text x="298" y="44" fill="#ffffff" font-size="13" font-weight="700">출력</text>
+    <text id="qin-label" x="20" y="242" fill="rgba(255,255,255,0.78)" font-size="12">100%</text>
+    <text id="work-label" x="264" y="108" fill="#ffffff" font-size="12">W</text>
+    <text id="waste-label" x="246" y="186" fill="#ffffff" font-size="12">Q_out</text>
+  </svg>
+  <div class="energy-stat-grid">
+    <div class="energy-stat">
+      <div class="label">입력</div>
+      <div class="value" id="energy-qin">500 J</div>
+      <div class="sub">연료 연소로 공급된 열에너지</div>
+    </div>
+    <div class="energy-stat">
+      <div class="label">유용한 일</div>
+      <div class="value" id="energy-work">150 J</div>
+      <div class="sub">운동과 회전에 사용된 에너지</div>
+    </div>
+    <div class="energy-stat">
+      <div class="label">폐열</div>
+      <div class="value" id="energy-waste">350 J</div>
+      <div class="sub">주변으로 빠져나간 열</div>
+    </div>
+  </div>
+</div>
+
+<div id="perpetual-panel" class="glass">
+  <h3>영구 기관은 왜 불가능할까?</h3>
+  <p>외부 에너지 공급 없이 영원히 일을 하는 장치는 에너지 보존 법칙과 마찰, 공기 저항, 열 손실 때문에 실현될 수 없습니다.</p>
+  <div class="mini-grid">
+    <div class="mini-card">
+      <h4>자체 순환 물레방아</h4>
+      <div class="mini-illustration">
+        <div class="wheel"></div>
+        <div class="water-stream"></div>
+      </div>
+      <div class="caption">물을 다시 위로 올리는 과정에 외부 에너지가 필요하므로 스스로 계속 돌 수 없습니다.</div>
+    </div>
+    <div class="mini-card">
+      <h4>자석 기관</h4>
+      <div class="mini-illustration">
+        <div class="magnet left"></div>
+        <div class="magnet right"></div>
+        <div class="cart"></div>
+      </div>
+      <div class="caption">자석 힘만으로 계속 같은 방향의 순환 운동을 만들 수 없고 손실을 보상할 에너지도 없습니다.</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const STROKES = [
+  { key: '흡입', label: '① 흡입', short: '흡입', description: '흡기 밸브가 열리고 피스톤이 내려가며 혼합기가 들어옵니다.' },
+  { key: '압축', label: '② 압축', short: '압축', description: '밸브가 닫히고 피스톤이 올라가며 혼합기가 압축됩니다.' },
+  { key: '폭발', label: '③ 폭발', short: '폭발', description: '점화 플러그가 혼합기에 불꽃을 주고 팽창이 동력을 만듭니다.' },
+  { key: '배기', label: '④ 배기', short: '배기', description: '배기 밸브가 열리고 연소 후 기체가 밖으로 나갑니다.' }
+];
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  overlayLabels: document.getElementById('overlay-labels'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusChip: document.getElementById('status-chip'),
+  formulaPanel: document.getElementById('formula-panel'),
+  energyPanel: document.getElementById('energy-panel'),
+  energySvg: document.getElementById('energy-svg'),
+  flowDots: document.getElementById('flow-dots'),
+  workBand: document.getElementById('work-band'),
+  wasteBand: document.getElementById('waste-band'),
+  workNode: document.getElementById('work-node'),
+  wasteNode: document.getElementById('waste-node'),
+  qinLabel: document.getElementById('qin-label'),
+  workLabel: document.getElementById('work-label'),
+  wasteLabel: document.getElementById('waste-label'),
+  energyQin: document.getElementById('energy-qin'),
+  energyWork: document.getElementById('energy-work'),
+  energyWaste: document.getElementById('energy-waste'),
+  perpetualPanel: document.getElementById('perpetual-panel')
+};
+
+const params = {
+  engineType: '증기 기관',
+  strokeMode: '자동 순환',
+  efficiency: 30,
+  heatInput: 500,
+  animationSpeed: 1,
+  showEnergyFlow: true,
+  showPerpetual: false,
+  reset: () => resetSimulation()
+};
+
+const runtime = {
+  elapsed: 0,
+  cycleTime: 0,
+  flowDots: [],
+  overlayEntries: [],
+  activeEngine: null
+};
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xeef0f5, 18, 36);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
+camera.position.set(8.8, 6.2, 10.6);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.setClearColor(0xeef0f5, 0);
+
+const controls = new OrbitControls(camera, dom.canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 6;
+controls.maxDistance = 22;
+controls.target.set(0.4, 2.2, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
+sunLight.position.set(5, 11, 6);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -12;
+sunLight.shadow.camera.right = 12;
+sunLight.shadow.camera.top = 12;
+sunLight.shadow.camera.bottom = -6;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 30;
+sunLight.shadow.bias = -0.00012;
+scene.add(sunLight);
+
+const fillLight = new THREE.PointLight(0xffffff, 0.35, 30, 2);
+fillLight.position.set(-6, 5, -4);
+scene.add(fillLight);
+
+const ground = new THREE.Mesh(
+  new THREE.CylinderGeometry(8.6, 9.2, 0.35, 80),
+  new THREE.MeshStandardMaterial({
+    color: 0xc8d1dd,
+    roughness: 0.92,
+    metalness: 0.04
+  })
+);
+ground.position.y = -0.2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const stageRing = new THREE.Mesh(
+  new THREE.TorusGeometry(6.2, 0.08, 20, 80),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.16
+  })
+);
+stageRing.rotation.x = Math.PI / 2;
+stageRing.position.y = 0.02;
+scene.add(stageRing);
+
+const platform = new THREE.Mesh(
+  new THREE.BoxGeometry(8.8, 0.42, 4.8),
+  new THREE.MeshStandardMaterial({
+    color: 0x425367,
+    roughness: 0.82,
+    metalness: 0.25
+  })
+);
+platform.position.set(0.25, 0.1, 0);
+platform.receiveShadow = true;
+scene.add(platform);
+
+const accentRail = new THREE.Mesh(
+  new THREE.BoxGeometry(9.1, 0.08, 0.2),
+  new THREE.MeshStandardMaterial({
+    color: 0x9ab0c8,
+    roughness: 0.6,
+    metalness: 0.48
+  })
+);
+accentRail.position.set(0.25, 0.38, 2.24);
+scene.add(accentRail);
+
+const clock = new THREE.Clock();
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.classList.toggle('open');
+});
+
+function formatJoule(value) {
+  return `${Math.round(value)} J`;
+}
+
+function formatPercent(value) {
+  return `${value.toFixed(1)}%`;
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function createCapsuleRod(radius, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 1, 18),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.32,
+      metalness: 0.72
+    })
+  );
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function updateLink(mesh, start, end) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = Math.max(direction.length(), 0.001);
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.scale.set(1, length, 1);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+}
+
+function setMeshShadow(mesh) {
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createArrow(start, end, color) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  const arrow = new THREE.ArrowHelper(direction.clone().normalize(), start, length, color, 0.26, 0.14);
+  arrow.line.material.transparent = true;
+  arrow.cone.material.transparent = true;
+  arrow.line.material.opacity = 0.36;
+  arrow.cone.material.opacity = 0.36;
+  arrow.userData.length = length;
+  return arrow;
+}
+
+function setArrowIntensity(arrow, intensity) {
+  const opacity = 0.12 + intensity * 0.82;
+  arrow.line.material.opacity = opacity;
+  arrow.cone.material.opacity = opacity;
+  arrow.setLength(arrow.userData.length * (0.92 + intensity * 0.08), 0.26, 0.14);
+}
+
+function createParticleSystem(count, color, size) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const particles = [];
+  const baseColor = new THREE.Color(color);
+
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3 + 0] = 999;
+    positions[i * 3 + 1] = 999;
+    positions[i * 3 + 2] = 999;
+    colors[i * 3 + 0] = baseColor.r;
+    colors[i * 3 + 1] = baseColor.g;
+    colors[i * 3 + 2] = baseColor.b;
+    particles.push({
+      alive: false,
+      life: 0,
+      maxLife: 1,
+      position: new THREE.Vector3(),
+      velocity: new THREE.Vector3()
+    });
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const material = new THREE.PointsMaterial({
+    size,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+
+  return {
+    geometry,
+    positions,
+    particles,
+    material,
+    points
+  };
+}
+
+function emitParticle(system, origin, velocity, life) {
+  const slot = system.particles.find((particle) => !particle.alive) || system.particles[Math.floor(Math.random() * system.particles.length)];
+  slot.alive = true;
+  slot.life = life;
+  slot.maxLife = life;
+  slot.position.copy(origin);
+  slot.velocity.copy(velocity);
+}
+
+function updateParticleSystem(system, dt, drag = 0.98, lift = 0) {
+  for (let i = 0; i < system.particles.length; i += 1) {
+    const particle = system.particles[i];
+    const index = i * 3;
+
+    if (!particle.alive) {
+      system.positions[index + 0] = 999;
+      system.positions[index + 1] = 999;
+      system.positions[index + 2] = 999;
+      continue;
+    }
+
+    particle.life -= dt;
+    if (particle.life <= 0) {
+      particle.alive = false;
+      system.positions[index + 0] = 999;
+      system.positions[index + 1] = 999;
+      system.positions[index + 2] = 999;
+      continue;
+    }
+
+    particle.velocity.multiplyScalar(drag);
+    particle.velocity.y += lift * dt;
+    particle.position.addScaledVector(particle.velocity, dt);
+    system.positions[index + 0] = particle.position.x;
+    system.positions[index + 1] = particle.position.y;
+    system.positions[index + 2] = particle.position.z;
+  }
+
+  system.geometry.attributes.position.needsUpdate = true;
+}
+
+function clearParticleSystem(system) {
+  system.particles.forEach((particle) => {
+    particle.alive = false;
+  });
+  updateParticleSystem(system, 0);
+}
+
+function createOverlayLabel(text, className) {
+  const element = document.createElement('div');
+  element.className = `flow-label ${className}`;
+  element.textContent = text;
+  dom.overlayLabels.appendChild(element);
+  return element;
+}
+
+function clearOverlayEntries() {
+  runtime.overlayEntries.forEach((entry) => entry.element.remove());
+  runtime.overlayEntries.length = 0;
+}
+
+function addOverlayEntry(text, className, target, isVisible) {
+  const element = createOverlayLabel(text, className);
+  runtime.overlayEntries.push({
+    element,
+    target,
+    isVisible
+  });
+}
+
+function updateOverlayPositions() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const projected = new THREE.Vector3();
+
+  runtime.overlayEntries.forEach((entry) => {
+    let worldPosition;
+    if (typeof entry.target === 'function') {
+      worldPosition = entry.target();
+    } else if (entry.target instanceof THREE.Object3D) {
+      worldPosition = entry.target.getWorldPosition(new THREE.Vector3());
+    } else {
+      worldPosition = entry.target.clone();
+    }
+
+    projected.copy(worldPosition).project(camera);
+    const visible = projected.z < 1 && projected.z > -1 && entry.isVisible();
+
+    if (!visible) {
+      entry.element.classList.remove('visible');
+      return;
+    }
+
+    entry.element.classList.add('visible');
+    entry.element.style.left = `${(projected.x * 0.5 + 0.5) * width}px`;
+    entry.element.style.top = `${(-projected.y * 0.5 + 0.5) * height}px`;
+  });
+}
+
+function disposeMaterial(material) {
+  if (Array.isArray(material)) {
+    material.forEach((item) => item.dispose());
+  } else if (material) {
+    material.dispose();
+  }
+}
+
+function disposeObject(root) {
+  if (!root) return;
+  root.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) disposeMaterial(child.material);
+  });
+  if (root.parent) root.parent.remove(root);
+}
+
+function createSteamEngine() {
+  const root = new THREE.Group();
+  root.position.set(-0.45, 0.35, 0);
+
+  const metal = new THREE.MeshStandardMaterial({ color: 0x7d8590, roughness: 0.36, metalness: 0.7 });
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x505a66, roughness: 0.48, metalness: 0.55 });
+  const copper = new THREE.MeshStandardMaterial({ color: 0x9f6843, roughness: 0.38, metalness: 0.52 });
+  const boilerMaterial = new THREE.MeshStandardMaterial({
+    color: 0x666666,
+    roughness: 0.34,
+    metalness: 0.74,
+    transparent: true,
+    opacity: 0.74,
+    emissive: 0x37180a,
+    emissiveIntensity: 0.15
+  });
+  const fireBoxMaterial = darkMetal.clone();
+  fireBoxMaterial.emissive = new THREE.Color(0x3a1208);
+  const chimneyMaterial = darkMetal.clone();
+  chimneyMaterial.emissive = new THREE.Color(0x4a1e00);
+
+  const boiler = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(1.45, 1.45, 2.2, 44),
+    boilerMaterial
+  ));
+  boiler.rotation.z = Math.PI / 2;
+  boiler.position.set(-2.25, 2.3, 0);
+  root.add(boiler);
+
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.18, 1.18, 1.7, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0x4a9dff,
+      transparent: true,
+      opacity: 0.62,
+      roughness: 0.18,
+      metalness: 0.02
+    })
+  );
+  water.rotation.z = Math.PI / 2;
+  water.position.set(-2.25, 1.85, 0);
+  root.add(water);
+
+  const fireBox = setMeshShadow(new THREE.Mesh(
+    new THREE.BoxGeometry(2.3, 1.15, 1.6),
+    fireBoxMaterial
+  ));
+  fireBox.position.set(-2.25, 0.78, 0);
+  root.add(fireBox);
+
+  const chimney = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.38, 2.15, 28),
+    chimneyMaterial
+  ));
+  chimney.position.set(-1.05, 3.58, 0);
+  root.add(chimney);
+
+  const steamPipe = setMeshShadow(new THREE.Mesh(
+    new THREE.TorusGeometry(1.18, 0.12, 18, 60, Math.PI * 0.58),
+    copper
+  ));
+  steamPipe.rotation.z = Math.PI * 0.52;
+  steamPipe.rotation.x = Math.PI / 2;
+  steamPipe.position.set(-0.4, 2.65, 0);
+  root.add(steamPipe);
+
+  const pistonHousing = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.62, 3.1, 32),
+    darkMetal
+  ));
+  pistonHousing.rotation.z = Math.PI / 2;
+  pistonHousing.position.set(1.65, 2.25, 0);
+  root.add(pistonHousing);
+
+  const piston = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.46, 0.46, 0.62, 26),
+    metal
+  ));
+  piston.rotation.z = Math.PI / 2;
+  root.add(piston);
+
+  const slideRod = createCapsuleRod(0.09, 0xc4ccd6);
+  root.add(slideRod);
+
+  const flywheelGroup = new THREE.Group();
+  flywheelGroup.position.set(4.2, 2.25, 0);
+  root.add(flywheelGroup);
+
+  const flywheel = setMeshShadow(new THREE.Mesh(
+    new THREE.TorusGeometry(1.1, 0.16, 20, 60),
+    new THREE.MeshStandardMaterial({ color: 0x8b9097, roughness: 0.3, metalness: 0.82 })
+  ));
+  flywheelGroup.add(flywheel);
+
+  for (let i = 0; i < 4; i += 1) {
+    const spoke = setMeshShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 1.95, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0x9098a1, roughness: 0.28, metalness: 0.78 })
+    ));
+    spoke.rotation.z = (Math.PI / 2) * i;
+    flywheelGroup.add(spoke);
+  }
+
+  const flywheelHub = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.2, 0.36, 20),
+    darkMetal
+  ));
+  flywheelHub.rotation.x = Math.PI / 2;
+  flywheelGroup.add(flywheelHub);
+
+  const crankPin = setMeshShadow(new THREE.Mesh(
+    new THREE.SphereGeometry(0.14, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xe5eef8, roughness: 0.28, metalness: 0.78 })
+  ));
+  flywheelGroup.add(crankPin);
+
+  const connectingRod = createCapsuleRod(0.1, 0xdce3ea);
+  root.add(connectingRod);
+
+  const baseLegs = [
+    [-3.55, 0.1],
+    [-1.2, 0.1],
+    [2.1, 0.1],
+    [4.7, 0.1]
+  ];
+  baseLegs.forEach(([x, z]) => {
+    const leg = setMeshShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 1.15, 0.28),
+      darkMetal
+    ));
+    leg.position.set(x, 0.58, z);
+    root.add(leg);
+  });
+
+  const fireParticles = createParticleSystem(34, 0xff6c47, 0.16);
+  const steamParticles = createParticleSystem(42, 0xf5fbff, 0.17);
+  const wasteParticles = createParticleSystem(30, 0xffb35a, 0.15);
+
+  root.add(fireParticles.points);
+  root.add(steamParticles.points);
+  root.add(wasteParticles.points);
+
+  const fireArrow = createArrow(
+    new THREE.Vector3(-2.25, 0.92, 1.1),
+    new THREE.Vector3(-2.25, 1.9, 1.1),
+    0xff8a60
+  );
+  root.add(fireArrow);
+
+  const steamArrow = createArrow(
+    new THREE.Vector3(-1.35, 2.82, 1.18),
+    new THREE.Vector3(1.05, 2.52, 1.18),
+    0xdcefff
+  );
+  root.add(steamArrow);
+
+  const motionArrow = createArrow(
+    new THREE.Vector3(2.35, 1.45, 1.18),
+    new THREE.Vector3(3.85, 1.45, 1.18),
+    0x59de93
+  );
+  root.add(motionArrow);
+
+  const wasteArrow = createArrow(
+    new THREE.Vector3(-1.0, 4.02, 1.18),
+    new THREE.Vector3(-0.2, 5.05, 1.18),
+    0xffc17a
+  );
+  root.add(wasteArrow);
+
+  const state = {
+    wheelCenter: new THREE.Vector3(4.2, 2.25, 0),
+    pistonAnchor: new THREE.Vector3(),
+    crankAnchor: new THREE.Vector3()
+  };
+
+  function update(dt, elapsed) {
+    const heatRatio = params.heatInput / 1000;
+    const efficiencyRatio = params.efficiency / 100;
+    const angle = elapsed * params.animationSpeed * 2.0;
+    const pistonX = 1.6 + Math.cos(angle) * 0.84;
+    const boilerHeat = 0.18 + heatRatio * 0.38;
+
+    piston.position.set(pistonX, 2.25, 0);
+    flywheelGroup.rotation.z = -angle;
+    crankPin.position.set(Math.cos(angle) * 0.94, Math.sin(angle) * 0.94, 0);
+    state.crankAnchor.copy(flywheelGroup.localToWorld(crankPin.position.clone()));
+
+    const pistonFace = new THREE.Vector3(pistonX + 0.34, 2.25, 0);
+    state.pistonAnchor.copy(root.localToWorld(pistonFace.clone()));
+
+    updateLink(slideRod, new THREE.Vector3(-0.05, 2.25, 0), new THREE.Vector3(pistonX - 0.28, 2.25, 0));
+    updateLink(connectingRod, pistonFace, root.worldToLocal(state.crankAnchor.clone()));
+
+    water.scale.y = 0.55 + Math.sin(elapsed * 2.1) * 0.015;
+    boiler.material.emissiveIntensity = boilerHeat;
+    chimney.material.emissiveIntensity = 0.06 + (1 - efficiencyRatio) * 0.16;
+    fireBox.material.emissiveIntensity = 0.24 + heatRatio * 0.36;
+
+    for (let i = 0; i < 2 + heatRatio * 4; i += 1) {
+      emitParticle(
+        fireParticles,
+        new THREE.Vector3(-2.25 + (Math.random() - 0.5) * 1.0, 0.85, (Math.random() - 0.5) * 0.8),
+        new THREE.Vector3((Math.random() - 0.5) * 0.45, 1.4 + Math.random() * 1.2, (Math.random() - 0.5) * 0.3),
+        0.55 + Math.random() * 0.35
+      );
+    }
+
+    for (let i = 0; i < 2 + heatRatio * 3; i += 1) {
+      emitParticle(
+        steamParticles,
+        new THREE.Vector3(-1.15 + Math.random() * 0.35, 3.0, (Math.random() - 0.5) * 0.45),
+        new THREE.Vector3(1.1 + Math.random() * 1.2, 0.15 + Math.random() * 0.28, (Math.random() - 0.5) * 0.12),
+        0.9 + Math.random() * 0.45
+      );
+    }
+
+    for (let i = 0; i < 1 + (1 - efficiencyRatio) * 5; i += 1) {
+      emitParticle(
+        wasteParticles,
+        new THREE.Vector3(-1.05 + (Math.random() - 0.5) * 0.15, 4.58, (Math.random() - 0.5) * 0.15),
+        new THREE.Vector3((Math.random() - 0.5) * 0.22, 0.85 + Math.random() * 0.7, (Math.random() - 0.5) * 0.2),
+        0.75 + Math.random() * 0.4
+      );
+    }
+
+    updateParticleSystem(fireParticles, dt, 0.94, 0.35);
+    updateParticleSystem(steamParticles, dt, 0.985, 0.08);
+    updateParticleSystem(wasteParticles, dt, 0.965, 0.26);
+
+    setArrowIntensity(fireArrow, 0.64 + heatRatio * 0.28);
+    setArrowIntensity(steamArrow, 0.58 + heatRatio * 0.24);
+    setArrowIntensity(motionArrow, 0.36 + efficiencyRatio * 0.62);
+    setArrowIntensity(wasteArrow, 0.26 + (1 - efficiencyRatio) * 0.62);
+  }
+
+  function reset() {
+    clearParticleSystem(fireParticles);
+    clearParticleSystem(steamParticles);
+    clearParticleSystem(wasteParticles);
+  }
+
+  addOverlayEntry('연료 연소 → 열에너지', 'heat', () => root.localToWorld(new THREE.Vector3(-2.2, 1.25, 1.0)), () => params.engineType === '증기 기관');
+  addOverlayEntry('증기 압력 → 피스톤 왕복', 'steam', () => root.localToWorld(new THREE.Vector3(0.1, 2.95, 1.1)), () => params.engineType === '증기 기관');
+  addOverlayEntry('크랭크 → 회전', 'motion', () => root.localToWorld(new THREE.Vector3(3.7, 1.15, 1.1)), () => params.engineType === '증기 기관');
+  addOverlayEntry('폐열 방출', 'waste', () => root.localToWorld(new THREE.Vector3(-0.55, 4.65, 1.15)), () => params.engineType === '증기 기관');
+
+  return {
+    type: 'steam',
+    root,
+    update,
+    reset,
+    getStrokeLabel() {
+      return '증기 팽창과 회전';
+    },
+    getStatusText() {
+      return '연소된 연료의 열이 물을 가열해 증기를 만들고, 증기가 피스톤과 플라이휠을 움직입니다.';
+    }
+  };
+}
+
+function createCombustionEngine() {
+  const root = new THREE.Group();
+  root.position.set(0.2, 0.35, 0);
+
+  const shellMaterial = new THREE.MeshStandardMaterial({
+    color: 0x7f8892,
+    roughness: 0.32,
+    metalness: 0.72,
+    transparent: true,
+    opacity: 0.38
+  });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xa2acb7, roughness: 0.28, metalness: 0.78 });
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x56606b, roughness: 0.4, metalness: 0.58 });
+  const accentBlue = new THREE.MeshStandardMaterial({ color: 0x4ca7ff, roughness: 0.2, metalness: 0.12 });
+  const accentGray = new THREE.MeshStandardMaterial({ color: 0xaeb8c3, roughness: 0.3, metalness: 0.12 });
+
+  const crankBase = setMeshShadow(new THREE.Mesh(
+    new THREE.BoxGeometry(3.8, 0.44, 2.2),
+    darkMetal
+  ));
+  crankBase.position.set(0, 0.45, 0);
+  root.add(crankBase);
+
+  const cylinderShell = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.92, 0.92, 3.4, 34, 1, true),
+    shellMaterial
+  ));
+  cylinderShell.position.set(0, 2.55, 0);
+  root.add(cylinderShell);
+
+  const topCap = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.96, 0.96, 0.18, 34),
+    darkMetal
+  ));
+  topCap.position.set(0, 4.3, 0);
+  root.add(topCap);
+
+  const bottomCap = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.96, 0.96, 0.22, 34),
+    darkMetal
+  ));
+  bottomCap.position.set(0, 0.8, 0);
+  root.add(bottomCap);
+
+  const piston = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.78, 0.78, 0.52, 28),
+    metal
+  ));
+  root.add(piston);
+
+  const pistonPin = setMeshShadow(new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.24, 0.96),
+    darkMetal
+  ));
+  root.add(pistonPin);
+
+  const connectingRod = createCapsuleRod(0.1, 0xdce6ef);
+  root.add(connectingRod);
+
+  const crankGroup = new THREE.Group();
+  crankGroup.position.set(0, 0.78, 0);
+  root.add(crankGroup);
+
+  const crankWheel = setMeshShadow(new THREE.Mesh(
+    new THREE.TorusGeometry(0.88, 0.13, 18, 52),
+    new THREE.MeshStandardMaterial({ color: 0x8d949d, roughness: 0.28, metalness: 0.8 })
+  ));
+  crankGroup.add(crankWheel);
+
+  const crankHub = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 0.32, 20),
+    darkMetal
+  ));
+  crankHub.rotation.x = Math.PI / 2;
+  crankGroup.add(crankHub);
+
+  const crankPin = setMeshShadow(new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xf4f8fb, roughness: 0.25, metalness: 0.7 })
+  ));
+  crankGroup.add(crankPin);
+
+  const intakeValve = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, 0.52, 20),
+    accentBlue
+  ));
+  intakeValve.position.set(-0.38, 4.06, 0);
+  root.add(intakeValve);
+
+  const exhaustValve = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, 0.52, 20),
+    accentGray
+  ));
+  exhaustValve.position.set(0.38, 4.06, 0);
+  root.add(exhaustValve);
+
+  const sparkPlug = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 0.48, 18),
+    new THREE.MeshStandardMaterial({ color: 0xf0dcb0, roughness: 0.22, metalness: 0.36 })
+  ));
+  sparkPlug.position.set(0, 4.12, 0);
+  root.add(sparkPlug);
+
+  const intakePipe = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 1.65, 22),
+    accentBlue
+  ));
+  intakePipe.rotation.z = Math.PI / 2;
+  intakePipe.position.set(-1.45, 3.62, 0);
+  root.add(intakePipe);
+
+  const exhaustPipe = setMeshShadow(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 1.65, 22),
+    accentGray
+  ));
+  exhaustPipe.rotation.z = Math.PI / 2;
+  exhaustPipe.position.set(1.45, 3.62, 0);
+  root.add(exhaustPipe);
+
+  const chamberGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.56, 24, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x5fb7ff,
+      transparent: true,
+      opacity: 0.22
+    })
+  );
+  chamberGlow.position.set(0, 3.1, 0);
+  root.add(chamberGlow);
+
+  const sparkGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 18, 18),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd468,
+      transparent: true,
+      opacity: 0
+    })
+  );
+  sparkGlow.position.set(0, 3.78, 0);
+  root.add(sparkGlow);
+
+  const intakeParticles = createParticleSystem(34, 0x65b7ff, 0.15);
+  const exhaustParticles = createParticleSystem(34, 0xb1bcc8, 0.14);
+  const powerParticles = createParticleSystem(32, 0xff875a, 0.16);
+  const sparkParticles = createParticleSystem(18, 0xffd766, 0.14);
+
+  root.add(intakeParticles.points);
+  root.add(exhaustParticles.points);
+  root.add(powerParticles.points);
+  root.add(sparkParticles.points);
+
+  const intakeArrow = createArrow(
+    new THREE.Vector3(-1.95, 3.62, 1.1),
+    new THREE.Vector3(-0.45, 3.62, 1.1),
+    0x64b8ff
+  );
+  root.add(intakeArrow);
+
+  const compressionArrow = createArrow(
+    new THREE.Vector3(-0.95, 1.68, 1.1),
+    new THREE.Vector3(-0.95, 3.48, 1.1),
+    0xffdc72
+  );
+  root.add(compressionArrow);
+
+  const powerArrow = createArrow(
+    new THREE.Vector3(0.18, 3.7, 1.1),
+    new THREE.Vector3(0.18, 1.55, 1.1),
+    0xff8b60
+  );
+  root.add(powerArrow);
+
+  const exhaustArrow = createArrow(
+    new THREE.Vector3(0.48, 3.62, 1.1),
+    new THREE.Vector3(1.95, 3.62, 1.1),
+    0xcfd5dc
+  );
+  root.add(exhaustArrow);
+
+  const state = {
+    currentIndex: 0
+  };
+
+  function getStrokeInfo(elapsed, dt) {
+    if (params.strokeMode === '자동 순환') {
+      runtime.cycleTime = (runtime.cycleTime + dt * params.animationSpeed) % 6;
+      const index = Math.floor(runtime.cycleTime / 1.5) % 4;
+      const phase = (runtime.cycleTime % 1.5) / 1.5;
+      return { index, phase, totalTurn: (runtime.cycleTime / 1.5) * Math.PI };
+    }
+
+    const index = STROKES.findIndex((item) => item.key === params.strokeMode);
+    const phase = (elapsed * params.animationSpeed * 0.55) % 1;
+    return { index, phase, totalTurn: index * Math.PI + phase * Math.PI };
+  }
+
+  function update(dt, elapsed) {
+    const info = getStrokeInfo(elapsed, dt);
+    state.currentIndex = info.index;
+    const heatRatio = params.heatInput / 1000;
+    const topY = 3.72;
+    const bottomY = 1.65;
+    const phase = info.phase;
+    let pistonY = topY;
+
+    if (info.index === 0) pistonY = lerp(topY, bottomY, easeInOutSine(phase));
+    if (info.index === 1) pistonY = lerp(bottomY, topY, easeInOutSine(phase));
+    if (info.index === 2) pistonY = lerp(topY, bottomY, easeOutCubic(phase));
+    if (info.index === 3) pistonY = lerp(bottomY, topY, easeInOutSine(phase));
+
+    piston.position.set(0, pistonY, 0);
+    pistonPin.position.set(0, pistonY - 0.08, 0);
+
+    crankGroup.rotation.z = -info.totalTurn;
+    crankPin.position.set(Math.cos(info.totalTurn) * 0.72, Math.sin(info.totalTurn) * 0.72, 0);
+
+    const pinWorld = crankGroup.localToWorld(crankPin.position.clone());
+    const pinLocal = root.worldToLocal(pinWorld);
+    updateLink(connectingRod, new THREE.Vector3(0, pistonY - 0.44, 0), pinLocal);
+
+    intakeValve.position.y = 4.06 + (info.index === 0 ? 0.22 : 0.02);
+    exhaustValve.position.y = 4.06 + (info.index === 3 ? 0.22 : 0.02);
+
+    const compressionProgress = info.index === 1 ? phase : info.index === 0 ? 0.05 : 0;
+    const powerPulse = info.index === 2 ? (1 - Math.abs(phase - 0.15) / 0.15) : 0;
+    const exhaustBoost = info.index === 3 ? 0.5 + phase * 0.5 : 0;
+
+    chamberGlow.scale.setScalar(0.92 - compressionProgress * 0.16 + powerPulse * 0.28);
+    chamberGlow.material.color.set(info.index === 2 ? 0xff874d : info.index === 1 ? 0xffd26d : info.index === 3 ? 0xaeb6be : 0x5fb7ff);
+    chamberGlow.material.opacity = info.index === 0
+      ? 0.18 + phase * 0.18
+      : info.index === 1
+        ? 0.26 + phase * 0.22
+        : info.index === 2
+          ? 0.18 + powerPulse * 0.74
+          : 0.14 + exhaustBoost * 0.2;
+
+    sparkGlow.material.opacity = info.index === 2 ? Math.max(0, 0.9 - Math.abs(phase - 0.08) * 8) : 0;
+    sparkGlow.scale.setScalar(1 + sparkGlow.material.opacity * 0.7);
+
+    if (info.index === 0) {
+      for (let i = 0; i < 2 + heatRatio * 3; i += 1) {
+        emitParticle(
+          intakeParticles,
+          new THREE.Vector3(-1.92 + Math.random() * 0.25, 3.62 + (Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.18),
+          new THREE.Vector3(1.2 + Math.random() * 0.9, -0.06 + Math.random() * 0.12, (Math.random() - 0.5) * 0.1),
+          0.7 + Math.random() * 0.3
+        );
+      }
+    }
+
+    if (info.index === 2) {
+      for (let i = 0; i < 2 + heatRatio * 4; i += 1) {
+        emitParticle(
+          powerParticles,
+          new THREE.Vector3((Math.random() - 0.5) * 0.25, 3.15 + (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.22),
+          new THREE.Vector3((Math.random() - 0.5) * 0.45, -0.2 - Math.random() * 0.8, (Math.random() - 0.5) * 0.32),
+          0.55 + Math.random() * 0.3
+        );
+      }
+
+      if (phase < 0.2) {
+        for (let i = 0; i < 2; i += 1) {
+          emitParticle(
+            sparkParticles,
+            new THREE.Vector3((Math.random() - 0.5) * 0.06, 3.82, (Math.random() - 0.5) * 0.06),
+            new THREE.Vector3((Math.random() - 0.5) * 0.4, -0.2 - Math.random() * 0.4, (Math.random() - 0.5) * 0.2),
+            0.28 + Math.random() * 0.16
+          );
+        }
+      }
+    }
+
+    if (info.index === 3) {
+      for (let i = 0; i < 2 + (1 - params.efficiency / 100) * 3; i += 1) {
+        emitParticle(
+          exhaustParticles,
+          new THREE.Vector3(0.62 + Math.random() * 0.15, 3.64 + (Math.random() - 0.5) * 0.16, (Math.random() - 0.5) * 0.16),
+          new THREE.Vector3(0.9 + Math.random() * 0.8, 0.1 + Math.random() * 0.12, (Math.random() - 0.5) * 0.16),
+          0.72 + Math.random() * 0.32
+        );
+      }
+    }
+
+    updateParticleSystem(intakeParticles, dt, 0.985, 0.02);
+    updateParticleSystem(exhaustParticles, dt, 0.975, 0.08);
+    updateParticleSystem(powerParticles, dt, 0.94, 0.2);
+    updateParticleSystem(sparkParticles, dt, 0.9, 0.05);
+
+    setArrowIntensity(intakeArrow, info.index === 0 ? 0.96 : 0.16);
+    setArrowIntensity(compressionArrow, info.index === 1 ? 0.96 : 0.14);
+    setArrowIntensity(powerArrow, info.index === 2 ? 0.98 : 0.14);
+    setArrowIntensity(exhaustArrow, info.index === 3 ? 0.96 : 0.14);
+  }
+
+  function reset() {
+    clearParticleSystem(intakeParticles);
+    clearParticleSystem(exhaustParticles);
+    clearParticleSystem(powerParticles);
+    clearParticleSystem(sparkParticles);
+  }
+
+  addOverlayEntry('흡입', 'intake', () => root.localToWorld(new THREE.Vector3(-1.3, 3.05, 1.05)), () => params.engineType === '내연 기관(4행정)');
+  addOverlayEntry('압축', 'compression', () => root.localToWorld(new THREE.Vector3(-0.95, 2.48, 1.05)), () => params.engineType === '내연 기관(4행정)');
+  addOverlayEntry('점화 · 폭발', 'power', () => root.localToWorld(new THREE.Vector3(0.22, 3.52, 1.05)), () => params.engineType === '내연 기관(4행정)');
+  addOverlayEntry('배기', 'exhaust', () => root.localToWorld(new THREE.Vector3(1.32, 3.05, 1.05)), () => params.engineType === '내연 기관(4행정)');
+
+  return {
+    type: 'combustion',
+    root,
+    update,
+    reset,
+    getStrokeLabel() {
+      return STROKES[state.currentIndex].label;
+    },
+    getStatusText() {
+      return STROKES[state.currentIndex].description;
+    }
+  };
+}
+
+function rebuildEngine() {
+  clearOverlayEntries();
+  if (runtime.activeEngine) {
+    runtime.activeEngine.reset();
+    disposeObject(runtime.activeEngine.root);
+    runtime.activeEngine = null;
+  }
+
+  runtime.activeEngine = params.engineType === '증기 기관'
+    ? createSteamEngine()
+    : createCombustionEngine();
+
+  scene.add(runtime.activeEngine.root);
+  runtime.cycleTime = 0;
+}
+
+function syncPanels() {
+  const qIn = params.heatInput;
+  const work = qIn * (params.efficiency / 100);
+  const waste = qIn - work;
+  const stroke = runtime.activeEngine ? runtime.activeEngine.getStrokeLabel() : '-';
+  const engineLabel = params.engineType;
+
+  dom.formulaPanel.innerHTML = `
+    <h2>🔧 열기관과 에너지 전환</h2>
+    <div class="row"><span>열기관</span><span>${engineLabel}</span></div>
+    <div class="row"><span>현재 행정</span><span>${stroke}</span></div>
+    <div class="divider"></div>
+    <div class="row"><span>입력 열에너지 Q<sub>in</sub></span><span>${formatJoule(qIn)}</span></div>
+    <div class="row"><span>출력 역학적 에너지 W</span><span>${formatJoule(work)}</span></div>
+    <div class="row"><span>폐열 Q<sub>out</sub></span><span>${formatJoule(waste)}</span></div>
+    <div class="row"><span>에너지 보존</span><span class="ok">Q<sub>in</sub> = W + Q<sub>out</sub> ✅</span></div>
+    <div class="divider"></div>
+    <div class="row"><span>효율 η</span><span>${formatPercent(params.efficiency)}</span></div>
+    <div class="note">열기관은 열에너지를 역학적 에너지로 전환하는 장치이며, 효율은 항상 100% 미만입니다.</div>
+  `;
+
+  dom.statusChip.innerHTML = `<strong>${engineLabel}</strong> · ${runtime.activeEngine ? runtime.activeEngine.getStatusText() : ''}`;
+  dom.energyQin.textContent = formatJoule(qIn);
+  dom.energyWork.textContent = formatJoule(work);
+  dom.energyWaste.textContent = formatJoule(waste);
+  dom.energyPanel.classList.toggle('hidden', !params.showEnergyFlow);
+  dom.perpetualPanel.classList.toggle('visible', params.showPerpetual);
+}
+
+function syncEnergyDiagram(time = 0) {
+  const efficiencyRatio = params.efficiency / 100;
+  const inputY = 58;
+  const inputH = 164;
+  const splitGap = 18;
+  const inputX = 58;
+  const outputX = 302;
+  const minHeight = 42;
+  let workH = clamp(inputH * efficiencyRatio, minHeight, inputH - minHeight);
+  let wasteH = inputH - workH;
+
+  if (workH + wasteH !== inputH) {
+    wasteH = inputH - workH;
+  }
+
+  const workY = 72;
+  const wasteY = workY + workH + splitGap;
+
+  const workPath = `
+    M ${inputX} ${inputY}
+    C 122 ${inputY}, 214 ${workY}, ${outputX} ${workY}
+    L ${outputX} ${workY + workH}
+    C 214 ${workY + workH}, 122 ${inputY + workH}, ${inputX} ${inputY + workH}
+    Z
+  `;
+
+  const wastePath = `
+    M ${inputX} ${inputY + workH}
+    C 122 ${inputY + workH}, 214 ${wasteY}, ${outputX} ${wasteY}
+    L ${outputX} ${wasteY + wasteH}
+    C 214 ${wasteY + wasteH}, 122 ${inputY + inputH}, ${inputX} ${inputY + inputH}
+    Z
+  `;
+
+  dom.workBand.setAttribute('d', workPath);
+  dom.wasteBand.setAttribute('d', wastePath);
+  dom.workNode.setAttribute('y', String(workY));
+  dom.workNode.setAttribute('height', String(workH));
+  dom.wasteNode.setAttribute('y', String(wasteY));
+  dom.wasteNode.setAttribute('height', String(wasteH));
+  dom.qinLabel.textContent = `${params.heatInput} J`;
+  dom.workLabel.textContent = `W ${Math.round(params.heatInput * efficiencyRatio)} J`;
+  dom.wasteLabel.textContent = `Q_out ${Math.round(params.heatInput * (1 - efficiencyRatio))} J`;
+
+  if (!runtime.flowDots.length) {
+    const dotDefs = [
+      ...Array.from({ length: 6 }, (_, index) => ({ lane: 'qin', seed: index / 6 })),
+      ...Array.from({ length: 5 }, (_, index) => ({ lane: 'work', seed: index / 5 })),
+      ...Array.from({ length: 7 }, (_, index) => ({ lane: 'waste', seed: index / 7 }))
+    ];
+
+    dotDefs.forEach((def) => {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('r', def.lane === 'qin' ? '4.4' : '3.9');
+      circle.setAttribute('fill', def.lane === 'work' ? '#e7fff0' : def.lane === 'waste' ? '#fff0d9' : '#ffe7c8');
+      circle.setAttribute('opacity', def.lane === 'qin' ? '0.78' : '0.92');
+      dom.flowDots.appendChild(circle);
+      runtime.flowDots.push({ ...def, element: circle });
+    });
+  }
+
+  function centerPoint(lane, t) {
+    if (lane === 'qin') {
+      return {
+        x: lerp(38, 114, t),
+        y: inputY + inputH * 0.5
+      };
+    }
+
+    if (lane === 'work') {
+      return {
+        x: lerp(110, 300, t),
+        y: lerp(inputY + workH * 0.5, workY + workH * 0.5, t) + Math.sin((t + time) * Math.PI) * 3
+      };
+    }
+
+    return {
+      x: lerp(110, 300, t),
+      y: lerp(inputY + workH + wasteH * 0.5, wasteY + wasteH * 0.5, t) + Math.sin((t + time) * Math.PI * 1.1) * 3
+    };
+  }
+
+  runtime.flowDots.forEach((dot, index) => {
+    const speed = dot.lane === 'work' ? 0.18 + efficiencyRatio * 0.16 : dot.lane === 'waste' ? 0.18 + (1 - efficiencyRatio) * 0.16 : 0.2;
+    const t = (dot.seed + time * speed + index * 0.003) % 1;
+    const point = centerPoint(dot.lane, t);
+    dot.element.setAttribute('cx', point.x.toFixed(2));
+    dot.element.setAttribute('cy', point.y.toFixed(2));
+  });
+}
+
+function resetSimulation() {
+  runtime.elapsed = 0;
+  runtime.cycleTime = 0;
+  if (runtime.activeEngine) runtime.activeEngine.reset();
+  syncPanels();
+  syncEnergyDiagram(0);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function updateStrokeControllerState() {
+  const enabled = params.engineType === '내연 기관(4행정)';
+  const row = strokeController.domElement.closest('.controller') || strokeController.domElement.parentElement;
+  row.style.opacity = enabled ? '1' : '0.45';
+  row.style.pointerEvents = enabled ? 'auto' : 'none';
+}
+
+function handleEngineTypeChange() {
+  rebuildEngine();
+  updateStrokeControllerState();
+  syncPanels();
+  syncEnergyDiagram(runtime.elapsed);
+}
+
+const gui = new GUI({ title: '열기관 제어', width: 308 });
+const engineController = gui.add(params, 'engineType', ['증기 기관', '내연 기관(4행정)']).name('열기관 종류');
+const strokeController = gui.add(params, 'strokeMode', ['자동 순환', '흡입', '압축', '폭발', '배기']).name('행정 선택');
+const efficiencyController = gui.add(params, 'efficiency', 10, 50, 1).name('효율 (%)');
+const inputController = gui.add(params, 'heatInput', 100, 1000, 10).name('열에너지 입력 (J)');
+const speedController = gui.add(params, 'animationSpeed', 0.5, 3, 0.1).name('애니메이션 속도');
+const flowController = gui.add(params, 'showEnergyFlow').name('에너지 흐름 표시');
+const perpetualController = gui.add(params, 'showPerpetual').name('영구 기관 설명');
+gui.add(params, 'reset').name('초기화');
+
+engineController.onChange(handleEngineTypeChange);
+strokeController.onChange(() => {
+  runtime.cycleTime = 0;
+  syncPanels();
+});
+efficiencyController.onChange(() => {
+  syncPanels();
+  syncEnergyDiagram(runtime.elapsed);
+});
+inputController.onChange(() => {
+  syncPanels();
+  syncEnergyDiagram(runtime.elapsed);
+});
+speedController.onChange(() => {
+  runtime.cycleTime = 0;
+});
+flowController.onChange(() => {
+  syncPanels();
+});
+perpetualController.onChange(() => {
+  syncPanels();
+});
+
+if (window.innerWidth <= 760) {
+  gui.close();
+}
+
+function resize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
+}
+
+window.addEventListener('resize', resize);
+
+rebuildEngine();
+updateStrokeControllerState();
+syncPanels();
+syncEnergyDiagram(0);
+resize();
+
+const tempVector = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.033);
+  runtime.elapsed += dt;
+
+  if (runtime.activeEngine) {
+    runtime.activeEngine.update(dt, runtime.elapsed);
+  }
+
+  syncPanels();
+  syncEnergyDiagram(runtime.elapsed);
+  updateOverlayPositions();
+
+  stageRing.material.opacity = 0.12 + Math.sin(runtime.elapsed * 1.8) * 0.02;
+  stageRing.rotation.z += dt * 0.06;
+
+  if (params.engineType === '증기 기관') {
+    controls.target.lerp(tempVector.set(0.8, 2.15, 0), 0.08);
+  } else {
+    controls.target.lerp(tempVector.set(0, 2.35, 0), 0.08);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

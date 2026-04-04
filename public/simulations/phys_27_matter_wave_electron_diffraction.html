@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>물질파와 전자 회절 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a20;
+    --panel-bg: rgba(10, 14, 34, 0.84);
+    --panel-strong: rgba(9, 14, 30, 0.92);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-shadow: 0 22px 46px rgba(0, 0, 0, 0.34);
+    --text-main: #f6f8ff;
+    --text-dim: rgba(246, 248, 255, 0.72);
+    --text-soft: rgba(246, 248, 255, 0.54);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 221, 68, 0.08), transparent 22%),
+      radial-gradient(circle at 84% 14%, rgba(68, 221, 255, 0.09), transparent 22%),
+      linear-gradient(180deg, #0a0a20 0%, #090d1f 48%, #070914 100%);
+    font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    color: var(--text-main);
+  }
+
+  body {
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+    touch-action: none;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 20;
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #guide-toggle {
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(12, 18, 38, 0.82);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(18, 24, 48, 0.92);
+  }
+
+  #guide-panel {
+    top: 56px;
+    left: 14px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(74vh, 720px);
+    overflow-y: auto;
+    padding: 18px 20px 16px;
+    border-radius: 22px;
+    background: var(--panel-strong);
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+    z-index: 39;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #9ddfff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #title-wrap {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-wrap .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  #title-wrap h1 {
+    margin-top: 5px;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: rgba(255, 255, 255, 0.97);
+    text-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  }
+
+  #title-wrap p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.66);
+  }
+
+  #status-chip {
+    top: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 360px;
+    max-width: min(84vw, 760px);
+    padding: 13px 18px;
+    border-radius: 18px;
+    background: rgba(10, 16, 34, 0.82);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #status-chip .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.62;
+    color: var(--text-dim);
+  }
+
+  #status-chip.light-tone {
+    box-shadow: 0 18px 42px rgba(255, 221, 68, 0.14);
+  }
+
+  #status-chip.electron-tone {
+    box-shadow: 0 18px 42px rgba(68, 221, 255, 0.14);
+  }
+
+  #status-chip.compare-tone {
+    box-shadow: 0 18px 42px rgba(255, 125, 125, 0.14);
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff0a8;
+  }
+
+  #formula-panel .panel-subtitle {
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: var(--text-soft);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .formula-block {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    white-space: pre-line;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    color: #e4edff;
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 15px;
+    background: rgba(68, 221, 255, 0.08);
+    color: #dffaff;
+  }
+
+  #formula-panel .footnote {
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.54);
+    font-size: 11px;
+  }
+
+  #comparison-table {
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    width: min(860px, calc(100vw - 32px));
+    padding: 14px 14px 12px;
+    border-radius: 22px;
+    background: rgba(8, 12, 26, 0.82);
+  }
+
+  #comparison-table .table-title {
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: #fff4ba;
+  }
+
+  #comparison-table .table-wrap {
+    overflow-x: auto;
+  }
+
+  #comparison-table table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  #comparison-table th,
+  #comparison-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: left;
+  }
+
+  #comparison-table th {
+    color: #ffe88d;
+    font-weight: 700;
+  }
+
+  #comparison-table td {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  #comparison-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  #comparison-table .light-cell {
+    color: #ffe37d;
+  }
+
+  #comparison-table .matter-cell {
+    color: #98efff;
+  }
+
+  #mode-pill {
+    position: fixed;
+    top: 144px;
+    right: 16px;
+    z-index: 22;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(8, 12, 24, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
+  }
+
+  .lil-gui {
+    --width: 320px;
+    z-index: 42 !important;
+  }
+
+  @media (max-width: 980px) {
+    #status-chip {
+      top: 80px;
+      min-width: 0;
+      width: calc(100vw - 24px);
+      max-width: calc(100vw - 24px);
+    }
+
+    #mode-pill {
+      top: 134px;
+      right: 12px;
+    }
+
+    #comparison-table {
+      width: calc(100vw - 24px);
+      bottom: 12px;
+      padding: 12px 12px 10px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 186px;
+      width: calc(100vw - 24px);
+      padding: 15px 15px 14px;
+    }
+
+    .lil-gui {
+      --width: min(280px, calc(100vw - 24px));
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-wrap {
+      top: 12px;
+      width: calc(100vw - 92px);
+    }
+
+    #title-wrap h1 {
+      font-size: 22px;
+    }
+
+    #guide-panel {
+      top: 50px;
+      max-height: 54vh;
+    }
+
+    #status-chip {
+      top: 92px;
+      width: calc(100vw - 24px);
+      padding: 12px 14px;
+    }
+
+    #mode-pill {
+      top: 170px;
+      left: 12px;
+      right: auto;
+    }
+
+    #formula-panel {
+      bottom: 176px;
+      font-size: 11.5px;
+    }
+
+    #comparison-table {
+      bottom: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" class="overlay" aria-expanded="false">📖 학습 가이드</button>
+
+<div id="guide-panel" class="overlay">
+  <h3>핵심 원리</h3>
+  <p>드브로이는 물질 입자도 파동성을 가진다고 제안했습니다. 전자의 물질파 파장은 λ = h/mv이며, 전자를 얇은 결정에 통과시키면 회절 무늬가 나타나 파동성이 입증됩니다. 빛과 물질 모두 파동성과 입자성의 이중성을 가집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>전자의 속력을 높이면 물질파 파장은 어떻게 변하나요?</li>
+    <li>야구공의 물질파가 관측되지 않는 까닭을 드브로이 파장 공식으로 설명해 보세요.</li>
+    <li>전자 회절 실험에서 전자를 많이 쌓으면 회절 무늬가 나타나는 것은 무엇을 의미하나요?</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>전자 현미경: 전자의 파동성을 이용해 매우 짧은 파장으로 미세 구조를 관찰합니다.</li>
+    <li>반도체 소자 설계: 전자의 양자적 거동을 고려해 소자를 설계합니다.</li>
+    <li>양자 컴퓨터: 미시 세계에서 드러나는 물질의 파동성과 중첩 성질을 활용합니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>물리학 III편 p150~157의 빛과 물질의 이중성, 드브로이 물질파, 전자 회절 단원과 연결됩니다.</p>
+</div>
+
+<div id="title-wrap">
+  <div class="eyebrow">Physics III · Wave-Particle Duality</div>
+  <h1>물질파와 전자 회절</h1>
+  <p>빛의 이중성과 전자의 회절 무늬를 한 장면에서 비교하세요.</p>
+</div>
+
+<div id="status-chip" class="overlay electron-tone">
+  <div id="status-title" class="title">전자 회절 무늬가 아직 희미합니다.</div>
+  <div id="status-body" class="body">전자를 더 많이 쌓을수록 무작위 점들이 동심원 회절 무늬로 정리됩니다.</div>
+</div>
+
+<div id="mode-pill">현재 보기: 전체</div>
+<div id="formula-panel" class="overlay"></div>
+
+<div id="comparison-table" class="overlay">
+  <div class="table-title">빛과 물질의 이중성 비교</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th class="light-cell">빛</th>
+          <th class="matter-cell">물질(전자)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>파동성 입증</td>
+          <td class="light-cell">이중 슬릿 간섭</td>
+          <td class="matter-cell">전자 회절</td>
+        </tr>
+        <tr>
+          <td>입자성 입증</td>
+          <td class="light-cell">광전 효과</td>
+          <td class="matter-cell">구름 상자 궤적, 점 충돌</td>
+        </tr>
+        <tr>
+          <td>파장</td>
+          <td class="light-cell">λ = c / f</td>
+          <td class="matter-cell">λ = h / mv</td>
+        </tr>
+        <tr>
+          <td>에너지</td>
+          <td class="light-cell">E = hf</td>
+          <td class="matter-cell">E<sub>k</sub> = 1/2 mv²</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const VIEW_LIGHT = '빛의 이중성';
+const VIEW_DIFFRACTION = '전자 회절';
+const VIEW_WAVELENGTH = '물질파 파장 비교';
+const VIEW_FULL = '전체';
+
+const PLANCK = 6.63e-34;
+const ELECTRON_MASS = 9.1e-31;
+const PROTON_MASS = 1.67e-27;
+const BASEBALL_MASS = 0.15;
+const BASEBALL_SPEED = 40;
+const MAX_DIFFRACTION_POINTS = 10000;
+const SCREEN_RADIUS = 1.7;
+const BASE_ELECTRON_SPEED = 1e6;
+
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const statusChipEl = document.getElementById('status-chip');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const formulaPanelEl = document.getElementById('formula-panel');
+const comparisonTableEl = document.getElementById('comparison-table');
+const modePillEl = document.getElementById('mode-pill');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a20);
+scene.fog = new THREE.FogExp2(0x0a0a20, 0.018);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 5.8, 24);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.domElement.id = 'scene-canvas';
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 7;
+controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.target.set(0, 1.4, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+const leftLight = new THREE.PointLight(0xffdd88, 1.1, 40, 2);
+leftLight.position.set(-10, 8, 8);
+scene.add(leftLight);
+
+const rightLight = new THREE.PointLight(0x66ddff, 0.95, 40, 2);
+rightLight.position.set(11, 7, 8);
+scene.add(rightLight);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.32);
+fillLight.position.set(0, 12, 16);
+scene.add(fillLight);
+
+const clock = new THREE.Clock();
+const tempObject = new THREE.Object3D();
+const tempColor = new THREE.Color();
+
+const params = {
+  viewMode: VIEW_FULL,
+  electronCount: 100,
+  electronSpeed: 1e6,
+  particleType: '전자',
+  showComparisonTable: true,
+  autoRepeat: false
+};
+
+const particleCatalogue = {
+  전자: { mass: ELECTRON_MASS, color: 0x44ddff, speed: () => params.electronSpeed },
+  양성자: { mass: PROTON_MASS, color: 0xffab52, speed: () => params.electronSpeed },
+  야구공: { mass: BASEBALL_MASS, color: 0xff7d7d, speed: () => BASEBALL_SPEED }
+};
+
+const guiState = {
+  electronCountLog10: 2
+};
+
+const guiReadout = {
+  electronCountText: '100개',
+  electronSpeedText: '1.00 × 10^6 m/s'
+};
+
+const runtime = {
+  contentRoot: null,
+  animators: [],
+  electronSystem: null,
+  waveCompareSystem: null,
+  lightSystem: null
+};
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function remap(value, inMin, inMax, outMin, outMax) {
+  if (inMax === inMin) return outMin;
+  const t = clamp((value - inMin) / (inMax - inMin), 0, 1);
+  return lerp(outMin, outMax, t);
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function randomRange(min, max) {
+  return lerp(min, max, Math.random());
+}
+
+function gaussianRandom(mean = 0, deviation = 1) {
+  const u1 = Math.max(Math.random(), 1e-7);
+  const u2 = Math.max(Math.random(), 1e-7);
+  const mag = Math.sqrt(-2 * Math.log(u1));
+  return mean + deviation * mag * Math.cos(Math.PI * 2 * u2);
+}
+
+function makeCanvas(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function roundedRect(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + width, y, x + width, y + height, r);
+  context.arcTo(x + width, y + height, x, y + height, r);
+  context.arcTo(x, y + height, x, y, r);
+  context.arcTo(x, y, x + width, y, r);
+  context.closePath();
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach(disposeMaterial);
+    return;
+  }
+  Object.keys(material).forEach((key) => {
+    const value = material[key];
+    if (value && typeof value === 'object' && 'isTexture' in value) {
+      value.dispose();
+    }
+  });
+  material.dispose();
+}
+
+function disposeObjectTree(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      disposeMaterial(child.material);
+    }
+  });
+}
+
+function clearContentRoot() {
+  if (!runtime.contentRoot) return;
+  scene.remove(runtime.contentRoot);
+  disposeObjectTree(runtime.contentRoot);
+  runtime.contentRoot = null;
+  runtime.animators = [];
+  runtime.electronSystem = null;
+  runtime.waveCompareSystem = null;
+  runtime.lightSystem = null;
+}
+
+function formatWithExponent(value, digits = 2) {
+  if (value === 0) return '0';
+  const exponent = Math.floor(Math.log10(Math.abs(value)));
+  const mantissa = value / (10 ** exponent);
+  return `${mantissa.toFixed(digits)} × 10^${exponent}`;
+}
+
+function formatSpeed(value) {
+  const exponent = Math.floor(Math.log10(value));
+  const mantissa = value / (10 ** exponent);
+  return `${mantissa.toFixed(2)} × 10^${exponent} m/s`;
+}
+
+function formatWavelength(value) {
+  if (value >= 1e-6) return `${value.toFixed(6)} m`;
+  if (value >= 1e-9) return `${(value * 1e9).toFixed(2)} nm`;
+  if (value >= 1e-12) return `${(value * 1e12).toFixed(2)} pm`;
+  if (value >= 1e-15) return `${(value * 1e15).toFixed(2)} fm`;
+  return `${formatWithExponent(value, 2)} m`;
+}
+
+function getWavelengthForParticle(name) {
+  const particle = particleCatalogue[name];
+  const speed = particle.speed();
+  return PLANCK / (particle.mass * speed);
+}
+
+function createLabelSprite(lines, options = {}) {
+  const textLines = Array.isArray(lines) ? lines : String(lines).split('\n');
+  const fontSize = options.fontSize ?? 34;
+  const paddingX = options.paddingX ?? 28;
+  const paddingY = options.paddingY ?? 18;
+  const accent = options.accent ?? '#7de4ff';
+  const background = options.background ?? 'rgba(8, 14, 30, 0.84)';
+  const border = options.border ?? 'rgba(255,255,255,0.14)';
+
+  const canvas = makeCanvas(32, 32);
+  const context = canvas.getContext('2d');
+  context.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  const widest = Math.max(...textLines.map((line) => context.measureText(line).width));
+
+  canvas.width = Math.ceil(widest + paddingX * 2);
+  canvas.height = Math.ceil(textLines.length * fontSize * 1.25 + paddingY * 2);
+  context.font = `700 ${fontSize}px Pretendard, sans-serif`;
+
+  roundedRect(context, 0, 0, canvas.width, canvas.height, 26);
+  context.fillStyle = background;
+  context.fill();
+  context.lineWidth = 3;
+  context.strokeStyle = border;
+  context.stroke();
+
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = accent;
+  context.fillText(textLines[0] ?? '', canvas.width / 2, paddingY + fontSize * 0.6);
+  context.fillStyle = 'rgba(255,255,255,0.9)';
+  context.font = `600 ${fontSize * 0.72}px Pretendard, sans-serif`;
+
+  textLines.slice(1).forEach((line, index) => {
+    const y = paddingY + fontSize * (1.32 + index * 0.88);
+    context.fillText(line, canvas.width / 2, y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? 1.75;
+  sprite.scale.set(scale * canvas.width / canvas.height, scale, 1);
+  sprite.renderOrder = 30;
+  return sprite;
+}
+
+function createScreenTexture(type = 'plain') {
+  const canvas = makeCanvas(512, 512);
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(256, 256, 20, 256, 256, 256);
+  gradient.addColorStop(0, '#15213b');
+  gradient.addColorStop(1, '#050a18');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (type === 'interference') {
+    for (let x = 0; x < canvas.width; x++) {
+      const normalized = x / canvas.width;
+      const fringe = Math.cos((normalized - 0.5) * Math.PI * 18) ** 2;
+      const brightness = Math.round(18 + fringe * 140);
+      context.fillStyle = `rgba(255, ${brightness}, 84, ${0.1 + fringe * 0.72})`;
+      context.fillRect(x, 0, 1, canvas.height);
+    }
+  } else if (type === 'guide-rings') {
+    context.strokeStyle = 'rgba(104, 233, 255, 0.08)';
+    context.lineWidth = 5;
+    [48, 94, 146, 198].forEach((radius) => {
+      context.beginPath();
+      context.arc(256, 256, radius, 0, Math.PI * 2);
+      context.stroke();
+    });
+  } else {
+    context.strokeStyle = 'rgba(160, 255, 255, 0.08)';
+    context.lineWidth = 3;
+    context.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createCrystalTexture() {
+  const canvas = makeCanvas(256, 256);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#8792a8';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  context.strokeStyle = 'rgba(255,255,255,0.16)';
+  context.lineWidth = 4;
+  for (let i = 12; i < canvas.width; i += 26) {
+    context.beginPath();
+    context.moveTo(i, 0);
+    context.lineTo(i, canvas.height);
+    context.stroke();
+  }
+
+  for (let i = 8; i < canvas.height; i += 24) {
+    context.beginPath();
+    context.moveTo(0, i);
+    context.lineTo(canvas.width, i);
+    context.stroke();
+  }
+
+  context.fillStyle = 'rgba(255,255,255,0.14)';
+  for (let y = 10; y < canvas.height; y += 24) {
+    for (let x = 10; x < canvas.width; x += 26) {
+      context.beginPath();
+      context.arc(x, y, 3.2, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createWaveCurve(start, end, amplitude, cycles, phase = 0, axisHint = new THREE.Vector3(0, 1, 0)) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const axis = direction.clone().normalize();
+  let normal = axisHint.clone().normalize();
+  if (Math.abs(axis.dot(normal)) > 0.92) {
+    normal = new THREE.Vector3(0, 0, 1);
+  }
+  const binormal = new THREE.Vector3().crossVectors(axis, normal).normalize();
+  normal = new THREE.Vector3().crossVectors(binormal, axis).normalize();
+
+  const points = [];
+  for (let i = 0; i <= 80; i++) {
+    const t = i / 80;
+    const point = start.clone().lerp(end, t);
+    const offset = Math.sin((t * cycles + phase) * Math.PI * 2) * amplitude;
+    point.addScaledVector(normal, offset);
+    points.push(point);
+  }
+  return new THREE.CatmullRomCurve3(points);
+}
+
+function createTubeFromCurve(curve, color, radius = 0.045) {
+  const geometry = new THREE.TubeGeometry(curve, 96, radius, 12, false);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    emissive: tempColor.set(color).multiplyScalar(0.55),
+    emissiveIntensity: 0.85,
+    roughness: 0.28,
+    metalness: 0.06
+  });
+  return new THREE.Mesh(geometry, material);
+}
+
+function createStage(width, depth, color = 0x10182f, opacity = 0.18) {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide
+    })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+
+function createFrame(width, height, color) {
+  const geometry = new THREE.BoxGeometry(0.08, height, width);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    emissive: tempColor.set(color).multiplyScalar(0.18),
+    roughness: 0.5
+  });
+  return new THREE.Mesh(geometry, material);
+}
+
+function createBeamLine(start, end, color, opacity = 0.45) {
+  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const material = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity
+  });
+  return new THREE.Line(geometry, material);
+}
+
+function createStarField() {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const colors = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < 1200; i++) {
+    const radius = randomRange(20, 80);
+    const theta = randomRange(0, Math.PI * 2);
+    const phi = Math.acos(randomRange(-0.35, 0.75));
+    positions.push(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+    color.setHSL(randomRange(0.52, 0.64), randomRange(0.28, 0.66), randomRange(0.74, 0.92));
+    colors.push(color.r, color.g, color.b);
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.12,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false
+  });
+  const stars = new THREE.Points(geometry, material);
+  scene.add(stars);
+}
+
+createStarField();
+
+function buildDivider() {
+  const group = new THREE.Group();
+  const line = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 9.2, 0.06),
+    new THREE.MeshBasicMaterial({
+      color: 0x9fb2ff,
+      transparent: true,
+      opacity: 0.24
+    })
+  );
+  line.position.set(0, 1.1, 0);
+  group.add(line);
+
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.7, 9.6),
+    new THREE.MeshBasicMaterial({
+      color: 0x5b71ff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  glow.position.set(0, 1.1, -0.1);
+  group.add(glow);
+  return group;
+}
+
+function buildLightDualityGroup(options = {}) {
+  const compact = options.compact ?? false;
+  const group = new THREE.Group();
+  const pulseState = [];
+
+  const stageTop = createStage(8.2, 3.1, 0x101427, 0.18);
+  stageTop.position.set(0, -0.95, -1.8);
+  group.add(stageTop);
+
+  const stageBottom = createStage(8.2, 3.1, 0x101427, 0.18);
+  stageBottom.position.set(0, -0.95, 1.8);
+  group.add(stageBottom);
+
+  const title = createLabelSprite(['빛의 이중성'], {
+    accent: '#ffe37d',
+    scale: 1.4
+  });
+  title.position.set(0, 4.1, 0);
+  group.add(title);
+
+  const dualityLabel = createLabelSprite(['빛 = 파동 + 입자'], {
+    accent: '#ffe37d',
+    scale: 1.45,
+    fontSize: 30
+  });
+  dualityLabel.position.set(0, 0.6, 0);
+  group.add(dualityLabel);
+
+  const waveGroup = new THREE.Group();
+  waveGroup.position.set(0, 1.6, -1.8);
+  group.add(waveGroup);
+
+  const sourceBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.26, 20, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0xffdd44,
+      emissive: 0xffcc33,
+      emissiveIntensity: 1.1,
+      roughness: 0.22
+    })
+  );
+  sourceBall.position.set(-3.2, 0, 0);
+  waveGroup.add(sourceBall);
+
+  const barrierMaterial = new THREE.MeshStandardMaterial({
+    color: 0x303952,
+    emissive: 0x151b2d,
+    roughness: 0.68
+  });
+  const barrierTop = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.86, 0.9), barrierMaterial);
+  barrierTop.position.set(-0.3, 0.76, 0);
+  const barrierMid = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.34, 0.9), barrierMaterial);
+  barrierMid.position.set(-0.3, 0, 0);
+  const barrierBottom = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.86, 0.9), barrierMaterial);
+  barrierBottom.position.set(-0.3, -0.76, 0);
+  waveGroup.add(barrierTop, barrierMid, barrierBottom);
+
+  const screenTexture = createScreenTexture('interference');
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, 2.8),
+    new THREE.MeshBasicMaterial({
+      map: screenTexture,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    })
+  );
+  screen.position.set(3.25, 0, 0);
+  screen.rotation.y = -Math.PI / 2;
+  waveGroup.add(screen);
+
+  const waveFrame = createFrame(1.62, 2.96, 0x4d5879);
+  waveFrame.position.copy(screen.position);
+  waveFrame.rotation.y = screen.rotation.y;
+  waveGroup.add(waveFrame);
+
+  const slit1 = new THREE.Vector3(-0.28, 0.38, 0);
+  const slit2 = new THREE.Vector3(-0.28, -0.38, 0);
+  const start = new THREE.Vector3(-2.98, 0, 0);
+  const end1 = new THREE.Vector3(3.0, 0.6, -0.22);
+  const end2 = new THREE.Vector3(3.0, -0.6, 0.22);
+
+  const waveCurves = [
+    createWaveCurve(start, slit1, 0.12, 3.8, 0.08, new THREE.Vector3(0, 0, 1)),
+    createWaveCurve(start, slit2, 0.12, 3.8, 0.32, new THREE.Vector3(0, 0, 1)),
+    createWaveCurve(slit1, end1, 0.16, 5.6, 0.1, new THREE.Vector3(0, 1, 0)),
+    createWaveCurve(slit2, end2, 0.16, 5.6, 0.46, new THREE.Vector3(0, 1, 0))
+  ];
+
+  waveCurves.forEach((curve) => {
+    const tube = createTubeFromCurve(curve, 0xffdd44, 0.04);
+    waveGroup.add(tube);
+    for (let i = 0; i < 4; i++) {
+      const bead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.055, 12, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0xfff1ad,
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      bead.position.copy(curve.getPoint(i / 4));
+      waveGroup.add(bead);
+      pulseState.push({
+        mesh: bead,
+        curve,
+        offset: i / 4,
+        speed: 0.13 + i * 0.02
+      });
+    }
+  });
+
+  const waveLabel = createLabelSprite(['간섭 → 파동의 특성', '이중 슬릿 간섭'], {
+    accent: '#ffe37d',
+    scale: compact ? 1.2 : 1.35,
+    fontSize: 28
+  });
+  waveLabel.position.set(0.65, 2.18, 0);
+  waveGroup.add(waveLabel);
+
+  const particleGroup = new THREE.Group();
+  particleGroup.position.set(0, -1.8, 1.8);
+  group.add(particleGroup);
+
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xffdb59,
+      emissive: 0xffc933,
+      emissiveIntensity: 1.2
+    })
+  );
+  lamp.position.set(-3.15, 0, 0);
+  particleGroup.add(lamp);
+
+  const lampStand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 0.7, 10),
+    new THREE.MeshStandardMaterial({
+      color: 0x606a86,
+      roughness: 0.7
+    })
+  );
+  lampStand.position.set(-3.15, -0.45, 0);
+  particleGroup.add(lampStand);
+
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 1.75, 1.4),
+    new THREE.MeshStandardMaterial({
+      color: 0x556178,
+      emissive: 0x141a2d,
+      roughness: 0.55
+    })
+  );
+  plate.position.set(0.9, 0, 0);
+  particleGroup.add(plate);
+
+  const collector = new THREE.Mesh(
+    new THREE.TorusGeometry(0.35, 0.07, 10, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0x8fdfff,
+      emissive: 0x58cfff,
+      emissiveIntensity: 0.45,
+      roughness: 0.24
+    })
+  );
+  collector.position.set(3.0, 0.82, 0);
+  collector.rotation.y = Math.PI / 2;
+  particleGroup.add(collector);
+
+  const photonMeshes = [];
+  for (let i = 0; i < 6; i++) {
+    const photon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0xffdd44,
+        transparent: true,
+        opacity: 0.92
+      })
+    );
+    particleGroup.add(photon);
+    photonMeshes.push({ mesh: photon, offset: i * 0.17 });
+  }
+
+  const ejectedMeshes = [];
+  for (let i = 0; i < 4; i++) {
+    const electron = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 14, 14),
+      new THREE.MeshBasicMaterial({
+        color: 0x44ddff,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    particleGroup.add(electron);
+    ejectedMeshes.push({ mesh: electron, offset: i * 0.24 });
+  }
+
+  particleGroup.add(createBeamLine(new THREE.Vector3(-2.8, 0, 0), new THREE.Vector3(0.86, 0, 0), 0xffdd55, 0.24));
+  particleGroup.add(createBeamLine(new THREE.Vector3(1.0, 0.16, 0), new THREE.Vector3(2.66, 0.68, 0), 0x66ddff, 0.26));
+
+  const particleLabel = createLabelSprite(['광전 효과 → 입자의 특성', '광자 + 전자 방출'], {
+    accent: '#ffe37d',
+    scale: compact ? 1.2 : 1.35,
+    fontSize: 28
+  });
+  particleLabel.position.set(0.6, 2.1, 0);
+  particleGroup.add(particleLabel);
+
+  const system = {
+    update(delta, elapsed) {
+      sourceBall.scale.setScalar(1 + Math.sin(elapsed * 2.4) * 0.06);
+      lamp.scale.setScalar(1 + Math.sin(elapsed * 2.6 + 0.5) * 0.05);
+      collector.rotation.z += delta * 0.6;
+
+      pulseState.forEach((pulse, index) => {
+        const t = (elapsed * pulse.speed + pulse.offset) % 1;
+        pulse.mesh.position.copy(pulse.curve.getPoint(t));
+        const alpha = 0.4 + 0.6 * Math.sin((t + index * 0.07) * Math.PI);
+        pulse.mesh.material.opacity = clamp(alpha, 0.26, 1);
+      });
+
+      photonMeshes.forEach((entry) => {
+        const t = (elapsed * 0.42 + entry.offset) % 1;
+        entry.mesh.position.set(lerp(-2.95, 0.76, t), Math.sin(t * Math.PI) * 0.08, 0);
+        entry.mesh.scale.setScalar(0.85 + 0.22 * Math.sin(t * Math.PI));
+      });
+
+      ejectedMeshes.forEach((entry) => {
+        const t = (elapsed * 0.42 + entry.offset + 0.48) % 1;
+        entry.mesh.visible = t > 0.12 && t < 0.94;
+        entry.mesh.position.set(lerp(1.0, 2.92, t), lerp(0.02, 0.8, smoothstep(0.15, 0.94, t)), 0);
+      });
+    }
+  };
+
+  return { group, system };
+}
+
+function createShotPool(parent, count, color, radius, opacity = 0.92) {
+  const geometry = new THREE.SphereGeometry(radius, 12, 12);
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity
+  });
+  const pool = [];
+  for (let i = 0; i < count; i++) {
+    const mesh = new THREE.Mesh(geometry, material.clone());
+    mesh.visible = false;
+    parent.add(mesh);
+    pool.push({
+      mesh,
+      active: false,
+      progress: 0,
+      duration: 0.3,
+      target: new THREE.Vector3(),
+      mid: new THREE.Vector3(),
+      start: new THREE.Vector3(),
+      impact: null
+    });
+  }
+  return pool;
+}
+
+function updateShotPool(pool, delta, updater) {
+  pool.forEach((entry) => {
+    if (!entry.active) return;
+    entry.progress += delta / entry.duration;
+    if (entry.progress >= 1) {
+      entry.progress = 1;
+    }
+    updater(entry);
+    if (entry.progress >= 1) {
+      entry.active = false;
+      entry.mesh.visible = false;
+      if (entry.impact) entry.impact(entry);
+    }
+  });
+}
+
+function getAvailableShot(pool) {
+  return pool.find((entry) => !entry.active) ?? null;
+}
+
+function generateDiffractionTargets(count, speed) {
+  const targets = [];
+  const radialScale = clamp((BASE_ELECTRON_SPEED / speed) ** 0.45, 0.38, 2.35);
+  const rings = [
+    { radius: 0.28, width: 0.05, weight: 0.16, intensity: 0.9 },
+    { radius: 0.58, width: 0.06, weight: 0.31, intensity: 1.0 },
+    { radius: 0.92, width: 0.07, weight: 0.24, intensity: 0.92 },
+    { radius: 1.2, width: 0.08, weight: 0.17, intensity: 0.82 },
+    { radius: 1.48, width: 0.09, weight: 0.08, intensity: 0.72 }
+  ];
+  const ringTotal = rings.reduce((sum, ring) => sum + ring.weight, 0);
+
+  for (let i = 0; i < count; i++) {
+    const mode = Math.random();
+    let radius;
+    let intensity;
+    if (mode < 0.08) {
+      radius = Math.sqrt(Math.random()) * 0.2 * radialScale;
+      intensity = 0.94;
+    } else if (mode < 0.92) {
+      let threshold = Math.random() * ringTotal;
+      let ring = rings[0];
+      for (const item of rings) {
+        threshold -= item.weight;
+        if (threshold <= 0) {
+          ring = item;
+          break;
+        }
+      }
+      radius = gaussianRandom(ring.radius * radialScale, ring.width * radialScale);
+      intensity = ring.intensity;
+    } else {
+      radius = Math.sqrt(Math.random()) * SCREEN_RADIUS * 0.98;
+      intensity = 0.36;
+    }
+
+    radius = Math.abs(radius);
+    if (radius > SCREEN_RADIUS * 0.99) {
+      radius = SCREEN_RADIUS * 0.95;
+    }
+
+    const angle = Math.random() * Math.PI * 2;
+    const y = Math.cos(angle) * radius + gaussianRandom(0, 0.018);
+    const z = Math.sin(angle) * radius + gaussianRandom(0, 0.018);
+
+    targets.push({
+      y: clamp(y, -SCREEN_RADIUS, SCREEN_RADIUS),
+      z: clamp(z, -SCREEN_RADIUS, SCREEN_RADIUS),
+      intensity
+    });
+  }
+
+  return targets;
+}
+
+function buildElectronDualityGroup(options = {}) {
+  const compact = options.compact ?? false;
+  const group = new THREE.Group();
+
+  const stageTop = createStage(8.8, 3.2, 0x0d1327, 0.18);
+  stageTop.position.set(0, -0.95, -1.8);
+  group.add(stageTop);
+
+  const stageBottom = createStage(8.8, 3.2, 0x0d1327, 0.18);
+  stageBottom.position.set(0, -0.95, 1.8);
+  group.add(stageBottom);
+
+  const title = createLabelSprite(['물질(전자)의 이중성'], {
+    accent: '#9ef0ff',
+    scale: 1.45
+  });
+  title.position.set(0, 4.1, 0);
+  group.add(title);
+
+  const particleLane = new THREE.Group();
+  particleLane.position.set(0, 1.6, -1.8);
+  group.add(particleLane);
+
+  const gunMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3a4766,
+    emissive: 0x111a2c,
+    roughness: 0.54
+  });
+  const gunBody = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 1.2, 18), gunMaterial);
+  gunBody.rotation.z = Math.PI / 2;
+  gunBody.position.set(-3.2, 0, 0);
+  particleLane.add(gunBody);
+
+  const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.48, 18), gunMaterial);
+  nozzle.rotation.z = -Math.PI / 2;
+  nozzle.position.set(-2.54, 0, 0);
+  particleLane.add(nozzle);
+
+  const particleScreenTexture = createScreenTexture('plain');
+  const particleScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 2.5),
+    new THREE.MeshBasicMaterial({
+      map: particleScreenTexture,
+      transparent: true,
+      side: THREE.DoubleSide
+    })
+  );
+  particleScreen.position.set(3.2, 0, 0);
+  particleScreen.rotation.y = -Math.PI / 2;
+  particleLane.add(particleScreen);
+
+  const particleFrame = createFrame(1.52, 2.64, 0x46617d);
+  particleFrame.position.copy(particleScreen.position);
+  particleFrame.rotation.y = particleScreen.rotation.y;
+  particleLane.add(particleFrame);
+
+  particleLane.add(createBeamLine(new THREE.Vector3(-2.4, 0, 0), new THREE.Vector3(3.0, 0, 0), 0x66ddff, 0.28));
+
+  const particleImpactDots = [];
+  for (let i = 0; i < 18; i++) {
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0xaef4ff,
+        transparent: true,
+        opacity: 0.66
+      })
+    );
+    dot.visible = false;
+    particleLane.add(dot);
+    particleImpactDots.push({ mesh: dot, life: 0 });
+  }
+
+  const particleShots = createShotPool(particleLane, 16, 0x44ddff, 0.07, 0.95);
+  let particleSpawnTimer = 0;
+  let particleDotIndex = 0;
+
+  const particleLabel = createLabelSprite(['직선 이동 + 점 충돌 = 입자성', '전자총에서 전자를 하나씩 발사'], {
+    accent: '#9ef0ff',
+    scale: compact ? 1.2 : 1.34,
+    fontSize: 28
+  });
+  particleLabel.position.set(0.62, 2.18, 0);
+  particleLane.add(particleLabel);
+
+  const diffractionLane = new THREE.Group();
+  diffractionLane.position.set(0, -1.8, 1.8);
+  group.add(diffractionLane);
+
+  const diffractionGun = new THREE.Group();
+  const dBody = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 1.42, 18), gunMaterial);
+  dBody.rotation.z = Math.PI / 2;
+  dBody.position.set(-3.2, 0, 0);
+  diffractionGun.add(dBody);
+  const dNozzle = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.54, 18), gunMaterial);
+  dNozzle.rotation.z = -Math.PI / 2;
+  dNozzle.position.set(-2.42, 0, 0);
+  diffractionGun.add(dNozzle);
+  diffractionLane.add(diffractionGun);
+
+  const diffractionWaveCurve = createWaveCurve(
+    new THREE.Vector3(-2.36, 0, 0),
+    new THREE.Vector3(-0.12, 0, 0),
+    0.14,
+    4.2,
+    0.12,
+    new THREE.Vector3(0, 0, 1)
+  );
+  const diffractionWave = createTubeFromCurve(diffractionWaveCurve, 0x58ebff, 0.045);
+  diffractionLane.add(diffractionWave);
+
+  const crystalTexture = createCrystalTexture();
+  const crystal = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 2.2, 1.8),
+    new THREE.MeshStandardMaterial({
+      color: 0x8a92a0,
+      map: crystalTexture,
+      roughness: 0.68,
+      metalness: 0.1
+    })
+  );
+  crystal.position.set(0, 0, 0);
+  diffractionLane.add(crystal);
+
+  const screenTexture = createScreenTexture('guide-rings');
+  const diffractionScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.8, 3.8),
+    new THREE.MeshBasicMaterial({
+      map: screenTexture,
+      transparent: true,
+      opacity: 0.84,
+      side: THREE.DoubleSide
+    })
+  );
+  diffractionScreen.position.set(3.35, 0, 0);
+  diffractionScreen.rotation.y = -Math.PI / 2;
+  diffractionLane.add(diffractionScreen);
+
+  const diffractionFrame = createFrame(3.92, 3.92, 0x46617d);
+  diffractionFrame.position.copy(diffractionScreen.position);
+  diffractionFrame.rotation.y = diffractionScreen.rotation.y;
+  diffractionLane.add(diffractionFrame);
+
+  diffractionLane.add(createBeamLine(new THREE.Vector3(-2.2, 0, 0), new THREE.Vector3(0.04, 0, 0), 0x66ddff, 0.24));
+
+  const impactGeometry = new THREE.SphereGeometry(0.032, 8, 8);
+  const impactMaterial = new THREE.MeshBasicMaterial({
+    color: 0x66eeff,
+    transparent: true,
+    opacity: 0.95,
+    vertexColors: true
+  });
+  const impacts = new THREE.InstancedMesh(impactGeometry, impactMaterial, MAX_DIFFRACTION_POINTS);
+  impacts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  impacts.count = 0;
+  diffractionLane.add(impacts);
+
+  const diffractionShots = createShotPool(diffractionLane, 180, 0x44ddff, 0.045, 0.92);
+  const wavePulseBeads = [];
+  for (let i = 0; i < 5; i++) {
+    const bead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0x9ef4ff,
+        transparent: true,
+        opacity: 0.8
+      })
+    );
+    diffractionLane.add(bead);
+    wavePulseBeads.push({ mesh: bead, offset: i * 0.21 });
+  }
+
+  const diffractionLabel = createLabelSprite(['전자 회절 → 파동성을 입증', '처음은 점, 많이 쌓이면 동심원 무늬'], {
+    accent: '#9ef0ff',
+    scale: compact ? 1.2 : 1.36,
+    fontSize: 28
+  });
+  diffractionLabel.position.set(0.74, 2.55, 0);
+  diffractionLane.add(diffractionLabel);
+
+  let patternTargets = generateDiffractionTargets(MAX_DIFFRACTION_POINTS, params.electronSpeed);
+  let impactCount = 0;
+  let targetCount = params.electronCount;
+  let firing = false;
+  let spawnAccumulator = 0;
+
+  function clearImpacts() {
+    impactCount = 0;
+    impacts.count = 0;
+    impacts.instanceMatrix.needsUpdate = true;
+    if (impacts.instanceColor) {
+      impacts.instanceColor.needsUpdate = true;
+    }
+    diffractionShots.forEach((entry) => {
+      entry.active = false;
+      entry.mesh.visible = false;
+    });
+  }
+
+  function addImpact(data) {
+    if (impactCount >= MAX_DIFFRACTION_POINTS) return;
+    tempObject.position.set(3.44, data.y, data.z);
+    tempObject.scale.setScalar(1);
+    tempObject.rotation.set(0, 0, 0);
+    tempObject.updateMatrix();
+    impacts.setMatrixAt(impactCount, tempObject.matrix);
+    tempColor.setRGB(0.5 + data.intensity * 0.25, 0.82 + data.intensity * 0.1, 1);
+    impacts.setColorAt(impactCount, tempColor);
+    impactCount += 1;
+    impacts.count = impactCount;
+    impacts.instanceMatrix.needsUpdate = true;
+    if (impacts.instanceColor) {
+      impacts.instanceColor.needsUpdate = true;
+    }
+  }
+
+  function spawnDiffractionShot() {
+    if (impactCount >= targetCount) return;
+    const shot = getAvailableShot(diffractionShots);
+    if (!shot) return;
+    const index = impactCount;
+    const target = patternTargets[index];
+    shot.active = true;
+    shot.progress = 0;
+    shot.duration = randomRange(0.18, 0.28);
+    shot.start.set(-2.28, 0, 0);
+    shot.target.set(3.35, target.y, target.z);
+    shot.mid.set(1.2, target.y * 0.3 + gaussianRandom(0, 0.08), target.z * 0.3 + gaussianRandom(0, 0.08));
+    shot.impact = () => addImpact(target);
+    shot.mesh.visible = true;
+  }
+
+  function startBurst() {
+    clearImpacts();
+    targetCount = params.electronCount;
+    firing = true;
+    spawnAccumulator = 0;
+  }
+
+  function refreshPattern(speed = params.electronSpeed, shouldRestart = true) {
+    patternTargets = generateDiffractionTargets(MAX_DIFFRACTION_POINTS, speed);
+    clearImpacts();
+    if (shouldRestart) {
+      startBurst();
+    }
+  }
+
+  function setTargetCount(nextCount, shouldRestart = true) {
+    targetCount = nextCount;
+    if (shouldRestart) {
+      startBurst();
+    }
+  }
+
+  function setSpeed(nextSpeed, shouldRestart = true) {
+    refreshPattern(nextSpeed, shouldRestart);
+  }
+
+  const system = {
+    startBurst,
+    refreshPattern,
+    setTargetCount,
+    setSpeed,
+    getImpactCount: () => impactCount,
+    getTargetCount: () => targetCount,
+    update(delta, elapsed) {
+      particleSpawnTimer += delta;
+      if (particleSpawnTimer >= 0.36) {
+        particleSpawnTimer = 0;
+        const shot = getAvailableShot(particleShots);
+        if (shot) {
+          const impactY = gaussianRandom(0, 0.34);
+          const impactZ = gaussianRandom(0, 0.14);
+          shot.active = true;
+          shot.progress = 0;
+          shot.duration = randomRange(0.42, 0.62);
+          shot.start.set(-2.3, 0, 0);
+          shot.target.set(3.12, impactY, impactZ);
+          shot.impact = () => {
+            const dot = particleImpactDots[particleDotIndex % particleImpactDots.length];
+            particleDotIndex += 1;
+            dot.life = 1.25;
+            dot.mesh.visible = true;
+            dot.mesh.position.set(3.16, impactY, impactZ);
+          };
+          shot.mesh.visible = true;
+        }
+      }
+
+      updateShotPool(particleShots, delta, (entry) => {
+        entry.mesh.position.lerpVectors(entry.start, entry.target, entry.progress);
+        entry.mesh.scale.setScalar(1 - entry.progress * 0.2);
+      });
+
+      particleImpactDots.forEach((dot) => {
+        if (dot.life <= 0) {
+          dot.mesh.visible = false;
+          return;
+        }
+        dot.life -= delta;
+        dot.mesh.material.opacity = clamp(dot.life, 0, 0.75);
+        const scale = 0.8 + (1 - dot.life) * 0.8;
+        dot.mesh.scale.setScalar(scale);
+      });
+
+      wavePulseBeads.forEach((entry, index) => {
+        const t = (elapsed * 0.18 + entry.offset) % 1;
+        entry.mesh.position.copy(diffractionWaveCurve.getPoint(t));
+        entry.mesh.material.opacity = 0.32 + 0.52 * Math.sin((t + index * 0.06) * Math.PI);
+      });
+
+      if (firing) {
+        const emissionRate = clamp(12 + targetCount * 0.08, 12, 700);
+        spawnAccumulator += delta * emissionRate;
+        while (spawnAccumulator >= 1 && impactCount < targetCount) {
+          spawnDiffractionShot();
+          spawnAccumulator -= 1;
+        }
+        if (impactCount >= targetCount) {
+          firing = false;
+        }
+      }
+
+      updateShotPool(diffractionShots, delta, (entry) => {
+        const t = entry.progress;
+        if (t < 0.42) {
+          entry.mesh.position.lerpVectors(entry.start, new THREE.Vector3(-0.04, 0, 0), t / 0.42);
+        } else {
+          const u = (t - 0.42) / 0.58;
+          const pos = new THREE.Vector3(
+            2 * (1 - u) * u * entry.mid.x + u * u * entry.target.x,
+            2 * (1 - u) * u * entry.mid.y + u * u * entry.target.y,
+            2 * (1 - u) * u * entry.mid.z + u * u * entry.target.z
+          );
+          entry.mesh.position.copy(pos);
+        }
+        entry.mesh.scale.setScalar(1 - t * 0.15);
+      });
+
+      crystal.rotation.y = Math.sin(elapsed * 0.5) * 0.04;
+
+      if (!firing && params.autoRepeat && impactCount >= targetCount) {
+        startBurst();
+      }
+    }
+  };
+
+  return { group, system };
+}
+
+function buildWaveCompareGroup() {
+  const group = new THREE.Group();
+  const stage = createStage(14.2, 8.4, 0x10162d, 0.2);
+  stage.position.set(0, -1.18, 0);
+  group.add(stage);
+
+  const title = createLabelSprite(['드브로이 물질파 파장 비교', '질량이 작을수록, 속력이 느릴수록 파장이 길다'], {
+    accent: '#9ef0ff',
+    scale: 1.72,
+    fontSize: 30
+  });
+  title.position.set(0, 4.25, 0);
+  group.add(title);
+
+  const axisMaterial = new THREE.MeshBasicMaterial({
+    color: 0x7887aa,
+    transparent: true,
+    opacity: 0.38
+  });
+  const axis = new THREE.Mesh(new THREE.BoxGeometry(0.08, 5.8, 0.08), axisMaterial);
+  axis.position.set(-5.8, 1.05, 0);
+  group.add(axis);
+
+  [-34, -26, -18, -10].forEach((tick) => {
+    const y = remap(tick, -34, -10, -1.4, 4.0);
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(12.2, 0.02, 0.02),
+      new THREE.MeshBasicMaterial({
+        color: 0x637293,
+        transparent: true,
+        opacity: 0.18
+      })
+    );
+    line.position.set(0.2, y, -0.6);
+    group.add(line);
+
+    const sprite = createLabelSprite([`log10 λ = ${tick}`], {
+      accent: '#a9b8df',
+      scale: 1.06,
+      fontSize: 24,
+      background: 'rgba(10, 14, 30, 0.72)'
+    });
+    sprite.position.set(-6.5, y, 0);
+    group.add(sprite);
+  });
+
+  const barData = [
+    { key: '전자', x: -3.5, z: -0.2, color: 0x44ddff },
+    { key: '양성자', x: 0, z: 0, color: 0xffab52 },
+    { key: '야구공', x: 3.5, z: 0.2, color: 0xff7d7d }
+  ];
+
+  const bars = [];
+  barData.forEach((item) => {
+    const holder = new THREE.Group();
+    holder.position.set(item.x, -1.16, item.z);
+    group.add(holder);
+
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.74, 0.84, 0.28, 22),
+      new THREE.MeshStandardMaterial({
+        color: 0x11182c,
+        emissive: 0x0f1830,
+        roughness: 0.58
+      })
+    );
+    base.position.y = 0.14;
+    holder.add(base);
+
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(1.18, 1, 1.18),
+      new THREE.MeshStandardMaterial({
+        color: item.color,
+        emissive: tempColor.set(item.color).multiplyScalar(0.26),
+        emissiveIntensity: 0.7,
+        roughness: 0.32,
+        metalness: 0.08
+      })
+    );
+    bar.position.y = 0.64;
+    holder.add(bar);
+
+    const halo = new THREE.Mesh(
+      new THREE.TorusGeometry(0.92, 0.06, 12, 32),
+      new THREE.MeshBasicMaterial({
+        color: item.color,
+        transparent: true,
+        opacity: 0.2
+      })
+    );
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = 0.22;
+    holder.add(halo);
+
+    const label = createLabelSprite([item.key], {
+      accent: item.key === '야구공' ? '#ffc0c0' : item.key === '양성자' ? '#ffd19c' : '#9ef4ff',
+      scale: 1.18,
+      fontSize: 28
+    });
+    label.position.set(0, 3.4, 0);
+    holder.add(label);
+
+    bars.push({ key: item.key, holder, base, bar, halo, valueLabel: null });
+  });
+
+  const compareLabel = createLabelSprite(['전자: 원자 크기 수준의 파장', '야구공: 관찰 불가능하게 작은 파장'], {
+    accent: '#fff1a8',
+    scale: 1.5,
+    fontSize: 28
+  });
+  compareLabel.position.set(0, -0.1, -2.4);
+  group.add(compareLabel);
+
+  function refresh() {
+    bars.forEach((entry) => {
+      if (entry.valueLabel) {
+        entry.holder.remove(entry.valueLabel);
+        disposeObjectTree(entry.valueLabel);
+      }
+      const wavelength = getWavelengthForParticle(entry.key);
+      const logValue = Math.log10(wavelength);
+      const height = remap(logValue, -34, -10, 0.35, 5.45);
+      entry.bar.scale.y = height;
+      entry.bar.position.y = 0.28 + height * 0.5;
+
+      const valueLabel = createLabelSprite([formatWavelength(wavelength)], {
+        accent: '#ffffff',
+        scale: 1.2,
+        fontSize: 26,
+        background: 'rgba(8, 13, 28, 0.74)'
+      });
+      valueLabel.position.set(0, entry.bar.position.y + height * 0.5 + 0.56, 0);
+      entry.holder.add(valueLabel);
+      entry.valueLabel = valueLabel;
+
+      const isSelected = params.particleType === entry.key;
+      entry.halo.material.opacity = isSelected ? 0.68 : 0.18;
+      entry.halo.scale.setScalar(isSelected ? 1.15 : 1);
+      entry.bar.material.emissiveIntensity = isSelected ? 1.2 : 0.72;
+    });
+  }
+
+  const system = {
+    refresh,
+    update(delta, elapsed) {
+      bars.forEach((entry, index) => {
+        entry.halo.rotation.z += delta * (0.35 + index * 0.12);
+        const pulse = 1 + Math.sin(elapsed * 1.8 + index * 0.7) * 0.02;
+        entry.base.scale.setScalar(pulse);
+      });
+    }
+  };
+
+  refresh();
+  return { group, system };
+}
+
+function setCameraForMode() {
+  if (params.viewMode === VIEW_FULL) {
+    camera.position.set(0, 5.8, 24);
+    controls.target.set(0, 1.2, 0);
+  } else if (params.viewMode === VIEW_LIGHT) {
+    camera.position.set(-6.6, 4.6, 15.4);
+    controls.target.set(-7.2, 1.0, 0);
+  } else if (params.viewMode === VIEW_DIFFRACTION) {
+    camera.position.set(6.8, 4.8, 15.6);
+    controls.target.set(7.2, 1.0, 0);
+  } else {
+    camera.position.set(0, 4.8, 16.2);
+    controls.target.set(0, 1.2, 0);
+  }
+  controls.update();
+}
+
+function rebuildContent() {
+  clearContentRoot();
+
+  const root = new THREE.Group();
+  runtime.contentRoot = root;
+  scene.add(root);
+
+  if (params.viewMode === VIEW_FULL) {
+    root.add(buildDivider());
+
+    const left = buildLightDualityGroup({ compact: false });
+    left.group.position.set(-7.3, 0, 0);
+    root.add(left.group);
+    runtime.lightSystem = left.system;
+    runtime.animators.push((delta, elapsed) => left.system.update(delta, elapsed));
+
+    const right = buildElectronDualityGroup({ compact: false });
+    right.group.position.set(7.3, 0, 0);
+    root.add(right.group);
+    runtime.electronSystem = right.system;
+    runtime.animators.push((delta, elapsed) => right.system.update(delta, elapsed));
+    right.system.setTargetCount(params.electronCount, true);
+  } else if (params.viewMode === VIEW_LIGHT) {
+    const left = buildLightDualityGroup({ compact: true });
+    root.add(left.group);
+    runtime.lightSystem = left.system;
+    runtime.animators.push((delta, elapsed) => left.system.update(delta, elapsed));
+  } else if (params.viewMode === VIEW_DIFFRACTION) {
+    const right = buildElectronDualityGroup({ compact: true });
+    root.add(right.group);
+    runtime.electronSystem = right.system;
+    runtime.animators.push((delta, elapsed) => right.system.update(delta, elapsed));
+    right.system.setTargetCount(params.electronCount, true);
+  } else {
+    const compare = buildWaveCompareGroup();
+    root.add(compare.group);
+    runtime.waveCompareSystem = compare.system;
+    runtime.animators.push((delta, elapsed) => compare.system.update(delta, elapsed));
+  }
+
+  setCameraForMode();
+  updateFormulaPanel();
+  updateStatusPanel();
+  updateComparisonTableVisibility();
+}
+
+function updateFormulaPanel() {
+  const electronLambda = PLANCK / (ELECTRON_MASS * params.electronSpeed);
+  const baseballLambda = PLANCK / (BASEBALL_MASS * BASEBALL_SPEED);
+  const selectedLambda = getWavelengthForParticle(params.particleType);
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">🌊 물질파와 전자 회절</div>
+    <div class="panel-subtitle">빛과 물질 모두 파동성과 입자성을 가지는 이중성을 보여 줍니다.</div>
+    <div class="divider"></div>
+    <div class="line"><div class="label">보기</div><div class="value">${params.viewMode}</div></div>
+    <div class="line"><div class="label">전자 수</div><div class="value">${params.electronCount.toLocaleString('ko-KR')}개</div></div>
+    <div class="line"><div class="label">전자 속력</div><div class="value">${formatSpeed(params.electronSpeed)}</div></div>
+    <div class="formula-block">드브로이 물질파 파장:
+λ = h / mv = h / p
+h = 6.63×10⁻³⁴ J·s</div>
+    <div class="line"><div class="label">전자</div><div class="value">m = 9.1×10⁻³¹ kg, λ = ${formatWavelength(electronLambda)} → 회절 관찰 가능</div></div>
+    <div class="line"><div class="label">야구공</div><div class="value">m = 0.15 kg, v = 40 m/s, λ = ${formatWavelength(baseballLambda)} → 관찰 불가능</div></div>
+    <div class="line"><div class="label">선택 입자</div><div class="value">${params.particleType}의 λ = ${formatWavelength(selectedLambda)}</div></div>
+    <div class="highlight">질량이 매우 작고 속력이 충분히 낮을수록 파장이 길어져 회절과 간섭이 더 뚜렷하게 드러납니다.</div>
+    <div class="footnote">전자 회절 화면에서는 전자를 하나씩 충돌시키며 패턴을 누적합니다. 전자 속력을 높이면 파장이 짧아져 회절 고리 간격이 좁아집니다.</div>
+  `;
+}
+
+function updateComparisonTableVisibility() {
+  comparisonTableEl.style.display = params.showComparisonTable ? 'block' : 'none';
+}
+
+function updateStatusPanel() {
+  let title = '';
+  let body = '';
+  let tone = 'electron-tone';
+
+  if (params.viewMode === VIEW_LIGHT) {
+    title = '빛은 간섭과 광전 효과를 모두 보여 줍니다.';
+    body = '이중 슬릿에서는 파동처럼 간섭하고, 광전 효과에서는 광자처럼 에너지를 한 덩어리씩 전달합니다.';
+    tone = 'light-tone';
+  } else if (params.viewMode === VIEW_WAVELENGTH) {
+    const lambda = getWavelengthForParticle(params.particleType);
+    title = `${params.particleType}의 드브로이 파장은 ${formatWavelength(lambda)}입니다.`;
+    body = '전자와 양성자, 야구공을 로그 스케일로 비교하면 왜 일상 물체의 물질파가 관찰되지 않는지 직관적으로 드러납니다.';
+    tone = 'compare-tone';
+  } else {
+    const impactCount = runtime.electronSystem ? runtime.electronSystem.getImpactCount() : 0;
+    const targetCount = runtime.electronSystem ? runtime.electronSystem.getTargetCount() : params.electronCount;
+    if (impactCount < 30) {
+      title = '전자는 먼저 점처럼 하나씩 찍힙니다.';
+      body = '개별 충돌은 입자성을 보여 주지만, 누적된 결과는 파동적인 회절 무늬를 드러냅니다.';
+    } else if (impactCount < 800) {
+      title = '무늬가 서서히 드러나는 중입니다.';
+      body = `${impactCount.toLocaleString('ko-KR')}개의 전자가 스크린에 쌓이며 밝은 띠가 중심에서 바깥으로 정리되고 있습니다.`;
+    } else {
+      title = '동심원 회절 무늬가 뚜렷해졌습니다.';
+      body = `${targetCount.toLocaleString('ko-KR')}개 가까운 전자가 쌓이면 전자의 파동성이 통계적으로 분명하게 드러납니다.`;
+    }
+  }
+
+  statusChipEl.className = `overlay ${tone}`;
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+  modePillEl.textContent = `현재 보기: ${params.viewMode}`;
+}
+
+function syncGui() {
+  guiReadout.electronCountText = `${params.electronCount.toLocaleString('ko-KR')}개`;
+  guiReadout.electronSpeedText = formatSpeed(params.electronSpeed);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function fireElectrons() {
+  if (!runtime.electronSystem) {
+    params.viewMode = VIEW_DIFFRACTION;
+    rebuildContent();
+    syncGui();
+  }
+  runtime.electronSystem.startBurst();
+  updateStatusPanel();
+}
+
+function resetSimulation() {
+  if (runtime.electronSystem) {
+    runtime.electronSystem.refreshPattern(params.electronSpeed, true);
+  } else if (runtime.waveCompareSystem) {
+    runtime.waveCompareSystem.refresh();
+  }
+  updateFormulaPanel();
+  updateStatusPanel();
+  syncGui();
+}
+
+const gui = new GUI({ title: '시뮬레이션 제어' });
+
+gui.add(params, 'viewMode', [VIEW_LIGHT, VIEW_DIFFRACTION, VIEW_WAVELENGTH, VIEW_FULL]).name('보기 모드').onChange(() => {
+  rebuildContent();
+  syncGui();
+});
+
+gui.add(guiState, 'electronCountLog10', 1, 4, 0.01).name('전자 수(log10)').onChange((value) => {
+  params.electronCount = Math.round(10 ** value);
+  if (runtime.electronSystem) {
+    runtime.electronSystem.setTargetCount(params.electronCount, true);
+  }
+  updateFormulaPanel();
+  updateStatusPanel();
+  syncGui();
+});
+
+const electronCountReadout = gui.add(guiReadout, 'electronCountText').name('전자 수');
+electronCountReadout.disable?.();
+
+gui.add(params, 'electronSpeed', 1e5, 1e7, 1e4).name('전자 속력').onChange((value) => {
+  params.electronSpeed = Math.round(value);
+  if (runtime.electronSystem) {
+    runtime.electronSystem.setSpeed(params.electronSpeed, true);
+  }
+  if (runtime.waveCompareSystem) {
+    runtime.waveCompareSystem.refresh();
+  }
+  updateFormulaPanel();
+  updateStatusPanel();
+  syncGui();
+});
+
+const electronSpeedReadout = gui.add(guiReadout, 'electronSpeedText').name('속력 표시');
+electronSpeedReadout.disable?.();
+
+gui.add({ fire: fireElectrons }, 'fire').name('전자 발사');
+gui.add(params, 'autoRepeat').name('연속 발사');
+gui.add(params, 'particleType', ['전자', '양성자', '야구공']).name('입자 종류').onChange(() => {
+  if (runtime.waveCompareSystem) {
+    runtime.waveCompareSystem.refresh();
+  }
+  updateFormulaPanel();
+  updateStatusPanel();
+  syncGui();
+});
+gui.add(params, 'showComparisonTable').name('비교 표').onChange(() => {
+  updateComparisonTableVisibility();
+});
+gui.add({ reset: resetSimulation }, 'reset').name('초기화');
+
+guideToggleEl.addEventListener('click', () => {
+  const nextExpanded = guidePanelEl.style.display !== 'block';
+  guidePanelEl.style.display = nextExpanded ? 'block' : 'none';
+  guideToggleEl.setAttribute('aria-expanded', String(nextExpanded));
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const elapsed = clock.elapsedTime;
+  controls.update();
+  runtime.animators.forEach((updater) => updater(delta, elapsed));
+  updateStatusPanel();
+  renderer.render(scene, camera);
+}
+
+rebuildContent();
+updateFormulaPanel();
+updateComparisonTableVisibility();
+syncGui();
+animate();
+</script>
+</body>
+</html>

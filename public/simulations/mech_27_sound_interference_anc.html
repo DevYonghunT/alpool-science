@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>음파의 간섭과 소음 제어 (ANC) - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-deep: #0d1020;
+    --bg-panel: rgba(8, 12, 26, 0.84);
+    --bg-panel-strong: rgba(10, 15, 32, 0.94);
+    --bg-card: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.12);
+    --text-main: #f5f8ff;
+    --text-dim: rgba(245, 248, 255, 0.7);
+    --text-soft: rgba(245, 248, 255, 0.5);
+    --accent-green: #55ff9a;
+    --accent-orange: #ffb36c;
+    --accent-blue: #64afff;
+    --accent-red: #ff6d79;
+    --shadow: 0 22px 48px rgba(2, 5, 14, 0.36);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 10%, rgba(84, 255, 154, 0.1), transparent 22%),
+      radial-gradient(circle at 84% 16%, rgba(100, 175, 255, 0.12), transparent 24%),
+      linear-gradient(180deg, #0d1020 0%, #090c18 52%, #060810 100%);
+    color: var(--text-main);
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    touch-action: none;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(360px, 0.92fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 16% 14%, rgba(86, 255, 155, 0.08), transparent 22%),
+      radial-gradient(circle at 84% 18%, rgba(255, 158, 102, 0.08), transparent 18%),
+      linear-gradient(180deg, rgba(13, 16, 32, 0.98) 0%, rgba(8, 10, 18, 1) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 18% 12%, rgba(84, 255, 154, 0.08), transparent 22%),
+      radial-gradient(circle at 82% 14%, rgba(100, 175, 255, 0.1), transparent 22%),
+      linear-gradient(180deg, #121a34 0%, #0b1122 58%, #080d17 100%);
+    padding: 18px 18px 16px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 14px;
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 14, 28, 0.9);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-toggle:hover {
+    background: rgba(12, 18, 36, 0.94);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 14px;
+    z-index: 39;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    display: none;
+    line-height: 1.76;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #b6dcff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #guide-panel .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+  }
+
+  #title-card {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    min-width: 340px;
+    max-width: min(82vw, 720px);
+    padding: 14px 22px 15px;
+    border-radius: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #status-chip {
+    position: absolute;
+    top: 104px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 27;
+    width: min(760px, calc(100% - 32px));
+    min-height: 90px;
+    padding: 15px 18px;
+    border-radius: 24px;
+    pointer-events: none;
+  }
+
+  #status-chip .title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff1bb;
+  }
+
+  #status-chip .body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(245, 248, 255, 0.78);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 26;
+    width: min(400px, calc(100vw - 32px));
+    max-height: min(38vh, 320px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff0b0;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .info-row .label {
+    width: 114px;
+    flex-shrink: 0;
+    color: rgba(245, 248, 255, 0.58);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(245, 248, 255, 0.96);
+  }
+
+  .concept-box {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  .concept-box strong {
+    display: block;
+    color: #f6fbff;
+  }
+
+  .concept-box p {
+    margin-top: 4px;
+    color: rgba(245, 248, 255, 0.76);
+  }
+
+  #probe-card {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 26;
+    width: min(320px, calc(100vw - 32px));
+    padding: 15px 16px;
+    border-radius: 22px;
+    pointer-events: none;
+  }
+
+  #probe-card .heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #probe-card .heading h3 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  #probe-card .sound-badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  #probe-card .grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  #probe-card .item {
+    padding: 10px 11px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #probe-card .item .label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245, 248, 255, 0.52);
+  }
+
+  #probe-card .item strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  #probe-card .footnote {
+    margin-top: 10px;
+    color: rgba(245, 248, 255, 0.68);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  #label-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 22;
+    pointer-events: none;
+  }
+
+  .hud-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(7, 12, 22, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 0.18s ease;
+  }
+
+  #gui-mount {
+    position: absolute;
+    top: 206px;
+    right: 16px;
+    z-index: 40;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(8, 13, 28, 0.9);
+    --title-background-color: rgba(14, 23, 46, 0.96);
+    --text-color: #f7f9ff;
+    --widget-color: #d8ebff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --focus-color: rgba(255, 255, 255, 0.06);
+    --number-color: #ffd37c;
+    --font-size: 12px;
+    overflow: hidden;
+    border-radius: 20px;
+    box-shadow: 0 20px 42px rgba(4, 8, 18, 0.34);
+  }
+
+  #graph-head {
+    padding: 4px 4px 2px;
+  }
+
+  #graph-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(245, 248, 255, 0.56);
+  }
+
+  #graph-head h2 {
+    margin-top: 6px;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(245, 248, 255, 0.72);
+  }
+
+  #graph-stack {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 12px;
+  }
+
+  .graph-card {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    padding: 14px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 36px rgba(3, 6, 16, 0.18);
+  }
+
+  .graph-card .card-head {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .graph-card .card-head h3 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .graph-card .card-head p {
+    margin-top: 4px;
+    color: rgba(245, 248, 255, 0.68);
+    font-size: 11px;
+    line-height: 1.58;
+  }
+
+  .graph-card .hint {
+    flex-shrink: 0;
+    align-self: flex-start;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(245, 248, 255, 0.84);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .graph-canvas {
+    width: 100%;
+    height: calc(100% - 62px);
+    display: block;
+    border-radius: 18px;
+    background: rgba(7, 11, 22, 0.95);
+  }
+
+  #map-canvas {
+    cursor: crosshair;
+  }
+
+  #map-empty {
+    position: absolute;
+    inset: 70px 14px 14px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background: rgba(4, 8, 18, 0.92);
+    color: rgba(245, 248, 255, 0.74);
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: center;
+    padding: 18px;
+  }
+
+  #metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    min-height: 88px;
+    padding: 13px 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 16px 32px rgba(3, 6, 16, 0.12);
+  }
+
+  .metric-card .label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245, 248, 255, 0.54);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 19px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 6px;
+    color: rgba(245, 248, 255, 0.72);
+    font-size: 11px;
+    line-height: 1.56;
+  }
+
+  @media (max-width: 1180px) {
+    #layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  }
+
+  @media (max-width: 900px) {
+    #title-card {
+      top: 62px;
+      min-width: 0;
+      max-width: calc(100% - 24px);
+      padding: 12px 16px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 24px;
+    }
+
+    #status-chip {
+      top: 150px;
+      width: calc(100% - 24px);
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: min(360px, calc(100vw - 24px));
+    }
+
+    #probe-card {
+      right: 12px;
+      bottom: 12px;
+      width: min(300px, calc(100vw - 24px));
+    }
+
+    #metrics-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    #graph-panel {
+      padding: 14px 12px 12px;
+    }
+
+    #guide-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+    }
+
+    #status-chip {
+      top: 152px;
+      min-height: 108px;
+      padding: 14px 15px;
+    }
+
+    #status-chip .title {
+      font-size: 16px;
+    }
+
+    #formula-panel,
+    #probe-card {
+      width: calc(100vw - 24px);
+    }
+
+    #probe-card {
+      display: none;
+    }
+
+    .info-row .label {
+      width: 100px;
+    }
+
+    #graph-head h2 {
+      font-size: 22px;
+    }
+
+    .graph-card {
+      padding: 12px;
+    }
+
+    .graph-card .hint {
+      display: none;
+    }
+
+    .graph-canvas {
+      height: calc(100% - 52px);
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+
+    <button id="guide-toggle" type="button">학습 가이드</button>
+
+    <div id="guide-panel" class="panel">
+      <h3>핵심 원리</h3>
+      <p>두 음파가 같은 위상으로 만나면 보강 간섭으로 소리가 커지고, 반대 위상으로 만나면 상쇄 간섭으로 소리가 작아집니다. 능동 소음 제어는 소음과 반대 위상의 음파를 만들어 상쇄 간섭을 일으켜 소음을 줄입니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>두 스피커에서 같은 진동수의 소리를 낼 때, 어떤 위치에서 소리가 크게 들리고 어떤 위치에서 작게 들릴까요?</li>
+        <li>노이즈 캔슬링 이어폰의 원리를 상쇄 간섭으로 설명해 보세요.</li>
+        <li>보강 간섭과 상쇄 간섭이 일어나는 조건을 경로차와 파장으로 각각 표현해 보세요.</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>노이즈 캔슬링 이어폰과 헤드폰</li>
+        <li>콘서트홀과 공연장의 스피커 배치</li>
+        <li>자동차 실내 소음 저감 시스템</li>
+        <li>산업 현장의 능동 소음 저감 장치</li>
+      </ul>
+
+      <h3>관찰 포인트</h3>
+      <ul>
+        <li>선택한 지점에서 <strong>r₁</strong>, <strong>r₂</strong>, 경로차, 총 위상차를 함께 비교해 보세요.</li>
+        <li>스피커 간격 <strong>d</strong>나 파장 <strong>λ</strong>이 바뀌면 간섭무늬의 쌍곡선 패턴도 함께 달라집니다.</li>
+        <li>ANC 모드에서 위상 차이를 180° 부근으로 맞추면 관측점 근처가 조용해집니다.</li>
+      </ul>
+
+      <div class="textbook-ref">교과서 연계: 역학과 에너지 III편 p114~119 — 음파의 간섭과 소음 제어</div>
+    </div>
+
+    <div id="title-card" class="panel">
+      <div class="eyebrow">Mechanical Energy and Sound</div>
+      <h1>음파의 간섭과 소음 제어</h1>
+      <p>두 스피커의 간섭무늬와 ANC 원리를 한 장면에서 비교하며, 경로차와 위상 차이가 소리의 세기를 어떻게 바꾸는지 탐구해 보세요.</p>
+    </div>
+
+    <div id="status-chip" class="panel">
+      <div class="title" id="status-title">선택 지점에서 두 음파의 합성 결과를 비교하세요.</div>
+      <div class="body" id="status-body">공간을 클릭하면 r₁, r₂, 경로차, 총 위상차가 갱신됩니다. 보강 간섭은 밝게, 상쇄 간섭은 어둡게 표시됩니다.</div>
+    </div>
+
+    <div id="formula-panel" class="panel">
+      <h3>음파의 간섭과 소음 제어</h3>
+      <div class="divider"></div>
+      <div class="info-row"><span class="label">모드</span><span class="value" id="formula-mode">두 스피커 간섭</span></div>
+      <div class="info-row"><span class="label">진동수 f</span><span class="value" id="formula-frequency">440 Hz</span></div>
+      <div class="info-row"><span class="label">파장 λ</span><span class="value" id="formula-wavelength">0.77 m</span></div>
+      <div class="info-row"><span class="label">스피커 간격 d</span><span class="value" id="formula-spacing">3.00 m</span></div>
+      <div class="info-row"><span class="label">위상 차이 φ</span><span class="value" id="formula-phase">0°</span></div>
+      <div class="info-row"><span class="label">선택 지점</span><span class="value" id="formula-point">(0.00 m, 3.20 m)</span></div>
+      <div class="info-row"><span class="label">거리 r₁ / r₂</span><span class="value" id="formula-distances">3.54 m / 3.54 m</span></div>
+      <div class="info-row"><span class="label">경로차 |r₁-r₂|</span><span class="value" id="formula-delta">0.00 m</span></div>
+      <div class="info-row"><span class="label">총 위상차 ΔΦ</span><span class="value" id="formula-total-phase">0°</span></div>
+      <div class="info-row"><span class="label">합성 진폭</span><span class="value" id="formula-amplitude">2.00 A</span></div>
+
+      <div class="concept-box">
+        <strong>보강 간섭</strong>
+        <p id="constructive-text">경로차 = nλ, 또는 총 위상차 ΔΦ ≈ 360° × n 이면 소리가 커집니다.</p>
+      </div>
+
+      <div class="concept-box">
+        <strong>상쇄 간섭</strong>
+        <p id="destructive-text">경로차 = (n + 1/2)λ, 또는 총 위상차 ΔΦ ≈ 180° + 360° × n 이면 소리가 크게 줄어듭니다.</p>
+      </div>
+
+      <div class="concept-box">
+        <strong>ANC 해석</strong>
+        <p id="anc-text">소음과 반대 위상의 음파를 동시에 도달시키면 상쇄 간섭이 일어나 특정 위치의 소음을 줄일 수 있습니다.</p>
+      </div>
+    </div>
+
+    <div id="probe-card" class="panel">
+      <div class="heading">
+        <h3>선택 지점 분석</h3>
+        <div class="sound-badge" id="probe-sound-badge">보통</div>
+      </div>
+      <div class="grid">
+        <div class="item">
+          <span class="label">Interference</span>
+          <strong id="probe-condition">보강 간섭</strong>
+        </div>
+        <div class="item">
+          <span class="label">Amplitude</span>
+          <strong id="probe-amplitude">2.00 A</strong>
+        </div>
+        <div class="item">
+          <span class="label">Intensity</span>
+          <strong id="probe-intensity">100%</strong>
+        </div>
+        <div class="item">
+          <span class="label">Path Difference</span>
+          <strong id="probe-delta-ratio">0.00 λ</strong>
+        </div>
+      </div>
+      <div class="footnote" id="probe-footnote">지도를 클릭하거나 3D 공간을 클릭해 다른 지점으로 이동하세요.</div>
+    </div>
+
+    <div id="label-layer">
+      <div id="label-a" class="hud-label">스피커 1</div>
+      <div id="label-b" class="hud-label">스피커 2</div>
+      <div id="label-probe" class="hud-label">선택 지점</div>
+      <div id="label-listener" class="hud-label">청취자</div>
+      <div id="label-mic" class="hud-label">마이크</div>
+    </div>
+
+    <div id="gui-mount"></div>
+  </section>
+
+  <section id="graph-panel">
+    <div id="graph-head">
+      <div class="eyebrow" id="graph-eyebrow">Wave Interference</div>
+      <h2 id="graph-title">합성파와 간섭 패턴</h2>
+      <p id="graph-description">위쪽 그래프는 선택 지점에서의 두 파형과 합성파를, 아래 지도는 공간 전체의 간섭 패턴을 보여 줍니다. 위상 차이와 스피커 간격을 바꾸며 비교해 보세요.</p>
+    </div>
+
+    <div id="graph-stack">
+      <article class="graph-card">
+        <div class="card-head">
+          <div>
+            <h3 id="wave-card-title">선택 지점의 합성파</h3>
+            <p id="wave-card-description">파동 1, 파동 2, 합성파를 시간축으로 비교합니다.</p>
+          </div>
+          <div class="hint">파랑 · 주황 · 초록</div>
+        </div>
+        <canvas id="wave-canvas" class="graph-canvas"></canvas>
+      </article>
+
+      <article class="graph-card">
+        <div class="card-head">
+          <div>
+            <h3 id="map-card-title">간섭 패턴 맵</h3>
+            <p id="map-card-description">밝을수록 보강, 어두울수록 상쇄에 가깝습니다. 지도를 클릭해 탐침 위치를 옮길 수 있습니다.</p>
+          </div>
+          <div class="hint">클릭으로 탐침 이동</div>
+        </div>
+        <canvas id="map-canvas" class="graph-canvas"></canvas>
+        <div id="map-empty">간섭 패턴 맵이 꺼져 있습니다.<br>우측 컨트롤 패널에서 다시 켤 수 있습니다.</div>
+      </article>
+    </div>
+
+    <div id="metrics-grid">
+      <div class="metric-card">
+        <span class="label">Wavelength</span>
+        <strong id="metric-lambda">0.77 m</strong>
+        <p id="metric-lambda-desc">λ = v / f, 음속은 340 m/s로 고정합니다.</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Path Difference</span>
+        <strong id="metric-delta">0.00 λ</strong>
+        <p id="metric-delta-desc">두 파가 선택 지점까지 가는 거리 차입니다.</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Total Phase</span>
+        <strong id="metric-phase">0°</strong>
+        <p id="metric-phase-desc">경로차와 초기 위상 차이를 함께 고려한 값입니다.</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Result</span>
+        <strong id="metric-result">보강 간섭</strong>
+        <p id="metric-result-desc">선택 지점에서 소리가 크게 들리는 조건입니다.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MODE_INTERFERENCE = '두 스피커 간섭';
+const MODE_ANC = 'ANC 소음 제어';
+const SPEED_OF_SOUND = 340;
+const WORLD = {
+  width: 12,
+  depth: 9,
+  centerZ: 2,
+  minX: -6,
+  maxX: 6,
+  minZ: -2.5,
+  maxZ: 6.5
+};
+const PATTERN_WIDTH = 320;
+const PATTERN_HEIGHT = 240;
+const MAX_WAVE_RINGS = 20;
+const BASE_PROBE = new THREE.Vector2(0, 3.2);
+const ANC_LISTENER = new THREE.Vector2(0, 3.35);
+const ANC_MIC = new THREE.Vector2(0, 2.35);
+
+const sceneCanvas = document.getElementById('scene-canvas');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const guiMount = document.getElementById('gui-mount');
+const waveCanvas = document.getElementById('wave-canvas');
+const mapCanvas = document.getElementById('map-canvas');
+const mapEmpty = document.getElementById('map-empty');
+
+const statusTitle = document.getElementById('status-title');
+const statusBody = document.getElementById('status-body');
+const formulaMode = document.getElementById('formula-mode');
+const formulaFrequency = document.getElementById('formula-frequency');
+const formulaWavelength = document.getElementById('formula-wavelength');
+const formulaSpacing = document.getElementById('formula-spacing');
+const formulaPhase = document.getElementById('formula-phase');
+const formulaPoint = document.getElementById('formula-point');
+const formulaDistances = document.getElementById('formula-distances');
+const formulaDelta = document.getElementById('formula-delta');
+const formulaTotalPhase = document.getElementById('formula-total-phase');
+const formulaAmplitude = document.getElementById('formula-amplitude');
+const constructiveText = document.getElementById('constructive-text');
+const destructiveText = document.getElementById('destructive-text');
+const ancText = document.getElementById('anc-text');
+
+const probeSoundBadge = document.getElementById('probe-sound-badge');
+const probeCondition = document.getElementById('probe-condition');
+const probeAmplitude = document.getElementById('probe-amplitude');
+const probeIntensity = document.getElementById('probe-intensity');
+const probeDeltaRatio = document.getElementById('probe-delta-ratio');
+const probeFootnote = document.getElementById('probe-footnote');
+
+const graphEyebrow = document.getElementById('graph-eyebrow');
+const graphTitle = document.getElementById('graph-title');
+const graphDescription = document.getElementById('graph-description');
+const waveCardTitle = document.getElementById('wave-card-title');
+const waveCardDescription = document.getElementById('wave-card-description');
+const mapCardTitle = document.getElementById('map-card-title');
+const mapCardDescription = document.getElementById('map-card-description');
+
+const metricLambda = document.getElementById('metric-lambda');
+const metricLambdaDesc = document.getElementById('metric-lambda-desc');
+const metricDelta = document.getElementById('metric-delta');
+const metricDeltaDesc = document.getElementById('metric-delta-desc');
+const metricPhase = document.getElementById('metric-phase');
+const metricPhaseDesc = document.getElementById('metric-phase-desc');
+const metricResult = document.getElementById('metric-result');
+const metricResultDesc = document.getElementById('metric-result-desc');
+
+const labelA = document.getElementById('label-a');
+const labelB = document.getElementById('label-b');
+const labelProbe = document.getElementById('label-probe');
+const labelListener = document.getElementById('label-listener');
+const labelMic = document.getElementById('label-mic');
+
+const waveCtx = waveCanvas.getContext('2d');
+const mapCtx = mapCanvas.getContext('2d');
+const patternCanvas = document.createElement('canvas');
+patternCanvas.width = PATTERN_WIDTH;
+patternCanvas.height = PATTERN_HEIGHT;
+const patternCtx = patternCanvas.getContext('2d', { willReadFrequently: true });
+
+const defaults = {
+  mode: MODE_INTERFERENCE,
+  frequency: 440,
+  speakerSpacing: 3,
+  phaseDifference: 0,
+  ancEnabled: true,
+  showPatternMap: true,
+  showWaveRings: true,
+  soundOn: false
+};
+
+const state = {
+  ...defaults,
+  probeX: BASE_PROBE.x,
+  probeZ: BASE_PROBE.y
+};
+
+const renderState = {
+  patternDirty: true,
+  mapPointerDown: false,
+  scenePointerDown: null
+};
+
+const tempVector = new THREE.Vector3();
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const clock = new THREE.Clock();
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatNumber(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function formatMeters(value, digits = 2) {
+  return `${formatNumber(value, digits)} m`;
+}
+
+function degToRad(value) {
+  return value * Math.PI / 180;
+}
+
+function radToDeg(value) {
+  return value * 180 / Math.PI;
+}
+
+function wrapDegrees(value) {
+  const wrapped = ((value % 360) + 360) % 360;
+  return wrapped > 180 ? wrapped - 360 : wrapped;
+}
+
+function distanceToNearestInteger(value) {
+  return Math.abs(value - Math.round(value));
+}
+
+function distanceToNearestHalfInteger(value) {
+  return Math.abs(value - (Math.floor(value) + 0.5));
+}
+
+function getWavelength() {
+  return SPEED_OF_SOUND / state.frequency;
+}
+
+function getSourceLayout() {
+  const half = state.speakerSpacing * 0.5;
+  return {
+    a: new THREE.Vector2(-half, -1.5),
+    b: new THREE.Vector2(half, -1.5),
+    listener: ANC_LISTENER.clone(),
+    microphone: ANC_MIC.clone()
+  };
+}
+
+function setProbePosition(x, z) {
+  state.probeX = clamp(x, WORLD.minX + 0.1, WORLD.maxX - 0.1);
+  state.probeZ = clamp(z, WORLD.minZ + 0.1, WORLD.maxZ - 0.1);
+}
+
+function applyModePreset(mode) {
+  state.mode = mode;
+  if (mode === MODE_ANC) {
+    state.phaseDifference = 180;
+    state.ancEnabled = true;
+    setProbePosition(ANC_LISTENER.x, ANC_LISTENER.y);
+  } else {
+    state.phaseDifference = 0;
+    setProbePosition(BASE_PROBE.x, BASE_PROBE.y);
+  }
+  renderState.patternDirty = true;
+}
+
+function resetState() {
+  Object.assign(state, defaults);
+  setProbePosition(BASE_PROBE.x, BASE_PROBE.y);
+  clearWaveRings();
+  renderState.patternDirty = true;
+  syncGui();
+}
+
+function getPointAnalysis(x, z) {
+  const layout = getSourceLayout();
+  const point = new THREE.Vector2(x, z);
+  const wavelength = getWavelength();
+  const k = (Math.PI * 2) / wavelength;
+  const r1 = point.distanceTo(layout.a);
+  const r2 = point.distanceTo(layout.b);
+  const source2Enabled = state.mode === MODE_ANC ? state.ancEnabled : true;
+  const a1 = 1;
+  const a2 = source2Enabled ? 1 : 0;
+  const phase = degToRad(state.phaseDifference);
+  const pathPhase = k * (r2 - r1);
+  const totalPhase = pathPhase + phase;
+  const totalPhaseCycles = totalPhase / (Math.PI * 2);
+  const amplitudeSquared = Math.max(0, a1 * a1 + a2 * a2 + 2 * a1 * a2 * Math.cos(totalPhase));
+  const amplitude = Math.sqrt(amplitudeSquared);
+  const normalizedAmplitude = a1 + a2 > 0 ? amplitude / (a1 + a2) : 0;
+  const intensity = a1 + a2 > 0 ? amplitudeSquared / ((a1 + a2) * (a1 + a2)) : 0;
+  const pathDifference = Math.abs(r2 - r1);
+  const ratio = pathDifference / wavelength;
+
+  let kind = '중간 간섭';
+  let detail = '보강과 상쇄의 중간 영역입니다.';
+  let emphasis = '보통';
+
+  if (a2 === 0) {
+    kind = '단일 음원';
+    detail = 'ANC가 꺼져 있어 오른쪽 음원이 기여하지 않습니다.';
+    emphasis = '소음만 존재';
+  } else if (distanceToNearestInteger(totalPhaseCycles) < 0.08) {
+    kind = '보강 간섭';
+    detail = '총 위상차가 360°의 정수배에 가까워 두 음파가 같은 위상으로 겹칩니다.';
+    emphasis = '크게 들림';
+  } else if (distanceToNearestHalfInteger(totalPhaseCycles) < 0.08) {
+    kind = '상쇄 간섭';
+    detail = '총 위상차가 180°의 홀수배에 가까워 소리가 크게 줄어듭니다.';
+    emphasis = '매우 조용';
+  } else if (normalizedAmplitude > 0.78) {
+    emphasis = '큰 소리';
+  } else if (normalizedAmplitude < 0.2) {
+    emphasis = '작은 소리';
+  }
+
+  return {
+    point,
+    layout,
+    wavelength,
+    r1,
+    r2,
+    pathDifference,
+    ratio,
+    phaseDeg: state.phaseDifference,
+    totalPhaseDeg: wrapDegrees(radToDeg(totalPhase)),
+    amplitude,
+    normalizedAmplitude,
+    intensity,
+    kind,
+    detail,
+    emphasis,
+    source2Enabled
+  };
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x111426, 10, 26);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvas,
+  antialias: true,
+  alpha: true
+});
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 9.2, 5.8);
+
+const controls = new OrbitControls(camera, sceneCanvas);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 7;
+controls.maxDistance = 15;
+controls.minPolarAngle = 0.35;
+controls.maxPolarAngle = 1.2;
+controls.target.set(0, 0.25, 1.8);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.34));
+
+const directional = new THREE.DirectionalLight(0xdbe9ff, 0.62);
+directional.position.set(3.5, 8, 6);
+scene.add(directional);
+
+const fillLight = new THREE.DirectionalLight(0x77b7ff, 0.24);
+fillLight.position.set(-6, 4, -2);
+scene.add(fillLight);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 11),
+  new THREE.MeshStandardMaterial({
+    color: 0x171b2d,
+    roughness: 0.88,
+    metalness: 0.08
+  })
+);
+floor.rotation.x = -Math.PI * 0.5;
+floor.position.set(0, -0.02, WORLD.centerZ);
+scene.add(floor);
+
+const gridHelper = new THREE.GridHelper(14, 14, 0x233651, 0x182337);
+gridHelper.position.set(0, 0.001, WORLD.centerZ);
+if (Array.isArray(gridHelper.material)) {
+  gridHelper.material.forEach((material) => {
+    material.opacity = 0.28;
+    material.transparent = true;
+  });
+} else {
+  gridHelper.material.opacity = 0.28;
+  gridHelper.material.transparent = true;
+}
+scene.add(gridHelper);
+
+const patternTexture = new THREE.CanvasTexture(patternCanvas);
+patternTexture.colorSpace = THREE.SRGBColorSpace;
+const patternMaterial = new THREE.MeshBasicMaterial({
+  map: patternTexture,
+  transparent: true,
+  opacity: 0.9,
+  side: THREE.DoubleSide
+});
+const patternPlane = new THREE.Mesh(new THREE.PlaneGeometry(WORLD.width, WORLD.depth), patternMaterial);
+patternPlane.rotation.x = -Math.PI * 0.5;
+patternPlane.position.set(0, 0.01, WORLD.centerZ);
+scene.add(patternPlane);
+
+const boundaryLine = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(WORLD.width, 0.01, WORLD.depth)),
+  new THREE.LineBasicMaterial({ color: 0x5076a5, transparent: true, opacity: 0.28 })
+);
+boundaryLine.position.set(0, 0.01, WORLD.centerZ);
+scene.add(boundaryLine);
+
+function createSpeaker(bodyColor, coneColor, accentColor) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.8, 0.3),
+    new THREE.MeshStandardMaterial({
+      color: bodyColor,
+      roughness: 0.42,
+      metalness: 0.2
+    })
+  );
+  body.position.y = 0.42;
+  group.add(body);
+
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.28, 0.04, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x0f1118,
+      roughness: 0.5,
+      metalness: 0.16
+    })
+  );
+  rim.rotation.x = Math.PI * 0.5;
+  rim.position.set(0, 0.42, 0.17);
+  group.add(rim);
+
+  const cone = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.18, 0.12, 32, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: coneColor,
+      emissive: accentColor,
+      emissiveIntensity: 0.35,
+      roughness: 0.22,
+      metalness: 0.12,
+      side: THREE.DoubleSide
+    })
+  );
+  cone.rotation.x = Math.PI * 0.5;
+  cone.position.set(0, 0.42, 0.18);
+  group.add(cone);
+
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.22, 32),
+    new THREE.MeshBasicMaterial({
+      color: accentColor,
+      transparent: true,
+      opacity: 0.16
+    })
+  );
+  glow.position.set(0, 0.42, 0.19);
+  group.add(glow);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.18, 0.26, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0x2b3144,
+      roughness: 0.72,
+      metalness: 0.14
+    })
+  );
+  base.position.y = 0.13;
+  group.add(base);
+
+  const anchor = new THREE.Object3D();
+  anchor.position.set(0, 1.05, 0);
+  group.add(anchor);
+
+  group.userData = { cone, glow, anchor, accentColor };
+  return group;
+}
+
+function createMicrophone() {
+  const group = new THREE.Group();
+  const stand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.04, 0.55, 16),
+    new THREE.MeshStandardMaterial({ color: 0x8393b3, roughness: 0.34, metalness: 0.54 })
+  );
+  stand.position.y = 0.27;
+  group.add(stand);
+
+  const capsule = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 20, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0x6cf0ff,
+      emissive: 0x2bb8ff,
+      emissiveIntensity: 0.45,
+      roughness: 0.16,
+      metalness: 0.2
+    })
+  );
+  capsule.position.y = 0.62;
+  group.add(capsule);
+
+  const anchor = new THREE.Object3D();
+  anchor.position.set(0, 1.0, 0);
+  group.add(anchor);
+  group.userData = { anchor, capsule };
+  return group;
+}
+
+function createListener() {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.12, 0.56, 6, 12),
+    new THREE.MeshStandardMaterial({ color: 0x67b4ff, roughness: 0.44, metalness: 0.08 })
+  );
+  body.position.y = 0.46;
+  group.add(body);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 20, 20),
+    new THREE.MeshStandardMaterial({ color: 0xffd1b2, roughness: 0.48, metalness: 0.02 })
+  );
+  head.position.y = 0.98;
+  group.add(head);
+
+  const earRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.2, 0.03, 10, 36),
+    new THREE.MeshBasicMaterial({
+      color: 0xa4d9ff,
+      transparent: true,
+      opacity: 0.4
+    })
+  );
+  earRing.rotation.x = Math.PI * 0.5;
+  earRing.position.y = 0.96;
+  group.add(earRing);
+
+  const anchor = new THREE.Object3D();
+  anchor.position.set(0, 1.26, 0);
+  group.add(anchor);
+
+  group.userData = { anchor, earRing };
+  return group;
+}
+
+const speakerA = createSpeaker(0x444444, 0xb8f9d0, 0x44ff88);
+const speakerB = createSpeaker(0x54504a, 0xffd0a9, 0xff8844);
+scene.add(speakerA, speakerB);
+
+const microphone = createMicrophone();
+const listener = createListener();
+scene.add(microphone, listener);
+
+const sourceGlowA = new THREE.PointLight(0x44ff88, 1.15, 5, 2);
+const sourceGlowB = new THREE.PointLight(0xff8844, 1.15, 5, 2);
+scene.add(sourceGlowA, sourceGlowB);
+
+const probeMarker = new THREE.Group();
+const probeCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.11, 18, 18),
+  new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x9bfffc,
+    emissiveIntensity: 0.9,
+    roughness: 0.2,
+    metalness: 0.06
+  })
+);
+probeCore.position.y = 0.15;
+probeMarker.add(probeCore);
+
+const probeHalo = new THREE.Mesh(
+  new THREE.TorusGeometry(0.28, 0.04, 10, 40),
+  new THREE.MeshBasicMaterial({
+    color: 0x9fffff,
+    transparent: true,
+    opacity: 0.52
+  })
+);
+probeHalo.rotation.x = Math.PI * 0.5;
+probeHalo.position.y = 0.03;
+probeMarker.add(probeHalo);
+
+const probeAnchor = new THREE.Object3D();
+probeAnchor.position.set(0, 0.7, 0);
+probeMarker.add(probeAnchor);
+scene.add(probeMarker);
+
+const pathLineA = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineDashedMaterial({ color: 0x54ff99, dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.72 })
+);
+const pathLineB = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineDashedMaterial({ color: 0xffae72, dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.72 })
+);
+scene.add(pathLineA, pathLineB);
+
+const ancSignalGroup = new THREE.Group();
+scene.add(ancSignalGroup);
+const ancSignalPaths = [
+  { color: 0xff6d79, dots: [], start: new THREE.Vector3(), end: new THREE.Vector3() },
+  { color: 0x6bb4ff, dots: [], start: new THREE.Vector3(), end: new THREE.Vector3() }
+];
+
+ancSignalPaths.forEach((path) => {
+  const line = new THREE.Line(
+    new THREE.BufferGeometry(),
+    new THREE.LineDashedMaterial({ color: path.color, dashSize: 0.14, gapSize: 0.1, transparent: true, opacity: 0.72 })
+  );
+  path.line = line;
+  ancSignalGroup.add(line);
+
+  for (let index = 0; index < 5; index += 1) {
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 12, 12),
+      new THREE.MeshBasicMaterial({ color: path.color, transparent: true, opacity: 0.9 })
+    );
+    path.dots.push(dot);
+    ancSignalGroup.add(dot);
+  }
+});
+
+const waveRingGroup = new THREE.Group();
+scene.add(waveRingGroup);
+const waveRings = [];
+const waveSources = {
+  a: { lastSpawn: -100, color: 0x44ff88 },
+  b: { lastSpawn: -100, color: 0xff8844 }
+};
+
+function clearWaveRings() {
+  while (waveRings.length) {
+    const ring = waveRings.pop();
+    waveRingGroup.remove(ring);
+    ring.geometry.dispose();
+    ring.material.dispose();
+  }
+}
+
+function spawnWaveRing(key, position, colorHex) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.18, 0.24, 64),
+    new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide
+    })
+  );
+  ring.rotation.x = -Math.PI * 0.5;
+  ring.position.set(position.x, 0.035, position.y);
+  ring.userData = {
+    bornAt: clock.getElapsedTime(),
+    key
+  };
+  waveRingGroup.add(ring);
+  waveRings.push(ring);
+
+  if (waveRings.length > MAX_WAVE_RINGS) {
+    const oldest = waveRings.shift();
+    waveRingGroup.remove(oldest);
+    oldest.geometry.dispose();
+    oldest.material.dispose();
+  }
+}
+
+function updateLine(line, start, end) {
+  line.geometry.setFromPoints([start, end]);
+  if (typeof line.computeLineDistances === 'function') {
+    line.computeLineDistances();
+  }
+}
+
+function worldToMap(point) {
+  const x = (point.x - WORLD.minX) / (WORLD.maxX - WORLD.minX);
+  const y = (point.y - WORLD.minZ) / (WORLD.maxZ - WORLD.minZ);
+  return { x, y };
+}
+
+function mapToWorld(xRatio, yRatio) {
+  return new THREE.Vector2(
+    WORLD.minX + xRatio * (WORLD.maxX - WORLD.minX),
+    WORLD.minZ + yRatio * (WORLD.maxZ - WORLD.minZ)
+  );
+}
+
+function getSourceColors() {
+  if (state.mode === MODE_ANC) {
+    return {
+      a: 0xff4d61,
+      b: 0x4d8dff
+    };
+  }
+  return {
+    a: 0x44ff88,
+    b: 0xff8844
+  };
+}
+
+function updatePatternTexture() {
+  const image = patternCtx.createImageData(PATTERN_WIDTH, PATTERN_HEIGHT);
+  const data = image.data;
+
+  for (let py = 0; py < PATTERN_HEIGHT; py += 1) {
+    const v = py / (PATTERN_HEIGHT - 1);
+    const z = WORLD.minZ + v * (WORLD.maxZ - WORLD.minZ);
+    for (let px = 0; px < PATTERN_WIDTH; px += 1) {
+      const u = px / (PATTERN_WIDTH - 1);
+      const x = WORLD.minX + u * (WORLD.maxX - WORLD.minX);
+      const analysis = getPointAnalysis(x, z);
+      const attenuation = clamp(1 - ((analysis.r1 + analysis.r2) / 24), 0.28, 1);
+      let r = 8;
+      let g = 10;
+      let b = 16;
+
+      if (!analysis.source2Enabled && state.mode === MODE_ANC) {
+        const singleField = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos((Math.PI * 2 * analysis.r1) / analysis.wavelength));
+        r = 18 + 215 * singleField * attenuation;
+        g = 16 + 65 * singleField * attenuation;
+        b = 22 + 78 * singleField * attenuation;
+      } else if (state.mode === MODE_ANC) {
+        r = 18 + 210 * analysis.intensity * attenuation;
+        g = 24 + 82 * (1 - Math.abs(analysis.intensity - 0.35)) * attenuation;
+        b = 44 + 175 * (1 - analysis.intensity) * attenuation;
+      } else {
+        r = 10 + 62 * analysis.intensity * attenuation;
+        g = 14 + 235 * analysis.intensity * attenuation;
+        b = 18 + 84 * analysis.intensity * attenuation;
+      }
+
+      const index = (py * PATTERN_WIDTH + px) * 4;
+      data[index] = Math.round(clamp(r, 0, 255));
+      data[index + 1] = Math.round(clamp(g, 0, 255));
+      data[index + 2] = Math.round(clamp(b, 0, 255));
+      data[index + 3] = 255;
+    }
+  }
+
+  patternCtx.putImageData(image, 0, 0);
+  patternTexture.needsUpdate = true;
+  renderState.patternDirty = false;
+}
+
+function resizeRenderer() {
+  const rect = sceneCanvas.getBoundingClientRect();
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(rect.width, rect.height, false);
+}
+
+function resizeCanvasToDisplay(canvas) {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+    return true;
+  }
+  return false;
+}
+
+function drawAxes(ctx, width, height, titleLeft, titleRight) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(46, height * 0.5);
+  ctx.lineTo(width - 18, height * 0.5);
+  ctx.moveTo(46, 20);
+  ctx.lineTo(46, height - 18);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.54)';
+  ctx.font = '12px Pretendard';
+  ctx.fillText(titleLeft, 14, 24);
+  ctx.fillText(titleRight, width - 88, height - 12);
+}
+
+function drawWaveform() {
+  resizeCanvasToDisplay(waveCanvas);
+  const width = waveCanvas.width;
+  const height = waveCanvas.height;
+  const analysis = getPointAnalysis(state.probeX, state.probeZ);
+  const colors = state.mode === MODE_ANC
+    ? { first: '#ff6875', second: '#64a8ff', sum: '#76ffb0' }
+    : { first: '#66d6ff', second: '#ffb36c', sum: '#70ff9d' };
+  const period = 1 / state.frequency;
+  const timeWindow = period * 3.2;
+  const now = clock.getElapsedTime();
+  const baseTime = now * 0.14;
+  const k = (Math.PI * 2) / analysis.wavelength;
+  const phaseA = -k * analysis.r1;
+  const phaseB = -k * analysis.r2 + degToRad(state.phaseDifference);
+  const amplitudeB = analysis.source2Enabled ? 1 : 0;
+
+  waveCtx.clearRect(0, 0, width, height);
+
+  const background = waveCtx.createLinearGradient(0, 0, 0, height);
+  background.addColorStop(0, '#0c1122');
+  background.addColorStop(1, '#060a15');
+  waveCtx.fillStyle = background;
+  waveCtx.fillRect(0, 0, width, height);
+
+  drawAxes(waveCtx, width, height, '진폭', '시간');
+
+  for (let lineIndex = 0; lineIndex < 4; lineIndex += 1) {
+    const y = 20 + ((height - 38) / 4) * lineIndex;
+    waveCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+    waveCtx.beginPath();
+    waveCtx.moveTo(46, y);
+    waveCtx.lineTo(width - 18, y);
+    waveCtx.stroke();
+  }
+
+  const toCanvas = (value) => height * 0.5 - value * (height * 0.28);
+
+  const drawSeries = (color, lineWidth, sampler) => {
+    waveCtx.strokeStyle = color;
+    waveCtx.lineWidth = lineWidth;
+    waveCtx.beginPath();
+    for (let index = 0; index < width - 64; index += 1) {
+      const t = baseTime + (index / (width - 64)) * timeWindow;
+      const x = 46 + index;
+      const y = toCanvas(sampler(t));
+      if (index === 0) {
+        waveCtx.moveTo(x, y);
+      } else {
+        waveCtx.lineTo(x, y);
+      }
+    }
+    waveCtx.stroke();
+  };
+
+  drawSeries(colors.first, 1.8, (t) => Math.sin(Math.PI * 2 * state.frequency * t + phaseA));
+  drawSeries(colors.second, 1.8, (t) => amplitudeB * Math.sin(Math.PI * 2 * state.frequency * t + phaseB));
+  drawSeries(colors.sum, 3, (t) =>
+    Math.sin(Math.PI * 2 * state.frequency * t + phaseA) +
+    amplitudeB * Math.sin(Math.PI * 2 * state.frequency * t + phaseB)
+  );
+
+  const legend = [
+    { label: state.mode === MODE_ANC ? '소음파' : '파동 1', color: colors.first },
+    { label: state.mode === MODE_ANC ? '반소음파' : '파동 2', color: colors.second },
+    { label: '합성파', color: colors.sum }
+  ];
+
+  waveCtx.font = '12px Pretendard';
+  legend.forEach((entry, index) => {
+    const y = 24 + index * 20;
+    waveCtx.fillStyle = entry.color;
+    waveCtx.fillRect(width - 138, y - 8, 18, 3);
+    waveCtx.fillStyle = 'rgba(255,255,255,0.82)';
+    waveCtx.fillText(entry.label, width - 112, y);
+  });
+
+  waveCtx.fillStyle = 'rgba(255,255,255,0.62)';
+  waveCtx.fillText(`f = ${state.frequency.toFixed(0)} Hz`, 54, height - 14);
+  waveCtx.fillText(`φ = ${state.phaseDifference.toFixed(0)}°`, 156, height - 14);
+}
+
+function drawMap() {
+  resizeCanvasToDisplay(mapCanvas);
+  const width = mapCanvas.width;
+  const height = mapCanvas.height;
+  mapCtx.clearRect(0, 0, width, height);
+
+  if (!state.showPatternMap) {
+    mapEmpty.style.display = 'flex';
+    return;
+  }
+
+  mapEmpty.style.display = 'none';
+  mapCtx.drawImage(patternCanvas, 0, 0, width, height);
+
+  mapCtx.fillStyle = 'rgba(7, 11, 22, 0.48)';
+  mapCtx.fillRect(0, 0, width, 22);
+
+  const layout = getSourceLayout();
+  const colors = getSourceColors();
+  const mapA = worldToMap(layout.a);
+  const mapB = worldToMap(layout.b);
+  const probe = worldToMap(new THREE.Vector2(state.probeX, state.probeZ));
+  const listenerMap = worldToMap(layout.listener);
+  const micMap = worldToMap(layout.microphone);
+
+  function drawPoint(position, radius, color, label) {
+    const x = position.x * width;
+    const y = position.y * height;
+    mapCtx.beginPath();
+    mapCtx.fillStyle = color;
+    mapCtx.arc(x, y, radius, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+    mapCtx.lineWidth = 1.4;
+    mapCtx.stroke();
+    mapCtx.fillStyle = 'rgba(255,255,255,0.88)';
+    mapCtx.font = '12px Pretendard';
+    mapCtx.fillText(label, x + radius + 6, y - radius - 4);
+  }
+
+  drawPoint(mapA, 7, `#${colors.a.toString(16).padStart(6, '0')}`, state.mode === MODE_ANC ? '소음원' : '스피커 1');
+  if (state.mode !== MODE_ANC || state.ancEnabled) {
+    drawPoint(mapB, 7, `#${colors.b.toString(16).padStart(6, '0')}`, state.mode === MODE_ANC ? 'ANC' : '스피커 2');
+  } else {
+    drawPoint(mapB, 7, '#7a7f91', 'ANC OFF');
+  }
+
+  if (state.mode === MODE_ANC) {
+    drawPoint(listenerMap, 6, '#b4ecff', '청취자');
+    drawPoint(micMap, 5, '#78f1ff', '마이크');
+  }
+
+  const probeX = probe.x * width;
+  const probeY = probe.y * height;
+  mapCtx.strokeStyle = '#ffffff';
+  mapCtx.lineWidth = 1.5;
+  mapCtx.beginPath();
+  mapCtx.arc(probeX, probeY, 11, 0, Math.PI * 2);
+  mapCtx.stroke();
+  mapCtx.beginPath();
+  mapCtx.moveTo(probeX - 14, probeY);
+  mapCtx.lineTo(probeX + 14, probeY);
+  mapCtx.moveTo(probeX, probeY - 14);
+  mapCtx.lineTo(probeX, probeY + 14);
+  mapCtx.stroke();
+
+  mapCtx.fillStyle = 'rgba(255,255,255,0.72)';
+  mapCtx.font = '11px Pretendard';
+  mapCtx.fillText(`탐침 (${formatNumber(state.probeX, 1)} m, ${formatNumber(state.probeZ, 1)} m)`, 12, 16);
+}
+
+function update3DScene(elapsed) {
+  const layout = getSourceLayout();
+  const colors = getSourceColors();
+
+  speakerA.position.set(layout.a.x, 0, layout.a.y);
+  speakerB.position.set(layout.b.x, 0, layout.b.y);
+  sourceGlowA.position.set(layout.a.x, 0.55, layout.a.y + 0.12);
+  sourceGlowB.position.set(layout.b.x, 0.55, layout.b.y + 0.12);
+  microphone.position.set(layout.microphone.x, 0, layout.microphone.y);
+  listener.position.set(layout.listener.x, 0, layout.listener.y);
+  probeMarker.position.set(state.probeX, 0, state.probeZ);
+
+  const analysis = getPointAnalysis(state.probeX, state.probeZ);
+  const visualPulse = 0.5 + 0.5 * Math.sin(elapsed * (2.4 + state.frequency / 260));
+  const quietness = 1 - analysis.normalizedAmplitude;
+
+  const coneA = speakerA.userData.cone;
+  const glowA = speakerA.userData.glow;
+  const coneB = speakerB.userData.cone;
+  const glowB = speakerB.userData.glow;
+
+  sourceGlowA.color.setHex(colors.a);
+  sourceGlowB.color.setHex(colors.b);
+  coneA.scale.z = 0.8 + visualPulse * 0.44;
+  glowA.scale.setScalar(1 + visualPulse * 0.28);
+  coneA.material.emissive.setHex(colors.a);
+  glowA.material.color.setHex(colors.a);
+
+  if (state.mode === MODE_ANC) {
+    coneA.material.color.setHex(0xffb3be);
+    speakerA.children[0].material.color.setHex(0x4a4047);
+    coneB.material.color.setHex(0x9dc4ff);
+    coneB.material.emissive.setHex(colors.b);
+    glowB.material.color.setHex(colors.b);
+    speakerB.children[0].material.color.setHex(0x3f4657);
+  } else {
+    coneA.material.color.setHex(0xb8f9d0);
+    speakerA.children[0].material.color.setHex(0x444444);
+    coneB.material.color.setHex(0xffd0a9);
+    coneB.material.emissive.setHex(colors.b);
+    glowB.material.color.setHex(colors.b);
+    speakerB.children[0].material.color.setHex(0x54504a);
+  }
+
+  const source2Visible = state.mode === MODE_ANC ? state.ancEnabled : true;
+  coneB.scale.z = source2Visible ? 0.8 + (1 - visualPulse) * 0.44 : 0.65;
+  glowB.scale.setScalar(source2Visible ? 1 + (1 - visualPulse) * 0.28 : 0.7);
+  glowA.material.opacity = state.mode === MODE_ANC ? 0.22 : 0.16;
+  glowB.material.opacity = source2Visible ? 0.18 : 0.05;
+  sourceGlowA.intensity = state.mode === MODE_ANC ? 1.2 : 1.15;
+  sourceGlowB.intensity = source2Visible ? 1.12 : 0.18;
+
+  microphone.visible = state.mode === MODE_ANC;
+  listener.visible = state.mode === MODE_ANC;
+  ancSignalGroup.visible = state.mode === MODE_ANC;
+
+  const earRing = listener.userData.earRing;
+  earRing.scale.setScalar(1 + quietness * 0.24 + Math.sin(elapsed * 2.2) * 0.04);
+  earRing.material.opacity = 0.24 + analysis.normalizedAmplitude * 0.34;
+
+  probeHalo.scale.setScalar(0.85 + analysis.normalizedAmplitude * 0.72);
+  probeHalo.material.opacity = 0.26 + analysis.normalizedAmplitude * 0.36;
+  probeCore.material.emissiveIntensity = 0.45 + analysis.normalizedAmplitude * 0.82;
+
+  pathLineA.visible = true;
+  pathLineB.visible = source2Visible;
+  updateLine(pathLineA, new THREE.Vector3(layout.a.x, 0.08, layout.a.y), new THREE.Vector3(state.probeX, 0.08, state.probeZ));
+  updateLine(pathLineB, new THREE.Vector3(layout.b.x, 0.08, layout.b.y), new THREE.Vector3(state.probeX, 0.08, state.probeZ));
+
+  ancSignalPaths[0].start.set(layout.a.x, 0.5, layout.a.y + 0.14);
+  ancSignalPaths[0].end.set(layout.microphone.x, 0.62, layout.microphone.y);
+  ancSignalPaths[1].start.set(layout.microphone.x, 0.62, layout.microphone.y);
+  ancSignalPaths[1].end.set(layout.b.x, 0.5, layout.b.y + 0.14);
+
+  ancSignalPaths.forEach((path, pathIndex) => {
+    updateLine(path.line, path.start, path.end);
+    path.dots.forEach((dot, dotIndex) => {
+      const t = (elapsed * (0.42 + pathIndex * 0.08) + dotIndex / path.dots.length) % 1;
+      dot.position.lerpVectors(path.start, path.end, t);
+      dot.visible = state.mode === MODE_ANC;
+      dot.material.opacity = 0.35 + 0.5 * Math.sin((t + elapsed) * Math.PI);
+    });
+  });
+
+  if (!state.showWaveRings) {
+    clearWaveRings();
+  } else {
+    const interval = clamp(getWavelength() / 4.4, 0.12, 0.34);
+    if (elapsed - waveSources.a.lastSpawn >= interval) {
+      spawnWaveRing('a', layout.a, colors.a);
+      waveSources.a.lastSpawn = elapsed;
+    }
+    if (source2Visible && elapsed - waveSources.b.lastSpawn >= interval) {
+      spawnWaveRing('b', layout.b, colors.b);
+      waveSources.b.lastSpawn = elapsed;
+    }
+  }
+
+  for (let index = waveRings.length - 1; index >= 0; index -= 1) {
+    const ring = waveRings[index];
+    const age = elapsed - ring.userData.bornAt;
+    const life = 2.8;
+    const radius = 0.25 + age * 3.8;
+    ring.scale.setScalar(radius / 0.22);
+    ring.material.opacity = clamp(0.34 * (1 - age / life), 0, 0.34);
+    if (age >= life) {
+      waveRingGroup.remove(ring);
+      ring.geometry.dispose();
+      ring.material.dispose();
+      waveRings.splice(index, 1);
+    }
+  }
+
+  speakerA.userData.anchor.updateWorldMatrix(true, false);
+  speakerB.userData.anchor.updateWorldMatrix(true, false);
+  probeAnchor.updateWorldMatrix(true, false);
+  microphone.userData.anchor.updateWorldMatrix(true, false);
+  listener.userData.anchor.updateWorldMatrix(true, false);
+}
+
+function setLabelPosition(element, object, text) {
+  if (!object || !object.parent) {
+    element.style.opacity = 0;
+    return;
+  }
+  tempVector.setFromMatrixPosition(object.matrixWorld);
+  tempVector.project(camera);
+  const rect = sceneCanvas.getBoundingClientRect();
+  const visible = tempVector.z > -1 && tempVector.z < 1;
+  if (!visible) {
+    element.style.opacity = 0;
+    return;
+  }
+  element.style.left = `${((tempVector.x + 1) * 0.5) * rect.width}px`;
+  element.style.top = `${((-tempVector.y + 1) * 0.5) * rect.height}px`;
+  element.textContent = text;
+  element.style.opacity = 1;
+}
+
+let audioContext = null;
+let audioOscillator = null;
+let audioGain = null;
+
+async function ensureAudio() {
+  if (!audioContext) {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return false;
+    audioContext = new AudioCtor();
+    audioGain = audioContext.createGain();
+    audioGain.gain.value = 0;
+    audioOscillator = audioContext.createOscillator();
+    audioOscillator.type = 'sine';
+    audioOscillator.frequency.value = state.frequency;
+    audioOscillator.connect(audioGain);
+    audioGain.connect(audioContext.destination);
+    audioOscillator.start();
+  }
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+  return true;
+}
+
+async function handleSoundToggle(value) {
+  state.soundOn = value;
+  if (!value && audioGain && audioContext) {
+    audioGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.04);
+    return;
+  }
+  if (value) {
+    await ensureAudio();
+  }
+}
+
+function updateAudio(analysis) {
+  if (!audioContext || !audioOscillator || !audioGain) return;
+  audioOscillator.frequency.setTargetAtTime(state.frequency, audioContext.currentTime, 0.02);
+  const gainTarget = state.soundOn ? 0.12 * Math.pow(analysis.normalizedAmplitude, 1.6) : 0;
+  audioGain.gain.setTargetAtTime(gainTarget, audioContext.currentTime, 0.05);
+}
+
+function updateText() {
+  const analysis = getPointAnalysis(state.probeX, state.probeZ);
+  const pointText = `(${formatNumber(state.probeX, 2)} m, ${formatNumber(state.probeZ, 2)} m)`;
+  const deltaLambda = analysis.ratio;
+
+  formulaMode.textContent = state.mode;
+  formulaFrequency.textContent = `${state.frequency.toFixed(0)} Hz`;
+  formulaWavelength.textContent = formatMeters(analysis.wavelength, 2);
+  formulaSpacing.textContent = formatMeters(state.speakerSpacing, 2);
+  formulaPhase.textContent = `${state.phaseDifference.toFixed(0)}°`;
+  formulaPoint.textContent = pointText;
+  formulaDistances.textContent = `${formatNumber(analysis.r1, 2)} m / ${formatNumber(analysis.r2, 2)} m`;
+  formulaDelta.textContent = `${formatNumber(analysis.pathDifference, 2)} m (${formatNumber(deltaLambda, 2)} λ)`;
+  formulaTotalPhase.textContent = `${formatNumber(analysis.totalPhaseDeg, 1)}°`;
+  formulaAmplitude.textContent = `${formatNumber(analysis.amplitude, 2)} A`;
+
+  probeCondition.textContent = analysis.kind;
+  probeAmplitude.textContent = `${formatNumber(analysis.amplitude, 2)} A`;
+  probeIntensity.textContent = `${formatNumber(analysis.intensity * 100, 0)}%`;
+  probeDeltaRatio.textContent = `${formatNumber(deltaLambda, 2)} λ`;
+  probeSoundBadge.textContent = analysis.emphasis;
+  probeFootnote.textContent = analysis.detail;
+
+  metricLambda.textContent = formatMeters(analysis.wavelength, 2);
+  metricDelta.textContent = `${formatNumber(deltaLambda, 2)} λ`;
+  metricPhase.textContent = `${formatNumber(analysis.totalPhaseDeg, 1)}°`;
+  metricResult.textContent = analysis.kind;
+
+  constructiveText.textContent = '총 위상차 ΔΦ = 360° × n 에 가까우면 보강 간섭이 되고, 초기 위상차가 0°일 때는 경로차 = nλ 로도 표현할 수 있습니다.';
+  destructiveText.textContent = '총 위상차 ΔΦ = 180° + 360° × n 에 가까우면 상쇄 간섭이 됩니다. 위상 차이를 조절하면 같은 위치도 보강 또는 상쇄로 바뀔 수 있습니다.';
+
+  if (state.mode === MODE_ANC) {
+    ancText.textContent = state.ancEnabled
+      ? `ANC가 켜져 있습니다. 반소음파를 ${state.phaseDifference.toFixed(0)}° 차이로 내보내며, 청취자 위치에서 총 위상차를 180° 부근으로 맞추면 소음이 크게 줄어듭니다.`
+      : 'ANC가 꺼져 있어 소음원만 남아 있습니다. 오른쪽 ANC 스피커가 비활성화되어 상쇄 간섭이 일어나지 않습니다.';
+  } else {
+    ancText.textContent = '두 스피커의 초기 위상 차이와 경로차가 함께 작용해 간섭무늬가 형성됩니다. 위상 차이를 180°로 두면 상쇄 영역이 더 많이 나타납니다.';
+  }
+
+  const quietAtListener = getPointAnalysis(ANC_LISTENER.x, ANC_LISTENER.y);
+  if (state.mode === MODE_ANC && state.ancEnabled && quietAtListener.normalizedAmplitude < 0.16) {
+    statusTitle.textContent = '소음 제거 성공: 청취자 위치에서 반대 위상 음파가 소음을 상쇄합니다.';
+    statusBody.textContent = `ANC 스피커가 소음파와 거의 반대 위상으로 도달해 합성 진폭이 ${formatNumber(quietAtListener.amplitude, 2)}A 까지 줄었습니다.`;
+  } else if (analysis.kind === '상쇄 간섭') {
+    statusTitle.textContent = '상쇄 간섭: 선택 지점에서 소리가 크게 줄어듭니다.';
+    statusBody.textContent = `현재 총 위상차는 ${formatNumber(analysis.totalPhaseDeg, 1)}°이며, 경로차는 ${formatNumber(deltaLambda, 2)}λ 입니다. 두 파가 반대 위상으로 겹치고 있습니다.`;
+  } else if (analysis.kind === '보강 간섭') {
+    statusTitle.textContent = '보강 간섭: 선택 지점에서 두 음파가 같은 위상으로 합쳐집니다.';
+    statusBody.textContent = `현재 총 위상차는 ${formatNumber(analysis.totalPhaseDeg, 1)}°이며, 합성 진폭은 ${formatNumber(analysis.amplitude, 2)}A 입니다.`;
+  } else if (state.mode === MODE_ANC && !state.ancEnabled) {
+    statusTitle.textContent = 'ANC OFF: 소음원이 그대로 전달됩니다.';
+    statusBody.textContent = '오른쪽 ANC 스피커가 꺼져 있어 소리의 상쇄가 일어나지 않습니다. ANC를 켜면 반소음파를 추가할 수 있습니다.';
+  } else {
+    statusTitle.textContent = '선택 지점에서 두 음파의 합성 결과를 비교하세요.';
+    statusBody.textContent = `경로차 ${formatNumber(deltaLambda, 2)}λ, 총 위상차 ${formatNumber(analysis.totalPhaseDeg, 1)}° 입니다. 클릭 위치에 따라 보강과 상쇄 영역이 달라집니다.`;
+  }
+
+  metricLambdaDesc.textContent = `λ = v/f = 340 / ${state.frequency.toFixed(0)} 으로 계산합니다.`;
+  metricDeltaDesc.textContent = `${formatNumber(analysis.pathDifference, 2)} m 만큼의 이동 거리 차가 생겼습니다.`;
+  metricPhaseDesc.textContent = `경로 위상 + 초기 위상차 ${state.phaseDifference.toFixed(0)}°를 합친 결과입니다.`;
+  metricResultDesc.textContent = analysis.detail;
+
+  if (state.mode === MODE_ANC) {
+    graphEyebrow.textContent = 'Active Noise Control';
+    graphTitle.textContent = 'ANC 합성파와 정숙 영역';
+    graphDescription.textContent = '반소음파를 함께 방출해 청취자 주변의 합성 진폭을 줄입니다. ANC를 끄거나 위상 차이를 바꾸면 잔여 소음이 다시 커집니다.';
+    waveCardTitle.textContent = '소음파 + 반소음파';
+    waveCardDescription.textContent = '청취자 또는 선택 지점에서 두 파형이 어떻게 상쇄되는지 시간축으로 확인합니다.';
+    mapCardTitle.textContent = '소음 제어 맵';
+    mapCardDescription.textContent = '붉은 영역은 소음이 큰 곳, 푸른 영역은 상쇄로 조용해진 곳입니다.';
+    labelA.textContent = '소음원';
+    labelB.textContent = state.ancEnabled ? 'ANC 스피커' : 'ANC OFF';
+  } else {
+    graphEyebrow.textContent = 'Wave Interference';
+    graphTitle.textContent = '합성파와 간섭 패턴';
+    graphDescription.textContent = '선택 지점의 파형과 공간 전체의 간섭무늬를 함께 비교합니다. 보강 간섭은 밝고 상쇄 간섭은 어둡게 나타납니다.';
+    waveCardTitle.textContent = '선택 지점의 합성파';
+    waveCardDescription.textContent = '파동 1, 파동 2, 합성파를 시간축으로 비교합니다.';
+    mapCardTitle.textContent = '간섭 패턴 맵';
+    mapCardDescription.textContent = '쌍곡선 간섭무늬를 따라 밝고 어두운 줄이 반복됩니다.';
+    labelA.textContent = '스피커 1';
+    labelB.textContent = '스피커 2';
+  }
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function updateLabels() {
+  setLabelPosition(labelA, speakerA.userData.anchor, labelA.textContent);
+  setLabelPosition(labelB, speakerB.userData.anchor, labelB.textContent);
+  setLabelPosition(labelProbe, probeAnchor, '선택 지점');
+
+  if (state.mode === MODE_ANC) {
+    setLabelPosition(labelListener, listener.userData.anchor, '청취자');
+    setLabelPosition(labelMic, microphone.userData.anchor, '마이크');
+  } else {
+    labelListener.style.opacity = 0;
+    labelMic.style.opacity = 0;
+  }
+}
+
+function updateInteractionFromMap(event) {
+  if (!state.showPatternMap) return;
+  const rect = mapCanvas.getBoundingClientRect();
+  const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+  const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+  const world = mapToWorld(x, y);
+  setProbePosition(world.x, world.y);
+}
+
+function pickScenePoint(event) {
+  const rect = sceneCanvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObject(patternPlane, false)[0];
+  if (!hit) return;
+  setProbePosition(hit.point.x, hit.point.z);
+}
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+mapCanvas.addEventListener('pointerdown', (event) => {
+  renderState.mapPointerDown = true;
+  updateInteractionFromMap(event);
+});
+
+window.addEventListener('pointermove', (event) => {
+  if (renderState.mapPointerDown) {
+    updateInteractionFromMap(event);
+  }
+});
+
+window.addEventListener('pointerup', () => {
+  renderState.mapPointerDown = false;
+});
+
+sceneCanvas.addEventListener('pointerdown', (event) => {
+  renderState.scenePointerDown = { x: event.clientX, y: event.clientY };
+});
+
+sceneCanvas.addEventListener('pointerup', (event) => {
+  if (!renderState.scenePointerDown) return;
+  const dx = event.clientX - renderState.scenePointerDown.x;
+  const dy = event.clientY - renderState.scenePointerDown.y;
+  if (Math.hypot(dx, dy) < 6) {
+    pickScenePoint(event);
+  }
+  renderState.scenePointerDown = null;
+});
+
+window.addEventListener('resize', () => {
+  resizeRenderer();
+  renderState.patternDirty = true;
+});
+
+const gui = new GUI({
+  title: '간섭 제어',
+  container: guiMount,
+  width: 320
+});
+
+gui.add(state, 'mode', [MODE_INTERFERENCE, MODE_ANC]).name('모드').onChange((value) => {
+  applyModePreset(value);
+  syncGui();
+});
+gui.add(state, 'frequency', 200, 2000, 10).name('진동수 f').onChange(() => {
+  renderState.patternDirty = true;
+});
+gui.add(state, 'speakerSpacing', 1, 6, 0.1).name('스피커 간격').onChange(() => {
+  renderState.patternDirty = true;
+});
+gui.add(state, 'phaseDifference', 0, 360, 1).name('위상 차이').onChange(() => {
+  renderState.patternDirty = true;
+});
+gui.add(state, 'ancEnabled').name('ANC').onChange(() => {
+  renderState.patternDirty = true;
+});
+gui.add(state, 'showPatternMap').name('간섭 패턴 맵').onChange(() => {
+  patternPlane.visible = state.showPatternMap;
+});
+gui.add(state, 'showWaveRings').name('음파 표시');
+gui.add(state, 'soundOn').name('소리 재생').onChange(handleSoundToggle);
+gui.add({ reset: resetState }, 'reset').name('초기화');
+
+applyModePreset(MODE_INTERFERENCE);
+patternPlane.visible = state.showPatternMap;
+resizeRenderer();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const elapsed = clock.getElapsedTime();
+  controls.update();
+
+  if (renderState.patternDirty) {
+    updatePatternTexture();
+  }
+
+  update3DScene(elapsed);
+  updateText();
+  drawWaveform();
+  drawMap();
+  updateLabels();
+  updateAudio(getPointAnalysis(state.probeX, state.probeZ));
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

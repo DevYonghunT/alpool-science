@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>광합성 · 연소 · 철의 제련 - 산소의 역할</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: rgba(13, 17, 33, 0.78);
+    --panel-strong: rgba(17, 23, 42, 0.9);
+    --stroke: rgba(255, 255, 255, 0.12);
+    --text: #f6f8ff;
+    --muted: rgba(246, 248, 255, 0.72);
+    --accent-green: #7ee89b;
+    --accent-orange: #ffb45f;
+    --accent-blue: #7dc8ff;
+    --shadow: 0 24px 60px rgba(2, 4, 14, 0.42);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 18%, rgba(128, 204, 255, 0.08), transparent 26%),
+      radial-gradient(circle at 82% 18%, rgba(255, 183, 88, 0.08), transparent 28%),
+      linear-gradient(180deg, #1a1a2e 0%, #131828 58%, #101424 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font: inherit;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #scene-container {
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .glass-card {
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 14;
+    width: min(390px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 24px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(168, 212, 255, 0.82);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ffd36f, #80d6ff);
+    box-shadow: 0 0 18px rgba(255, 211, 111, 0.65);
+  }
+
+  #title-card h1 {
+    margin-top: 8px;
+    font-size: 28px;
+    line-height: 1.05;
+    letter-spacing: -0.05em;
+  }
+
+  #mode-description {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--muted);
+  }
+
+  #tab-bar {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 16;
+    display: inline-flex;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 999px;
+  }
+
+  .reaction-tab {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: transparent;
+    color: rgba(246, 248, 255, 0.72);
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  }
+
+  .reaction-tab:hover,
+  .reaction-tab:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+    outline: none;
+  }
+
+  .reaction-tab.active {
+    color: #081019;
+    border-color: rgba(255, 255, 255, 0.2);
+    background: linear-gradient(135deg, #f4da74, #8fd7ff);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 16;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 15, 30, 0.86);
+    color: #f8fbff;
+    cursor: pointer;
+    box-shadow: 0 16px 40px rgba(3, 6, 16, 0.26);
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 132px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 16;
+    display: none;
+    width: min(560px, calc(100vw - 32px));
+    max-height: 58vh;
+    overflow: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    line-height: 1.75;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    color: #dff1ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: #ffd17d;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  #guide-reaction {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  #guide-reference {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(125, 200, 255, 0.08);
+    color: rgba(232, 240, 255, 0.8);
+    font-size: 12px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 14;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #ffe38d;
+  }
+
+  .panel-divider {
+    margin: 10px 0 12px;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 227, 141, 0.6), rgba(125, 200, 255, 0.18), transparent);
+  }
+
+  .formula-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .formula-label {
+    width: 96px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: rgba(246, 248, 255, 0.54);
+  }
+
+  .formula-value {
+    flex: 1;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(246, 248, 255, 0.94);
+  }
+
+  #common-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(246, 248, 255, 0.78);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #equation-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 14;
+    width: min(700px, calc(100vw - 32px));
+    padding: 14px 20px;
+    border-radius: 999px;
+    text-align: center;
+    font-family: 'SFMono-Regular', 'Menlo', monospace;
+    font-size: 15px;
+    letter-spacing: -0.02em;
+    color: #f8f3d0;
+  }
+
+  #equation-caption {
+    display: block;
+    margin-top: 5px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    color: rgba(246, 248, 255, 0.62);
+  }
+
+  #hint-chip,
+  #status-chip {
+    position: fixed;
+    right: 16px;
+    z-index: 14;
+    padding: 9px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 16, 31, 0.82);
+    color: rgba(246, 248, 255, 0.78);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    font-size: 11px;
+  }
+
+  #status-chip {
+    bottom: 58px;
+  }
+
+  #hint-chip {
+    bottom: 16px;
+  }
+
+  .lil-gui {
+    --background-color: rgba(14, 18, 34, 0.86);
+    --title-background-color: rgba(255, 227, 141, 0.18);
+    --title-text-color: #fff6cf;
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.14);
+    --focus-color: rgba(125, 200, 255, 0.24);
+    --text-color: #f5f8ff;
+    --number-color: #ffd98c;
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 18;
+  }
+
+  @media (max-width: 900px) {
+    #title-card {
+      width: min(100vw - 24px, 100%);
+      top: 12px;
+      left: 12px;
+      padding: 14px 16px;
+    }
+
+    #title-card h1 {
+      font-size: 24px;
+    }
+
+    #tab-bar {
+      top: auto;
+      bottom: 156px;
+      width: calc(100vw - 24px);
+      justify-content: center;
+      flex-wrap: wrap;
+      border-radius: 24px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 116px;
+      width: calc(100vw - 24px);
+      text-align: center;
+    }
+
+    #guide-panel {
+      top: 112px;
+      width: calc(100vw - 24px);
+      max-height: 46vh;
+    }
+
+    #equation-strip {
+      bottom: 78px;
+      border-radius: 24px;
+      font-size: 13px;
+      padding: 12px 16px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      bottom: 12px;
+    }
+
+    #hint-chip,
+    #status-chip {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-container"></div>
+
+<div id="title-card" class="glass-card">
+  <div class="eyebrow">통합과학2 · 산화와 환원</div>
+  <h1>광합성 · 연소 · 철의 제련</h1>
+  <p id="mode-description">빛과 산소, 열, 금속의 변화를 3가지 반응으로 비교하며 산화와 환원의 의미를 살펴보세요.</p>
+</div>
+
+<div id="tab-bar" class="glass-card" role="tablist" aria-label="반응 탭">
+  <button class="reaction-tab active" data-reaction="photosynthesis" role="tab" aria-selected="true">광합성</button>
+  <button class="reaction-tab" data-reaction="combustion" role="tab" aria-selected="false">연소</button>
+  <button class="reaction-tab" data-reaction="smelting" role="tab" aria-selected="false">철의 제련</button>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass-card">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>자연과 인류의 역사에 큰 변화를 가져온 반응인 광합성, 연소, 철의 제련에는 모두 산소가 관여합니다. 산소는 대기 중에 두 번째로 풍부한 기체로, 다른 물질과 결합해 다양한 화합물을 만듭니다.</p>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>광합성과 세포호흡은 서로 어떤 관계에 있나요? 반응물과 생성물을 비교해 보세요.</li>
+    <li>철의 제련이 인류 문명의 발전에 미친 영향은 무엇인가요?</li>
+    <li>광합성, 연소, 철의 제련의 공통점은 무엇인가요?</li>
+  </ul>
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>광합성: 산소 생성, 식량 생산, 탄소 고정</li>
+    <li>연소: 화석 연료 사용, 난방, 교통수단의 에너지 공급</li>
+    <li>철의 제련: 철기 시대, 건축과 교량, 산업 사회의 기반</li>
+  </ul>
+  <div id="guide-reaction">현재 반응 요약이 여기에 표시됩니다.</div>
+  <div id="guide-reference">교과서 연계: 미래엔 통합과학2 I편 p38~39 — 광합성, 연소, 철의 제련, 산소의 역할</div>
+</div>
+
+<div id="formula-panel" class="glass-card">
+  <h3>🔥 산소가 관여하는 반응</h3>
+  <div class="panel-divider"></div>
+  <div class="formula-row">
+    <div class="formula-label">현재 반응</div>
+    <div class="formula-value" id="current-reaction">광합성</div>
+  </div>
+  <div class="formula-row">
+    <div class="formula-label">화학 반응식</div>
+    <div class="formula-value" id="current-equation">6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂</div>
+  </div>
+  <div class="formula-row">
+    <div class="formula-label">에너지</div>
+    <div class="formula-value" id="current-energy">빛에너지 흡수</div>
+  </div>
+  <div class="formula-row">
+    <div class="formula-label">산화 물질</div>
+    <div class="formula-value" id="current-oxidized">H₂O의 산소</div>
+  </div>
+  <div class="formula-row">
+    <div class="formula-label">환원 물질</div>
+    <div class="formula-value" id="current-reduced">CO₂의 탄소</div>
+  </div>
+  <div id="common-note">
+    공통점: 광합성, 연소, 철의 제련에는 모두 산소가 관여합니다. 반응에 따라 산소를 얻는 물질과 잃는 물질이 달라집니다.
+  </div>
+</div>
+
+<div id="equation-strip" class="glass-card">
+  <span id="equation-main">6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂</span>
+  <span id="equation-caption">빛에너지 흡수 · 반응 재생 버튼으로 변환 과정을 다시 볼 수 있습니다.</span>
+</div>
+
+<div id="status-chip">산화/환원 화살표와 산소 이동 점선을 켜서 비교해 보세요.</div>
+<div id="hint-chip">드래그로 회전 · 휠 또는 핀치로 확대 · 탭 또는 GUI로 반응 전환</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const ELEMENTS = {
+  C: { color: 0x444444, radius: 0.15, emissive: 0x161616 },
+  O: { color: 0xff3333, radius: 0.12, emissive: 0x551010 },
+  H: { color: 0xffffff, radius: 0.08, emissive: 0x444444 },
+  FeOxide: { color: 0xaa8866, radius: 0.18, emissive: 0x3a2818 },
+  FeMetal: { color: 0xcccccc, radius: 0.18, emissive: 0x444444 }
+};
+
+const REACTION_ORDER = ['photosynthesis', 'combustion', 'smelting'];
+
+const REACTIONS = {
+  photosynthesis: {
+    label: '광합성',
+    duration: 3,
+    equation: '6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂',
+    energy: '빛에너지 흡수',
+    oxidized: 'H₂O의 산소',
+    reduced: 'CO₂의 탄소',
+    description: '빛에너지를 받아 CO₂와 H₂O가 재배열되어 포도당과 O₂가 만들어집니다.',
+    guide: '식물은 빛에너지를 흡수하고 이를 이용해 이산화 탄소와 물로부터 포도당과 산소를 만드는 광합성을 합니다.',
+    environment: 'leaf',
+    pointColor: 0xfff1b8
+  },
+  combustion: {
+    label: '연소',
+    duration: 2,
+    equation: '2C₄H₁₀ + 13O₂ → 8CO₂ + 10H₂O',
+    energy: '열에너지 방출',
+    oxidized: '연료 속 탄소',
+    reduced: 'O₂의 산소',
+    description: '연료가 산소와 만나 빠르게 재배열되며 CO₂, H₂O와 함께 열에너지를 방출합니다.',
+    guide: '물질이 대기 중의 산소와 만나 연소하면 열에너지를 방출합니다.',
+    environment: 'flame',
+    pointColor: 0xffb26f
+  },
+  smelting: {
+    label: '철의 제련',
+    duration: 3,
+    equation: 'Fe₂O₃ + 3CO → 2Fe + 3CO₂',
+    energy: '고온의 연소열 활용',
+    oxidized: '일산화 탄소(CO)',
+    reduced: '산화 철(III)의 철',
+    description: '산화 철(III)의 산소가 일산화 탄소로 이동하면서 순수한 철이 남습니다.',
+    guide: '인류가 화석 연료의 연소를 이용해 산화 철(III)에서 산소를 제거하고 순수한 철을 얻었습니다.',
+    environment: 'furnace',
+    pointColor: 0xffbe87
+  }
+};
+
+const dom = {
+  scene: document.getElementById('scene-container'),
+  tabs: Array.from(document.querySelectorAll('.reaction-tab')),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  guideReaction: document.getElementById('guide-reaction'),
+  modeDescription: document.getElementById('mode-description'),
+  currentReaction: document.getElementById('current-reaction'),
+  currentEquation: document.getElementById('current-equation'),
+  currentEnergy: document.getElementById('current-energy'),
+  currentOxidized: document.getElementById('current-oxidized'),
+  currentReduced: document.getElementById('current-reduced'),
+  equationMain: document.getElementById('equation-main'),
+  equationCaption: document.getElementById('equation-caption'),
+  statusChip: document.getElementById('status-chip')
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 3.2, 12);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+dom.scene.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0.8, 0);
+controls.minDistance = 7;
+controls.maxDistance = 18;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambientLight);
+
+const centerLight = new THREE.PointLight(0xfff2cc, 1.0, 42, 2);
+centerLight.position.set(0, 4.8, 6);
+scene.add(centerLight);
+
+const rimLight = new THREE.PointLight(0x7fcfff, 0.4, 36, 2);
+rimLight.position.set(-8, 2.5, -4);
+scene.add(rimLight);
+
+const clock = new THREE.Clock();
+
+const backgroundStars = createBackgroundStars();
+scene.add(backgroundStars.points);
+
+const state = {
+  reactionKey: 'photosynthesis',
+  showGuide: false,
+  showRedox: true,
+  atomScale: 1,
+  autoCycle: false,
+  autoElapsed: 0,
+  autoIndex: 0,
+  reactionContent: null
+};
+
+function createBackgroundStars() {
+  const positions = new Float32Array(480 * 3);
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] = (Math.random() - 0.5) * 80;
+    positions[i + 1] = (Math.random() - 0.5) * 60;
+    positions[i + 2] = (Math.random() - 0.5) * 80;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color: 0xe6f1ff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false
+  });
+  const points = new THREE.Points(geometry, material);
+  return { geometry, material, points };
+}
+
+function createAtom(element, position, options = {}) {
+  const def = ELEMENTS[element];
+  const geometry = new THREE.SphereGeometry(def.radius, 24, 24);
+  const material = new THREE.MeshStandardMaterial({
+    color: options.color ?? def.color,
+    roughness: options.roughness ?? 0.28,
+    metalness: options.metalness ?? (element.startsWith('Fe') ? 0.45 : 0.12),
+    emissive: options.emissive ?? def.emissive,
+    emissiveIntensity: options.emissiveIntensity ?? 0.18
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.copy(position);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createBond(start, end, color = 0xd3dde8, radius = 0.035, opacity = 1) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  const geometry = new THREE.CylinderGeometry(radius, radius, length, 14);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.32,
+    metalness: 0.18,
+    transparent: opacity < 1,
+    opacity
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  return mesh;
+}
+
+function createMolecule(atomSpecs, bondPairs, labelText, labelYOffset = -0.85) {
+  const group = new THREE.Group();
+  const positions = atomSpecs.map((spec) => new THREE.Vector3(...spec.position));
+  atomSpecs.forEach((spec, index) => {
+    const mesh = createAtom(spec.element, positions[index], spec.options);
+    group.add(mesh);
+  });
+  bondPairs.forEach(([a, b, color, radius, opacity]) => {
+    group.add(createBond(positions[a], positions[b], color, radius, opacity));
+  });
+  if (labelText) {
+    const label = createTextSprite(labelText, '#f9fbff', 'rgba(10,16,32,0.7)');
+    label.position.set(0, labelYOffset, 0);
+    group.add(label);
+  }
+  return group;
+}
+
+function createTextSprite(text, color = '#ffffff', background = 'rgba(0,0,0,0)') {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 128;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (background && background !== 'rgba(0,0,0,0)') {
+    context.fillStyle = background;
+    roundRect(context, 20, 24, 472, 80, 26);
+    context.fill();
+  }
+  context.font = '600 38px Pretendard';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = color;
+  context.shadowColor = 'rgba(0, 0, 0, 0.55)';
+  context.shadowBlur = 10;
+  context.fillText(text, 256, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2.7, 0.7, 1);
+  sprite.userData.texture = texture;
+  return sprite;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function createArrow(start, end, color, labelText, dashed = false) {
+  const group = new THREE.Group();
+  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const material = dashed
+    ? new THREE.LineDashedMaterial({
+        color,
+        dashSize: 0.22,
+        gapSize: 0.12,
+        transparent: true,
+        opacity: 0.92
+      })
+    : new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.92
+      });
+  const line = new THREE.Line(geometry, material);
+  if (dashed) line.computeLineDistances();
+  group.add(line);
+
+  const direction = new THREE.Vector3().subVectors(end, start).normalize();
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(0.13, 0.34, 18),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.96 })
+  );
+  cone.position.copy(end);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone());
+  group.add(cone);
+
+  if (labelText) {
+    const label = createTextSprite(labelText, '#ffffff', 'rgba(8,14,28,0.72)');
+    const midpoint = start.clone().lerp(end, 0.5);
+    label.position.copy(midpoint.add(new THREE.Vector3(0, 0.42, 0)));
+    label.scale.set(1.8, 0.54, 1);
+    group.add(label);
+  }
+  return group;
+}
+
+function createSilhouette(kind) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  canvas.width = 1024;
+  canvas.height = 512;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (kind === 'leaf') {
+    context.fillStyle = 'rgba(92, 212, 146, 0.16)';
+    drawLeaf(context, 250, 320, 180, 80, -0.45);
+    drawLeaf(context, 470, 270, 210, 96, 0.1);
+    drawLeaf(context, 720, 330, 190, 84, 0.45);
+    context.strokeStyle = 'rgba(92, 212, 146, 0.15)';
+    context.lineWidth = 10;
+    context.beginPath();
+    context.moveTo(180, 500);
+    context.quadraticCurveTo(330, 360, 470, 250);
+    context.quadraticCurveTo(640, 160, 860, 260);
+    context.stroke();
+  } else if (kind === 'flame') {
+    context.fillStyle = 'rgba(255, 160, 78, 0.14)';
+    drawFlame(context, 260, 420, 140, 230);
+    drawFlame(context, 460, 450, 180, 280);
+    drawFlame(context, 700, 430, 150, 240);
+    context.fillStyle = 'rgba(255, 96, 44, 0.1)';
+    drawFlame(context, 340, 440, 90, 170);
+    drawFlame(context, 560, 455, 110, 190);
+  } else {
+    context.fillStyle = 'rgba(255, 177, 102, 0.12)';
+    context.fillRect(180, 280, 620, 170);
+    context.fillRect(230, 170, 130, 120);
+    context.fillRect(650, 130, 90, 150);
+    context.fillStyle = 'rgba(255, 124, 52, 0.16)';
+    context.beginPath();
+    context.arc(490, 340, 82, 0, Math.PI, true);
+    context.closePath();
+    context.fill();
+    context.fillRect(405, 340, 170, 64);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(14, 7), material);
+  plane.position.set(0, -0.1, -8.5);
+  plane.userData.texture = texture;
+  return plane;
+}
+
+function drawLeaf(ctx, x, y, width, height, tilt) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tilt);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-width * 0.25, -height * 0.9, width * 0.28, -height * 1.05, width * 0.5, -height * 0.2);
+  ctx.bezierCurveTo(width * 0.28, height * 0.6, -width * 0.18, height * 0.6, 0, 0);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFlame(ctx, x, y, width, height) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-width * 0.7, -height * 0.35, -width * 0.35, -height * 0.92, 0, -height);
+  ctx.bezierCurveTo(width * 0.25, -height * 0.75, width * 0.72, -height * 0.48, 0, 0);
+  ctx.fill();
+  ctx.restore();
+}
+
+function createFloorRing(color = 0x243454) {
+  const group = new THREE.Group();
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(5.8, 64),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    })
+  );
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = -2.4;
+  group.add(disc);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(4.8, 5.1, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0x8bc9ff,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -2.36;
+  group.add(ring);
+
+  return group;
+}
+
+function createCO2(label = 'CO₂') {
+  return createMolecule(
+    [
+      { element: 'O', position: [-0.42, 0, 0] },
+      { element: 'C', position: [0, 0, 0] },
+      { element: 'O', position: [0.42, 0, 0] }
+    ],
+    [
+      [0, 1, 0xd9dce3, 0.03, 0.95],
+      [1, 2, 0xd9dce3, 0.03, 0.95]
+    ],
+    label
+  );
+}
+
+function createH2O(label = 'H₂O') {
+  return createMolecule(
+    [
+      { element: 'H', position: [-0.22, 0.2, 0] },
+      { element: 'O', position: [0, 0, 0] },
+      { element: 'H', position: [0.22, 0.2, 0] }
+    ],
+    [
+      [0, 1, 0xe5edf4, 0.026, 0.95],
+      [1, 2, 0xe5edf4, 0.026, 0.95]
+    ],
+    label
+  );
+}
+
+function createO2(label = 'O₂') {
+  return createMolecule(
+    [
+      { element: 'O', position: [-0.18, 0, 0] },
+      { element: 'O', position: [0.18, 0, 0] }
+    ],
+    [[0, 1, 0xffd1d1, 0.026, 0.95]],
+    label
+  );
+}
+
+function createCO(label = 'CO') {
+  return createMolecule(
+    [
+      { element: 'C', position: [-0.18, 0, 0] },
+      { element: 'O', position: [0.18, 0, 0] }
+    ],
+    [[0, 1, 0xd7e0ea, 0.026, 0.95]],
+    label
+  );
+}
+
+function createFe2O3(label = 'Fe₂O₃') {
+  return createMolecule(
+    [
+      { element: 'FeOxide', position: [-0.36, -0.16, 0] },
+      { element: 'FeOxide', position: [0.34, 0.18, 0] },
+      { element: 'O', position: [-0.1, 0.42, 0] },
+      { element: 'O', position: [-0.48, 0.13, 0] },
+      { element: 'O', position: [0.48, -0.12, 0] }
+    ],
+    [
+      [0, 2, 0xd9cab9, 0.032, 0.92],
+      [1, 2, 0xd9cab9, 0.032, 0.92],
+      [0, 3, 0xd9cab9, 0.032, 0.92],
+      [1, 4, 0xd9cab9, 0.032, 0.92]
+    ],
+    label,
+    -1.02
+  );
+}
+
+function createFe(label = 'Fe') {
+  const group = new THREE.Group();
+  const atom = createAtom('FeMetal', new THREE.Vector3(0, 0, 0), {
+    color: 0xcccccc,
+    metalness: 0.62,
+    emissive: 0x444444,
+    roughness: 0.2
+  });
+  group.add(atom);
+  const labelSprite = createTextSprite(label, '#f9fbff', 'rgba(10,16,32,0.7)');
+  labelSprite.position.set(0, -0.65, 0);
+  labelSprite.scale.set(1.8, 0.52, 1);
+  group.add(labelSprite);
+  return group;
+}
+
+function createButane(label = 'C₄H₁₀') {
+  const atoms = [
+    { element: 'C', position: [-0.72, 0, 0] },
+    { element: 'C', position: [-0.24, 0.18, 0] },
+    { element: 'C', position: [0.24, -0.18, 0] },
+    { element: 'C', position: [0.72, 0, 0] },
+    { element: 'H', position: [-1.02, 0.34, 0] },
+    { element: 'H', position: [-1.0, -0.34, 0] },
+    { element: 'H', position: [-0.2, 0.55, 0.16] },
+    { element: 'H', position: [-0.16, 0.5, -0.18] },
+    { element: 'H', position: [0.16, -0.48, 0.18] },
+    { element: 'H', position: [0.22, -0.58, -0.12] },
+    { element: 'H', position: [1.0, 0.34, 0] },
+    { element: 'H', position: [1.0, -0.34, 0] },
+    { element: 'H', position: [0.7, 0.44, 0.24] },
+    { element: 'H', position: [-0.74, -0.44, -0.24] }
+  ];
+  const bonds = [
+    [0, 1, 0xd9dde4, 0.03, 0.95],
+    [1, 2, 0xd9dde4, 0.03, 0.95],
+    [2, 3, 0xd9dde4, 0.03, 0.95],
+    [0, 4, 0xe6edf4, 0.022, 0.95],
+    [0, 5, 0xe6edf4, 0.022, 0.95],
+    [1, 6, 0xe6edf4, 0.022, 0.95],
+    [1, 7, 0xe6edf4, 0.022, 0.95],
+    [2, 8, 0xe6edf4, 0.022, 0.95],
+    [2, 9, 0xe6edf4, 0.022, 0.95],
+    [3, 10, 0xe6edf4, 0.022, 0.95],
+    [3, 11, 0xe6edf4, 0.022, 0.95],
+    [3, 12, 0xe6edf4, 0.022, 0.95],
+    [0, 13, 0xe6edf4, 0.022, 0.95]
+  ];
+  return createMolecule(atoms, bonds, label, -1.02);
+}
+
+function createGlucose(label = 'C₆H₁₂O₆') {
+  const atoms = [];
+  const bonds = [];
+  const carbonRing = [];
+  const oxygenRing = [];
+  const hydrogenOuter = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    carbonRing.push([Math.cos(angle) * 0.62, Math.sin(angle) * 0.48, Math.sin(angle * 2) * 0.12]);
+    oxygenRing.push([Math.cos(angle) * 1.08, Math.sin(angle) * 0.82, Math.cos(angle * 2) * 0.12]);
+    hydrogenOuter.push([Math.cos(angle) * 1.42, Math.sin(angle) * 1.08, Math.sin(angle * 1.5) * 0.18]);
+  }
+  carbonRing.forEach((position) => atoms.push({ element: 'C', position }));
+  oxygenRing.forEach((position) => atoms.push({ element: 'O', position }));
+  hydrogenOuter.forEach((position) => atoms.push({ element: 'H', position }));
+  hydrogenOuter.forEach((position, index) => {
+    const secondary = [
+      position[0] * 0.88 + carbonRing[index][0] * 0.12,
+      position[1] * 0.88 + carbonRing[index][1] * 0.12 + (index % 2 === 0 ? 0.18 : -0.18),
+      position[2] * 0.6 + carbonRing[index][2] * 0.4
+    ];
+    atoms.push({ element: 'H', position: secondary });
+  });
+
+  for (let i = 0; i < 6; i++) {
+    bonds.push([i, (i + 1) % 6, 0xe1e4ea, 0.03, 0.94]);
+    bonds.push([i, 6 + i, 0xe1e4ea, 0.026, 0.92]);
+    bonds.push([i, 12 + i, 0xeaf0f6, 0.02, 0.9]);
+    bonds.push([i, 18 + i, 0xeaf0f6, 0.02, 0.9]);
+  }
+  return createMolecule(atoms, bonds, label, -1.48);
+}
+
+function circlePositions(count, radius, centerX, centerY, centerZ, tilt = 0) {
+  const positions = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    positions.push(
+      new THREE.Vector3(
+        centerX + Math.cos(angle) * radius,
+        centerY + Math.sin(angle) * radius * 0.62,
+        centerZ + Math.sin(angle + tilt) * radius * 0.45
+      )
+    );
+  }
+  return positions;
+}
+
+function gridPositions(rows, cols, spacingX, spacingY, offsetX, offsetY, offsetZ) {
+  const positions = [];
+  const width = (cols - 1) * spacingX;
+  const height = (rows - 1) * spacingY;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      positions.push(
+        new THREE.Vector3(
+          offsetX + x * spacingX - width / 2,
+          offsetY - y * spacingY + height / 2,
+          offsetZ + (x % 2 === 0 ? -0.2 : 0.2)
+        )
+      );
+    }
+  }
+  return positions;
+}
+
+function addMoleculeEntry(targetArray, molecule, basePosition, centerPosition, spawnPosition, idlePhase = Math.random() * Math.PI * 2) {
+  molecule.position.copy(basePosition);
+  targetArray.push({
+    object: molecule,
+    basePosition: basePosition.clone(),
+    centerPosition: centerPosition.clone(),
+    spawnPosition: spawnPosition.clone(),
+    baseScale: molecule.scale.x || 1,
+    idlePhase
+  });
+}
+
+function setObjectOpacity(object, opacity) {
+  object.traverse((child) => {
+    if (!child.material) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((material) => {
+      material.transparent = opacity < 0.999 || material.transparent;
+      material.opacity = opacity;
+    });
+  });
+}
+
+function easeInOutCubic(t) {
+  if (t < 0.5) return 4 * t * t * t;
+  return 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function cubicBezier(a, b, c, d, t) {
+  const p0 = a.clone().multiplyScalar(Math.pow(1 - t, 3));
+  const p1 = b.clone().multiplyScalar(3 * Math.pow(1 - t, 2) * t);
+  const p2 = c.clone().multiplyScalar(3 * (1 - t) * t * t);
+  const p3 = d.clone().multiplyScalar(t * t * t);
+  return p0.add(p1).add(p2).add(p3);
+}
+
+function createTransferParticle(color, radius, start, end, delay, arcHeight = 1.5) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    })
+  );
+  const mid1 = start.clone().lerp(end, 0.33).add(new THREE.Vector3(0, arcHeight, 0));
+  const mid2 = start.clone().lerp(end, 0.66).add(new THREE.Vector3(0, arcHeight * 0.8, 0));
+  mesh.visible = false;
+  return { mesh, start, mid1, mid2, end, delay };
+}
+
+function createReactionContent(reactionKey) {
+  const meta = REACTIONS[reactionKey];
+  const root = new THREE.Group();
+  const floor = createFloorRing(reactionKey === 'combustion' ? 0x3d231c : reactionKey === 'smelting' ? 0x3a251b : 0x20364a);
+  const silhouette = createSilhouette(meta.environment);
+  root.add(floor);
+  root.add(silhouette);
+
+  const modelRoot = new THREE.Group();
+  const effectRoot = new THREE.Group();
+  const arrowRoot = new THREE.Group();
+  root.add(modelRoot);
+  root.add(effectRoot);
+  root.add(arrowRoot);
+
+  const reactants = [];
+  const products = [];
+  const transfers = [];
+  const effectParticles = [];
+
+  const reactantBadge = createTextSprite('반응물', '#f4f7ff', 'rgba(11,18,34,0.78)');
+  reactantBadge.position.set(-3.9, 2.8, 0);
+  reactantBadge.scale.set(1.9, 0.54, 1);
+  root.add(reactantBadge);
+
+  const productBadge = createTextSprite('생성물', '#f4f7ff', 'rgba(11,18,34,0.78)');
+  productBadge.position.set(3.7, 2.8, 0);
+  productBadge.scale.set(1.9, 0.54, 1);
+  root.add(productBadge);
+
+  const centerPulse = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 20, 20),
+    new THREE.MeshBasicMaterial({
+      color: reactionKey === 'photosynthesis' ? 0xffeb76 : reactionKey === 'combustion' ? 0xff8844 : 0xffb25f,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false
+    })
+  );
+  effectRoot.add(centerPulse);
+
+  if (reactionKey === 'photosynthesis') {
+    const co2Positions = circlePositions(6, 1.5, -3.8, 0.5, 0, 0.6);
+    const h2oPositions = circlePositions(6, 1.5, 3.5, 0.5, 0, 0.2);
+    const o2Positions = circlePositions(6, 1.35, 3.5, 0.15, 0, 0.6);
+
+    co2Positions.forEach((position, index) => {
+      const molecule = createCO2('CO₂');
+      modelRoot.add(molecule);
+      addMoleculeEntry(reactants, molecule, position, new THREE.Vector3(-1.2, 0.4, 0), new THREE.Vector3(-0.8, 0.2, 0.5), index * 0.4);
+    });
+
+    h2oPositions.forEach((position, index) => {
+      const molecule = createH2O('H₂O');
+      modelRoot.add(molecule);
+      addMoleculeEntry(reactants, molecule, position, new THREE.Vector3(1.0, 0.4, 0), new THREE.Vector3(0.8, 0.2, -0.5), index * 0.45);
+    });
+
+    const glucose = createGlucose('포도당');
+    modelRoot.add(glucose);
+    addMoleculeEntry(products, glucose, new THREE.Vector3(-1.5, 0.4, 0), new THREE.Vector3(-0.2, 0.2, 0), new THREE.Vector3(0.3, 0.1, 0), 1.2);
+
+    o2Positions.forEach((position, index) => {
+      const molecule = createO2('O₂');
+      modelRoot.add(molecule);
+      addMoleculeEntry(products, molecule, position, new THREE.Vector3(1.8, 0.15, 0), new THREE.Vector3(0.8, 0.1, 0), index * 0.5);
+    });
+
+    for (let i = 0; i < 40; i++) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 10, 10),
+        new THREE.MeshBasicMaterial({
+          color: 0xffea74,
+          transparent: true,
+          opacity: 0.42,
+          depthWrite: false
+        })
+      );
+      particle.userData = {
+        x: (Math.random() - 0.5) * 5.4,
+        z: (Math.random() - 0.5) * 2.8,
+        offset: Math.random()
+      };
+      effectParticles.push(particle);
+      effectRoot.add(particle);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      transfers.push(createTransferParticle(0xff5555, 0.07, new THREE.Vector3(2.4, 0.2, 0), new THREE.Vector3(3.2, 0.15, 0), i * 0.05, 1.2));
+    }
+    for (let i = 0; i < 6; i++) {
+      transfers.push(createTransferParticle(0x666666, 0.08, new THREE.Vector3(-2.8, 0.2, 0), new THREE.Vector3(-1.6, 0.35, 0), i * 0.06, 1.35));
+    }
+    for (let i = 0; i < 10; i++) {
+      transfers.push(createTransferParticle(0xffffff, 0.05, new THREE.Vector3(2.8, 0.2, 0), new THREE.Vector3(-1.25, 0.2, 0), i * 0.04, 1.8));
+    }
+
+    arrowRoot.add(createArrow(new THREE.Vector3(-3.9, 1.85, 0), new THREE.Vector3(-1.75, 1.2, 0), 0x57a8ff, '환원'));
+    arrowRoot.add(createArrow(new THREE.Vector3(2.5, -1.1, 0), new THREE.Vector3(3.45, 0.8, 0), 0xff6d5d, '산화'));
+    arrowRoot.add(createArrow(new THREE.Vector3(2.15, 0.2, 1.15), new THREE.Vector3(3.05, 0.15, 1.15), 0xff8d7d, '산소 이동', true));
+
+    const sunGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 24, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe368,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false
+      })
+    );
+    sunGlow.position.set(0, 4.4, -1.2);
+    effectRoot.add(sunGlow);
+    effectParticles.push(sunGlow);
+  } else if (reactionKey === 'combustion') {
+    const fuels = [
+      new THREE.Vector3(-3.5, 0.9, 0.4),
+      new THREE.Vector3(-3.2, -0.8, -0.4)
+    ];
+    fuels.forEach((position, index) => {
+      const molecule = createButane('C₄H₁₀');
+      modelRoot.add(molecule);
+      addMoleculeEntry(reactants, molecule, position, new THREE.Vector3(-0.9, index === 0 ? 0.4 : -0.2, 0), new THREE.Vector3(-0.6, 0.2, 0), index * 0.6);
+    });
+
+    const oxygenPositions = circlePositions(13, 2.0, 3.7, 0.1, 0, 0.15);
+    oxygenPositions.forEach((position, index) => {
+      const molecule = createO2('O₂');
+      molecule.scale.setScalar(0.86);
+      modelRoot.add(molecule);
+      addMoleculeEntry(reactants, molecule, position, new THREE.Vector3(1.2, 0.1, 0), new THREE.Vector3(0.8, 0.1, 0), index * 0.2);
+    });
+
+    const co2Products = gridPositions(2, 4, 1.05, 0.95, 1.0, 1.1, 0);
+    co2Products.forEach((position, index) => {
+      const molecule = createCO2('CO₂');
+      molecule.scale.setScalar(0.92);
+      modelRoot.add(molecule);
+      addMoleculeEntry(products, molecule, position, new THREE.Vector3(0.4, 0.4, 0), new THREE.Vector3(0.15, 0.25, 0), index * 0.2);
+    });
+
+    const h2oProducts = gridPositions(2, 5, 0.88, 0.84, 3.45, -0.55, 0);
+    h2oProducts.forEach((position, index) => {
+      const molecule = createH2O('H₂O');
+      molecule.scale.setScalar(0.82);
+      modelRoot.add(molecule);
+      addMoleculeEntry(products, molecule, position, new THREE.Vector3(1.9, -0.1, 0), new THREE.Vector3(0.9, 0.1, 0), index * 0.16);
+    });
+
+    for (let i = 0; i < 72; i++) {
+      const palette = [0xffdf80, 0xff9955, 0xff6a3c, 0xffc96b];
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.055 + Math.random() * 0.03, 10, 10),
+        new THREE.MeshBasicMaterial({
+          color: palette[i % palette.length],
+          transparent: true,
+          opacity: 0.42,
+          depthWrite: false
+        })
+      );
+      particle.userData = {
+        angle: Math.random() * Math.PI * 2,
+        radius: 0.5 + Math.random() * 1.7,
+        offset: Math.random(),
+        speed: 0.6 + Math.random() * 0.6
+      };
+      effectParticles.push(particle);
+      effectRoot.add(particle);
+    }
+
+    for (let i = 0; i < 16; i++) {
+      transfers.push(createTransferParticle(0xff5555, 0.07, new THREE.Vector3(2.3, 0.1, 0), new THREE.Vector3(1.9, 0.5, 0), i * 0.03, 1.4));
+    }
+    for (let i = 0; i < 8; i++) {
+      transfers.push(createTransferParticle(0x666666, 0.08, new THREE.Vector3(-2.2, 0.2, 0), new THREE.Vector3(0.9, 1.0, 0), i * 0.05, 1.8));
+    }
+    for (let i = 0; i < 10; i++) {
+      transfers.push(createTransferParticle(0xffffff, 0.05, new THREE.Vector3(-2.4, -0.1, 0), new THREE.Vector3(3.1, -0.45, 0), i * 0.04, 1.55));
+    }
+
+    arrowRoot.add(createArrow(new THREE.Vector3(-4.15, 1.5, 0), new THREE.Vector3(-1.4, 1.05, 0), 0xff6f5d, '산화'));
+    arrowRoot.add(createArrow(new THREE.Vector3(3.2, 1.7, 0), new THREE.Vector3(1.35, 0.8, 0), 0x63b1ff, '환원'));
+    arrowRoot.add(createArrow(new THREE.Vector3(2.45, -0.25, 1.25), new THREE.Vector3(1.3, 0.35, 1.25), 0xff9164, '산소 이동', true));
+  } else {
+    const ore = createFe2O3('Fe₂O₃');
+    modelRoot.add(ore);
+    addMoleculeEntry(reactants, ore, new THREE.Vector3(-3.4, 0.5, 0), new THREE.Vector3(-0.8, 0.3, 0), new THREE.Vector3(-0.2, 0.15, 0), 0.1);
+
+    const coReactants = [
+      new THREE.Vector3(3.1, 1.0, 0.2),
+      new THREE.Vector3(3.8, -0.05, -0.3),
+      new THREE.Vector3(3.15, -1.0, 0.25)
+    ];
+    coReactants.forEach((position, index) => {
+      const molecule = createCO('CO');
+      modelRoot.add(molecule);
+      addMoleculeEntry(reactants, molecule, position, new THREE.Vector3(1.1, 0.15 + index * 0.12, 0), new THREE.Vector3(0.8, 0.05, 0), index * 0.36);
+    });
+
+    const ironA = createFe('Fe');
+    ironA.scale.setScalar(1.04);
+    modelRoot.add(ironA);
+    addMoleculeEntry(products, ironA, new THREE.Vector3(-1.4, 0.4, -0.5), new THREE.Vector3(-0.2, 0.25, -0.15), new THREE.Vector3(0.15, 0.08, -0.12), 0.8);
+
+    const ironB = createFe('Fe');
+    ironB.scale.setScalar(1.04);
+    modelRoot.add(ironB);
+    addMoleculeEntry(products, ironB, new THREE.Vector3(-0.4, -0.35, 0.5), new THREE.Vector3(0.1, -0.08, 0.12), new THREE.Vector3(0.2, -0.08, 0.12), 1.0);
+
+    const co2Products = [
+      new THREE.Vector3(3.1, 1.0, 0.2),
+      new THREE.Vector3(3.8, -0.02, -0.25),
+      new THREE.Vector3(3.15, -1.0, 0.25)
+    ];
+    co2Products.forEach((position, index) => {
+      const molecule = createCO2('CO₂');
+      modelRoot.add(molecule);
+      addMoleculeEntry(products, molecule, position, new THREE.Vector3(1.55, 0.15 + index * 0.12, 0), new THREE.Vector3(0.95, 0.05, 0), 0.9 + index * 0.2);
+    });
+
+    for (let i = 0; i < 54; i++) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05 + Math.random() * 0.02, 10, 10),
+        new THREE.MeshBasicMaterial({
+          color: i % 3 === 0 ? 0xffc26d : 0xff8c4a,
+          transparent: true,
+          opacity: 0.34,
+          depthWrite: false
+        })
+      );
+      particle.userData = {
+        angle: Math.random() * Math.PI * 2,
+        radius: 0.45 + Math.random() * 1.5,
+        offset: Math.random(),
+        speed: 0.45 + Math.random() * 0.4
+      };
+      effectParticles.push(particle);
+      effectRoot.add(particle);
+    }
+
+    for (let i = 0; i < 7; i++) {
+      transfers.push(createTransferParticle(0xff5555, 0.075, new THREE.Vector3(-2.75, 0.5, 0), new THREE.Vector3(2.9, 0.05, 0), i * 0.06, 1.9));
+    }
+    for (let i = 0; i < 3; i++) {
+      transfers.push(createTransferParticle(0x666666, 0.08, new THREE.Vector3(3.25, 0.15, 0), new THREE.Vector3(3.15, 0.05, 0), i * 0.12, 1.1));
+    }
+    for (let i = 0; i < 2; i++) {
+      transfers.push(createTransferParticle(0xd3d3d3, 0.1, new THREE.Vector3(-2.4, 0.12, 0), new THREE.Vector3(-0.9 + i * 0.8, 0.1 - i * 0.55, 0), i * 0.18, 1.25));
+    }
+
+    arrowRoot.add(createArrow(new THREE.Vector3(-3.6, 1.7, 0), new THREE.Vector3(-1.4, 0.95, 0), 0x63b1ff, '환원'));
+    arrowRoot.add(createArrow(new THREE.Vector3(2.55, 1.55, 0), new THREE.Vector3(3.25, 0.62, 0), 0xff6d5d, '산화'));
+    arrowRoot.add(createArrow(new THREE.Vector3(-2.1, 0.4, 1.2), new THREE.Vector3(2.55, 0.15, 1.2), 0xff9164, '산소 이동', true));
+
+    const furnaceGlow = new THREE.Mesh(
+      new THREE.TorusGeometry(1.2, 0.08, 12, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xff9a52,
+        transparent: true,
+        opacity: 0.24,
+        depthWrite: false
+      })
+    );
+    furnaceGlow.rotation.x = Math.PI / 2;
+    furnaceGlow.position.set(0.2, -1.2, 0);
+    effectRoot.add(furnaceGlow);
+    effectParticles.push(furnaceGlow);
+  }
+
+  transfers.forEach((transfer) => {
+    modelRoot.add(transfer.mesh);
+  });
+
+  const content = {
+    root,
+    modelRoot,
+    arrowRoot,
+    floor,
+    silhouette,
+    reactants,
+    products,
+    transfers,
+    effectParticles,
+    centerPulse,
+    meta,
+    progress: 0,
+    playing: false,
+    time: 0,
+    setScale(scale) {
+      this.modelRoot.scale.setScalar(scale);
+    },
+    setRedoxVisible(visible) {
+      this.arrowRoot.visible = visible;
+    },
+    reset() {
+      this.playing = false;
+      this.time = 0;
+      this.progress = 0;
+      this.reactants.forEach((entry) => {
+        entry.object.position.copy(entry.basePosition);
+        entry.object.scale.setScalar(entry.baseScale);
+        setObjectOpacity(entry.object, 1);
+      });
+      this.products.forEach((entry) => {
+        entry.object.position.copy(entry.basePosition);
+        entry.object.scale.setScalar(entry.baseScale * 0.96);
+        setObjectOpacity(entry.object, 0.18);
+      });
+      this.transfers.forEach((transfer) => {
+        transfer.mesh.visible = false;
+        transfer.mesh.material.opacity = 0;
+      });
+    },
+    play() {
+      this.reset();
+      this.playing = true;
+    },
+    update(dt, elapsed) {
+      if (this.playing) {
+        this.time += dt;
+        this.progress = clamp01(this.time / this.meta.duration);
+        if (this.progress >= 1) {
+          this.playing = false;
+        }
+      }
+
+      const gather = easeInOutCubic(clamp01(this.progress / 0.48));
+      const dissolve = easeInOutCubic(clamp01((this.progress - 0.16) / 0.38));
+      const form = easeInOutCubic(clamp01((this.progress - 0.42) / 0.58));
+      const pulse = 1 + Math.sin(elapsed * 2.1) * 0.08;
+      this.centerPulse.scale.setScalar(pulse + this.progress * 0.55);
+      this.centerPulse.material.opacity = 0.12 + form * 0.24 + Math.sin(elapsed * 2.6) * 0.03;
+
+      this.reactants.forEach((entry, index) => {
+        const idleY = Math.sin(elapsed * 1.4 + entry.idlePhase + index * 0.18) * 0.09;
+        const idleRot = elapsed * 0.15 + entry.idlePhase * 0.02;
+        const base = entry.basePosition.clone();
+        base.y += idleY;
+        const target = entry.centerPosition.clone();
+        entry.object.position.lerpVectors(base, target, gather);
+        entry.object.rotation.y = idleRot;
+        const opacity = 1 - dissolve * 0.88;
+        const scale = entry.baseScale * (1 - dissolve * 0.16);
+        entry.object.scale.setScalar(scale);
+        setObjectOpacity(entry.object, opacity);
+      });
+
+      this.products.forEach((entry, index) => {
+        const idleY = Math.sin(elapsed * 1.3 + entry.idlePhase + index * 0.12) * 0.07;
+        const idleRot = elapsed * 0.16 + entry.idlePhase * 0.03;
+        const destination = entry.basePosition.clone();
+        destination.y += idleY;
+        entry.object.position.lerpVectors(entry.spawnPosition, destination, form);
+        entry.object.rotation.y = idleRot;
+        const opacity = 0.18 + form * 0.82;
+        const scale = entry.baseScale * (0.9 + form * 0.1);
+        entry.object.scale.setScalar(scale);
+        setObjectOpacity(entry.object, opacity);
+      });
+
+      this.transfers.forEach((transfer) => {
+        const local = clamp01((this.progress - transfer.delay) / 0.34);
+        if (local <= 0 || local >= 1) {
+          transfer.mesh.visible = false;
+          transfer.mesh.material.opacity = 0;
+          return;
+        }
+        transfer.mesh.visible = true;
+        const position = cubicBezier(transfer.start, transfer.mid1, transfer.mid2, transfer.end, local);
+        transfer.mesh.position.copy(position);
+        transfer.mesh.material.opacity = Math.sin(local * Math.PI) * 0.92;
+      });
+
+      if (reactionKey === 'photosynthesis') {
+        this.effectParticles.forEach((particle, index) => {
+          if (index === this.effectParticles.length - 1) {
+            particle.material.opacity = 0.58 + Math.sin(elapsed * 2.1) * 0.12 + this.progress * 0.16;
+            particle.scale.setScalar(1 + Math.sin(elapsed * 1.5) * 0.08);
+            return;
+          }
+          const cycle = (elapsed * 0.42 + particle.userData.offset + this.progress * 0.35) % 1;
+          particle.position.set(particle.userData.x, 4.4 - cycle * 4.4, particle.userData.z);
+          particle.material.opacity = 0.2 + Math.sin(cycle * Math.PI) * (0.35 + this.progress * 0.4);
+        });
+      } else if (reactionKey === 'combustion') {
+        this.effectParticles.forEach((particle) => {
+          const cycle = (elapsed * particle.userData.speed + particle.userData.offset + this.progress * 0.75) % 1;
+          const radius = particle.userData.radius * cycle;
+          particle.position.set(
+            Math.cos(particle.userData.angle) * radius * 0.9,
+            -0.9 + cycle * 3.1,
+            Math.sin(particle.userData.angle) * radius * 0.55
+          );
+          particle.material.opacity = (1 - cycle) * (0.24 + this.progress * 0.55);
+        });
+      } else {
+        this.effectParticles.forEach((particle, index) => {
+          if (particle.geometry.type === 'TorusGeometry') {
+            particle.rotation.z += dt * 0.45;
+            particle.material.opacity = 0.14 + Math.sin(elapsed * 1.8) * 0.05 + this.progress * 0.08;
+            return;
+          }
+          const cycle = (elapsed * particle.userData.speed + particle.userData.offset + this.progress * 0.52) % 1;
+          const radius = particle.userData.radius * (0.5 + cycle * 0.9);
+          particle.position.set(
+            Math.cos(particle.userData.angle) * radius * 0.65,
+            -1.2 + cycle * 2.4,
+            Math.sin(particle.userData.angle) * radius * 0.42
+          );
+          particle.material.opacity = (1 - cycle * 0.75) * (0.18 + this.progress * 0.36);
+        });
+      }
+    },
+    dispose() {
+      disposeObject3D(this.root);
+    }
+  };
+
+  content.reset();
+  content.setScale(state.atomScale);
+  content.setRedoxVisible(state.showRedox);
+  return content;
+}
+
+function disposeMaterial(material) {
+  ['map', 'alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'emissiveMap', 'metalnessMap', 'normalMap', 'roughnessMap'].forEach((key) => {
+    if (material[key]) {
+      material[key].dispose();
+    }
+  });
+  material.dispose();
+}
+
+function disposeObject3D(object) {
+  object.traverse((child) => {
+    if (child.userData && child.userData.texture) {
+      child.userData.texture.dispose();
+    }
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => disposeMaterial(material));
+      } else {
+        disposeMaterial(child.material);
+      }
+    }
+  });
+}
+
+function setReaction(reactionKey, options = {}) {
+  const preserveAuto = Boolean(options.preserveAuto);
+  if (!preserveAuto) {
+    state.autoCycle = false;
+    state.autoElapsed = 0;
+  }
+
+  state.reactionKey = reactionKey;
+  if (state.reactionContent) {
+    scene.remove(state.reactionContent.root);
+    state.reactionContent.dispose();
+  }
+
+  state.reactionContent = createReactionContent(reactionKey);
+  scene.add(state.reactionContent.root);
+
+  const meta = REACTIONS[reactionKey];
+  centerLight.color.setHex(meta.pointColor);
+  centerLight.intensity = 1.0;
+  dom.modeDescription.textContent = meta.description;
+  dom.currentReaction.textContent = meta.label;
+  dom.currentEquation.textContent = meta.equation;
+  dom.currentEnergy.textContent = meta.energy;
+  dom.currentOxidized.textContent = meta.oxidized;
+  dom.currentReduced.textContent = meta.reduced;
+  dom.equationMain.textContent = meta.equation;
+  dom.equationCaption.textContent = `${meta.energy} · 반응 재생 버튼으로 변환 과정을 다시 볼 수 있습니다.`;
+  dom.guideReaction.textContent = `현재 반응 요약: ${meta.guide}`;
+  dom.statusChip.textContent = state.showRedox
+    ? '산화/환원 화살표와 산소 이동 점선이 표시되고 있습니다.'
+    : '산화/환원 화살표가 숨겨져 있습니다. GUI 토글로 다시 켤 수 있습니다.';
+
+  dom.tabs.forEach((tab) => {
+    const active = tab.dataset.reaction === reactionKey;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  });
+
+  params['반응 종류'] = reactionKey;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function playCurrentReaction() {
+  if (state.reactionContent) {
+    state.reactionContent.play();
+  }
+}
+
+function resetCurrentReaction() {
+  state.autoCycle = false;
+  state.autoElapsed = 0;
+  if (state.reactionContent) {
+    state.reactionContent.reset();
+  }
+}
+
+function toggleAutoCycle() {
+  state.autoCycle = !state.autoCycle;
+  state.autoElapsed = 0;
+  if (state.autoCycle) {
+    state.autoIndex = 0;
+    setReaction(REACTION_ORDER[0], { preserveAuto: true });
+    playCurrentReaction();
+  }
+}
+
+function updateAutoCycle(dt) {
+  if (!state.autoCycle) return;
+  state.autoElapsed += dt;
+  const nextIndex = Math.floor(state.autoElapsed / 6) % REACTION_ORDER.length;
+  if (nextIndex !== state.autoIndex) {
+    state.autoIndex = nextIndex;
+    setReaction(REACTION_ORDER[nextIndex], { preserveAuto: true });
+    playCurrentReaction();
+  }
+}
+
+dom.tabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    setReaction(tab.dataset.reaction);
+  });
+});
+
+dom.guideToggle.addEventListener('click', () => {
+  state.showGuide = !state.showGuide;
+  dom.guidePanel.style.display = state.showGuide ? 'block' : 'none';
+  dom.guideToggle.textContent = state.showGuide ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+const gui = new GUI({ title: '산소 반응 제어', width: 320 });
+gui.domElement.style.marginTop = '14px';
+gui.domElement.style.marginRight = '14px';
+
+const params = {
+  '반응 종류': 'photosynthesis',
+  '반응 재생': () => playCurrentReaction(),
+  '산화/환원 표시': true,
+  '입자 크기': 1,
+  '자동 전환': () => toggleAutoCycle(),
+  '초기화': () => resetCurrentReaction()
+};
+
+gui.add(params, '반응 종류', {
+  '광합성': 'photosynthesis',
+  '연소': 'combustion',
+  '철의 제련': 'smelting'
+}).name('반응 종류').onChange((value) => {
+  setReaction(value);
+});
+
+gui.add(params, '반응 재생').name('반응 재생');
+gui.add(params, '산화/환원 표시').name('산화/환원 표시').onChange((value) => {
+  state.showRedox = value;
+  if (state.reactionContent) {
+    state.reactionContent.setRedoxVisible(value);
+  }
+  dom.statusChip.textContent = value
+    ? '산화/환원 화살표와 산소 이동 점선이 표시되고 있습니다.'
+    : '산화/환원 화살표가 숨겨져 있습니다. GUI 토글로 다시 켤 수 있습니다.';
+});
+
+gui.add(params, '입자 크기', 0.5, 2, 0.01).name('입자 크기').onChange((value) => {
+  state.atomScale = value;
+  if (state.reactionContent) {
+    state.reactionContent.setScale(value);
+  }
+});
+
+gui.add(params, '자동 전환').name('자동 전환');
+gui.add(params, '초기화').name('초기화');
+
+if (window.innerWidth < 900) {
+  gui.close();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const elapsed = clock.elapsedTime;
+  updateAutoCycle(dt);
+  if (state.reactionContent) {
+    state.reactionContent.update(dt, elapsed);
+  }
+  backgroundStars.points.rotation.y += dt * 0.01;
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.addEventListener('resize', resize);
+
+window.addEventListener('beforeunload', () => {
+  if (state.reactionContent) {
+    state.reactionContent.dispose();
+  }
+  backgroundStars.geometry.dispose();
+  backgroundStars.material.dispose();
+  controls.dispose();
+  renderer.dispose();
+});
+
+setReaction('photosynthesis', { preserveAuto: true });
+animate();
+</script>
+</body>
+</html>

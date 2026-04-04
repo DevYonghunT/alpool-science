@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>열전도, 대류, 복사와 보온병 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel: rgba(11, 21, 37, 0.82);
+    --panel-soft: rgba(255, 255, 255, 0.08);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f6f8fb;
+    --text-dim: rgba(246, 248, 251, 0.72);
+    --text-dark: rgba(24, 34, 48, 0.86);
+    --heat: #ff7a58;
+    --warm: #ffbc5a;
+    --cool: #5bbcff;
+    --cold: #bfe4ff;
+    --earth: #5fc986;
+    --silver: #d7e4f0;
+    --vacuum: #8d9cff;
+    --shadow: 0 18px 42px rgba(6, 15, 28, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 14%, rgba(255, 196, 125, 0.28), transparent 24%),
+      radial-gradient(circle at 82% 18%, rgba(116, 192, 255, 0.22), transparent 22%),
+      linear-gradient(180deg, #f7f8fb 0%, #eef0f5 48%, #dde4ee 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 16;
+  }
+
+  .overlay-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(8, 17, 30, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .overlay-label.heat {
+    color: #ffbfaa;
+  }
+
+  .overlay-label.cool {
+    color: #b8e6ff;
+  }
+
+  .overlay-label.note {
+    color: #ffe089;
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 22;
+    width: min(660px, calc(100vw - 32px));
+    padding: 13px 18px 15px;
+    text-align: center;
+    border-radius: 22px;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 28;
+    padding: 9px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(7, 18, 34, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 27;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    display: none;
+    line-height: 1.78;
+    font-size: 12px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    color: #cfe9ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 14px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #ffe091;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .guide-ref {
+    margin-top: 13px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #mode-tabs {
+    position: fixed;
+    top: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 23;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(760px, calc(100vw - 32px));
+  }
+
+  .tab-btn {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.26);
+    color: rgba(20, 33, 48, 0.78);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+  }
+
+  .tab-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.36);
+  }
+
+  .tab-btn.active {
+    background: rgba(10, 20, 36, 0.9);
+    color: #ffffff;
+    box-shadow: 0 12px 28px rgba(8, 18, 32, 0.18);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 156px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(620px, calc(100vw - 36px));
+    padding: 11px 15px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.6;
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #ffffff;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(380px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.76;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #ffffff;
+    margin-bottom: 10px;
+  }
+
+  #formula-current {
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .formula-rule {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .formula-rule + .formula-rule {
+    margin-top: 8px;
+  }
+
+  .formula-rule strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .formula-rule span {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-dim);
+  }
+
+  .formula-rule.active {
+    border-color: rgba(255, 188, 90, 0.42);
+    background: rgba(255, 188, 90, 0.08);
+  }
+
+  .formula-note {
+    margin-top: 12px;
+    color: var(--text-dim);
+  }
+
+  #visual-panel {
+    position: fixed;
+    top: 206px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(390px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 24px;
+    overflow-y: auto;
+  }
+
+  #visual-panel h2 {
+    font-size: 19px;
+    color: #ffffff;
+  }
+
+  #visual-panel p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.68;
+  }
+
+  #graph-wrap {
+    margin-top: 14px;
+    display: none;
+  }
+
+  #graph-wrap.visible {
+    display: block;
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: 220px;
+    display: block;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+    line-height: 1.62;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .metric-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .metric-card .value {
+    margin-top: 6px;
+    font-size: 19px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  .metric-card .sub {
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .example-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .example-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .example-card strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .example-card span {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.62;
+    color: var(--text-dim);
+  }
+
+  #gui-mount {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 26;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(9, 19, 34, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.06);
+    --widget-height: 28px;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --title-text-color: #f6f8fb;
+    --text-color: #f6f8fb;
+    --focus-color: rgba(255, 188, 90, 0.42);
+    --number-color: #8be0ff;
+    --string-color: #ffe088;
+    --padding: 8px;
+    --font-size: 12px;
+    --name-width: 42%;
+    width: 300px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  @media (max-width: 1180px) {
+    #visual-panel {
+      width: min(350px, calc(100vw - 28px));
+    }
+
+    #title-card {
+      width: min(580px, calc(100vw - 220px));
+    }
+  }
+
+  @media (max-width: 980px) {
+    #visual-panel {
+      top: auto;
+      height: min(42vh, 360px);
+    }
+
+    #formula-panel {
+      width: min(350px, calc(100vw - 380px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-card {
+      width: calc(100vw - 24px);
+      top: 10px;
+    }
+
+    #mode-tabs {
+      top: 128px;
+      width: calc(100vw - 20px);
+    }
+
+    #status-chip {
+      top: 184px;
+      width: calc(100vw - 20px);
+      border-radius: 18px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 182px;
+      width: auto;
+      max-height: 30vh;
+      overflow-y: auto;
+    }
+
+    #visual-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+      height: 160px;
+      padding: 14px;
+    }
+
+    .metric-grid {
+      grid-template-columns: 1fr;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 10px;
+      left: 10px;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 50px;
+      max-height: min(54vh, 520px);
+    }
+
+    #gui-mount {
+      top: 58px;
+      right: 10px;
+      transform: scale(0.94);
+      transform-origin: top right;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+<div id="label-layer"></div>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Mechanics & Energy · Heat Transfer</div>
+  <h1>열전도, 대류, 복사와 보온병</h1>
+  <p>열이 높은 곳에서 낮은 곳으로 이동하는 세 가지 방식을 입자, 유체, 전자기파 흐름으로 비교하고 보온병이 이를 어떻게 막는지 살펴보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass">
+  <h3>핵심 원리</h3>
+  <p>열은 전도, 대류, 복사 세 가지 방식으로 전달됩니다. 전도는 입자 충돌, 대류는 유체 순환, 복사는 전자기파에 의한 전달입니다. 보온병은 진공층으로 전도와 대류를 줄이고, 은 코팅으로 복사를 반사하며, 단열 마개로 남은 열손실을 억제합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>금속 숟가락과 나무 숟가락을 뜨거운 국에 넣으면 어느 쪽이 먼저 뜨거워질까요?</li>
+    <li>에어컨은 왜 방의 위쪽에 설치하는 것이 냉방에 유리할까요?</li>
+    <li>우주 공간처럼 진공인 곳에서 태양의 열이 지구까지 오는 방식은 무엇일까요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>보온병, 이중창, 냄비 손잡이: 열손실을 줄이는 단열 설계</li>
+    <li>에어컨과 난방기 위치: 따뜻한 공기 상승, 차가운 공기 하강</li>
+    <li>햇빛, 모닥불, 적외선 카메라: 매질 없이 전달되는 복사</li>
+  </ul>
+
+  <div class="guide-ref">
+    역학과 에너지 II편 p64~69 · 단열과 열팽창, 열 전달 방식
+  </div>
+</div>
+
+<div id="mode-tabs">
+  <button class="tab-btn active" data-mode="열전도">열전도</button>
+  <button class="tab-btn" data-mode="대류">대류</button>
+  <button class="tab-btn" data-mode="복사">복사</button>
+  <button class="tab-btn" data-mode="보온병">보온병</button>
+</div>
+
+<div id="status-chip" class="glass"></div>
+<div id="formula-panel" class="glass"></div>
+
+<div id="visual-panel" class="glass">
+  <h2 id="visual-title"></h2>
+  <p id="visual-subtitle"></p>
+  <div id="graph-wrap">
+    <canvas id="graph-canvas"></canvas>
+  </div>
+  <div id="graph-note"></div>
+  <div id="metric-grid" class="metric-grid"></div>
+  <div id="example-list" class="example-list"></div>
+</div>
+
+<div id="gui-mount"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MATERIALS = {
+  구리: { rate: 1.35, label: '매우 빠름', description: '금속이라 열이 매우 빨리 퍼집니다.' },
+  알루미늄: { rate: 1.02, label: '빠름', description: '금속이라 열전도가 빠르지만 구리보다는 느립니다.' },
+  유리: { rate: 0.42, label: '보통', description: '고체지만 금속보다 열전도율이 낮습니다.' },
+  나무: { rate: 0.16, label: '느림', description: '공기층을 포함해 열이 천천히 이동합니다.' },
+  스티로폼: { rate: 0.06, label: '매우 느림', description: '공기층이 많아 단열재로 잘 쓰입니다.' }
+};
+
+const MODE_DATA = {
+  열전도: {
+    subtitle: '입자 충돌로 금속 막대 안에서 열이 퍼집니다.',
+    summary: '고체 입자 진동이 이웃 입자에 전달되며 고온 영역의 에너지가 저온 영역으로 확산됩니다.'
+  },
+  대류: {
+    subtitle: '가열된 유체는 위로, 차가운 유체는 아래로 이동합니다.',
+    summary: '밀도 차이 때문에 유체 전체가 순환하며 열을 운반합니다.'
+  },
+  복사: {
+    subtitle: '매질 없이 전자기파가 에너지를 운반합니다.',
+    summary: '태양과 지구 사이처럼 진공에서도 열이 전달될 수 있습니다.'
+  },
+  보온병: {
+    subtitle: '진공층, 은 코팅, 단열 마개가 열 전달을 동시에 줄입니다.',
+    summary: '전도, 대류, 복사를 모두 약하게 만들어 내용물의 온도를 오래 유지합니다.'
+  }
+};
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  labelLayer: document.getElementById('label-layer'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  tabs: Array.from(document.querySelectorAll('.tab-btn')),
+  statusChip: document.getElementById('status-chip'),
+  formulaPanel: document.getElementById('formula-panel'),
+  visualTitle: document.getElementById('visual-title'),
+  visualSubtitle: document.getElementById('visual-subtitle'),
+  graphWrap: document.getElementById('graph-wrap'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  graphNote: document.getElementById('graph-note'),
+  metricGrid: document.getElementById('metric-grid'),
+  exampleList: document.getElementById('example-list'),
+  guiMount: document.getElementById('gui-mount')
+};
+
+const params = {
+  mode: '열전도',
+  material: '구리',
+  temperatureDifference: 50,
+  particleModel: true,
+  convectionSpeed: 1,
+  graphVisible: true,
+  start: () => startSimulation(),
+  reset: () => resetSimulation(false)
+};
+
+const runtime = {
+  running: true,
+  absoluteTime: 0,
+  simTime: 0,
+  modeHandle: null,
+  overlayLabels: [],
+  gui: null,
+  controllers: {},
+  contentRoot: null
+};
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xeef0f5, 17, 34);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
+camera.position.set(0, 4.6, 12.2);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xeef0f5, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.04;
+
+const controls = new OrbitControls(camera, dom.canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 20;
+controls.target.set(0, 1.8, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+directional.position.set(6, 10, 8);
+directional.castShadow = true;
+directional.shadow.mapSize.set(2048, 2048);
+directional.shadow.camera.left = -12;
+directional.shadow.camera.right = 12;
+directional.shadow.camera.top = 12;
+directional.shadow.camera.bottom = -8;
+directional.shadow.camera.near = 1;
+directional.shadow.camera.far = 40;
+directional.shadow.bias = -0.0002;
+scene.add(directional);
+
+const fillLight = new THREE.PointLight(0xb7d8ff, 0.3, 24, 2);
+fillLight.position.set(-7, 4, -4);
+scene.add(fillLight);
+
+const stage = new THREE.Group();
+scene.add(stage);
+
+const floor = new THREE.Mesh(
+  new THREE.CylinderGeometry(8.8, 9.4, 0.35, 80),
+  new THREE.MeshStandardMaterial({
+    color: 0xcfd7e3,
+    roughness: 0.92,
+    metalness: 0.04
+  })
+);
+floor.position.y = -0.2;
+floor.receiveShadow = true;
+stage.add(floor);
+
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(6.1, 0.07, 18, 100),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.18
+  })
+);
+ring.rotation.x = Math.PI / 2;
+ring.position.y = 0.02;
+stage.add(ring);
+
+runtime.contentRoot = new THREE.Group();
+scene.add(runtime.contentRoot);
+
+const clock = new THREE.Clock();
+const graphContext = dom.graphCanvas.getContext('2d');
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function colorFromTemperature(temp) {
+  const t = clamp(temp / 100, 0, 1);
+  return new THREE.Color().setHSL(0.62 - 0.62 * t, 0.88, 0.55);
+}
+
+function getBoundaryTemperatures() {
+  const hot = clamp(20 + params.temperatureDifference * 0.7, 25, 90);
+  const cold = clamp(hot - params.temperatureDifference, 0, 80);
+  return { hot, cold };
+}
+
+function formatTemp(value) {
+  return `${value.toFixed(1)}°C`;
+}
+
+function syncGui() {
+  if (!runtime.gui) return;
+  if (typeof runtime.gui.controllersRecursive === 'function') {
+    runtime.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function setControllerVisibility(controller, visible) {
+  const row = controller?.domElement?.closest('.controller');
+  if (row) {
+    row.style.display = visible ? '' : 'none';
+  }
+}
+
+function updateGuiVisibility() {
+  const isConduction = params.mode === '열전도';
+  const isConvection = params.mode === '대류';
+
+  setControllerVisibility(runtime.controllers.material, isConduction);
+  setControllerVisibility(runtime.controllers.particleModel, isConduction);
+  setControllerVisibility(runtime.controllers.convectionSpeed, isConvection);
+  setControllerVisibility(runtime.controllers.graphVisible, isConduction);
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  Object.values(material).forEach((value) => {
+    if (value && typeof value === 'object' && value.isTexture) {
+      value.dispose();
+    }
+  });
+  material.dispose?.();
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+
+    if (Array.isArray(child.material)) {
+      child.material.forEach((material) => disposeMaterial(material));
+    } else if (child.material) {
+      disposeMaterial(child.material);
+    }
+  });
+}
+
+function clearOverlayLabels() {
+  runtime.overlayLabels.forEach(({ el }) => el.remove());
+  runtime.overlayLabels = [];
+}
+
+function addOverlayLabel(text, className, getPosition) {
+  const el = document.createElement('div');
+  el.className = `overlay-label ${className}`;
+  el.textContent = text;
+  dom.labelLayer.appendChild(el);
+  runtime.overlayLabels.push({ el, getPosition });
+}
+
+function updateOverlayLabels() {
+  runtime.overlayLabels.forEach(({ el, getPosition }) => {
+    const position = getPosition();
+    const projected = position.clone().project(camera);
+    const visible = projected.z >= -1 && projected.z <= 1;
+
+    if (!visible) {
+      el.style.display = 'none';
+      return;
+    }
+
+    el.style.display = 'block';
+    el.style.left = `${(projected.x * 0.5 + 0.5) * window.innerWidth}px`;
+    el.style.top = `${(-projected.y * 0.5 + 0.5) * window.innerHeight}px`;
+  });
+}
+
+function clearModeScene() {
+  clearOverlayLabels();
+
+  if (runtime.modeHandle?.root) {
+    runtime.contentRoot.remove(runtime.modeHandle.root);
+    disposeObject(runtime.modeHandle.root);
+  }
+
+  runtime.modeHandle = null;
+}
+
+function setCamera(position, target) {
+  camera.position.copy(position);
+  controls.target.copy(target);
+  controls.update();
+}
+
+function createFlameParticles(count, spread = 0.32) {
+  return Array.from({ length: count }, (_, index) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08 + Math.random() * 0.06, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: index % 2 === 0 ? 0xff7a58 : 0xffc15c,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    mesh.userData.offset = Math.random();
+    mesh.userData.radius = spread * (0.25 + Math.random() * 0.75);
+    return mesh;
+  });
+}
+
+function createConductionMode() {
+  const root = new THREE.Group();
+  runtime.contentRoot.add(root);
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 0.4, 3.4),
+    new THREE.MeshStandardMaterial({
+      color: 0x405062,
+      roughness: 0.82,
+      metalness: 0.22
+    })
+  );
+  base.position.set(0, 0.05, 0);
+  base.receiveShadow = true;
+  root.add(base);
+
+  const rodGroup = new THREE.Group();
+  rodGroup.position.y = 0.62;
+  root.add(rodGroup);
+
+  const segmentCount = 24;
+  const segmentLength = 0.42;
+  const rodSegments = [];
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x7ea9db,
+      roughness: 0.3,
+      metalness: 0.82
+    });
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(segmentLength * 0.96, 0.48, 0.48),
+      material
+    );
+    mesh.position.set(-4.83 + index * segmentLength, 0, 0);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    rodGroup.add(mesh);
+    rodSegments.push(mesh);
+  }
+
+  const burner = new THREE.Group();
+  burner.position.set(-5.6, 0.42, 0);
+  const lampBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.42, 0.3, 20),
+    new THREE.MeshStandardMaterial({ color: 0x2f3c4b, roughness: 0.7, metalness: 0.32 })
+  );
+  lampBase.castShadow = true;
+  burner.add(lampBase);
+
+  const flameParticles = createFlameParticles(16, 0.28);
+  flameParticles.forEach((particle) => {
+    burner.add(particle);
+  });
+  root.add(burner);
+
+  const iceGroup = new THREE.Group();
+  iceGroup.position.set(5.65, 0.62, 0);
+  const ice = new THREE.Mesh(
+    new THREE.BoxGeometry(0.76, 0.76, 0.76),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xc7ecff,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.12,
+      metalness: 0,
+      transmission: 0.35
+    })
+  );
+  ice.castShadow = true;
+  ice.receiveShadow = true;
+  iceGroup.add(ice);
+
+  for (let index = 0; index < 6; index += 1) {
+    const crystal = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.28, 6),
+      new THREE.MeshStandardMaterial({ color: 0xe6fbff, roughness: 0.18, metalness: 0.05 })
+    );
+    crystal.position.set((Math.random() - 0.5) * 0.4, 0.45 + Math.random() * 0.18, (Math.random() - 0.5) * 0.4);
+    crystal.rotation.z = Math.random() * Math.PI;
+    iceGroup.add(crystal);
+  }
+  root.add(iceGroup);
+
+  const particleBoard = new THREE.Mesh(
+    new THREE.PlaneGeometry(10.6, 2.5),
+    new THREE.MeshStandardMaterial({
+      color: 0xf7f8fb,
+      transparent: true,
+      opacity: 0.2,
+      roughness: 1
+    })
+  );
+  particleBoard.position.set(0, 2.35, -0.68);
+  root.add(particleBoard);
+
+  const atomGroup = new THREE.Group();
+  atomGroup.position.set(0, 1.75, 0);
+  root.add(atomGroup);
+
+  const atoms = [];
+  const columns = 10;
+  const rows = 3;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.11, 18, 18),
+        new THREE.MeshStandardMaterial({
+          color: 0x78b8ff,
+          roughness: 0.25,
+          metalness: 0.12
+        })
+      );
+      const basePosition = new THREE.Vector3(-4.2 + column * 0.95, row * 0.45, (row % 2 === 0 ? -0.16 : 0.16));
+      mesh.position.copy(basePosition);
+      mesh.castShadow = true;
+      atomGroup.add(mesh);
+      atoms.push({
+        mesh,
+        basePosition,
+        phase: Math.random() * Math.PI * 2,
+        column
+      });
+    }
+  }
+
+  const connectorMaterial = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.18
+  });
+
+  for (let row = 0; row < rows; row += 1) {
+    const points = [];
+    for (let column = 0; column < columns; column += 1) {
+      points.push(new THREE.Vector3(-4.2 + column * 0.95, row * 0.45, 0));
+    }
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), connectorMaterial.clone());
+    line.position.set(0, 1.75, 0);
+    atomGroup.add(line);
+  }
+
+  const { hot, cold } = getBoundaryTemperatures();
+  const temperatures = new Float32Array(segmentCount).fill(cold);
+  const nextTemperatures = new Float32Array(segmentCount).fill(cold);
+  temperatures[0] = hot;
+
+  addOverlayLabel('고온 영역', 'heat', () => burner.localToWorld(new THREE.Vector3(0, 0.95, 0)));
+  addOverlayLabel('저온 영역', 'cool', () => iceGroup.localToWorld(new THREE.Vector3(0, 0.82, 0)));
+  addOverlayLabel('입자 충돌로 열에너지 전달', 'note', () => atomGroup.localToWorld(new THREE.Vector3(0, 1.7, 0)));
+
+  setCamera(new THREE.Vector3(0, 4.2, 11.4), new THREE.Vector3(0, 1.7, 0));
+
+  return {
+    type: '열전도',
+    root,
+    rodSegments,
+    burner,
+    flameParticles,
+    iceGroup,
+    atomGroup,
+    atoms,
+    temperatures,
+    nextTemperatures,
+    segmentCount
+  };
+}
+
+function getConvectionPoint(progress) {
+  const t = ((progress % 1) + 1) % 1;
+  let x = 0;
+  let y = 0;
+
+  if (t < 0.28) {
+    const u = t / 0.28;
+    x = lerp(-0.22, -0.55, easeInOutSine(u));
+    y = lerp(-1.0, 1.08, easeOutCubic(u));
+  } else if (t < 0.5) {
+    const u = (t - 0.28) / 0.22;
+    x = lerp(-0.55, 0.62, easeInOutSine(u));
+    y = 1.05 + Math.sin(u * Math.PI) * 0.08;
+  } else if (t < 0.8) {
+    const u = (t - 0.5) / 0.3;
+    x = lerp(0.62, 0.34, easeInOutSine(u));
+    y = lerp(1.02, -1.0, u);
+  } else {
+    const u = (t - 0.8) / 0.2;
+    x = lerp(0.34, -0.22, easeInOutSine(u));
+    y = -1.02 - Math.sin(u * Math.PI) * 0.12;
+  }
+
+  const z = 0.34 * Math.sin(t * Math.PI * 4);
+  return new THREE.Vector3(x, y, z);
+}
+
+function createConvectionMode() {
+  const root = new THREE.Group();
+  runtime.contentRoot.add(root);
+
+  const platform = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.4, 3.8, 0.36, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x435365,
+      roughness: 0.86,
+      metalness: 0.18
+    })
+  );
+  platform.position.y = 0.05;
+  platform.receiveShadow = true;
+  root.add(platform);
+
+  const beakerGroup = new THREE.Group();
+  beakerGroup.position.y = 1.8;
+  root.add(beakerGroup);
+
+  const beaker = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 1.5, 3, 40, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf6fbff,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.08,
+      metalness: 0.05,
+      transmission: 0.28,
+      side: THREE.DoubleSide
+    })
+  );
+  beaker.castShadow = true;
+  beaker.receiveShadow = true;
+  beakerGroup.add(beaker);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.5, 0.04, 16, 64),
+    new THREE.MeshStandardMaterial({ color: 0xf3fbff, roughness: 0.22, metalness: 0.18 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 1.5;
+  beakerGroup.add(rim);
+
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.44, 1.44, 2.5, 40),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x4f8fd4,
+      transparent: true,
+      opacity: 0.48,
+      roughness: 0.18,
+      metalness: 0,
+      transmission: 0.1
+    })
+  );
+  water.position.y = -0.22;
+  water.receiveShadow = true;
+  beakerGroup.add(water);
+
+  const surface = new THREE.Mesh(
+    new THREE.CircleGeometry(1.42, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0x8bc7ff,
+      transparent: true,
+      opacity: 0.35
+    })
+  );
+  surface.rotation.x = -Math.PI / 2;
+  surface.position.y = 1.03;
+  beakerGroup.add(surface);
+
+  const lampGroup = new THREE.Group();
+  lampGroup.position.set(0, 0.48, 0);
+  root.add(lampGroup);
+
+  const lampBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.44, 0.56, 0.38, 22),
+    new THREE.MeshStandardMaterial({
+      color: 0x2e4258,
+      roughness: 0.72,
+      metalness: 0.28
+    })
+  );
+  lampBody.castShadow = true;
+  lampGroup.add(lampBody);
+
+  const lampNeck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 0.22, 16),
+    new THREE.MeshStandardMaterial({ color: 0x182532, roughness: 0.5, metalness: 0.2 })
+  );
+  lampNeck.position.y = 0.22;
+  lampGroup.add(lampNeck);
+
+  const flameParticles = createFlameParticles(18, 0.22);
+  flameParticles.forEach((particle) => lampGroup.add(particle));
+
+  const particleCount = 100;
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+  const offsets = Array.from({ length: particleCount }, (_, index) => (index / particleCount + Math.random() * 0.05) % 1);
+
+  const particleGeometry = new THREE.BufferGeometry();
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const particles = new THREE.Points(
+    particleGeometry,
+    new THREE.PointsMaterial({
+      size: 0.12,
+      transparent: true,
+      opacity: 0.92,
+      vertexColors: true,
+      depthWrite: false
+    })
+  );
+  particles.position.y = 1.76;
+  beakerGroup.add(particles);
+
+  const arrowGroup = new THREE.Group();
+  beakerGroup.add(arrowGroup);
+  [0.08, 0.22, 0.42, 0.66].forEach((startValue) => {
+    const start = getConvectionPoint(startValue);
+    const end = getConvectionPoint(startValue + 0.12);
+    const direction = new THREE.Vector3().subVectors(end, start);
+    const arrow = new THREE.ArrowHelper(direction.clone().normalize(), start, direction.length(), 0xffd37c, 0.2, 0.1);
+    arrow.line.material.transparent = true;
+    arrow.line.material.opacity = 0.38;
+    arrow.cone.material.transparent = true;
+    arrow.cone.material.opacity = 0.38;
+    arrowGroup.add(arrow);
+  });
+
+  addOverlayLabel('뜨거운 물은 밀도↓ → 위로', 'heat', () => beakerGroup.localToWorld(new THREE.Vector3(-1.45, 0.6, 0)));
+  addOverlayLabel('차가운 물은 밀도↑ → 아래로', 'cool', () => beakerGroup.localToWorld(new THREE.Vector3(1.55, 0.24, 0)));
+  addOverlayLabel('대류 순환', 'note', () => beakerGroup.localToWorld(new THREE.Vector3(0, 1.85, 0)));
+
+  setCamera(new THREE.Vector3(4.9, 4.1, 8.8), new THREE.Vector3(0, 1.8, 0));
+
+  return {
+    type: '대류',
+    root,
+    lampGroup,
+    flameParticles,
+    particleGeometry,
+    positions,
+    colors,
+    offsets,
+    surface,
+    particles
+  };
+}
+
+function createRadiationMode() {
+  const root = new THREE.Group();
+  runtime.contentRoot.add(root);
+
+  const starsGeometry = new THREE.BufferGeometry();
+  const starCount = 220;
+  const starPositions = new Float32Array(starCount * 3);
+
+  for (let index = 0; index < starCount; index += 1) {
+    starPositions[index * 3] = (Math.random() - 0.5) * 24;
+    starPositions[index * 3 + 1] = Math.random() * 10 + 0.5;
+    starPositions[index * 3 + 2] = (Math.random() - 0.5) * 18;
+  }
+
+  starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const stars = new THREE.Points(
+    starsGeometry,
+    new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.06,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false
+    })
+  );
+  root.add(stars);
+
+  const sunGroup = new THREE.Group();
+  sunGroup.position.set(-4.6, 2.1, 0);
+  root.add(sunGroup);
+
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 36, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0xffc950,
+      emissive: 0xffb627,
+      emissiveIntensity: 1.4,
+      roughness: 0.75,
+      metalness: 0
+    })
+  );
+  sun.castShadow = true;
+  sunGroup.add(sun);
+
+  const corona = new THREE.Mesh(
+    new THREE.RingGeometry(1.22, 1.58, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xffb347,
+      transparent: true,
+      opacity: 0.34,
+      side: THREE.DoubleSide
+    })
+  );
+  corona.position.z = 0.02;
+  sunGroup.add(corona);
+
+  const sunlight = new THREE.PointLight(0xffd681, 1.6, 26, 1.6);
+  sunlight.position.set(0, 0, 0);
+  sunGroup.add(sunlight);
+
+  const earthGroup = new THREE.Group();
+  earthGroup.position.set(4.5, 1.55, 0);
+  root.add(earthGroup);
+
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.56, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x2d6eb4,
+      roughness: 0.78,
+      metalness: 0.05
+    })
+  );
+  earth.castShadow = true;
+  earthGroup.add(earth);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.64, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x9edbff,
+      transparent: true,
+      opacity: 0.22
+    })
+  );
+  earthGroup.add(atmosphere);
+
+  const waveGeometry = new THREE.BufferGeometry();
+  const wavePoints = new Float32Array(90 * 3);
+  waveGeometry.setAttribute('position', new THREE.BufferAttribute(wavePoints, 3));
+  const waveLine = new THREE.Line(
+    waveGeometry,
+    new THREE.LineBasicMaterial({
+      color: 0xffd06e,
+      transparent: true,
+      opacity: 0.88
+    })
+  );
+  root.add(waveLine);
+
+  const photonGroup = new THREE.Group();
+  root.add(photonGroup);
+
+  const photons = Array.from({ length: 14 }, (_, index) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: index % 2 === 0 ? 0xffe27f : 0xff8f62,
+        transparent: true,
+        opacity: 0.95
+      })
+    );
+    mesh.userData.offset = index / 14;
+    photonGroup.add(mesh);
+    return mesh;
+  });
+
+  const radiationRings = [0, 1, 2].map((index) => {
+    const ringMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(0.82, 0.03, 12, 80),
+      new THREE.MeshBasicMaterial({
+        color: 0xff8f72,
+        transparent: true,
+        opacity: 0.24
+      })
+    );
+    ringMesh.rotation.x = index === 0 ? Math.PI / 2 : 0;
+    ringMesh.rotation.y = index === 1 ? Math.PI / 2 : 0;
+    earthGroup.add(ringMesh);
+    return ringMesh;
+  });
+
+  addOverlayLabel('매질 없이 전자기파로 열 전달', 'note', () => new THREE.Vector3(0, 3.55, 0));
+  addOverlayLabel('태양 복사 에너지', 'heat', () => sunGroup.localToWorld(new THREE.Vector3(0, 1.55, 0)));
+  addOverlayLabel('지구도 복사를 방출함', 'cool', () => earthGroup.localToWorld(new THREE.Vector3(0, 1.2, 0)));
+
+  setCamera(new THREE.Vector3(0, 3.5, 13), new THREE.Vector3(0, 1.8, 0));
+
+  return {
+    type: '복사',
+    root,
+    sunGroup,
+    sun,
+    corona,
+    earthGroup,
+    atmosphere,
+    waveGeometry,
+    photons,
+    radiationRings
+  };
+}
+
+function createThermosMode() {
+  const root = new THREE.Group();
+  runtime.contentRoot.add(root);
+
+  const pedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.1, 3.4, 0.36, 50),
+    new THREE.MeshStandardMaterial({
+      color: 0x3f5165,
+      roughness: 0.82,
+      metalness: 0.18
+    })
+  );
+  pedestal.position.y = 0.05;
+  pedestal.receiveShadow = true;
+  root.add(pedestal);
+
+  const bottleGroup = new THREE.Group();
+  bottleGroup.position.y = 2.2;
+  bottleGroup.rotation.y = -0.55;
+  root.add(bottleGroup);
+
+  const thetaStart = Math.PI * 0.15;
+  const thetaLength = Math.PI * 1.45;
+
+  const outerWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.62, 1.36, 5.2, 48, 1, true, thetaStart, thetaLength),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf3f8ff,
+      transparent: true,
+      opacity: 0.24,
+      roughness: 0.08,
+      metalness: 0.05,
+      transmission: 0.2,
+      side: THREE.DoubleSide
+    })
+  );
+  bottleGroup.add(outerWall);
+
+  const innerWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.06, 0.9, 4.35, 48, 1, true, thetaStart, thetaLength),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xfdfefe,
+      transparent: true,
+      opacity: 0.42,
+      roughness: 0.05,
+      metalness: 0.05,
+      transmission: 0.15,
+      side: THREE.DoubleSide
+    })
+  );
+  bottleGroup.add(innerWall);
+
+  const vacuumLayer = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.36, 1.13, 4.52, 48, 1, true, thetaStart, thetaLength),
+    new THREE.MeshBasicMaterial({
+      color: 0x9aa5ff,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide
+    })
+  );
+  bottleGroup.add(vacuumLayer);
+
+  const silverCoating = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.08, 0.92, 4.4, 48, 1, true, thetaStart, thetaLength),
+    new THREE.MeshStandardMaterial({
+      color: 0xd7e4f0,
+      emissive: 0xb9d4f8,
+      emissiveIntensity: 0.25,
+      roughness: 0.16,
+      metalness: 0.95,
+      side: THREE.DoubleSide
+    })
+  );
+  bottleGroup.add(silverCoating);
+
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.98, 1.14, 0.8, 40, 1, true, thetaStart, thetaLength),
+    new THREE.MeshStandardMaterial({
+      color: 0x8a6e4d,
+      roughness: 0.9,
+      metalness: 0.02,
+      side: THREE.DoubleSide
+    })
+  );
+  cap.position.y = 2.98;
+  bottleGroup.add(cap);
+
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.82, 0.84, 0.5, 40, 1, true, thetaStart, thetaLength),
+    new THREE.MeshStandardMaterial({
+      color: 0xcfdbe7,
+      roughness: 0.22,
+      metalness: 0.9,
+      side: THREE.DoubleSide
+    })
+  );
+  neck.position.y = 2.45;
+  bottleGroup.add(neck);
+
+  const bottomDisk = new THREE.Mesh(
+    new THREE.CircleGeometry(1.36, 48, thetaStart, thetaLength),
+    new THREE.MeshStandardMaterial({
+      color: 0xe0e8f2,
+      roughness: 0.4,
+      metalness: 0.62,
+      side: THREE.DoubleSide
+    })
+  );
+  bottomDisk.rotation.x = -Math.PI / 2;
+  bottomDisk.position.y = -2.6;
+  bottleGroup.add(bottomDisk);
+
+  const arrowGroup = new THREE.Group();
+  root.add(arrowGroup);
+
+  const conductionArrow = new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0.3, 5.55, 0.2), 1.5, 0xff865f, 0.25, 0.12);
+  const radiationArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(-3.35, 2.45, 0), 1.8, 0xffd27e, 0.25, 0.12);
+  const convectionArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0.1, 0), new THREE.Vector3(-3.15, 1.2, -0.2), 1.55, 0x80c6ff, 0.25, 0.12);
+
+  [conductionArrow, radiationArrow, convectionArrow].forEach((arrow) => {
+    arrow.line.material.transparent = true;
+    arrow.line.material.opacity = 0.4;
+    arrow.cone.material.transparent = true;
+    arrow.cone.material.opacity = 0.4;
+    arrowGroup.add(arrow);
+  });
+
+  const glowBands = [0, 1, 2].map((index) => {
+    const mesh = new THREE.Mesh(
+      new THREE.TorusGeometry(2.05 + index * 0.2, 0.03, 14, 90),
+      new THREE.MeshBasicMaterial({
+        color: index === 0 ? 0xffbf77 : index === 1 ? 0xa0b1ff : 0x90d3ff,
+        transparent: true,
+        opacity: 0.12
+      })
+    );
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = 2.1 + index * 0.2;
+    root.add(mesh);
+    return mesh;
+  });
+
+  addOverlayLabel('진공 → 전도·대류 차단', 'note', () => bottleGroup.localToWorld(new THREE.Vector3(1.78, 0.65, 0)));
+  addOverlayLabel('은 코팅 → 복사 반사', 'cool', () => bottleGroup.localToWorld(new THREE.Vector3(-1.36, 1.25, 0.45)));
+  addOverlayLabel('단열 마개 → 전도 차단', 'heat', () => bottleGroup.localToWorld(new THREE.Vector3(0.1, 3.75, 0.2)));
+
+  setCamera(new THREE.Vector3(5.4, 4.2, 9.6), new THREE.Vector3(0, 2.1, 0));
+
+  return {
+    type: '보온병',
+    root,
+    bottleGroup,
+    silverCoating,
+    vacuumLayer,
+    glowBands
+  };
+}
+
+function buildModeScene() {
+  clearModeScene();
+
+  if (params.mode === '열전도') {
+    runtime.modeHandle = createConductionMode();
+  } else if (params.mode === '대류') {
+    runtime.modeHandle = createConvectionMode();
+  } else if (params.mode === '복사') {
+    runtime.modeHandle = createRadiationMode();
+  } else {
+    runtime.modeHandle = createThermosMode();
+  }
+
+  updatePanels();
+}
+
+function setMode(mode, options = {}) {
+  params.mode = mode;
+
+  dom.tabs.forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.mode === mode);
+  });
+
+  buildModeScene();
+  updateGuiVisibility();
+
+  if (options.syncGui !== false) {
+    syncGui();
+  }
+}
+
+function startSimulation() {
+  runtime.running = true;
+}
+
+function resetSimulation(autostart = false) {
+  runtime.running = autostart;
+  runtime.simTime = 0;
+  buildModeScene();
+  syncGui();
+}
+
+function createMetricCard(label, value, sub) {
+  return `
+    <div class="metric-card">
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+      <div class="sub">${sub}</div>
+    </div>
+  `;
+}
+
+function createExampleCard(title, body) {
+  return `
+    <div class="example-card">
+      <strong>${title}</strong>
+      <span>${body}</span>
+    </div>
+  `;
+}
+
+function updatePanels() {
+  const data = MODE_DATA[params.mode];
+  dom.statusChip.innerHTML = `<strong>현재: ${params.mode}</strong> · ${data.summary}`;
+
+  dom.formulaPanel.innerHTML = `
+    <h2>🔥 열 전달의 3가지 방식</h2>
+    <div id="formula-current">현재: ${params.mode}</div>
+    <div class="formula-rule ${params.mode === '열전도' ? 'active' : ''}">
+      <strong>열전도</strong>
+      <span>입자 충돌로 열 전달 · 매질 필요 · 고체에서 주로 관찰</span>
+    </div>
+    <div class="formula-rule ${params.mode === '대류' ? 'active' : ''}">
+      <strong>대류</strong>
+      <span>유체 순환으로 열 전달 · 액체와 기체에서 발생 · 뜨거운 유체↑ 차가운 유체↓</span>
+    </div>
+    <div class="formula-rule ${params.mode === '복사' ? 'active' : ''}">
+      <strong>복사</strong>
+      <span>전자기파로 열 전달 · 매질 불필요 · 진공 통과 가능</span>
+    </div>
+    <div class="formula-rule ${params.mode === '보온병' ? 'active' : ''}">
+      <strong>보온병</strong>
+      <span>진공으로 전도·대류 차단 + 은 코팅으로 복사 차단 + 단열 마개로 추가 전도 억제</span>
+    </div>
+    <div class="formula-note">온도 차이 ${params.temperatureDifference}°C · 현재 설정은 시각화 강도와 속도에도 함께 반영됩니다.</div>
+  `;
+
+  dom.visualTitle.textContent = params.mode === '보온병' ? '보온병 단면 분석' : `${params.mode} 관찰 패널`;
+  dom.visualSubtitle.textContent = data.subtitle;
+
+  if (params.mode === '열전도') {
+    const materialData = MATERIALS[params.material];
+    const { hot, cold } = getBoundaryTemperatures();
+
+    dom.graphWrap.classList.toggle('visible', params.graphVisible);
+    dom.graphNote.textContent = `${params.material}의 열전도율은 ${materialData.label} 수준입니다. 왼쪽 끝을 데운 뒤 시간이 지나면 온도 곡선이 점차 완만해지며 열이 막대 전체로 퍼집니다.`;
+    dom.metricGrid.innerHTML = [
+      createMetricCard('고온 끝', formatTemp(hot), '불꽃이 닿는 부분의 기준 온도'),
+      createMetricCard('저온 끝', formatTemp(cold), '얼음 쪽 기준 온도'),
+      createMetricCard('열전도율', materialData.label, materialData.description),
+      createMetricCard('입자 모형', params.particleModel ? '표시 중' : '숨김', '원자 진동 폭이 온도에 비례해 커집니다.')
+    ].join('');
+    dom.exampleList.innerHTML = [
+      createExampleCard('금속 숟가락', '금속은 열전도율이 높아서 뜨거운 국의 열이 손잡이까지 빨리 전달됩니다.'),
+      createExampleCard('나무 손잡이', '나무는 열전도율이 낮아 같은 시간 동안 덜 뜨거워집니다.'),
+      createExampleCard('스티로폼 컵', '공기층이 많아 열이 잘 전달되지 않아 뜨거운 음료를 오래 잡을 수 있습니다.')
+    ].join('');
+  } else if (params.mode === '대류') {
+    dom.graphWrap.classList.remove('visible');
+    dom.graphNote.textContent = `아래쪽을 가열할수록 밀도 차가 커져 순환 속도가 빨라집니다. 현재 대류 속도 배율은 ${params.convectionSpeed.toFixed(1)}배입니다.`;
+    dom.metricGrid.innerHTML = [
+      createMetricCard('가열 세기', `${params.temperatureDifference}°C 차`, '바닥과 위쪽의 온도 차가 클수록 순환이 뚜렷합니다.'),
+      createMetricCard('대류 속도', `${params.convectionSpeed.toFixed(1)}x`, '입자 이동 속도에 반영되는 배율'),
+      createMetricCard('상승 구간', '빨강', '가열된 물이 팽창해 밀도가 낮아진 상태'),
+      createMetricCard('하강 구간', '파랑', '식은 물이 밀도가 커져 아래로 내려오는 상태')
+    ].join('');
+    dom.exampleList.innerHTML = [
+      createExampleCard('에어컨은 위쪽', '차가운 공기는 아래로 가라앉기 때문에 천장 가까이에 설치하면 실내 전체로 퍼지기 쉽습니다.'),
+      createExampleCard('난방기는 아래쪽', '따뜻한 공기는 위로 올라가므로 바닥 근처에서 데우면 실내를 순환시키기 좋습니다.'),
+      createExampleCard('바닷바람과 육지바람', '낮과 밤의 가열 차이가 공기 순환을 만들어 바람 방향이 바뀝니다.')
+    ].join('');
+  } else if (params.mode === '복사') {
+    dom.graphWrap.classList.remove('visible');
+    dom.graphNote.textContent = `복사는 진공에서도 가능한 열 전달입니다. 온도 차이가 커질수록 전자기파 시각화의 진폭과 광원 세기를 조금 더 크게 보여 줍니다.`;
+    dom.metricGrid.innerHTML = [
+      createMetricCard('전달 매질', '불필요', '전자기파는 물질 없이도 이동할 수 있습니다.'),
+      createMetricCard('현재 파동 진폭', `${(0.25 + params.temperatureDifference * 0.004).toFixed(2)}`, '태양에서 지구로 향하는 파형의 시각화 진폭'),
+      createMetricCard('에너지 흐름', '태양 → 지구', '광자와 파동선이 함께 복사를 나타냅니다.'),
+      createMetricCard('물체의 방출', '모두 가능', '지구도 적외선 복사를 다시 우주로 방출합니다.')
+    ].join('');
+    dom.exampleList.innerHTML = [
+      createExampleCard('모닥불의 열기', '직접 닿지 않아도 얼굴이 따뜻한 것은 복사 에너지가 전달되기 때문입니다.'),
+      createExampleCard('전자레인지', '마이크로파 복사를 이용해 음식 속 물 분자를 진동시킵니다.'),
+      createExampleCard('열화상 카메라', '물체가 방출하는 적외선을 감지해 온도 분포를 보여 줍니다.')
+    ].join('');
+  } else {
+    dom.graphWrap.classList.remove('visible');
+    dom.graphNote.textContent = '보온병은 열이 나가는 길을 한 번에 막는 장치입니다. 진공층이 전도와 대류를 약화시키고, 은 코팅이 복사를 되돌려 내용물의 온도를 오래 유지합니다.';
+    dom.metricGrid.innerHTML = [
+      createMetricCard('진공층', '전도·대류 감소', '입자 자체가 거의 없어 열 충돌과 유체 순환을 막습니다.'),
+      createMetricCard('은 코팅', '복사 반사', '적외선을 반사해 에너지 손실을 줄입니다.'),
+      createMetricCard('단열 마개', '전도 차단', '뚜껑 부분에서 빠지는 열을 줄여 줍니다.'),
+      createMetricCard('종합 효과', '보온·보냉', '뜨거운 것도 차가운 것도 오래 유지하는 구조')
+    ].join('');
+    dom.exampleList.innerHTML = [
+      createExampleCard('이중 유리 창', '유리 사이 공기층이나 진공층이 열 이동을 줄이는 원리는 보온병과 비슷합니다.'),
+      createExampleCard('등산용 텀블러', '외부 환경과의 열교환을 줄여 내용물의 온도를 오래 유지합니다.'),
+      createExampleCard('단열 주전자', '손잡이와 뚜껑을 열전도율이 낮은 재료로 만들어 손실과 화상을 줄입니다.')
+    ].join('');
+  }
+}
+
+function resizeGraphCanvas() {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  dom.graphCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+  dom.graphCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+  graphContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawTemperatureGraph() {
+  if (params.mode !== '열전도' || !params.graphVisible || !runtime.modeHandle) return;
+
+  const ctx = graphContext;
+  const width = dom.graphCanvas.clientWidth;
+  const height = dom.graphCanvas.clientHeight;
+  const padding = { left: 34, right: 14, top: 18, bottom: 26 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const handle = runtime.modeHandle;
+
+  ctx.clearRect(0, 0, width, height);
+
+  const background = ctx.createLinearGradient(0, 0, 0, height);
+  background.addColorStop(0, 'rgba(255,255,255,0.04)');
+  background.addColorStop(1, 'rgba(255,255,255,0.01)');
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, height - padding.bottom);
+  ctx.lineTo(width - padding.right, height - padding.bottom);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.font = '11px Pretendard';
+  ctx.fillText('온도 (°C)', 8, 18);
+  ctx.fillText('위치', width - 26, height - 8);
+
+  for (let index = 0; index <= 5; index += 1) {
+    const y = padding.top + (chartHeight / 5) * index;
+    const value = 100 - index * 20;
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.52)';
+    ctx.fillText(String(value), 8, y + 4);
+  }
+
+  ctx.beginPath();
+  handle.temperatures.forEach((temp, index) => {
+    const x = padding.left + (index / (handle.segmentCount - 1)) * chartWidth;
+    const y = padding.top + (1 - temp / 100) * chartHeight;
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#ffbf68';
+  ctx.stroke();
+
+  handle.temperatures.forEach((temp, index) => {
+    const x = padding.left + (index / (handle.segmentCount - 1)) * chartWidth;
+    const y = padding.top + (1 - temp / 100) * chartHeight;
+    ctx.fillStyle = temp > 50 ? '#ff7b5e' : '#6dc2ff';
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function updateConduction(delta) {
+  const handle = runtime.modeHandle;
+  if (!handle) return;
+
+  const { hot, cold } = getBoundaryTemperatures();
+
+  if (runtime.running) {
+    const alpha = clamp(MATERIALS[params.material].rate * delta * 0.92, 0.002, 0.16);
+    handle.temperatures[0] = hot;
+    handle.temperatures[handle.segmentCount - 1] = cold;
+
+    for (let index = 1; index < handle.segmentCount - 1; index += 1) {
+      handle.nextTemperatures[index] =
+        handle.temperatures[index] +
+        alpha * (handle.temperatures[index - 1] + handle.temperatures[index + 1] - 2 * handle.temperatures[index]);
+    }
+
+    handle.nextTemperatures[0] = hot;
+    handle.nextTemperatures[handle.segmentCount - 1] = cold;
+    handle.temperatures.set(handle.nextTemperatures);
+  } else {
+    handle.temperatures.fill(cold);
+    handle.temperatures[0] = hot;
+  }
+
+  handle.rodSegments.forEach((segment, index) => {
+    const temp = handle.temperatures[index];
+    segment.material.color.copy(colorFromTemperature(temp));
+    segment.material.emissive.copy(colorFromTemperature(temp)).multiplyScalar(0.16);
+  });
+
+  handle.atoms.forEach((atom) => {
+    const temperatureIndex = Math.round((atom.column / 9) * (handle.segmentCount - 1));
+    const localTemp = handle.temperatures[temperatureIndex];
+    const amplitude = 0.014 + (localTemp / 100) * 0.11;
+    const speed = 2 + (localTemp / 100) * 8;
+    atom.mesh.position.set(
+      atom.basePosition.x,
+      atom.basePosition.y + Math.sin(runtime.simTime * speed + atom.phase) * amplitude,
+      atom.basePosition.z + Math.cos(runtime.simTime * speed * 0.72 + atom.phase) * amplitude
+    );
+    atom.mesh.material.color.copy(colorFromTemperature(localTemp));
+    atom.mesh.material.emissive.copy(colorFromTemperature(localTemp)).multiplyScalar(0.2);
+  });
+
+  handle.atomGroup.visible = params.particleModel;
+
+  handle.flameParticles.forEach((particle, index) => {
+    const drift = runtime.absoluteTime * 1.6 + particle.userData.offset * Math.PI * 2 + index * 0.2;
+    particle.position.set(
+      Math.sin(drift * 1.1) * particle.userData.radius,
+      0.32 + (index % 3) * 0.08 + (Math.sin(drift * 2) * 0.12 + 0.18),
+      Math.cos(drift) * particle.userData.radius * 0.6
+    );
+    const scale = 0.8 + Math.sin(drift * 3.2) * 0.18;
+    particle.scale.setScalar(scale);
+  });
+
+  const frostPulse = 1 + Math.sin(runtime.absoluteTime * 1.6) * 0.03;
+  handle.iceGroup.scale.setScalar(frostPulse);
+
+  drawTemperatureGraph();
+}
+
+function updateConvection() {
+  const handle = runtime.modeHandle;
+  if (!handle) return;
+
+  const intensity = 0.75 + params.temperatureDifference / 100;
+  const speed = params.convectionSpeed * intensity * 0.12;
+
+  handle.offsets.forEach((offset, index) => {
+    const progress = runtime.running ? (offset + runtime.simTime * speed) % 1 : offset;
+    const point = getConvectionPoint(progress);
+    const wobble = Math.sin((progress * Math.PI * 12) + index) * 0.04;
+    handle.positions[index * 3] = point.x + wobble * 0.35;
+    handle.positions[index * 3 + 1] = point.y + wobble * 0.18;
+    handle.positions[index * 3 + 2] = point.z;
+
+    let heat = 0.3;
+    if (progress < 0.34 || progress > 0.82) {
+      heat = 0.9;
+    } else if (progress > 0.48 && progress < 0.76) {
+      heat = 0.2;
+    } else {
+      heat = 0.55;
+    }
+
+    const color = new THREE.Color().lerpColors(new THREE.Color(0x5bbcff), new THREE.Color(0xff7a58), heat);
+    handle.colors[index * 3] = color.r;
+    handle.colors[index * 3 + 1] = color.g;
+    handle.colors[index * 3 + 2] = color.b;
+  });
+
+  handle.particleGeometry.attributes.position.needsUpdate = true;
+  handle.particleGeometry.attributes.color.needsUpdate = true;
+  handle.surface.scale.setScalar(1 + Math.sin(runtime.absoluteTime * 2.4) * 0.01);
+
+  handle.flameParticles.forEach((particle, index) => {
+    const drift = runtime.absoluteTime * 1.8 + particle.userData.offset * Math.PI * 2 + index * 0.15;
+    particle.position.set(
+      Math.sin(drift) * particle.userData.radius * 0.6,
+      0.38 + Math.sin(drift * 2.3) * 0.1 + (index % 4) * 0.05,
+      Math.cos(drift * 0.8) * particle.userData.radius * 0.45
+    );
+    particle.scale.setScalar(0.82 + Math.sin(drift * 2.8) * 0.16);
+  });
+}
+
+function updateRadiation() {
+  const handle = runtime.modeHandle;
+  if (!handle) return;
+
+  const amplitude = 0.25 + params.temperatureDifference * 0.004;
+  const positions = handle.waveGeometry.attributes.position.array;
+  const count = positions.length / 3;
+
+  for (let index = 0; index < count; index += 1) {
+    const t = index / (count - 1);
+    positions[index * 3] = lerp(-3.5, 3.5, t);
+    positions[index * 3 + 1] = 1.8 + Math.sin(t * Math.PI * 8 - runtime.simTime * 4.8) * amplitude;
+    positions[index * 3 + 2] = Math.cos(t * Math.PI * 6 - runtime.simTime * 5.2) * amplitude * 0.6;
+  }
+  handle.waveGeometry.attributes.position.needsUpdate = true;
+
+  handle.photons.forEach((photon, index) => {
+    const progress = runtime.running ? (photon.userData.offset + runtime.simTime * (0.11 + params.temperatureDifference * 0.0008)) % 1 : photon.userData.offset;
+    photon.position.set(
+      lerp(-3.35, 3.4, progress),
+      1.8 + Math.sin(progress * Math.PI * 7 - runtime.simTime * 3.6 + index * 0.2) * amplitude * 0.8,
+      Math.cos(progress * Math.PI * 9 - runtime.simTime * 4.2 + index * 0.3) * amplitude * 0.36
+    );
+    photon.scale.setScalar(0.85 + Math.sin(runtime.absoluteTime * 4 + index) * 0.12);
+  });
+
+  handle.sun.scale.setScalar(1 + Math.sin(runtime.absoluteTime * 2.2) * 0.03);
+  handle.corona.scale.setScalar(1 + Math.sin(runtime.absoluteTime * 1.4) * 0.04);
+  handle.atmosphere.scale.setScalar(1 + Math.sin(runtime.absoluteTime * 1.8) * 0.02);
+
+  handle.radiationRings.forEach((ring, index) => {
+    const scale = 1 + ((runtime.absoluteTime * 0.45 + index * 0.25) % 0.9) * 0.55;
+    ring.scale.setScalar(scale);
+    ring.material.opacity = clamp(0.32 - (scale - 1) * 0.34, 0.04, 0.32);
+  });
+}
+
+function updateThermos() {
+  const handle = runtime.modeHandle;
+  if (!handle) return;
+
+  handle.bottleGroup.rotation.y = -0.55 + Math.sin(runtime.absoluteTime * 0.4) * 0.06;
+  handle.silverCoating.material.emissiveIntensity = 0.22 + Math.sin(runtime.absoluteTime * 2.4) * 0.08;
+  handle.vacuumLayer.material.opacity = 0.1 + Math.sin(runtime.absoluteTime * 1.8) * 0.03;
+
+  handle.glowBands.forEach((band, index) => {
+    band.scale.setScalar(1 + Math.sin(runtime.absoluteTime * 1.1 + index) * 0.06);
+    band.material.opacity = 0.1 + Math.sin(runtime.absoluteTime * 1.6 + index) * 0.03;
+  });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  runtime.absoluteTime += delta;
+
+  if (runtime.running) {
+    runtime.simTime += delta;
+  }
+
+  if (params.mode === '열전도') {
+    updateConduction(delta);
+  } else if (params.mode === '대류') {
+    updateConvection();
+  } else if (params.mode === '복사') {
+    updateRadiation();
+  } else {
+    updateThermos();
+  }
+
+  controls.update();
+  updateOverlayLabels();
+  renderer.render(scene, camera);
+}
+
+function handleResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  resizeGraphCanvas();
+  drawTemperatureGraph();
+}
+
+function buildGui() {
+  const gui = new GUI({
+    container: dom.guiMount,
+    title: '열 전달 제어',
+    width: 300
+  });
+  runtime.gui = gui;
+
+  runtime.controllers.mode = gui.add(params, 'mode', Object.keys(MODE_DATA)).name('열 전달 방식').onChange((value) => {
+    setMode(value, { syncGui: false });
+  });
+  runtime.controllers.material = gui.add(params, 'material', Object.keys(MATERIALS)).name('물질').onChange(() => {
+    if (params.mode === '열전도') {
+      resetSimulation(runtime.running);
+    }
+  });
+  runtime.controllers.temperatureDifference = gui.add(params, 'temperatureDifference', 10, 100, 1).name('온도 차이').onChange(() => {
+    updatePanels();
+    if (params.mode === '열전도') drawTemperatureGraph();
+  });
+  runtime.controllers.particleModel = gui.add(params, 'particleModel').name('입자 모형').onChange(() => {
+    if (runtime.modeHandle?.atomGroup) {
+      runtime.modeHandle.atomGroup.visible = params.particleModel;
+    }
+    updatePanels();
+  });
+  runtime.controllers.convectionSpeed = gui.add(params, 'convectionSpeed', 0.5, 3, 0.1).name('대류 속도').onChange(() => {
+    updatePanels();
+  });
+  runtime.controllers.graphVisible = gui.add(params, 'graphVisible').name('온도 그래프').onChange(() => {
+    updatePanels();
+    handleResize();
+  });
+  gui.add(params, 'start').name('시뮬레이션 시작');
+  gui.add(params, 'reset').name('초기화');
+
+  updateGuiVisibility();
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.classList.toggle('open');
+});
+
+dom.tabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    setMode(tab.dataset.mode);
+  });
+});
+
+window.addEventListener('resize', handleResize);
+
+buildGui();
+setMode('열전도');
+resizeGraphCanvas();
+animate();
+</script>
+</body>
+</html>

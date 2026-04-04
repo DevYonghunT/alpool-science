@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>만유인력과 중력 가속도 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --panel-bg: rgba(8, 16, 34, 0.82);
+    --panel-strong: rgba(10, 20, 44, 0.9);
+    --panel-border: rgba(151, 189, 255, 0.18);
+    --panel-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+    --text-main: #f3f8ff;
+    --text-sub: #bdd0ea;
+    --text-soft: rgba(243, 248, 255, 0.68);
+    --accent-blue: #7ec8ff;
+    --accent-red: #ff8f8f;
+    --accent-gold: #ffd36e;
+    --accent-green: #8effc9;
+    --accent-violet: #c7b2ff;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000010;
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    color: var(--text-main);
+  }
+
+  body {
+    position: relative;
+  }
+
+  #sim-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .panel {
+    position: fixed;
+    z-index: 12;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--panel-shadow);
+  }
+
+  .panel-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .panel-subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-soft);
+    line-height: 1.55;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 20;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(12, 28, 61, 0.86);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    top: 58px;
+    left: 16px;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(72vh, 690px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 18px;
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    margin: 12px 0 6px;
+    color: #8ed7ff;
+    font-size: 14px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: #d9e7fb;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-sub);
+  }
+
+  .action-strip {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 999px;
+    width: min(740px, calc(100vw - 170px));
+    justify-content: center;
+  }
+
+  .action-strip.secondary {
+    top: 68px;
+  }
+
+  .action-btn {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .action-btn.active {
+    background: linear-gradient(135deg, rgba(91, 165, 255, 0.34), rgba(138, 223, 255, 0.18));
+    border-color: rgba(126, 200, 255, 0.52);
+    color: #ffffff;
+  }
+
+  .action-btn.kepler {
+    background: linear-gradient(135deg, rgba(149, 121, 255, 0.28), rgba(110, 88, 215, 0.16));
+    border-color: rgba(188, 168, 255, 0.42);
+  }
+
+  #preset-strip {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  #preset-strip.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-10px);
+  }
+
+  #insight-pill {
+    top: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(500px, calc(100vw - 32px));
+    padding: 12px 16px;
+    border-radius: 16px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #eef6ff;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(400px, calc(100vw - 32px));
+    padding: 18px 20px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    line-height: 1.72;
+  }
+
+  #formula-content {
+    margin-top: 10px;
+  }
+
+  .formula-divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(126, 200, 255, 0.55), rgba(126, 200, 255, 0));
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+
+  .formula-key {
+    min-width: 86px;
+    color: var(--text-soft);
+    flex-shrink: 0;
+  }
+
+  .formula-value {
+    flex: 1;
+    color: var(--text-main);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-steps {
+    font-family: "SFMono-Regular", "Consolas", monospace;
+    white-space: pre-line;
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    color: #ffe6a9;
+  }
+
+  .formula-table {
+    width: 100%;
+    margin-top: 8px;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .formula-table th,
+  .formula-table td {
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    text-align: left;
+  }
+
+  .formula-table th {
+    color: var(--text-soft);
+    font-weight: 600;
+  }
+
+  .formula-table tr.active-row td {
+    color: #ffffff;
+    background: rgba(126, 200, 255, 0.1);
+  }
+
+  #graph-panel {
+    right: 16px;
+    bottom: 16px;
+    width: min(430px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .graph-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .graph-header h2 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .graph-header p {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-soft);
+  }
+
+  .legend-pill {
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ebf4ff;
+    font-size: 11px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: 250px;
+    display: block;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at top, rgba(126, 200, 255, 0.08), transparent 48%),
+      rgba(255, 255, 255, 0.03);
+  }
+
+  #graph-message {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-sub);
+    font-size: 12px;
+    display: none;
+  }
+
+  #kepler-panel {
+    right: 16px;
+    top: 120px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 18px;
+    display: none;
+  }
+
+  #kepler-panel .kicker {
+    display: inline-flex;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(175, 154, 255, 0.12);
+    color: #d7cbff;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  #kepler-step-title {
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 800;
+  }
+
+  #kepler-step-formula {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    font-family: "SFMono-Regular", "Consolas", monospace;
+    line-height: 1.72;
+    white-space: pre-line;
+    color: #f5f1ff;
+  }
+
+  #kepler-step-note {
+    margin-top: 10px;
+    color: #d7dff7;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  #kepler-progress {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .kepler-dot {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .kepler-dot.active {
+    background: linear-gradient(90deg, #ab9bff, #83b9ff);
+  }
+
+  .lil-gui {
+    --width: 300px;
+    z-index: 24 !important;
+  }
+
+  @media (max-width: 1100px) {
+    #graph-panel {
+      width: min(380px, calc(100vw - 32px));
+    }
+
+    #formula-panel {
+      width: min(360px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 900px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+      padding: 9px 14px;
+      font-size: 12px;
+    }
+
+    #guide-panel {
+      top: 50px;
+      left: 12px;
+      width: calc(100vw - 24px);
+      max-height: 52vh;
+      padding: 16px;
+    }
+
+    .action-strip {
+      top: 12px;
+      width: calc(100vw - 120px);
+      padding: 6px;
+      flex-wrap: wrap;
+      border-radius: 22px;
+    }
+
+    .action-strip.secondary {
+      top: 84px;
+    }
+
+    .action-btn {
+      font-size: 11px;
+      padding: 8px 12px;
+    }
+
+    #insight-pill {
+      top: 148px;
+      width: calc(100vw - 24px);
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    #kepler-panel {
+      top: 208px;
+      right: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #graph-panel {
+      right: 12px;
+      bottom: 12px;
+      width: calc(100vw - 24px);
+      padding: 14px;
+    }
+
+    #graph-canvas {
+      height: 220px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 258px;
+      width: calc(100vw - 24px);
+      padding: 16px;
+    }
+
+    .legend-pill {
+      white-space: normal;
+      text-align: left;
+    }
+
+    .graph-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .lil-gui {
+      --width: min(280px, calc(100vw - 24px));
+    }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="sim-canvas"></canvas>
+
+<button id="guide-toggle" aria-expanded="false">📖 학습 가이드</button>
+
+<div id="guide-panel" class="panel">
+  <h3>핵심 원리</h3>
+  <p>뉴턴의 만유인력 법칙 F = GMm / r^2 에 따르면 질량을 가진 모든 물체 사이에는 서로 끌어당기는 힘이 작용합니다. 지표면 근처의 중력 가속도 g = GM / R^2 이고, 높이가 커질수록 g' = GM / (R + h)^2 로 감소합니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>두 물체 사이의 거리를 2배로 늘리면 만유인력은 몇 배가 될까요?</li>
+    <li>ISS 안이 무중력처럼 느껴지는 까닭은 정말 중력이 0이어서일까요?</li>
+    <li>만유인력에서 출발해 케플러 제3법칙 T^2 ∝ r^3 을 유도할 수 있을까요?</li>
+  </ul>
+
+  <h3>관찰 포인트</h3>
+  <ul>
+    <li>기본 모드에서는 두 화살표가 방향은 반대지만 크기는 같은 작용-반작용 쌍입니다.</li>
+    <li>고도 모드에서는 높이가 올라갈수록 중력 화살표가 짧아집니다.</li>
+    <li>ISS 고도에서도 g는 약 8.7 m/s^2 이므로, 무중력은 "중력이 없음"이 아니라 "계속 자유 낙하"하는 상태입니다.</li>
+  </ul>
+
+  <h3>실생활 연결</h3>
+  <ul>
+    <li>인공위성 궤도와 GPS 위성의 주기 계산</li>
+    <li>밀물과 썰물을 일으키는 달의 중력</li>
+    <li>ISS의 미세중력 실험 환경</li>
+    <li>달과 행성 탐사선의 궤도 설계</li>
+  </ul>
+
+  <div class="ref">교과서 연계: 역학과 에너지 I편 p32~41 · 케플러 법칙과 중력, 만유인력, 중력 가속도</div>
+</div>
+
+<div id="mode-strip" class="panel action-strip" role="group" aria-label="모드 선택">
+  <button class="action-btn mode-btn active" data-mode="basic" aria-pressed="true">만유인력 기본</button>
+  <button class="action-btn mode-btn" data-mode="altitude" aria-pressed="false">고도별 중력 가속도</button>
+</div>
+
+<div id="preset-strip" class="panel action-strip secondary hidden" role="group" aria-label="고도 프리셋">
+  <button class="action-btn preset-btn" data-preset="iss">ISS</button>
+  <button class="action-btn preset-btn" data-preset="geo">정지 궤도</button>
+  <button class="action-btn preset-btn" data-preset="moon">달 궤도</button>
+  <button class="action-btn kepler" id="kepler-trigger">케플러 유도</button>
+</div>
+
+<div id="insight-pill" class="panel">거리 r 이 2배가 되면 만유인력은 1/4 로 줄어듭니다.</div>
+
+<div id="kepler-panel" class="panel">
+  <div class="kicker">Kepler Derivation</div>
+  <div id="kepler-step-title">구심력과 만유인력을 연결해 봅시다.</div>
+  <div id="kepler-step-formula"></div>
+  <div id="kepler-step-note"></div>
+  <div id="kepler-progress"></div>
+</div>
+
+<div id="formula-panel" class="panel">
+  <div class="panel-title">🌍 만유인력과 중력 가속도</div>
+  <div class="panel-subtitle">두 모드를 오가며 F = GMm / r^2, g = GM / R^2, 그리고 T^2 ∝ r^3 의 연결을 한 화면에서 살펴보세요.</div>
+  <div class="formula-divider"></div>
+  <div id="formula-content"></div>
+</div>
+
+<div id="graph-panel" class="panel">
+  <div class="graph-header">
+    <div>
+      <h2 id="graph-title">F-r 그래프</h2>
+      <p id="graph-subtitle">거리가 멀어질수록 힘은 1 / r^2 로 빠르게 감소합니다.</p>
+    </div>
+    <div id="graph-legend" class="legend-pill"></div>
+  </div>
+  <canvas id="graph-canvas"></canvas>
+  <div id="graph-message"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const G = 6.674e-11;
+const EARTH_MASS = 5.972e24;
+const EARTH_RADIUS_KM = 6371;
+const EARTH_RADIUS_M = EARTH_RADIUS_KM * 1000;
+const EARTH_RADIUS_SCENE = 3;
+const MODE1_DISTANCE_UNIT_M = 1e7;
+const MODE1_SCENE_BASE = 2.65;
+const MODE1_SCENE_STEP = 0.56;
+const ALTITUDE_MAX_KM = 400000;
+const ISS_ALTITUDE_KM = 400;
+const GEO_ALTITUDE_KM = 35786;
+const MOON_ALTITUDE_KM = 384400;
+const MODE = {
+  BASIC: '만유인력 기본',
+  ALTITUDE: '고도별 중력 가속도',
+};
+
+const ALTITUDE_PRESETS = {
+  iss: { label: 'ISS 궤도', altitudeKm: ISS_ALTITUDE_KM, accent: '#8effc9' },
+  geo: { label: '정지 궤도', altitudeKm: GEO_ALTITUDE_KM, accent: '#ffd36e' },
+  moon: { label: '달 궤도', altitudeKm: MOON_ALTITUDE_KM, accent: '#d6ddff' },
+};
+
+const KEPLER_STEPS = [
+  {
+    title: '1. 원궤도 위성은 중심을 향한 가속도가 필요합니다.',
+    formula: '구심력 = m v^2 / r',
+    note: '인공위성이 원운동하려면 언제나 중심 방향 힘이 필요합니다.',
+  },
+  {
+    title: '2. 그 중심력의 정체가 바로 만유인력입니다.',
+    formula: '만유인력 = G M m / r^2',
+    note: '행성 질량 M 과 위성 질량 m 사이의 중력이 구심력을 제공합니다.',
+  },
+  {
+    title: '3. 두 식을 같게 놓습니다.',
+    formula: 'm v^2 / r = G M m / r^2',
+    note: '원운동의 구심력과 만유인력이 같은 상황을 세웁니다.',
+  },
+  {
+    title: '4. 위성 질량 m 이 소거됩니다.',
+    formula: 'v^2 = G M / r',
+    note: '궤도 속도는 중심천체 질량과 반지름으로만 결정됩니다.',
+  },
+  {
+    title: '5. 주기 공식을 대입합니다.',
+    formula: 'T = 2 pi r / v',
+    note: '속도를 주기로 바꾸면 케플러 법칙 형태가 드러납니다.',
+  },
+  {
+    title: '6. 케플러 제3법칙이 완성됩니다.',
+    formula: 'T^2 = (4 pi^2 / G M) r^3\n따라서 T^2 ∝ r^3',
+    note: '같은 중심천체를 도는 위성들은 T^2 이 r^3 에 비례합니다.',
+  },
+];
+
+const dom = {
+  canvas: document.getElementById('sim-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  insightPill: document.getElementById('insight-pill'),
+  formulaContent: document.getElementById('formula-content'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  graphTitle: document.getElementById('graph-title'),
+  graphSubtitle: document.getElementById('graph-subtitle'),
+  graphLegend: document.getElementById('graph-legend'),
+  graphMessage: document.getElementById('graph-message'),
+  keplerPanel: document.getElementById('kepler-panel'),
+  keplerStepTitle: document.getElementById('kepler-step-title'),
+  keplerStepFormula: document.getElementById('kepler-step-formula'),
+  keplerStepNote: document.getElementById('kepler-step-note'),
+  keplerProgress: document.getElementById('kepler-progress'),
+  modeStrip: document.getElementById('mode-strip'),
+  presetStrip: document.getElementById('preset-strip'),
+  keplerTrigger: document.getElementById('kepler-trigger'),
+};
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+const clock = new THREE.Clock();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000010);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 7.8, 16.5);
+
+let renderer = null;
+let controls = null;
+let webglAvailable = true;
+
+try {
+  renderer = new THREE.WebGLRenderer({
+    canvas: dom.canvas,
+    antialias: true,
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  controls = new OrbitControls(camera, dom.canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 7;
+  controls.maxDistance = 42;
+  controls.target.set(0, 0.5, 0);
+} catch (error) {
+  webglAvailable = false;
+  dom.canvas.style.display = 'none';
+  dom.insightPill.textContent = '현재 환경에서는 WebGL을 사용할 수 없어 3D 장면 대신 그래프와 수식 중심으로 탐구할 수 있습니다.';
+}
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.16));
+
+const sunLight = new THREE.PointLight(0xffffff, 1.0, 0, 2);
+sunLight.position.set(18, 12, 10);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+scene.add(sunLight);
+
+const fillLight = new THREE.PointLight(0x6b9dff, 0.3, 80, 2);
+fillLight.position.set(-16, -4, -12);
+scene.add(fillLight);
+
+const worldRoot = new THREE.Group();
+scene.add(worldRoot);
+
+const params = {
+  mode: MODE.BASIC,
+  massMLog: Number(Math.log10(EARTH_MASS).toFixed(3)),
+  massm: 100,
+  distanceR: 5,
+  altitudeKm: ISS_ALTITUDE_KM,
+  showInverseGraph: true,
+  runKepler() {
+    startKeplerDerivation();
+  },
+  presetISS() {
+    applyAltitudePreset('iss');
+  },
+  presetGeo() {
+    applyAltitudePreset('geo');
+  },
+  presetMoon() {
+    applyAltitudePreset('moon');
+  },
+  reset() {
+    params.mode = MODE.BASIC;
+    params.massMLog = Number(Math.log10(EARTH_MASS).toFixed(3));
+    params.massm = 100;
+    params.distanceR = 5;
+    params.altitudeKm = ISS_ALTITUDE_KM;
+    params.showInverseGraph = true;
+    stopKeplerDerivation();
+    buildModeScene();
+    syncGui();
+  },
+};
+
+const controllers = {};
+
+const state = {
+  modeGroup: null,
+  currentMode: '',
+  mode1: null,
+  mode2: null,
+  webglAvailable,
+  labelsDirty: true,
+  graphDirty: true,
+  formulaDirty: true,
+  orbitAngle: 0,
+  kepler: {
+    active: false,
+    elapsed: 0,
+    stepIndex: 0,
+  },
+};
+
+createStarField();
+setupGui();
+setupDomEvents();
+buildModeScene();
+resizeGraphCanvas();
+renderKeplerPanel();
+animate();
+
+function setupGui() {
+  const gui = new GUI({ title: '만유인력 조작 패널' });
+  gui.domElement.style.zIndex = '24';
+
+  controllers.mode = gui
+    .add(params, 'mode', [MODE.BASIC, MODE.ALTITUDE])
+    .name('모드')
+    .onChange(() => buildModeScene());
+
+  controllers.massMLog = gui
+    .add(params, 'massMLog', 20, 26, 0.01)
+    .name('질량 M (10^x kg)')
+    .onChange(() => markDirty(true, true, true));
+
+  controllers.massm = gui
+    .add(params, 'massm', 1, 1000, 1)
+    .name('질량 m (kg)')
+    .onChange(() => markDirty(true, true, true));
+
+  controllers.distanceR = gui
+    .add(params, 'distanceR', 1, 20, 0.1)
+    .name('거리 r')
+    .onChange(() => markDirty(true, true, true));
+
+  controllers.altitudeKm = gui
+    .add(params, 'altitudeKm', 0, ALTITUDE_MAX_KM, 10)
+    .name('고도 h (km)')
+    .onChange(() => {
+      stopKeplerDerivation(false);
+      markDirty(true, true, true);
+    });
+
+  controllers.showInverseGraph = gui
+    .add(params, 'showInverseGraph')
+    .name('역제곱 그래프')
+    .onChange(() => markDirty(false, true, false));
+
+  controllers.runKepler = gui.add(params, 'runKepler').name('케플러 유도');
+  controllers.presetISS = gui.add(params, 'presetISS').name('ISS 프리셋');
+  controllers.presetGeo = gui.add(params, 'presetGeo').name('정지 궤도');
+  controllers.presetMoon = gui.add(params, 'presetMoon').name('달 궤도');
+  controllers.reset = gui.add(params, 'reset').name('초기화');
+
+  if (window.innerWidth < 900) {
+    gui.close();
+  }
+}
+
+function setupDomEvents() {
+  dom.guideToggle.addEventListener('click', () => {
+    const open = dom.guidePanel.style.display !== 'block';
+    dom.guidePanel.style.display = open ? 'block' : 'none';
+    dom.guideToggle.setAttribute('aria-expanded', String(open));
+  });
+
+  dom.modeStrip.querySelectorAll('.mode-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetMode = button.dataset.mode === 'altitude' ? MODE.ALTITUDE : MODE.BASIC;
+      params.mode = targetMode;
+      stopKeplerDerivation(targetMode !== MODE.ALTITUDE);
+      buildModeScene();
+      syncGui();
+    });
+  });
+
+  dom.presetStrip.querySelectorAll('.preset-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const presetKey = button.dataset.preset;
+      applyAltitudePreset(presetKey);
+    });
+  });
+
+  dom.keplerTrigger.addEventListener('click', () => {
+    startKeplerDerivation();
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    if (renderer) {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    resizeGraphCanvas();
+    state.graphDirty = true;
+  });
+}
+
+function buildModeScene() {
+  clearModeScene();
+  state.currentMode = params.mode;
+  state.labelsDirty = true;
+  state.graphDirty = true;
+  state.formulaDirty = true;
+
+  if (params.mode === MODE.BASIC) {
+    state.mode1 = createBasicModeScene();
+    if (controls) controls.target.set(getSceneDistance() * 0.28, 0.4, 0);
+    camera.position.set(0, 7.5, 16);
+    dom.presetStrip.classList.add('hidden');
+  } else {
+    state.mode2 = createAltitudeModeScene();
+    if (controls) controls.target.set(0, 0.35, 0);
+    camera.position.set(0, 7.8, 16.5);
+    dom.presetStrip.classList.remove('hidden');
+  }
+
+  updateModeButtons();
+  updateControllerVisibility();
+  if (controls) controls.update();
+}
+
+function clearModeScene() {
+  if (!state.modeGroup) return;
+  disposeObject3D(state.modeGroup);
+  worldRoot.remove(state.modeGroup);
+  state.modeGroup = null;
+  state.mode1 = null;
+  state.mode2 = null;
+}
+
+function createBasicModeScene() {
+  const group = new THREE.Group();
+  worldRoot.add(group);
+  state.modeGroup = group;
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2266aa,
+    roughness: 0.5,
+    metalness: 0.15,
+    emissive: 0x0f2d57,
+    emissiveIntensity: 0.35,
+  });
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0x4a8fd8,
+    transparent: true,
+    opacity: 0.12,
+  });
+  const smallMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff5454,
+    roughness: 0.35,
+    metalness: 0.08,
+    emissive: 0x5c0f12,
+    emissiveIntensity: 0.25,
+  });
+
+  const largeBody = new THREE.Mesh(new THREE.SphereGeometry(2, 48, 48), bodyMaterial);
+  largeBody.castShadow = true;
+  largeBody.receiveShadow = true;
+  group.add(largeBody);
+
+  const largeGlow = new THREE.Mesh(new THREE.SphereGeometry(2.3, 36, 36), glowMaterial);
+  group.add(largeGlow);
+
+  const smallBody = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), smallMaterial);
+  smallBody.castShadow = true;
+  smallBody.receiveShadow = true;
+  group.add(smallBody);
+
+  const distanceGeometry = new THREE.BufferGeometry();
+  distanceGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  const distanceLine = new THREE.Line(
+    distanceGeometry,
+    new THREE.LineDashedMaterial({
+      color: 0xf1f5ff,
+      dashSize: 0.28,
+      gapSize: 0.18,
+      transparent: true,
+      opacity: 0.7,
+    })
+  );
+  group.add(distanceLine);
+
+  const rangeArrowA = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 1, 0xeef4ff, 0.28, 0.16);
+  const rangeArrowB = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0xeef4ff, 0.28, 0.16);
+  group.add(rangeArrowA, rangeArrowB);
+
+  const forceOnSmall = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 1.8, 0x67b9ff, 0.3, 0.18);
+  const forceOnLarge = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.8, 0xff7373, 0.3, 0.18);
+  group.add(forceOnSmall, forceOnLarge);
+
+  const arrowLabel = createTextSprite('F = G M m / r^2', {
+    scale: 1.18,
+    color: '#d9ecff',
+    border: 'rgba(114, 191, 255, 0.42)',
+  });
+  arrowLabel.position.set(0.7, 2.8, 0);
+  group.add(arrowLabel);
+
+  const ambientRing = new THREE.Mesh(
+    new THREE.TorusGeometry(2.85, 0.04, 12, 128),
+    new THREE.MeshBasicMaterial({ color: 0x264d76, transparent: true, opacity: 0.18 })
+  );
+  ambientRing.rotation.x = Math.PI / 2;
+  group.add(ambientRing);
+
+  return {
+    group,
+    largeBody,
+    largeGlow,
+    smallBody,
+    distanceLine,
+    rangeArrowA,
+    rangeArrowB,
+    forceOnSmall,
+    forceOnLarge,
+    arrowLabel,
+    sprites: {},
+  };
+}
+
+function createAltitudeModeScene() {
+  const group = new THREE.Group();
+  worldRoot.add(group);
+  state.modeGroup = group;
+
+  const earthTexture = createEarthTexture();
+  const earthMaterial = new THREE.MeshStandardMaterial({
+    map: earthTexture,
+    roughness: 0.88,
+    metalness: 0.05,
+  });
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS_SCENE, 64, 64), earthMaterial);
+  earth.castShadow = true;
+  earth.receiveShadow = true;
+  group.add(earth);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(EARTH_RADIUS_SCENE * 1.08, 48, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x66a6ff,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide,
+    })
+  );
+  group.add(atmosphere);
+
+  const glow = new THREE.PointLight(0x2b5fdd, 0.75, 25, 2);
+  glow.position.set(0, 0, 0);
+  group.add(glow);
+
+  const orbitGroup = new THREE.Group();
+  orbitGroup.rotation.x = 0.38;
+  orbitGroup.rotation.z = -0.16;
+  group.add(orbitGroup);
+
+  const activeOrbit = createCircleLine(1, 0x78bfff, 0.9);
+  orbitGroup.add(activeOrbit);
+
+  const satellite = createSatelliteModel(1);
+  orbitGroup.add(satellite);
+
+  const radialLineGeometry = new THREE.BufferGeometry();
+  radialLineGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  const radialLine = new THREE.Line(
+    radialLineGeometry,
+    new THREE.LineDashedMaterial({
+      color: 0xffffff,
+      dashSize: 0.18,
+      gapSize: 0.12,
+      transparent: true,
+      opacity: 0.6,
+    })
+  );
+  orbitGroup.add(radialLine);
+
+  const gravityArrow = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 1.6, 0xff7c7c, 0.32, 0.18);
+  orbitGroup.add(gravityArrow);
+
+  const referenceMarkers = createAltitudeReferenceMarkers(orbitGroup);
+
+  const labelAnchor = createTextSprite('g\'', {
+    scale: 0.85,
+    color: '#ffd5d5',
+    border: 'rgba(255, 134, 134, 0.42)',
+  });
+  orbitGroup.add(labelAnchor);
+
+  return {
+    group,
+    earth,
+    atmosphere,
+    orbitGroup,
+    activeOrbit,
+    satellite,
+    radialLine,
+    gravityArrow,
+    referenceMarkers,
+    labelAnchor,
+    sprites: {},
+  };
+}
+
+function createAltitudeReferenceMarkers(orbitGroup) {
+  return Object.entries(ALTITUDE_PRESETS).map(([key, preset]) => {
+    const orbitRing = createCircleLine(1, new THREE.Color(preset.accent), 0.22);
+    const radius = EARTH_RADIUS_SCENE + altitudeToScene(preset.altitudeKm);
+    orbitRing.scale.set(radius, radius, radius);
+    orbitGroup.add(orbitRing);
+
+    let marker;
+    if (key === 'moon') {
+      marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 24, 24),
+        new THREE.MeshStandardMaterial({ color: 0xd8d8df, roughness: 0.95 })
+      );
+    } else {
+      marker = createSatelliteModel(0.46);
+    }
+    marker.position.set(radius, 0, 0);
+    orbitGroup.add(marker);
+
+    const label = createTextSprite(preset.label, {
+      scale: 0.88,
+      color: '#f3f8ff',
+      border: 'rgba(255,255,255,0.18)',
+      background: 'rgba(8, 16, 34, 0.76)',
+    });
+    label.position.set(radius, 0.78, 0);
+    orbitGroup.add(label);
+
+    return {
+      key,
+      preset,
+      orbitRing,
+      marker,
+      label,
+    };
+  });
+}
+
+function createStarField() {
+  const positions = [];
+  const colors = [];
+  for (let i = 0; i < 1800; i += 1) {
+    const radius = 58 + Math.random() * 42;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions.push(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+    const tint = 0.72 + Math.random() * 0.28;
+    colors.push(tint, tint * (0.94 + Math.random() * 0.08), 1.0);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.24,
+    transparent: true,
+    opacity: 0.95,
+    vertexColors: true,
+    sizeAttenuation: true,
+    depthWrite: false,
+  });
+  const stars = new THREE.Points(geometry, material);
+  scene.add(stars);
+}
+
+function createCircleLine(radius, color, opacity = 1) {
+  const points = [];
+  for (let i = 0; i < 160; i += 1) {
+    const angle = (i / 160) * Math.PI * 2;
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const lineColor = color instanceof THREE.Color ? color : new THREE.Color(color);
+  const material = new THREE.LineBasicMaterial({
+    color: lineColor,
+    transparent: true,
+    opacity,
+  });
+  return new THREE.LineLoop(geometry, material);
+}
+
+function createSatelliteModel(scale) {
+  const group = new THREE.Group();
+
+  const bus = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34 * scale, 0.22 * scale, 0.22 * scale),
+    new THREE.MeshStandardMaterial({ color: 0xf5f5f7, roughness: 0.4, metalness: 0.55 })
+  );
+  bus.castShadow = true;
+  group.add(bus);
+
+  const panelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x305dca,
+    emissive: 0x1d387c,
+    emissiveIntensity: 0.45,
+    roughness: 0.45,
+    metalness: 0.3,
+  });
+  for (const side of [-1, 1]) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.38 * scale, 0.02 * scale, 0.16 * scale), panelMaterial);
+    panel.position.x = side * 0.34 * scale;
+    group.add(panel);
+  }
+
+  const antenna = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.26 * scale, 14),
+    new THREE.MeshStandardMaterial({ color: 0xffc97d, roughness: 0.45 })
+  );
+  antenna.rotation.z = Math.PI / 2;
+  antenna.position.y = 0.13 * scale;
+  group.add(antenna);
+
+  return group;
+}
+
+function makeCanvas(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const lines = String(text).split('\n');
+  const fontSize = options.fontSize ?? 34;
+  const paddingX = options.paddingX ?? 22;
+  const paddingY = options.paddingY ?? 14;
+  const canvas = makeCanvas(32, 32);
+  const ctx = canvas.getContext('2d');
+  const fontFamily = '"Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif';
+  ctx.font = `700 ${fontSize}px ${fontFamily}`;
+  const width = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  canvas.width = Math.ceil(width + paddingX * 2);
+  canvas.height = Math.ceil(lines.length * fontSize * 1.22 + paddingY * 2);
+  ctx.font = `700 ${fontSize}px ${fontFamily}`;
+
+  roundedRect(ctx, 0, 0, canvas.width, canvas.height, 26);
+  ctx.fillStyle = options.background ?? 'rgba(9, 18, 38, 0.8)';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = options.border ?? 'rgba(140, 192, 255, 0.4)';
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = options.color ?? '#ffffff';
+  const totalHeight = (lines.length - 1) * fontSize * 1.22;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 - totalHeight / 2 + index * fontSize * 1.22;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? 1;
+  sprite.scale.set(scale * canvas.width / canvas.height, scale, 1);
+  sprite.renderOrder = 50;
+  return sprite;
+}
+
+function createEarthTexture() {
+  const canvas = makeCanvas(1024, 512);
+  const ctx = canvas.getContext('2d');
+
+  const ocean = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  ocean.addColorStop(0, '#57a6ff');
+  ocean.addColorStop(0.48, '#1b64c9');
+  ocean.addColorStop(1, '#0a265d');
+  ctx.fillStyle = ocean;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 12; i += 1) {
+    ctx.strokeStyle = `rgba(255,255,255,${0.018 + i * 0.003})`;
+    ctx.lineWidth = 8 + i * 0.3;
+    ctx.beginPath();
+    const y = 28 + i * 38;
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= canvas.width; x += 24) {
+      const wobble = Math.sin(x * 0.014 + i * 0.7) * 6 + Math.cos(x * 0.022 + i * 0.4) * 4;
+      ctx.lineTo(x, y + wobble);
+    }
+    ctx.stroke();
+  }
+
+  drawBlob(ctx, 182, 164, 88, 74, -0.18, '#6aa05d');
+  drawBlob(ctx, 244, 312, 54, 92, 0.24, '#577f41');
+  drawBlob(ctx, 536, 168, 176, 88, 0.06, '#7aa85d');
+  drawBlob(ctx, 576, 286, 72, 108, -0.04, '#5e884b');
+  drawBlob(ctx, 782, 326, 58, 40, 0.08, '#8eb16d');
+  drawBlob(ctx, 358, 94, 40, 28, -0.12, '#96be7c');
+  drawBlob(ctx, 538, 234, 58, 40, 0.08, 'rgba(214, 194, 112, 0.78)', 0.08);
+
+  const cloud = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  cloud.addColorStop(0, 'rgba(255,255,255,0.12)');
+  cloud.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+  cloud.addColorStop(1, 'rgba(255,255,255,0.1)');
+  ctx.fillStyle = cloud;
+  for (let i = 0; i < 14; i += 1) {
+    ctx.beginPath();
+    ctx.ellipse(
+      90 + i * 65,
+      72 + (i % 4) * 94,
+      56 + (i % 3) * 18,
+      18 + (i % 2) * 10,
+      0.25,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function drawBlob(ctx, cx, cy, rx, ry, rotation, color, wobble = 0.14) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  for (let i = 0; i <= 84; i += 1) {
+    const angle = (i / 84) * Math.PI * 2;
+    const mod = 1 + wobble * Math.sin(angle * 3 + cx * 0.01) + wobble * 0.55 * Math.cos(angle * 5 + cy * 0.02);
+    const x = Math.cos(angle) * rx * mod;
+    const y = Math.sin(angle) * ry * mod;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+function markDirty(labels = false, graph = false, formula = false) {
+  if (labels) state.labelsDirty = true;
+  if (graph) state.graphDirty = true;
+  if (formula) state.formulaDirty = true;
+}
+
+function getMassM() {
+  return 10 ** params.massMLog;
+}
+
+function getMassm() {
+  return params.massm;
+}
+
+function getSceneDistance() {
+  return MODE1_SCENE_BASE + params.distanceR * MODE1_SCENE_STEP;
+}
+
+function getDistanceMeters() {
+  return params.distanceR * MODE1_DISTANCE_UNIT_M;
+}
+
+function altitudeToScene(altitudeKm) {
+  if (altitudeKm <= 0) return 0.18;
+  const mapped = Math.log10(altitudeKm + 10) / Math.log10(ALTITUDE_MAX_KM + 10);
+  return 0.18 + mapped * 12.8;
+}
+
+function getAltitudePhysics() {
+  const radiusM = (EARTH_RADIUS_KM + params.altitudeKm) * 1000;
+  const gPrime = G * EARTH_MASS / (radiusM * radiusM);
+  const orbitalSpeed = Math.sqrt(G * EARTH_MASS / radiusM);
+  const period = 2 * Math.PI * Math.sqrt((radiusM ** 3) / (G * EARTH_MASS));
+  return { radiusM, gPrime, orbitalSpeed, period };
+}
+
+function applyAltitudePreset(key) {
+  const preset = ALTITUDE_PRESETS[key];
+  if (!preset) return;
+  params.mode = MODE.ALTITUDE;
+  params.altitudeKm = preset.altitudeKm;
+  buildModeScene();
+  syncGui();
+}
+
+function startKeplerDerivation() {
+  params.mode = MODE.ALTITUDE;
+  buildModeScene();
+  state.kepler.active = true;
+  state.kepler.elapsed = 0;
+  state.kepler.stepIndex = 0;
+  dom.keplerPanel.style.display = 'block';
+  renderKeplerPanel();
+  markDirty(false, false, true);
+  syncGui();
+}
+
+function stopKeplerDerivation(forceHide = true) {
+  state.kepler.active = false;
+  state.kepler.elapsed = 0;
+  state.kepler.stepIndex = 0;
+  if (forceHide) {
+    dom.keplerPanel.style.display = 'none';
+  }
+  renderKeplerPanel();
+}
+
+function updateKepler(delta) {
+  if (params.mode !== MODE.ALTITUDE || !state.kepler.active) return;
+  state.kepler.elapsed += delta;
+  const nextIndex = Math.min(KEPLER_STEPS.length - 1, Math.floor(state.kepler.elapsed / 2.4));
+  if (nextIndex !== state.kepler.stepIndex) {
+    state.kepler.stepIndex = nextIndex;
+    renderKeplerPanel();
+    state.formulaDirty = true;
+  }
+}
+
+function renderKeplerPanel() {
+  const step = KEPLER_STEPS[state.kepler.stepIndex] ?? KEPLER_STEPS[0];
+  dom.keplerStepTitle.textContent = step.title;
+  dom.keplerStepFormula.textContent = step.formula;
+  dom.keplerStepNote.textContent = step.note;
+  dom.keplerProgress.innerHTML = KEPLER_STEPS
+    .map((_, index) => `<div class="kepler-dot${index <= state.kepler.stepIndex ? ' active' : ''}"></div>`)
+    .join('');
+}
+
+function animate() {
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  if (controls) controls.update();
+  updateModeScene(delta, elapsed);
+  updateKepler(delta);
+
+  if (state.labelsDirty) {
+    refreshModeLabels();
+    state.labelsDirty = false;
+  }
+  if (state.graphDirty) {
+    drawGraph();
+    state.graphDirty = false;
+  }
+  if (state.formulaDirty) {
+    renderFormula();
+    state.formulaDirty = false;
+  }
+
+  if (renderer) {
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+}
+
+function updateModeScene(delta, elapsed) {
+  if (params.mode === MODE.BASIC && state.mode1) {
+    const sceneDistance = getSceneDistance();
+    const rMeters = getDistanceMeters();
+    const force = G * getMassM() * getMassm() / (rMeters * rMeters);
+    const forceLen = Math.min(sceneDistance - 0.6, 0.7 + Math.sqrt(force) * 0.08);
+    const smallPos = new THREE.Vector3(sceneDistance, 0, 0);
+
+    state.mode1.largeBody.rotation.y += delta * 0.14;
+    state.mode1.largeGlow.scale.setScalar(1 + Math.sin(elapsed * 0.9) * 0.02);
+    state.mode1.smallBody.position.copy(smallPos);
+
+    const positions = state.mode1.distanceLine.geometry.attributes.position.array;
+    positions[0] = 0;
+    positions[1] = 0;
+    positions[2] = 0;
+    positions[3] = smallPos.x;
+    positions[4] = smallPos.y;
+    positions[5] = smallPos.z;
+    state.mode1.distanceLine.geometry.attributes.position.needsUpdate = true;
+    state.mode1.distanceLine.computeLineDistances();
+
+    const midpoint = smallPos.clone().multiplyScalar(0.5);
+    state.mode1.rangeArrowA.position.copy(midpoint);
+    state.mode1.rangeArrowA.setDirection(new THREE.Vector3(-1, 0, 0));
+    state.mode1.rangeArrowA.setLength(Math.max(0.5, sceneDistance * 0.5 - 0.35), 0.24, 0.14);
+    state.mode1.rangeArrowB.position.copy(midpoint);
+    state.mode1.rangeArrowB.setDirection(new THREE.Vector3(1, 0, 0));
+    state.mode1.rangeArrowB.setLength(Math.max(0.5, sceneDistance * 0.5 - 0.35), 0.24, 0.14);
+
+    state.mode1.forceOnSmall.position.copy(smallPos);
+    state.mode1.forceOnSmall.setDirection(new THREE.Vector3(-1, 0, 0));
+    state.mode1.forceOnSmall.setLength(forceLen, 0.32, 0.18);
+
+    state.mode1.forceOnLarge.position.set(0, 0, 0);
+    state.mode1.forceOnLarge.setDirection(new THREE.Vector3(1, 0, 0));
+    state.mode1.forceOnLarge.setLength(Math.min(forceLen, 3.2), 0.32, 0.18);
+
+    state.mode1.arrowLabel.position.set(sceneDistance * 0.35, 2.75, 0);
+    updateInsightPillBasic(force);
+  }
+
+  if (params.mode === MODE.ALTITUDE && state.mode2) {
+    const altitudeScene = altitudeToScene(params.altitudeKm);
+    const orbitRadius = EARTH_RADIUS_SCENE + altitudeScene;
+    const { gPrime, period } = getAltitudePhysics();
+    const displayAngularSpeed = THREE.MathUtils.clamp(10 / Math.cbrt(period), 0.05, 0.72);
+    state.orbitAngle += delta * displayAngularSpeed;
+
+    state.mode2.earth.rotation.y += delta * 0.16;
+    state.mode2.atmosphere.rotation.y -= delta * 0.03;
+
+    state.mode2.activeOrbit.scale.set(orbitRadius, orbitRadius, orbitRadius);
+
+    const satPos = new THREE.Vector3(
+      Math.cos(state.orbitAngle) * orbitRadius,
+      0,
+      Math.sin(state.orbitAngle) * orbitRadius
+    );
+    state.mode2.satellite.position.copy(satPos);
+    state.mode2.satellite.rotation.y = -state.orbitAngle + Math.PI / 2;
+    state.mode2.satellite.rotation.z = Math.sin(elapsed * 1.2) * 0.12;
+
+    const dir = satPos.clone().normalize();
+    const radialPositions = state.mode2.radialLine.geometry.attributes.position.array;
+    const surfacePoint = dir.clone().multiplyScalar(EARTH_RADIUS_SCENE);
+    radialPositions[0] = surfacePoint.x;
+    radialPositions[1] = surfacePoint.y;
+    radialPositions[2] = surfacePoint.z;
+    radialPositions[3] = satPos.x;
+    radialPositions[4] = satPos.y;
+    radialPositions[5] = satPos.z;
+    state.mode2.radialLine.geometry.attributes.position.needsUpdate = true;
+    state.mode2.radialLine.computeLineDistances();
+
+    const gravityLength = 0.62 + 2.9 * Math.pow(gPrime / 9.8199734262, 0.38);
+    state.mode2.gravityArrow.position.copy(satPos);
+    state.mode2.gravityArrow.setDirection(dir.clone().negate());
+    state.mode2.gravityArrow.setLength(gravityLength, 0.32, 0.18);
+
+    state.mode2.labelAnchor.position.copy(satPos.clone().add(dir.clone().negate().multiplyScalar(gravityLength * 0.58)).add(new THREE.Vector3(0, 0.55, 0)));
+
+    if (state.mode2.sprites.altitudeLabel) {
+      state.mode2.sprites.altitudeLabel.position.copy(
+        dir.clone().multiplyScalar((EARTH_RADIUS_SCENE + orbitRadius) * 0.5).add(new THREE.Vector3(0, 0.68, 0))
+      );
+    }
+    if (state.mode2.sprites.gravityLabel) {
+      state.mode2.sprites.gravityLabel.position.copy(state.mode2.labelAnchor.position);
+    }
+
+    updateReferenceHighlights();
+    updateInsightPillAltitude(gPrime);
+  }
+}
+
+function refreshModeLabels() {
+  if (params.mode === MODE.BASIC && state.mode1) {
+    replaceSprite(state.mode1, 'massLabel', `M\n${formatScientific(getMassM(), 3)} kg`, {
+      scale: 1.56,
+      color: '#ddf1ff',
+      border: 'rgba(126, 200, 255, 0.44)',
+    }, new THREE.Vector3(0, 3.45, 0));
+
+    replaceSprite(state.mode1, 'smallLabel', `m\n${formatCompact(getMassm(), 1)} kg`, {
+      scale: 1.02,
+      color: '#ffe1e1',
+      border: 'rgba(255, 134, 134, 0.44)',
+    }, new THREE.Vector3(getSceneDistance(), 0.92, 0));
+
+    replaceSprite(state.mode1, 'distanceLabel', `r = ${params.distanceR.toFixed(1)} x 10^7 m`, {
+      scale: 1.18,
+      color: '#ffffff',
+      border: 'rgba(255,255,255,0.22)',
+      background: 'rgba(10, 18, 38, 0.82)',
+    }, new THREE.Vector3(getSceneDistance() * 0.5, 0.85, 0));
+  }
+
+  if (params.mode === MODE.ALTITUDE && state.mode2) {
+    const { gPrime } = getAltitudePhysics();
+    replaceSprite(state.mode2, 'radiusLabel', `R = ${EARTH_RADIUS_KM.toLocaleString('ko-KR')} km`, {
+      scale: 1.2,
+      color: '#dff0ff',
+    }, new THREE.Vector3(0, EARTH_RADIUS_SCENE + 0.92, 0));
+
+    replaceSprite(state.mode2, 'altitudeLabel', `h = ${Math.round(params.altitudeKm).toLocaleString('ko-KR')} km`, {
+      scale: 1.14,
+      color: '#fff8de',
+      border: 'rgba(255, 211, 110, 0.34)',
+    }, new THREE.Vector3(0, EARTH_RADIUS_SCENE + altitudeToScene(params.altitudeKm) * 0.48 + 0.68, 0));
+
+    replaceSprite(state.mode2, 'gravityLabel', `g' = ${formatCompact(gPrime, 3)} m/s^2`, {
+      scale: 1.02,
+      color: '#ffdada',
+      border: 'rgba(255, 124, 124, 0.46)',
+    }, state.mode2.labelAnchor.position.clone());
+  }
+}
+
+function replaceSprite(container, key, text, options, position) {
+  const existing = container.sprites[key];
+  if (existing) {
+    container.group?.remove?.(existing);
+    container.orbitGroup?.remove?.(existing);
+    disposeSprite(existing);
+  }
+  const sprite = createTextSprite(text, options);
+  sprite.position.copy(position);
+  if (container.orbitGroup) {
+    container.orbitGroup.add(sprite);
+  } else {
+    container.group.add(sprite);
+  }
+  container.sprites[key] = sprite;
+}
+
+function updateReferenceHighlights() {
+  if (!state.mode2) return;
+  state.mode2.referenceMarkers.forEach((item) => {
+    const close = Math.abs(item.preset.altitudeKm - params.altitudeKm) < Math.max(240, item.preset.altitudeKm * 0.03);
+    item.orbitRing.material.opacity = close ? 0.82 : 0.22;
+    if (item.marker.material) {
+      item.marker.material.emissiveIntensity = close ? 0.3 : 0.08;
+    } else if (item.marker.children?.length) {
+      item.marker.traverse((child) => {
+        if (child.material?.emissiveIntensity !== undefined) {
+          child.material.emissiveIntensity = close ? 0.6 : 0.25;
+        }
+      });
+    }
+  });
+}
+
+function updateModeButtons() {
+  dom.modeStrip.querySelectorAll('.mode-btn').forEach((button) => {
+    const isAltitude = button.dataset.mode === 'altitude';
+    const active = params.mode === (isAltitude ? MODE.ALTITUDE : MODE.BASIC);
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function updateControllerVisibility() {
+  const basicMode = params.mode === MODE.BASIC;
+  setControllerVisible(controllers.massMLog, basicMode);
+  setControllerVisible(controllers.massm, basicMode);
+  setControllerVisible(controllers.distanceR, basicMode);
+  setControllerVisible(controllers.showInverseGraph, basicMode);
+
+  setControllerVisible(controllers.altitudeKm, !basicMode);
+  setControllerVisible(controllers.runKepler, !basicMode);
+  setControllerVisible(controllers.presetISS, !basicMode);
+  setControllerVisible(controllers.presetGeo, !basicMode);
+  setControllerVisible(controllers.presetMoon, !basicMode);
+
+  if (basicMode) {
+    dom.keplerPanel.style.display = 'none';
+  }
+}
+
+function setControllerVisible(controller, visible) {
+  if (!controller?.domElement) return;
+  controller.domElement.style.display = visible ? '' : 'none';
+}
+
+function syncGui() {
+  Object.values(controllers).forEach((controller) => {
+    if (controller?.updateDisplay) controller.updateDisplay();
+  });
+  updateControllerVisibility();
+}
+
+function drawGraph() {
+  const ctx = graphCtx;
+  if (!ctx) return;
+  const width = dom.graphCanvas.width;
+  const height = dom.graphCanvas.height;
+  const ratio = window.devicePixelRatio || 1;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.scale(ratio, ratio);
+
+  const cssWidth = width / ratio;
+  const cssHeight = height / ratio;
+  const padding = { left: 56, right: 20, top: 18, bottom: 36 };
+  const plotW = cssWidth - padding.left - padding.right;
+  const plotH = cssHeight - padding.top - padding.bottom;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (plotH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + plotW, y);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= 5; i += 1) {
+    const x = padding.left + (plotW / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, padding.top + plotH);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + plotH);
+  ctx.lineTo(padding.left + plotW, padding.top + plotH);
+  ctx.stroke();
+
+  ctx.font = '12px "Pretendard Variable", "Pretendard", sans-serif';
+  ctx.fillStyle = 'rgba(243,248,255,0.7)';
+  ctx.textAlign = 'center';
+  ctx.fillText(params.mode === MODE.BASIC ? '거리 r (x 10^7 m)' : '고도 h (km, 로그 배치)', padding.left + plotW * 0.5, cssHeight - 10);
+  ctx.save();
+  ctx.translate(14, padding.top + plotH * 0.5);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(params.mode === MODE.BASIC ? '만유인력 F (N)' : '중력 가속도 g\' (m/s^2)', 0, 0);
+  ctx.restore();
+
+  if (params.mode === MODE.BASIC) {
+    drawInverseGraph(ctx, padding, plotW, plotH);
+  } else {
+    drawAltitudeGraph(ctx, padding, plotW, plotH);
+  }
+
+  if (!state.webglAvailable && dom.graphMessage.style.display !== 'block') {
+    dom.graphMessage.style.display = 'block';
+    dom.graphMessage.textContent = '이 환경에서는 WebGL을 사용할 수 없어 3D 장면 없이 그래프와 수식만 표시합니다.';
+  }
+
+  ctx.restore();
+}
+
+function drawInverseGraph(ctx, padding, plotW, plotH) {
+  const M = getMassM();
+  const m = getMassm();
+  const maxForce = G * M * m / ((1 * MODE1_DISTANCE_UNIT_M) ** 2);
+  const minForce = G * M * m / ((20 * MODE1_DISTANCE_UNIT_M) ** 2);
+
+  dom.graphTitle.textContent = 'F-r 그래프';
+  dom.graphSubtitle.textContent = '거리를 2배로 늘리면 힘은 1/4, 3배로 늘리면 1/9 로 감소합니다.';
+  dom.graphLegend.textContent = `현재 F = ${formatCompact(G * M * m / (getDistanceMeters() ** 2), 3)} N`;
+
+  if (!params.showInverseGraph) {
+    dom.graphMessage.style.display = 'block';
+    dom.graphMessage.textContent = '역제곱 그래프 표시가 꺼져 있습니다. 토글을 다시 켜면 1 / r^2 곡선을 볼 수 있습니다.';
+    return;
+  }
+  dom.graphMessage.style.display = 'none';
+
+  ctx.beginPath();
+  for (let i = 0; i <= 220; i += 1) {
+    const distance = 1 + (19 * i) / 220;
+    const force = G * M * m / ((distance * MODE1_DISTANCE_UNIT_M) ** 2);
+    const x = padding.left + (distance - 1) / 19 * plotW;
+    const y = padding.top + plotH - ((force - minForce) / (maxForce - minForce)) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  const gradient = ctx.createLinearGradient(padding.left, padding.top, padding.left + plotW, padding.top + plotH);
+  gradient.addColorStop(0, 'rgba(118, 198, 255, 0.95)');
+  gradient.addColorStop(1, 'rgba(118, 198, 255, 0.18)');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  for (let tick = 1; tick <= 20; tick += 3) {
+    const x = padding.left + (tick - 1) / 19 * plotW;
+    ctx.fillStyle = 'rgba(243,248,255,0.6)';
+    ctx.fillText(String(tick), x, padding.top + plotH + 18);
+  }
+
+  const currentForce = G * M * m / (getDistanceMeters() ** 2);
+  const currentX = padding.left + (params.distanceR - 1) / 19 * plotW;
+  const currentY = padding.top + plotH - ((currentForce - minForce) / (maxForce - minForce)) * plotH;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(currentX, currentY, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(currentX, padding.top + plotH);
+  ctx.lineTo(currentX, currentY);
+  ctx.moveTo(padding.left, currentY);
+  ctx.lineTo(currentX, currentY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawAltitudeGraph(ctx, padding, plotW, plotH) {
+  const gSurface = G * EARTH_MASS / (EARTH_RADIUS_M ** 2);
+  const { gPrime } = getAltitudePhysics();
+  dom.graphTitle.textContent = 'g-h 그래프';
+  dom.graphSubtitle.textContent = '고도가 높아질수록 g 는 감소하지만 0 이 되지 않습니다. ISS 에서도 중력은 여전히 큽니다.';
+  dom.graphLegend.textContent = `현재 g' = ${formatCompact(gPrime, 3)} m/s^2`;
+  dom.graphMessage.style.display = 'none';
+
+  ctx.beginPath();
+  for (let i = 0; i <= 260; i += 1) {
+    const altitude = (ALTITUDE_MAX_KM * i) / 260;
+    const radius = (EARTH_RADIUS_KM + altitude) * 1000;
+    const gValue = G * EARTH_MASS / (radius * radius);
+    const xNorm = getAltitudeGraphNorm(altitude);
+    const x = padding.left + xNorm * plotW;
+    const y = padding.top + plotH - (gValue / gSurface) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  const gradient = ctx.createLinearGradient(padding.left, padding.top, padding.left + plotW, padding.top + plotH);
+  gradient.addColorStop(0, 'rgba(255, 150, 150, 0.95)');
+  gradient.addColorStop(1, 'rgba(255, 150, 150, 0.18)');
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  [0, ISS_ALTITUDE_KM, GEO_ALTITUDE_KM, MOON_ALTITUDE_KM].forEach((altitude) => {
+    const xNorm = getAltitudeGraphNorm(altitude);
+    const radius = (EARTH_RADIUS_KM + altitude) * 1000;
+    const gValue = G * EARTH_MASS / (radius * radius);
+    const x = padding.left + xNorm * plotW;
+    const y = padding.top + plotH - (gValue / gSurface) * plotH;
+    ctx.fillStyle = altitude === params.altitudeKm ? '#ffffff' : 'rgba(255,255,255,0.72)';
+    ctx.beginPath();
+    ctx.arc(x, y, altitude === params.altitudeKm ? 5.5 : 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  const currentX = padding.left + getAltitudeGraphNorm(params.altitudeKm) * plotW;
+  const currentY = padding.top + plotH - (gPrime / gSurface) * plotH;
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(currentX, padding.top + plotH);
+  ctx.lineTo(currentX, currentY);
+  ctx.moveTo(padding.left, currentY);
+  ctx.lineTo(currentX, currentY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(243,248,255,0.64)';
+  ctx.textAlign = 'center';
+  [
+    { label: '0', altitude: 0 },
+    { label: 'ISS', altitude: ISS_ALTITUDE_KM },
+    { label: 'GEO', altitude: GEO_ALTITUDE_KM },
+    { label: 'Moon', altitude: MOON_ALTITUDE_KM },
+  ].forEach((tick) => {
+    const x = padding.left + getAltitudeGraphNorm(tick.altitude) * plotW;
+    ctx.fillText(tick.label, x, padding.top + plotH + 18);
+  });
+}
+
+function renderFormula() {
+  updatePresetButtons();
+  if (params.mode === MODE.BASIC) {
+    renderBasicFormula();
+  } else {
+    renderAltitudeFormula();
+  }
+}
+
+function renderBasicFormula() {
+  const M = getMassM();
+  const m = getMassm();
+  const rMeters = getDistanceMeters();
+  const force = G * M * m / (rMeters * rMeters);
+  const doubledForce = G * M * m / ((rMeters * 2) * (rMeters * 2));
+  const tripledForce = G * M * m / ((rMeters * 3) * (rMeters * 3));
+
+  dom.formulaContent.innerHTML = `
+    <div class="formula-row"><div class="formula-key">모드</div><div class="formula-value">${MODE.BASIC}</div></div>
+    <div class="formula-row"><div class="formula-key">질량 M</div><div class="formula-value">${formatScientific(M, 3)} kg</div></div>
+    <div class="formula-row"><div class="formula-key">질량 m</div><div class="formula-value">${formatCompact(m, 1)} kg</div></div>
+    <div class="formula-row"><div class="formula-key">거리 r</div><div class="formula-value">${params.distanceR.toFixed(1)} x 10^7 m (${formatScientific(rMeters, 3)} m)</div></div>
+    <div class="formula-row"><div class="formula-key">만유인력</div><div class="formula-value">${formatCompact(force, 4)} N</div></div>
+
+    <div class="formula-block formula-steps">F = G M m / r^2
+G = 6.674 x 10^-11 N m^2 / kg^2
+F = (6.674 x 10^-11 x ${formatScientific(M, 3)} x ${formatCompact(m, 1)}) / (${formatScientific(rMeters, 3)})^2
+  = ${formatCompact(force, 4)} N</div>
+
+    <div class="formula-block">
+      <div class="formula-row"><div class="formula-key">2r 비교</div><div class="formula-value">F(2r) = ${formatCompact(doubledForce, 4)} N = 현재의 1/4</div></div>
+      <div class="formula-row"><div class="formula-key">3r 비교</div><div class="formula-value">F(3r) = ${formatCompact(tripledForce, 4)} N = 현재의 1/9</div></div>
+    </div>
+
+    <div class="formula-note">작용-반작용: 큰 질량과 작은 질량이 받는 힘의 크기는 같고 방향만 반대입니다.${state.webglAvailable ? '' : ' 현재 환경에서는 3D 장면 대신 수식과 그래프로 내용을 확인하고 있습니다.'}</div>
+  `;
+}
+
+function renderAltitudeFormula() {
+  const { radiusM, gPrime, orbitalSpeed, period } = getAltitudePhysics();
+  const gSurface = G * EARTH_MASS / (EARTH_RADIUS_M ** 2);
+  const activeRow = findActivePresetKey();
+  const step = KEPLER_STEPS[state.kepler.stepIndex] ?? KEPLER_STEPS[0];
+
+  const referenceRows = Object.entries(ALTITUDE_PRESETS)
+    .map(([key, preset]) => {
+      const r = (EARTH_RADIUS_KM + preset.altitudeKm) * 1000;
+      const gValue = G * EARTH_MASS / (r * r);
+      return `
+        <tr class="${activeRow === key ? 'active-row' : ''}">
+          <td>${preset.label}</td>
+          <td>${preset.altitudeKm.toLocaleString('ko-KR')} km</td>
+          <td>${formatCompact(gValue, 3)} m/s^2</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  dom.formulaContent.innerHTML = `
+    <div class="formula-row"><div class="formula-key">모드</div><div class="formula-value">${MODE.ALTITUDE}</div></div>
+    <div class="formula-row"><div class="formula-key">지표면 g</div><div class="formula-value">${formatCompact(gSurface, 4)} m/s^2</div></div>
+    <div class="formula-row"><div class="formula-key">고도 h</div><div class="formula-value">${Math.round(params.altitudeKm).toLocaleString('ko-KR')} km</div></div>
+    <div class="formula-row"><div class="formula-key">현재 g'</div><div class="formula-value">${formatCompact(gPrime, 4)} m/s^2</div></div>
+    <div class="formula-row"><div class="formula-key">궤도 속도</div><div class="formula-value">${formatCompact(orbitalSpeed / 1000, 4)} km/s</div></div>
+    <div class="formula-row"><div class="formula-key">궤도 주기</div><div class="formula-value">${formatDuration(period)}</div></div>
+
+    <div class="formula-block formula-steps">g' = G M / (R + h)^2
+   = (6.674 x 10^-11 x ${formatScientific(EARTH_MASS, 3)}) / (${formatScientific(radiusM, 3)})^2
+   = ${formatCompact(gPrime, 4)} m/s^2
+
+T = 2 pi sqrt(r^3 / G M)
+  = ${formatDuration(period)}</div>
+
+    <table class="formula-table">
+      <thead>
+        <tr><th>위치</th><th>고도 h</th><th>g' 값</th></tr>
+      </thead>
+      <tbody>
+        <tr class="${params.altitudeKm < 80 ? 'active-row' : ''}">
+          <td>지표면</td>
+          <td>0 km</td>
+          <td>${formatCompact(gSurface, 3)} m/s^2</td>
+        </tr>
+        ${referenceRows}
+      </tbody>
+    </table>
+
+    <div class="formula-block">
+      <div style="font-weight:800; margin-bottom:6px;">케플러 유도</div>
+      <div class="formula-steps">${step.formula}</div>
+      <div style="margin-top:8px; color: var(--text-sub);">${step.note}</div>
+    </div>
+
+    <div class="formula-note">무중력은 중력이 0 이라는 뜻이 아니라, 우주정거장과 내부 물체가 함께 자유 낙하하고 있기 때문에 생기는 미세중력 상태입니다.${state.webglAvailable ? '' : ' 현재 환경에서는 3D 장면 없이도 값 비교와 케플러 유도를 확인할 수 있습니다.'}</div>
+  `;
+}
+
+function updateInsightPillBasic(force) {
+  const forceHalfDistance = force * 4;
+  dom.insightPill.textContent = `현재 거리에서 F = ${formatCompact(force, 4)} N 입니다. 거리를 절반으로 줄이면 힘은 약 ${formatCompact(forceHalfDistance, 4)} N 으로 4배 커집니다.`;
+}
+
+function updateInsightPillAltitude(gPrime) {
+  const closest = findActivePresetKey();
+  if (closest === 'iss') {
+    dom.insightPill.textContent = `ISS 고도에서도 g' = ${formatCompact(gPrime, 3)} m/s^2 입니다. 무중력처럼 느끼는 이유는 중력이 없어서가 아니라 계속 지구를 향해 자유 낙하하기 때문입니다.`;
+    return;
+  }
+  if (closest === 'geo') {
+    dom.insightPill.textContent = `정지 궤도에서는 g' 가 지표면보다 크게 줄어들지만 0 은 아닙니다. 궤도 반지름이 커질수록 주기는 길어지고 케플러 제3법칙이 더 분명하게 보입니다.`;
+    return;
+  }
+  if (closest === 'moon') {
+    dom.insightPill.textContent = `달 거리까지 올라가면 지구의 g' 는 매우 작아집니다. 그래도 만유인력은 완전히 사라지지 않으며, 거리의 제곱에 반비례해 약해질 뿐입니다.`;
+    return;
+  }
+  dom.insightPill.textContent = `고도 ${Math.round(params.altitudeKm).toLocaleString('ko-KR')} km 에서 g' = ${formatCompact(gPrime, 3)} m/s^2 입니다. 높이가 커질수록 중력 화살표가 짧아지고, 궤도 주기는 길어집니다.`;
+}
+
+function findActivePresetKey() {
+  const entries = Object.entries(ALTITUDE_PRESETS);
+  const match = entries.find(([, preset]) => Math.abs(preset.altitudeKm - params.altitudeKm) < Math.max(240, preset.altitudeKm * 0.03));
+  return match?.[0] ?? '';
+}
+
+function resizeGraphCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  dom.graphCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
+  dom.graphCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
+}
+
+function getAltitudeGraphNorm(altitudeKm) {
+  if (altitudeKm <= 0) return 0;
+  return Math.log10(altitudeKm + 1) / Math.log10(ALTITUDE_MAX_KM + 1);
+}
+
+function formatScientific(value, digits = 3) {
+  if (!Number.isFinite(value) || value === 0) return '0';
+  const exponent = Math.floor(Math.log10(Math.abs(value)));
+  const mantissa = value / (10 ** exponent);
+  return `${mantissa.toFixed(Math.max(0, digits - 1))} x 10^${exponent}`;
+}
+
+function formatCompact(value, digits = 2) {
+  if (!Number.isFinite(value)) return '-';
+  const abs = Math.abs(value);
+  if ((abs >= 1e5 || (abs > 0 && abs < 0.01)) && abs !== 0) {
+    return formatScientific(value, 3);
+  }
+  return value.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: abs < 10 && abs !== 0 ? Math.min(2, digits) : 0,
+  });
+}
+
+function formatDuration(seconds) {
+  if (seconds < 3600) {
+    return `${formatCompact(seconds / 60, 2)} min`;
+  }
+  if (seconds < 172800) {
+    return `${formatCompact(seconds / 3600, 2)} h`;
+  }
+  return `${formatCompact(seconds / 86400, 2)} d`;
+}
+
+function updatePresetButtons() {
+  const activeKey = findActivePresetKey();
+  dom.presetStrip.querySelectorAll('.preset-btn').forEach((button) => {
+    button.classList.toggle('active', button.dataset.preset === activeKey);
+  });
+}
+
+function disposeObject3D(object) {
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        ['map', 'alphaMap', 'emissiveMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap'].forEach((key) => {
+          if (material[key]) material[key].dispose();
+        });
+        material.dispose();
+      });
+    }
+  });
+}
+
+function disposeSprite(sprite) {
+  if (sprite.material?.map) sprite.material.map.dispose();
+  if (sprite.material) sprite.material.dispose();
+}
+</script>
+</body>
+</html>

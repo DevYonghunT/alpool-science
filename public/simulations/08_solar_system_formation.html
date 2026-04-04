@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>태양계 형성 과정 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: 'Pretendard', sans-serif; background: #000008; color: #fff; }
+  canvas { display: block; }
+
+  #stage-info { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 15; pointer-events: none; }
+  #stage-name { font-size: 20px; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+  #stage-detail { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 3px; }
+
+  /* 수식 패널 */
+  #formula-panel {
+    position: fixed; left: 12px; bottom: 12px; width: 310px;
+    background: rgba(10,10,30,0.92); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    padding: 14px 16px; z-index: 20; font-size: 11px; line-height: 1.7;
+  }
+  #formula-panel h3 { font-size: 13px; margin-bottom: 8px; color: #ffcf7e; }
+  #formula-panel .row { display: flex; margin-bottom: 2px; }
+  #formula-panel .row .label { width: 85px; flex-shrink: 0; color: rgba(255,255,255,0.5); font-size: 10px; }
+  #formula-panel .row .value { flex: 1; font-size: 11px; }
+  .formula-info { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 9px; color: rgba(255,255,255,0.5); line-height: 1.5; }
+
+  /* 학습 가이드 */
+  #guide-toggle { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); background: rgba(15,15,30,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 4px 12px; color: #fff; font-size: 11px; font-family: 'Pretendard', sans-serif; cursor: pointer; z-index: 35; }
+  #guide-panel { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); width: 440px; max-height: 55vh; overflow-y: auto; background: rgba(10,10,30,0.95); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; z-index: 34; font-size: 12px; line-height: 1.8; display: none; }
+  #guide-panel h3 { font-size: 14px; margin-bottom: 8px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 12px; margin-top: 10px; margin-bottom: 4px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 16px; }
+  #guide-panel li { margin-bottom: 3px; }
+  .textbook-ref { margin-top: 10px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 10px; color: rgba(255,255,255,0.5); }
+
+  @media (max-width: 768px) {
+    #formula-panel { width: 230px; font-size: 10px; }
+    #guide-panel { width: calc(100vw - 40px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage-info">
+  <div id="stage-name">태양계 성운의 수축</div>
+  <div id="stage-detail">성운이 회전하며 수축</div>
+</div>
+
+<div id="formula-panel">
+  <h3>☀️ 태양계 형성 과정</h3>
+  <div class="row"><span class="label">현재 단계:</span><span class="value" id="fp-stage">성운 수축</span></div>
+  <div class="row"><span class="label">경과 시간:</span><span class="value" id="fp-time">약 50억 년 전</span></div>
+  <div class="row"><span class="label">태양 나이:</span><span class="value">약 50억 년</span></div>
+  <div class="formula-info">
+    <strong style="color:#ffcf7e;">태양계 구분:</strong><br>
+    지구형 행성: 수성, 금성, 지구, 화성<br>
+    &nbsp;&nbsp;→ 암석 + 금속, 작고 밀도 높음<br>
+    목성형 행성: 목성, 토성, 천왕성, 해왕성<br>
+    &nbsp;&nbsp;→ 수소 + 헬륨(기체), 크고 밀도 낮음<br><br>
+    <strong style="color:#ffcf7e;">형성 원리:</strong><br>
+    태양 가까이 → 고온 → 기체 날아감 → 암석+금속<br>
+    태양 멀리 → 저온 → 기체 유지 → 거대 기체 행성
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>약 50억 년 전 태양계 성운이 수축하여 태양과 행성들이 형성되었습니다. 태양 가까이에는 고온으로 기체가 날아가 암석 행성이, 멀리에는 저온으로 기체가 남아 거대 기체 행성이 만들어졌습니다.</p>
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>태양계 성운이 회전하면서 수축할 때 왜 납작한 원반 모양이 되었을까요?</li>
+    <li>태양에서 가까운 곳에 지구형 행성이, 먼 곳에 목성형 행성이 형성된 까닭은 무엇인가요?</li>
+    <li>미행성체가 충돌하여 행성이 된다면, 현재도 소행성 충돌이 일어날 수 있을까요?</li>
+  </ul>
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>NASA 태양계 탐사</strong>: 보이저, 뉴 허라이즌스</li>
+    <li><strong>소행성 방어</strong>: DART 미션</li>
+    <li><strong>외계 행성 탐색</strong>: 케플러, TESS 우주 망원경</li>
+  </ul>
+  <div class="textbook-ref">📚 교과서 참고: 미래엔 통합과학1 II편 p57 — 태양계의 형성 과정 (그림 II-12)</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 행성 데이터 ───
+const PLANETS = [
+  { name: '수성', orbit: 2.0, r: 0.08, color: 0x999999, type: '지구형' },
+  { name: '금성', orbit: 2.8, r: 0.15, color: 0xddaa66, type: '지구형' },
+  { name: '지구', orbit: 3.5, r: 0.16, color: 0x2266aa, type: '지구형' },
+  { name: '화성', orbit: 4.2, r: 0.10, color: 0xcc4422, type: '지구형' },
+  { name: '목성', orbit: 6.5, r: 0.60, color: 0xdd9944, type: '목성형' },
+  { name: '토성', orbit: 8.0, r: 0.50, color: 0xccaa77, type: '목성형' },
+  { name: '천왕성', orbit: 9.5, r: 0.30, color: 0x88ccdd, type: '목성형' },
+  { name: '해왕성', orbit: 11.0, r: 0.28, color: 0x3355aa, type: '목성형' }
+];
+
+const STAGES = [
+  { name: '태양계 성운의 수축', detail: '성운이 회전하며 수축', time: '약 50억 년 전' },
+  { name: '원시 태양 형성', detail: '중심에 원시 태양 + 원시 원반', time: '약 49억 년 전' },
+  { name: '미행성체 형성', detail: '원반에서 암석 덩어리 응집', time: '약 48억 년 전' },
+  { name: '충돌과 행성 형성', detail: '미행성체 충돌 → 원시 행성', time: '약 46억 년 전' },
+  { name: '현재의 태양계', detail: '8개 행성 공전', time: '현재' }
+];
+
+// ─── Three.js 초기화 ───
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000008);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 300);
+camera.position.set(0, 12, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0, 0);
+
+// 조명
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+scene.add(ambientLight);
+const centerLight = new THREE.PointLight(0xffcc88, 0.5, 40);
+scene.add(centerLight);
+
+// 배경 별
+const bgStarCount = 1500;
+const bgStarPos = new Float32Array(bgStarCount * 3);
+for (let i = 0; i < bgStarCount; i++) {
+  bgStarPos[i*3] = (Math.random()-0.5)*150;
+  bgStarPos[i*3+1] = (Math.random()-0.5)*150;
+  bgStarPos[i*3+2] = (Math.random()-0.5)*150;
+}
+const bgStarGeo = new THREE.BufferGeometry();
+bgStarGeo.setAttribute('position', new THREE.BufferAttribute(bgStarPos, 3));
+scene.add(new THREE.Points(bgStarGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.5 })));
+
+// ─── 상태 ───
+const state = {
+  stage: 0,
+  orbitSpeed: 1,
+  showNames: true,
+  showOrbits: true,
+  autoPlaying: false,
+  autoProgress: 0,
+  stageElapsed: 0,
+  sceneObjects: [],
+  animCallbacks: [],
+  planetMeshes: [],
+  nameSprites: [],
+  orbitLines: [],
+  clock: new THREE.Clock()
+};
+
+// DOM
+const stageNameEl = document.getElementById('stage-name');
+const stageDetailEl = document.getElementById('stage-detail');
+const fpStage = document.getElementById('fp-stage');
+const fpTime = document.getElementById('fp-time');
+
+let guideOpen = false;
+document.getElementById('guide-toggle').addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  document.getElementById('guide-panel').style.display = guideOpen ? 'block' : 'none';
+});
+
+// ─── 헬퍼 ───
+function createLabel(text, scale, color) {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  c.width = 256; c.height = 64;
+  ctx.font = 'bold 22px Pretendard, sans-serif';
+  ctx.fillStyle = color || '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 6;
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sprite.scale.set(scale * 3, scale * 0.8, 1);
+  return sprite;
+}
+
+function disposeStage() {
+  state.animCallbacks = [];
+  state.planetMeshes = [];
+  state.nameSprites = [];
+  state.orbitLines = [];
+  state.sceneObjects.forEach(obj => {
+    obj.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    });
+    scene.remove(obj);
+  });
+  state.sceneObjects = [];
+}
+
+// ═══════════════════════════════════════
+//  단계 0: 성운 수축
+// ═══════════════════════════════════════
+function setupStage0() {
+  const group = new THREE.Group();
+  centerLight.intensity = 0.3;
+
+  const nebCount = 2000;
+  const nebPos = new Float32Array(nebCount * 3);
+  const nebColors = new Float32Array(nebCount * 3);
+  const nebStartPos = new Float32Array(nebCount * 3);
+  const colorPool = [[0.27,0.33,0.67], [0.4,0.27,0.67], [0.13,0.27,0.4]];
+
+  for (let i = 0; i < nebCount; i++) {
+    const r = 5 + Math.random() * 15;
+    const th = Math.random()*Math.PI*2;
+    const ph = Math.acos(2*Math.random()-1);
+    nebPos[i*3] = Math.sin(ph)*Math.cos(th)*r;
+    nebPos[i*3+1] = Math.sin(ph)*Math.sin(th)*r;
+    nebPos[i*3+2] = Math.cos(ph)*r;
+    nebStartPos[i*3]=nebPos[i*3]; nebStartPos[i*3+1]=nebPos[i*3+1]; nebStartPos[i*3+2]=nebPos[i*3+2];
+    const c = colorPool[Math.floor(Math.random()*3)];
+    nebColors[i*3]=c[0]; nebColors[i*3+1]=c[1]; nebColors[i*3+2]=c[2];
+  }
+  const nebGeo = new THREE.BufferGeometry();
+  nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+  nebGeo.setAttribute('color', new THREE.BufferAttribute(nebColors, 3));
+  const nebMat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0.7 });
+  const nebPoints = new THREE.Points(nebGeo, nebMat);
+  group.add(nebPoints);
+
+  // 반투명 구름
+  for (let i = 0; i < 3; i++) {
+    const cloud = new THREE.Mesh(
+      new THREE.SphereGeometry(12 + i * 2, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x4455aa, transparent: true, opacity: 0.03, side: THREE.DoubleSide })
+    );
+    group.add(cloud);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    const t = Math.min(state.stageElapsed / 5, 1); // 5초 수축
+    const positions = nebGeo.attributes.position.array;
+    const rotSpeed = t * 0.3;
+    const shrink = 1 - t * 0.47; // 15→8
+    const flatten = t; // Y축 압축
+
+    for (let i = 0; i < nebCount; i++) {
+      const sx = nebStartPos[i*3] * shrink;
+      const sy = nebStartPos[i*3+1] * shrink * (1 - flatten * 0.8); // 납작해짐
+      const sz = nebStartPos[i*3+2] * shrink;
+      // 회전
+      const angle = rotSpeed * state.stageElapsed;
+      positions[i*3] = sx * Math.cos(angle) - sz * Math.sin(angle);
+      positions[i*3+1] = sy;
+      positions[i*3+2] = sx * Math.sin(angle) + sz * Math.cos(angle);
+    }
+    nebGeo.attributes.position.needsUpdate = true;
+    centerLight.intensity = 0.3 + t * 2.7;
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 1: 원시 태양 + 원반
+// ═══════════════════════════════════════
+function setupStage1() {
+  const group = new THREE.Group();
+  centerLight.intensity = 3.0;
+
+  // 원시 태양
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1.5, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff8800, emissive: 0xff6600, emissiveIntensity: 0.8 })
+  );
+  group.add(sun);
+
+  // 원시 원반
+  const disk = new THREE.Mesh(
+    new THREE.RingGeometry(2, 12, 128),
+    new THREE.MeshStandardMaterial({ color: 0x997744, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+  );
+  disk.rotation.x = -Math.PI / 2;
+  group.add(disk);
+
+  // 먼지 파티클
+  const dustCount = 500;
+  const dustPos = new Float32Array(dustCount * 3);
+  const dustAngles = new Float32Array(dustCount);
+  const dustRadii = new Float32Array(dustCount);
+  for (let i = 0; i < dustCount; i++) {
+    dustRadii[i] = 2 + Math.random() * 10;
+    dustAngles[i] = Math.random() * Math.PI * 2;
+    dustPos[i*3] = Math.cos(dustAngles[i]) * dustRadii[i];
+    dustPos[i*3+1] = (Math.random()-0.5) * 0.5;
+    dustPos[i*3+2] = Math.sin(dustAngles[i]) * dustRadii[i];
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dustMat = new THREE.PointsMaterial({ color: 0xbbaa88, size: 0.08, transparent: true, opacity: 0.5 });
+  group.add(new THREE.Points(dustGeo, dustMat));
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    const positions = dustGeo.attributes.position.array;
+    for (let i = 0; i < dustCount; i++) {
+      dustAngles[i] += dt * 0.3 / Math.sqrt(dustRadii[i]);
+      positions[i*3] = Math.cos(dustAngles[i]) * dustRadii[i];
+      positions[i*3+2] = Math.sin(dustAngles[i]) * dustRadii[i];
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+    sun.rotation.y += dt * 0.2;
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 2: 미행성체 형성
+// ═══════════════════════════════════════
+function setupStage2() {
+  const group = new THREE.Group();
+  centerLight.intensity = 2.5;
+
+  // 태양
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1.3, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff8800, emissive: 0xff6600, emissiveIntensity: 0.8 })
+  );
+  group.add(sun);
+
+  // 원반
+  const disk = new THREE.Mesh(
+    new THREE.RingGeometry(2, 12, 128),
+    new THREE.MeshStandardMaterial({ color: 0x887766, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+  );
+  disk.rotation.x = -Math.PI / 2;
+  group.add(disk);
+
+  // 미행성체 50개
+  const planetesimals = [];
+  for (let i = 0; i < 50; i++) {
+    const r = 0.1 + Math.random() * 0.2;
+    const orbitR = 2 + Math.random() * 10;
+    const isRock = Math.random() > 0.5;
+    const mesh = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(r, 1),
+      new THREE.MeshStandardMaterial({ color: isRock ? 0x887766 : 0xaaaaaa, roughness: 0.8 })
+    );
+    const angle = Math.random() * Math.PI * 2;
+    mesh.position.set(Math.cos(angle) * orbitR, (Math.random()-0.5)*0.3, Math.sin(angle) * orbitR);
+    mesh.userData = { angle, orbitR, speed: 0.2 / Math.sqrt(orbitR) };
+    group.add(mesh);
+    planetesimals.push(mesh);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    planetesimals.forEach(p => {
+      p.userData.angle += dt * p.userData.speed * state.orbitSpeed;
+      p.position.x = Math.cos(p.userData.angle) * p.userData.orbitR;
+      p.position.z = Math.sin(p.userData.angle) * p.userData.orbitR;
+      p.rotation.x += dt * 0.5;
+      p.rotation.y += dt * 0.3;
+    });
+    sun.rotation.y += dt * 0.2;
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 3: 충돌과 행성 형성
+// ═══════════════════════════════════════
+function setupStage3() {
+  const group = new THREE.Group();
+  centerLight.intensity = 2.0;
+
+  // 태양
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1.2, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff8800, emissiveIntensity: 0.9 })
+  );
+  group.add(sun);
+
+  // 8개 원시 행성
+  PLANETS.forEach((p, i) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(p.r * 0.7, 16, 16),
+      new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.6, metalness: 0.2 })
+    );
+    const angle = Math.random() * Math.PI * 2;
+    mesh.position.set(Math.cos(angle) * p.orbit, 0, Math.sin(angle) * p.orbit);
+    mesh.userData = { angle, orbit: p.orbit, speed: 0.15 / Math.sqrt(p.orbit) };
+    group.add(mesh);
+
+    // 유형 라벨
+    const label = createLabel(p.type, 0.22, p.type === '지구형' ? '#ffaa66' : '#66aaff');
+    label.position.set(mesh.position.x, 0.5, mesh.position.z);
+    label.userData = { orbit: p.orbit, mesh };
+    group.add(label);
+    state.nameSprites.push(label);
+  });
+
+  // 구분선 (화성-목성 사이)
+  const dividerGeo = new THREE.RingGeometry(5.3, 5.35, 64);
+  const divider = new THREE.Mesh(dividerGeo, new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
+  divider.rotation.x = -Math.PI / 2;
+  group.add(divider);
+  const divLabel = createLabel('← 지구형 행성 | 목성형 행성 →', 0.3, '#ffcc88');
+  divLabel.position.set(0, 1.5, 5.3);
+  group.add(divLabel);
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    group.children.forEach(child => {
+      if (child.userData && child.userData.speed) {
+        child.userData.angle += dt * child.userData.speed * state.orbitSpeed;
+        child.position.x = Math.cos(child.userData.angle) * child.userData.orbit;
+        child.position.z = Math.sin(child.userData.angle) * child.userData.orbit;
+      }
+    });
+    // 라벨 위치 동기화
+    state.nameSprites.forEach(sprite => {
+      if (sprite.userData.mesh) {
+        sprite.position.x = sprite.userData.mesh.position.x;
+        sprite.position.z = sprite.userData.mesh.position.z;
+      }
+    });
+    sun.rotation.y += dt * 0.2;
+  });
+}
+
+// ═══════════════════════════════════════
+//  단계 4: 현재의 태양계
+// ═══════════════════════════════════════
+function setupStage4() {
+  const group = new THREE.Group();
+  centerLight.intensity = 3.0;
+  centerLight.color.set(0xffcc88);
+
+  // 태양
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1.2, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0xffaa00, emissiveIntensity: 1.0 })
+  );
+  group.add(sun);
+
+  // 코로나
+  const corona = new THREE.Mesh(
+    new THREE.SphereGeometry(1.5, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+  );
+  group.add(corona);
+
+  // 행성 + 궤도 + 이름
+  PLANETS.forEach((p, i) => {
+    // 궤도선
+    const orbitGeo = new THREE.RingGeometry(p.orbit - 0.02, p.orbit + 0.02, 128);
+    const orbitMesh = new THREE.Mesh(orbitGeo, new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.3, side: THREE.DoubleSide }));
+    orbitMesh.rotation.x = -Math.PI / 2;
+    group.add(orbitMesh);
+    state.orbitLines.push(orbitMesh);
+
+    // 행성
+    const pMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(p.r, 16, 16),
+      new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.5, metalness: 0.2 })
+    );
+    const startAngle = (i / 8) * Math.PI * 2;
+    pMesh.position.set(Math.cos(startAngle) * p.orbit, 0, Math.sin(startAngle) * p.orbit);
+    pMesh.userData = { angle: startAngle, orbit: p.orbit, speed: 0.15 / Math.sqrt(p.orbit) };
+    group.add(pMesh);
+    state.planetMeshes.push(pMesh);
+
+    // 토성 고리
+    if (p.name === '토성') {
+      const ringGeo = new THREE.RingGeometry(0.65, 0.95, 64);
+      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xddcc99, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2.5;
+      pMesh.add(ring);
+    }
+
+    // 이름 라벨
+    const nameSprite = createLabel(p.name, 0.2, '#cccccc');
+    nameSprite.position.set(pMesh.position.x, p.r + 0.3, pMesh.position.z);
+    nameSprite.userData = { planetMesh: pMesh, offset: p.r + 0.3 };
+    group.add(nameSprite);
+    state.nameSprites.push(nameSprite);
+  });
+
+  // 구분선 (화성-목성 사이)
+  const dividerGeo = new THREE.RingGeometry(5.3, 5.35, 128);
+  const divider = new THREE.Mesh(dividerGeo, new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.2, side: THREE.DoubleSide }));
+  divider.rotation.x = -Math.PI / 2;
+  group.add(divider);
+  const divLabel = createLabel('← 지구형 행성 | 목성형 행성 →', 0.3, '#ffcc88');
+  divLabel.position.set(0, 1.5, 5.3);
+  group.add(divLabel);
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  state.animCallbacks.push((dt) => {
+    // 행성 공전
+    state.planetMeshes.forEach(pMesh => {
+      pMesh.userData.angle += dt * pMesh.userData.speed * state.orbitSpeed;
+      pMesh.position.x = Math.cos(pMesh.userData.angle) * pMesh.userData.orbit;
+      pMesh.position.z = Math.sin(pMesh.userData.angle) * pMesh.userData.orbit;
+      pMesh.rotation.y += dt * 0.5;
+    });
+    // 이름 라벨 동기화
+    state.nameSprites.forEach(sprite => {
+      if (sprite.userData.planetMesh) {
+        sprite.position.x = sprite.userData.planetMesh.position.x;
+        sprite.position.z = sprite.userData.planetMesh.position.z;
+        sprite.position.y = sprite.userData.offset;
+        sprite.visible = state.showNames;
+      }
+    });
+    // 궤도선 표시
+    state.orbitLines.forEach(o => { o.visible = state.showOrbits; });
+    sun.rotation.y += dt * 0.1;
+  });
+}
+
+// ─── 단계 전환 ───
+function switchStage(index) {
+  disposeStage();
+  state.stage = index;
+  state.stageElapsed = 0;
+  centerLight.color.set(0xffcc88);
+
+  switch (index) {
+    case 0: setupStage0(); break;
+    case 1: setupStage1(); break;
+    case 2: setupStage2(); break;
+    case 3: setupStage3(); break;
+    case 4: setupStage4(); break;
+  }
+  updateUI();
+}
+
+function updateUI() {
+  const s = STAGES[state.stage];
+  stageNameEl.textContent = s.name;
+  stageDetailEl.textContent = s.detail;
+  fpStage.textContent = s.name;
+  fpTime.textContent = s.time;
+}
+
+// ─── lil-gui ───
+const gui = new GUI({ title: '태양계 형성' });
+
+const STAGE_LABELS = { 0: '성운 수축', 1: '원시 태양+원반', 2: '미행성체 형성', 3: '충돌+행성 형성', 4: '현재 태양계' };
+const VIEW_LABELS = { top: '위에서 보기', side: '옆에서 보기', earth: '지구 시점' };
+
+const params = {
+  형성단계: 0,
+  자동재생: () => startAutoPlay(),
+  공전속도: 1,
+  행성이름: true,
+  궤도표시: true,
+  시점: 'top',
+  초기화: () => resetAll()
+};
+
+gui.add(params, '형성단계', STAGE_LABELS).name('형성 단계').onChange(val => {
+  switchStage(parseInt(val));
+});
+
+gui.add(params, '자동재생').name('▶ 자동 재생');
+
+gui.add(params, '공전속도', 0, 10, 0.5).name('공전 속도').onChange(val => {
+  state.orbitSpeed = val;
+});
+
+gui.add(params, '행성이름').name('행성 이름 표시').onChange(val => { state.showNames = val; });
+gui.add(params, '궤도표시').name('궤도 표시').onChange(val => { state.showOrbits = val; });
+
+gui.add(params, '시점', VIEW_LABELS).name('시점').onChange(val => {
+  if (val === 'top') { camera.position.set(0, 18, 5); controls.target.set(0, 0, 0); }
+  else if (val === 'side') { camera.position.set(0, 2, 18); controls.target.set(0, 0, 0); }
+  else { camera.position.set(3.5, 1, 2); controls.target.set(0, 0, 0); }
+});
+
+gui.add(params, '초기화').name('↩ 초기화');
+
+if (window.innerWidth < 768) gui.close();
+
+function startAutoPlay() {
+  state.autoPlaying = true;
+  state.autoProgress = 0;
+  switchStage(0);
+}
+
+function updateAutoPlay(dt) {
+  if (!state.autoPlaying) return;
+  state.autoProgress += dt;
+  const stageLen = 6;
+  const target = Math.floor(state.autoProgress / stageLen);
+  if (target !== state.stage && target <= 4) {
+    params.형성단계 = target;
+    switchStage(target);
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
+  if (target > 4) state.autoPlaying = false;
+}
+
+function resetAll() {
+  state.autoPlaying = false;
+  state.orbitSpeed = 1;
+  state.showNames = true;
+  state.showOrbits = true;
+  params.형성단계 = 0;
+  params.공전속도 = 1;
+  params.행성이름 = true;
+  params.궤도표시 = true;
+  params.시점 = 'top';
+  camera.position.set(0, 12, 15);
+  controls.target.set(0, 0, 0);
+  switchStage(0);
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 애니메이션 루프 ───
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(state.clock.getDelta(), 0.1);
+  state.stageElapsed += dt;
+  updateAutoPlay(dt);
+  state.animCallbacks.forEach(fn => fn(dt));
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─── 리사이즈 ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (window.innerWidth < 768) gui.close();
+});
+
+// ─── 시작 ───
+switchStage(0);
+animate();
+
+</script>
+</body>
+</html>

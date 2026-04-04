@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>미시에서 거시까지 — 스케일 비교 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  /* 전체 레이아웃 — 풀스크린 캔버스 */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #000;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas { display: block; }
+
+  /* 오브젝트 라벨 — 캔버스 위에 떠다님 */
+  #object-label {
+    position: fixed;
+    left: 50%; top: 18%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+    transition: opacity 0.4s;
+  }
+  #object-label .name {
+    font-size: 28px;
+    font-weight: 700;
+    text-shadow: 0 0 20px rgba(0,0,0,0.8);
+    letter-spacing: 1px;
+  }
+  #object-label .size {
+    font-size: 16px;
+    margin-top: 6px;
+    opacity: 0.8;
+    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+  }
+
+  /* 좌측 로그 스케일바 */
+  #scale-bar {
+    position: fixed;
+    left: 24px; top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 70vh;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #scale-bar .track {
+    position: absolute;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+    width: 3px; height: 100%;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+  }
+  #scale-bar .marker {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #00ccff;
+    box-shadow: 0 0 12px #00ccff;
+    transition: top 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+  #scale-bar .tick {
+    position: absolute;
+    left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    transform: translateY(-50%);
+    font-size: 9px;
+    opacity: 0.45;
+    transition: opacity 0.3s;
+  }
+  #scale-bar .tick.active { opacity: 1; font-weight: 700; }
+  #scale-bar .tick .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    margin-left: 15px;
+    flex-shrink: 0;
+  }
+  #scale-bar .tick.active .dot { background: #00ccff; }
+  #scale-bar .tick .tick-label {
+    margin-left: 6px;
+    font-size: 8px;
+    white-space: nowrap;
+    color: rgba(255,255,255,0.5);
+  }
+  #scale-bar .tick.active .tick-label { color: #00ccff; }
+  #scale-bar .world-label {
+    position: absolute;
+    left: -8px;
+    font-size: 10px;
+    font-weight: 600;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 2px;
+    opacity: 0.6;
+  }
+
+  /* 하단 정보 패널 */
+  #info-panel {
+    position: fixed;
+    left: 24px; bottom: 24px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 18px 24px;
+    min-width: 280px;
+    z-index: 10;
+    transition: opacity 0.4s;
+  }
+  #info-panel .row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+  #info-panel .row:last-child { margin-bottom: 0; }
+  #info-panel .label { opacity: 0.5; }
+  #info-panel .value { font-weight: 600; }
+
+  /* 학습 가이드 토글 */
+  #guide-btn {
+    position: fixed;
+    top: 18px; right: 18px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  #guide-btn:hover { background: rgba(255,255,255,0.15); }
+  #guide-panel {
+    position: fixed;
+    top: 70px; right: 18px;
+    width: 320px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 20px;
+    z-index: 20;
+    font-size: 14px;
+    line-height: 1.7;
+    display: none;
+  }
+  #guide-panel.open { display: block; }
+  #guide-panel h3 { margin-bottom: 12px; font-size: 17px; }
+  #guide-panel p { margin-bottom: 10px; opacity: 0.85; }
+
+  /* 클릭 디테일 팝업 */
+  #detail-popup {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 28px 32px;
+    min-width: 300px;
+    max-width: 420px;
+    z-index: 30;
+    display: none;
+    text-align: center;
+  }
+  #detail-popup h2 { margin-bottom: 10px; font-size: 22px; }
+  #detail-popup p { font-size: 14px; line-height: 1.7; opacity: 0.85; margin-bottom: 8px; }
+  #detail-popup .close-btn {
+    margin-top: 14px;
+    padding: 8px 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  #detail-popup .close-btn:hover { background: rgba(255,255,255,0.1); }
+
+  /* 스케일 전환 키보드 힌트 */
+  #controls-hint {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    font-size: 12px;
+    opacity: 0.35;
+    z-index: 10;
+    text-align: right;
+    line-height: 1.8;
+    pointer-events: none;
+  }
+
+  /* lil-gui 위치 보정 */
+  .lil-gui { z-index: 15 !important; }
+</style>
+</head>
+<body>
+
+<!-- UI 오버레이 -->
+<div id="object-label">
+  <div class="name"></div>
+  <div class="size"></div>
+</div>
+
+<div id="scale-bar">
+  <div class="track"></div>
+  <div class="marker"></div>
+</div>
+
+<div id="info-panel">
+  <div class="row"><span class="label">스케일</span><span class="value" id="ip-scale"></span></div>
+  <div class="row"><span class="label">오브젝트</span><span class="value" id="ip-object"></span></div>
+  <div class="row"><span class="label">크기</span><span class="value" id="ip-size"></span></div>
+  <div class="row"><span class="label">비교</span><span class="value" id="ip-compare"></span></div>
+</div>
+
+<button id="guide-btn" aria-label="학습 가이드 열기">?</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <p>이 시뮬레이션은 양성자(10<sup>-15</sup>m)부터 관측 가능한 우주(10<sup>26</sup>m)까지,
+  <strong>41개 자릿수</strong>를 넘나드는 스케일 여행입니다.</p>
+  <p><strong>조작법:</strong><br>
+  마우스 휠 — 스케일 이동<br>
+  드래그 — 3D 회전<br>
+  오브젝트 클릭 — 상세 정보<br>
+  상단 슬라이더 — 직접 스케일 선택</p>
+  <p><strong>핵심 개념:</strong> 자연 세계는 원자 수준의 아주 작은 미시 세계와 그보다 훨씬 큰 거시 세계로 구분할 수 있습니다. 물체의 크기에 따라 관찰과 측정 방법이 달라집니다.</p>
+  <p><strong>탐구 질문:</strong></p>
+  <p style="padding-left:8px; font-size:13px;">
+    1. 이 시뮬레이션에서 크기가 가장 작은 물체와 가장 큰 물체는 무엇인가요?<br>
+    2. 적혈구(약 7μm)에서 지구(반지름 6,400km)까지 크기는 약 몇 배 차이가 나나요?<br>
+    3. 미시 세계의 물체를 관찰하려면 어떤 도구가 필요할까요?
+  </p>
+  <p><strong>실생활 예시:</strong> 전자 현미경(미시 세계 관찰), 천체 망원경(거시 세계 관측), 레이저 거리 측정기(정밀 측정)</p>
+  <p style="opacity:0.7; font-size:12px;"><strong>교과서 연계:</strong> 미래엔 통합과학1 I편 p14~17 — 시간과 공간, 자연 세계의 규모</p>
+</div>
+
+<div id="detail-popup">
+  <h2 id="dp-title"></h2>
+  <p id="dp-desc"></p>
+  <button class="close-btn" id="dp-close">닫기</button>
+</div>
+
+<div id="controls-hint">
+  마우스 휠: 스케일 이동<br>
+  드래그: 3D 회전<br>
+  클릭: 상세 정보
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 스케일 데이터 정의 ───
+const SCALES = [
+  {
+    exponent: -15, name: '양성자', nameEn: 'Proton',
+    sizeStr: '~1 fm (10⁻¹⁵ m)',
+    compare: '원자핵의 구성 입자',
+    detail: '양성자는 원자핵을 이루는 입자로, 지름이 약 0.87 펨토미터(fm)입니다. 세 개의 쿼크(uud)로 구성되어 있으며, 강한 핵력으로 묶여 있습니다.',
+    color: 0xff4444
+  },
+  {
+    exponent: -10, name: '수소 원자', nameEn: 'Hydrogen Atom',
+    sizeStr: '~1 Å (10⁻¹⁰ m)',
+    compare: '가장 작은 원자',
+    detail: '수소 원자는 하나의 양성자와 하나의 전자로 이루어진 가장 단순한 원자입니다. 보어 반지름은 약 0.53 옹스트롬입니다.',
+    color: 0xff4444
+  },
+  {
+    exponent: -9, name: 'DNA 이중나선', nameEn: 'DNA Double Helix',
+    sizeStr: '~2 nm (10⁻⁹ m)',
+    compare: '생명의 설계도',
+    detail: 'DNA 이중나선의 지름은 약 2 나노미터입니다. 4가지 염기(A, T, G, C)의 조합이 유전 정보를 저장합니다. 인간 세포 하나에 약 2m의 DNA가 들어있습니다.',
+    color: 0x4488ff
+  },
+  {
+    exponent: -6, name: '적혈구', nameEn: 'Red Blood Cell',
+    sizeStr: '~7 μm (10⁻⁶ m)',
+    compare: '혈액 속 산소 운반체',
+    detail: '적혈구는 지름 약 7 마이크로미터의 양요 원반 모양 세포입니다. 헤모글로빈으로 산소를 운반하며, 인체에 약 25조 개가 있습니다.',
+    color: 0xcc0000
+  },
+  {
+    exponent: -3, name: '동전', nameEn: 'Coin',
+    sizeStr: '~2 cm (10⁻² m)',
+    compare: '일상의 작은 물건',
+    detail: '100원짜리 동전의 지름은 약 24mm, 두께 약 1.7mm입니다. 밀리미터 스케일은 우리 손가락으로 느낄 수 있는 가장 작은 크기 단위입니다.',
+    color: 0xc0a050
+  },
+  {
+    exponent: 0, name: '농구대', nameEn: 'Basketball Hoop',
+    sizeStr: '~3 m (10⁰ m)',
+    compare: '사람 키의 약 2배',
+    detail: '농구 골대의 높이는 지면에서 3.05m입니다. 1미터는 빛이 진공에서 약 3.3나노초 동안 이동하는 거리로 정의됩니다.',
+    color: 0xff6600
+  },
+  {
+    exponent: 1, name: '첨성대', nameEn: 'Cheomseongdae',
+    sizeStr: '~9.51 m (10¹ m)',
+    compare: '3층 건물 높이',
+    detail: '경주 첨성대는 높이 9.51m, 동아시아에서 가장 오래된 천문 관측대입니다. 신라 선덕여왕 때(7세기) 건축되었으며, 362개의 돌로 쌓았습니다.',
+    color: 0x8B7355
+  },
+  {
+    exponent: 3, name: '에베레스트산', nameEn: 'Mt. Everest',
+    sizeStr: '8,849 m (10³ m)',
+    compare: '지구에서 가장 높은 산',
+    detail: '에베레스트의 공식 높이는 해발 8,849m입니다. 매년 약 4mm씩 높아지고 있으며, 정상의 기압은 해수면의 약 1/3입니다.',
+    color: 0x8B6914
+  },
+  {
+    exponent: 6, name: '달', nameEn: 'Moon',
+    sizeStr: '3,474 km (10⁶ m)',
+    compare: '지구 지름의 약 1/4',
+    detail: '달의 지름은 3,474km로, 지구까지의 평균 거리는 384,400km입니다. 달은 지구의 유일한 자연 위성이며, 조석력을 만들어냅니다.',
+    color: 0xcccccc
+  },
+  {
+    exponent: 7, name: '지구', nameEn: 'Earth',
+    sizeStr: '12,742 km (10⁷ m)',
+    compare: '우리의 행성',
+    detail: '지구의 적도 지름은 12,742km이며, 표면의 71%가 물로 덮여 있습니다. 태양계에서 생명이 확인된 유일한 행성입니다.',
+    color: 0x2266aa
+  },
+  {
+    exponent: 9, name: '태양', nameEn: 'Sun',
+    sizeStr: '1,392,700 km (10⁹ m)',
+    compare: '지구 지름의 109배',
+    detail: '태양의 지름은 약 139만 km로, 태양계 질량의 99.86%를 차지합니다. 표면 온도 약 5,500°C, 중심 온도 약 1,500만°C입니다.',
+    color: 0xffcc00
+  },
+  {
+    exponent: 13, name: '태양계', nameEn: 'Solar System',
+    sizeStr: '~30 AU (10¹³ m)',
+    compare: '해왕성 궤도까지',
+    detail: '태양계의 범위를 해왕성 궤도까지로 보면 지름 약 90억 km입니다. 빛이 태양에서 해왕성까지 약 4시간 걸립니다.',
+    color: 0xffcc00
+  },
+  {
+    exponent: 21, name: '우리은하', nameEn: 'Milky Way',
+    sizeStr: '~100,000 광년 (10²¹ m)',
+    compare: '별 1,000~4,000억 개',
+    detail: '우리은하는 막대나선은하로 지름 약 10만 광년, 두께 약 1,000 광년입니다. 태양계는 은하 중심에서 약 26,000 광년 떨어져 있습니다.',
+    color: 0xffffff
+  },
+  {
+    exponent: 26, name: '관측 가능한 우주', nameEn: 'Observable Universe',
+    sizeStr: '~930억 광년 (10²⁶ m)',
+    compare: '약 2조 개의 은하',
+    detail: '관측 가능한 우주의 지름은 약 930억 광년으로, 약 2조 개의 은하를 포함합니다. 우주의 나이는 약 138억 년이지만, 공간 팽창으로 훨씬 넓습니다.',
+    color: 0xffffff
+  }
+];
+
+// ─── 씬 초기화 ───
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 10000);
+camera.position.set(0, 1.5, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+// ─── 카메라 컨트롤 ───
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enableZoom = false; // 줌은 스케일 전환에 사용
+controls.enablePan = false;
+controls.minPolarAngle = 0.3;
+controls.maxPolarAngle = Math.PI - 0.3;
+
+// ─── 조명 ───
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(5, 8, 5);
+scene.add(dirLight);
+const backLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+backLight.position.set(-3, -2, -5);
+scene.add(backLight);
+
+// ─── 상태 변수 ───
+let currentScaleIndex = 0;
+let targetScaleIndex = 0;
+let isTransitioning = false;
+let currentObjectGroup = null;
+let bgParticles = null;
+let gridHelper = null;
+let starField = null;
+let autoTourInterval = null;
+
+const transitionState = {
+  phase: 'idle', // idle, shrink, bgChange, grow
+  progress: 0,
+  startTime: 0,
+};
+
+// ─── 배경 관리 ───
+const bgColors = {
+  micro: [new THREE.Color(0x0a0a2e), new THREE.Color(0x2d1b69)],
+  mid:   [new THREE.Color(0x1a3a5c), new THREE.Color(0x1a2a3c)],
+  macro: [new THREE.Color(0x000011), new THREE.Color(0x000000)],
+};
+
+/** 스케일 지수에 따른 배경색 계산 */
+function getBgColor(exp) {
+  if (exp <= -6) {
+    // 미시 영역
+    const t = THREE.MathUtils.clamp((exp + 15) / 9, 0, 1);
+    return new THREE.Color().lerpColors(bgColors.micro[0], bgColors.micro[1], t);
+  } else if (exp <= 3) {
+    // 중간 영역
+    const t = THREE.MathUtils.clamp((exp + 5) / 8, 0, 1);
+    return new THREE.Color().lerpColors(bgColors.mid[0], bgColors.mid[1], t);
+  } else {
+    // 거시 영역
+    const t = THREE.MathUtils.clamp((exp - 4) / 22, 0, 1);
+    return new THREE.Color().lerpColors(bgColors.macro[0], bgColors.macro[1], t);
+  }
+}
+
+/** 배경 파티클 (미시 스케일용) */
+function createMicroParticles() {
+  const count = 200;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i*3]   = (Math.random() - 0.5) * 20;
+    positions[i*3+1] = (Math.random() - 0.5) * 20;
+    positions[i*3+2] = (Math.random() - 0.5) * 20;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x6666ff, size: 0.05, transparent: true, opacity: 0.4 });
+  return new THREE.Points(geo, mat);
+}
+
+/** 별 필드 (거시 스케일용) */
+function createStarField() {
+  const count = 500;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 50 + Math.random() * 200;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.3, transparent: true, opacity: 0.7 });
+  return new THREE.Points(geo, mat);
+}
+
+/** 배경 보조물 업데이트 */
+function updateBackground(exp) {
+  scene.background = getBgColor(exp);
+
+  // 미시 파티클
+  if (exp <= -6) {
+    if (!bgParticles) {
+      bgParticles = createMicroParticles();
+      scene.add(bgParticles);
+    }
+  } else if (bgParticles) {
+    scene.remove(bgParticles);
+    bgParticles.geometry.dispose();
+    bgParticles.material.dispose();
+    bgParticles = null;
+  }
+
+  // 그리드 (중간)
+  if (exp > -6 && exp <= 3) {
+    if (!gridHelper) {
+      gridHelper = new THREE.GridHelper(40, 40, 0x445566, 0x223344);
+      gridHelper.position.y = -2;
+      gridHelper.material.transparent = true;
+      gridHelper.material.opacity = 0.3;
+      scene.add(gridHelper);
+    }
+  } else if (gridHelper) {
+    scene.remove(gridHelper);
+    gridHelper.dispose();
+    gridHelper = null;
+  }
+
+  // 별 필드 (거시)
+  if (exp > 3) {
+    if (!starField) {
+      starField = createStarField();
+      scene.add(starField);
+    }
+  } else if (starField) {
+    scene.remove(starField);
+    starField.geometry.dispose();
+    starField.material.dispose();
+    starField = null;
+  }
+}
+
+// ─── 오브젝트 팩토리 ───
+
+/** 이전 오브젝트 정리 */
+function disposeObject(group) {
+  if (!group) return;
+  group.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => m.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+  scene.remove(group);
+}
+
+/** 양성자 — 빛나는 빨간 구 */
+function createProton() {
+  const g = new THREE.Group();
+  // 핵심 구
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 0.4, roughness: 0.3 })
+  );
+  g.add(core);
+  // 글로우 효과
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(1.3, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.12 })
+  );
+  g.add(glow);
+  // 쿼크 표시 (내부 점 3개)
+  const quarkColors = [0xff0000, 0x00ff00, 0x0000ff];
+  const quarkPositions = [
+    [0.3, 0.2, 0], [-0.3, 0.2, 0], [0, -0.3, 0]
+  ];
+  quarkPositions.forEach((pos, i) => {
+    const q = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 16, 16),
+      new THREE.MeshStandardMaterial({ color: quarkColors[i], emissive: quarkColors[i], emissiveIntensity: 0.5 })
+    );
+    q.position.set(...pos);
+    g.add(q);
+  });
+  return g;
+}
+
+/** 수소 원자 — 핵 + 전자 궤도 */
+function createHydrogenAtom() {
+  const g = new THREE.Group();
+  // 핵 (양성자)
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 0.3 })
+  );
+  g.add(nucleus);
+  // 궤도 링
+  const orbit = new THREE.Mesh(
+    new THREE.TorusGeometry(1.2, 0.015, 8, 80),
+    new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.4 })
+  );
+  g.add(orbit);
+  // 2번째 궤도 (기울어진)
+  const orbit2 = orbit.clone();
+  orbit2.rotation.x = Math.PI / 3;
+  orbit2.rotation.y = Math.PI / 4;
+  g.add(orbit2);
+  // 전자
+  const electron = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0x4488ff, emissive: 0x4488ff, emissiveIntensity: 0.6 })
+  );
+  electron.position.set(1.2, 0, 0);
+  electron.userData.isElectron = true;
+  g.add(electron);
+  // 전자 구름 (확률 분포 표현)
+  const cloud = new THREE.Mesh(
+    new THREE.SphereGeometry(1.2, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.04, side: THREE.DoubleSide })
+  );
+  g.add(cloud);
+  return g;
+}
+
+/** DNA 이중나선 — TubeGeometry */
+function createDNA() {
+  const g = new THREE.Group();
+  const turns = 4;
+  const pointsPerTurn = 40;
+  const totalPoints = turns * pointsPerTurn;
+  const height = 4;
+  const radius = 0.6;
+
+  // 두 가닥의 나선 경로 생성
+  for (let strand = 0; strand < 2; strand++) {
+    const points = [];
+    const offset = strand * Math.PI;
+    for (let i = 0; i <= totalPoints; i++) {
+      const t = i / totalPoints;
+      const angle = t * turns * Math.PI * 2 + offset;
+      points.push(new THREE.Vector3(
+        Math.cos(angle) * radius,
+        t * height - height / 2,
+        Math.sin(angle) * radius
+      ));
+    }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const tubeGeo = new THREE.TubeGeometry(curve, totalPoints, 0.06, 8, false);
+    const color = strand === 0 ? 0x4488ff : 0xff8844;
+    const tubeMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
+    g.add(new THREE.Mesh(tubeGeo, tubeMat));
+  }
+
+  // 염기쌍 가로대
+  for (let i = 0; i < totalPoints; i += 4) {
+    const t = i / totalPoints;
+    const angle = t * turns * Math.PI * 2;
+    const y = t * height - height / 2;
+    const p1 = new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    const p2 = new THREE.Vector3(Math.cos(angle + Math.PI) * radius, y, Math.sin(angle + Math.PI) * radius);
+    const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+    const len = p1.distanceTo(p2);
+    const bar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, len, 6),
+      new THREE.MeshStandardMaterial({ color: i % 8 === 0 ? 0x44cc44 : 0xcc44cc, roughness: 0.5 })
+    );
+    bar.position.copy(mid);
+    bar.lookAt(p1);
+    bar.rotateX(Math.PI / 2);
+    g.add(bar);
+  }
+  return g;
+}
+
+/** 적혈구 — 양요 원반 */
+function createRedBloodCell() {
+  const g = new THREE.Group();
+  // 라테(Lathe) 지오메트리로 양요 원반 만들기
+  const points = [];
+  const segments = 30;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const r = Math.sin(t * Math.PI) * 1.2; // 반경
+    // 양요(biconcave) 프로파일
+    const y = 0.15 * Math.cos(t * Math.PI * 2) * (1 - 0.3 * Math.pow(Math.sin(t * Math.PI), 2));
+    points.push(new THREE.Vector2(r, y));
+  }
+  const latheGeo = new THREE.LatheGeometry(points, 48);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xcc0000, roughness: 0.6, metalness: 0.05,
+    side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(latheGeo, mat);
+  mesh.rotation.x = Math.PI / 6;
+  g.add(mesh);
+  return g;
+}
+
+/** 동전 — 원기둥 */
+function createCoin() {
+  const g = new THREE.Group();
+  const coin = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 0.12, 48),
+    new THREE.MeshStandardMaterial({ color: 0xc0a050, metalness: 0.7, roughness: 0.25 })
+  );
+  // 동전 테두리 장식
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1, 0.04, 8, 48),
+    new THREE.MeshStandardMaterial({ color: 0xa08030, metalness: 0.8, roughness: 0.2 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.06;
+  g.add(coin);
+  g.add(rim);
+  const rim2 = rim.clone();
+  rim2.position.y = -0.06;
+  g.add(rim2);
+  // 약간 기울이기
+  g.rotation.x = 0.3;
+  g.rotation.z = 0.15;
+  return g;
+}
+
+/** 농구대 — 기둥 + 보드 + 링 */
+function createBasketballHoop() {
+  const g = new THREE.Group();
+  // 기둥
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 3, 12),
+    new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6 })
+  );
+  pole.position.y = 0.5;
+  g.add(pole);
+  // 백보드
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 1, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })
+  );
+  board.position.set(0, 2.2, 0.03);
+  g.add(board);
+  // 링
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.35, 0.025, 12, 32),
+    new THREE.MeshStandardMaterial({ color: 0xff6600, metalness: 0.5 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(0, 1.8, 0.4);
+  g.add(ring);
+  // 네트 (심플한 선으로 표현)
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const x = Math.cos(angle) * 0.35;
+    const z = Math.sin(angle) * 0.35 + 0.4;
+    const pts = [
+      new THREE.Vector3(x, 1.8, z),
+      new THREE.Vector3(x * 0.5, 1.3, z * 0.8 + 0.1)
+    ];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    g.add(new THREE.Line(lineGeo, lineMat));
+  }
+  g.position.y = -1;
+  return g;
+}
+
+/** 첨성대 — 원추대(절단된 원뿔) */
+function createCheomseongdae() {
+  const g = new THREE.Group();
+  // 본체 (절단된 원뿔)
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.9, 2.5, 24),
+    new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.85 })
+  );
+  body.position.y = 0.25;
+  g.add(body);
+  // 돌 질감 표현 (수평 링들)
+  for (let i = 0; i < 12; i++) {
+    const y = -1 + i * 0.22;
+    const t = (y + 1) / 2.5;
+    const r = THREE.MathUtils.lerp(0.9, 0.55, t);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(r + 0.01, 0.015, 4, 24),
+      new THREE.MeshStandardMaterial({ color: 0x6B5335, roughness: 0.9 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = y + 0.25;
+    g.add(ring);
+  }
+  // 상단 정자 부분
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(1.3, 0.2, 1.3),
+    new THREE.MeshStandardMaterial({ color: 0x7B6345, roughness: 0.8 })
+  );
+  top.position.y = 1.6;
+  g.add(top);
+  // 창문 (중간에 사각 구멍 표현)
+  const window1 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.25, 0.3, 0.15),
+    new THREE.MeshStandardMaterial({ color: 0x222222 })
+  );
+  window1.position.set(0, 0.5, 0.78);
+  g.add(window1);
+  g.position.y = -0.5;
+  return g;
+}
+
+/** 에베레스트 — 원뿔 + 하얀 봉우리 */
+function createEverest() {
+  const g = new THREE.Group();
+  // 산 본체
+  const mountain = new THREE.Mesh(
+    new THREE.ConeGeometry(2, 3, 8, 4),
+    new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.9, flatShading: true })
+  );
+  mountain.position.y = 0.5;
+  g.add(mountain);
+  // 눈 덮인 정상
+  const snow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.7, 1.0, 8, 2),
+    new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, flatShading: true })
+  );
+  snow.position.y = 1.5;
+  g.add(snow);
+  // 기저 지형
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(3, 3.5, 0.3, 12),
+    new THREE.MeshStandardMaterial({ color: 0x5a4a20, roughness: 0.95, flatShading: true })
+  );
+  base.position.y = -1;
+  g.add(base);
+  g.position.y = -0.3;
+  return g;
+}
+
+/** 달 — 크레이터가 있는 구 */
+function createMoon() {
+  const g = new THREE.Group();
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(1.2, 48, 48),
+    new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.9, metalness: 0 })
+  );
+  g.add(moon);
+  // 크레이터 표현 (움푹한 원형)
+  for (let i = 0; i < 15; i++) {
+    const phi = Math.random() * Math.PI;
+    const theta = Math.random() * Math.PI * 2;
+    const r = 1.2;
+    const pos = new THREE.Vector3(
+      r * Math.sin(phi) * Math.cos(theta),
+      r * Math.cos(phi),
+      r * Math.sin(phi) * Math.sin(theta)
+    );
+    const craterSize = 0.06 + Math.random() * 0.12;
+    const crater = new THREE.Mesh(
+      new THREE.SphereGeometry(craterSize, 12, 12),
+      new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 1.0 })
+    );
+    crater.position.copy(pos);
+    g.add(crater);
+  }
+  return g;
+}
+
+/** 지구 — 파란 구 + 녹색 대륙 */
+function createEarth() {
+  const g = new THREE.Group();
+  // 바다
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(1.2, 48, 48),
+    new THREE.MeshStandardMaterial({ color: 0x2266aa, roughness: 0.6 })
+  );
+  g.add(earth);
+  // 대륙 표현 (간단한 랜덤 구면 패치)
+  for (let i = 0; i < 20; i++) {
+    const phi = Math.random() * Math.PI;
+    const theta = Math.random() * Math.PI * 2;
+    const r = 1.205;
+    const size = 0.08 + Math.random() * 0.15;
+    const land = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x228833, roughness: 0.8 })
+    );
+    land.position.set(
+      r * Math.sin(phi) * Math.cos(theta),
+      r * Math.cos(phi),
+      r * Math.sin(phi) * Math.sin(theta)
+    );
+    land.scale.set(1, 0.3, 1);
+    land.lookAt(0, 0, 0);
+    g.add(land);
+  }
+  // 대기
+  const atmo = new THREE.Mesh(
+    new THREE.SphereGeometry(1.28, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.08, side: THREE.BackSide })
+  );
+  g.add(atmo);
+  earth.userData.isEarth = true;
+  return g;
+}
+
+/** 태양 — 발광 구 + 코로나 */
+function createSun() {
+  const g = new THREE.Group();
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(1.3, 48, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0xffcc00, emissive: 0xff8800, emissiveIntensity: 0.6, roughness: 0.5
+    })
+  );
+  g.add(sun);
+  // 코로나 글로우 (다중 레이어)
+  for (let i = 1; i <= 3; i++) {
+    const corona = new THREE.Mesh(
+      new THREE.SphereGeometry(1.3 + i * 0.25, 32, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa22, transparent: true, opacity: 0.06 / i, side: THREE.BackSide
+      })
+    );
+    g.add(corona);
+  }
+  // 포인트 라이트 (씬 내 조명 효과)
+  const sunLight = new THREE.PointLight(0xffcc00, 2, 20);
+  g.add(sunLight);
+  return g;
+}
+
+/** 태양계 — 태양 + 8행성 궤도 */
+function createSolarSystem() {
+  const g = new THREE.Group();
+  // 중심 태양
+  const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0xff8800, emissiveIntensity: 0.5 })
+  );
+  g.add(sun);
+  const sunGlow = new THREE.PointLight(0xffcc00, 1, 15);
+  g.add(sunGlow);
+
+  // 행성 데이터 [궤도반경, 크기, 색상, 이름]
+  const planets = [
+    [0.5,  0.03, 0x888888, '수성'],
+    [0.75, 0.05, 0xddaa44, '금성'],
+    [1.0,  0.05, 0x2266aa, '지구'],
+    [1.35, 0.04, 0xcc4400, '화성'],
+    [1.9,  0.12, 0xccaa66, '목성'],
+    [2.5,  0.10, 0xccbb88, '토성'],
+    [3.1,  0.07, 0x88ccdd, '천왕성'],
+    [3.6,  0.07, 0x4466cc, '해왕성'],
+  ];
+
+  planets.forEach(([orbitR, size, color], idx) => {
+    // 궤도 링
+    const orbitGeo = new THREE.TorusGeometry(orbitR, 0.005, 4, 80);
+    const orbitMat = new THREE.MeshBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.3 });
+    const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
+    orbitMesh.rotation.x = Math.PI / 2;
+    g.add(orbitMesh);
+    // 행성
+    const planet = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 16, 16),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.6 })
+    );
+    const angle = Math.random() * Math.PI * 2;
+    planet.position.set(Math.cos(angle) * orbitR, 0, Math.sin(angle) * orbitR);
+    planet.userData.orbitRadius = orbitR;
+    planet.userData.orbitSpeed = 0.3 / (orbitR * orbitR);
+    planet.userData.orbitAngle = angle;
+    planet.userData.isPlanet = true;
+    g.add(planet);
+    // 토성의 고리
+    if (idx === 5) {
+      const ringGeo = new THREE.TorusGeometry(size * 2.2, size * 0.4, 2, 32);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xccbb88, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = Math.PI / 2.5;
+      ringMesh.position.copy(planet.position);
+      ringMesh.userData.parentPlanet = planet;
+      g.add(ringMesh);
+    }
+  });
+  return g;
+}
+
+/** 우리은하 — 나선 점들 */
+function createMilkyWay() {
+  const g = new THREE.Group();
+  const count = 5000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const arms = 4;
+
+  for (let i = 0; i < count; i++) {
+    const arm = i % arms;
+    const armAngle = (arm / arms) * Math.PI * 2;
+    const dist = Math.pow(Math.random(), 0.6) * 3;
+    const angle = armAngle + dist * 1.5 + (Math.random() - 0.5) * 0.5;
+    const spread = 0.15 * dist;
+    const x = Math.cos(angle) * dist + (Math.random() - 0.5) * spread;
+    const z = Math.sin(angle) * dist + (Math.random() - 0.5) * spread;
+    const y = (Math.random() - 0.5) * 0.15 * (1 + dist * 0.1);
+
+    positions[i*3]   = x;
+    positions[i*3+1] = y;
+    positions[i*3+2] = z;
+
+    // 중심에 가까울수록 노란색, 멀수록 파란색
+    const t = dist / 3;
+    const c = new THREE.Color().lerpColors(
+      new THREE.Color(0xffffcc), new THREE.Color(0x8888ff), t * 0.5 + Math.random() * 0.3
+    );
+    colors[i*3]   = c.r;
+    colors[i*3+1] = c.g;
+    colors[i*3+2] = c.b;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: 0.035, vertexColors: true, transparent: true, opacity: 0.85 });
+  g.add(new THREE.Points(geo, mat));
+
+  // 은하핵 글로우
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffdd, transparent: true, opacity: 0.3 })
+  );
+  g.add(core);
+  return g;
+}
+
+/** 관측 가능한 우주 — 구형 점 분포 */
+function createObservableUniverse() {
+  const g = new THREE.Group();
+  const count = 2000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const r = Math.pow(Math.random(), 0.4) * 3.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+
+    // 다양한 색 (은하 종류)
+    const colorChoices = [0xffffff, 0xffddaa, 0xaaccff, 0xffaaaa, 0xddddff];
+    const c = new THREE.Color(colorChoices[Math.floor(Math.random() * colorChoices.length)]);
+    const brightness = 0.4 + Math.random() * 0.6;
+    colors[i*3]   = c.r * brightness;
+    colors[i*3+1] = c.g * brightness;
+    colors[i*3+2] = c.b * brightness;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: 0.04, vertexColors: true, transparent: true, opacity: 0.7 });
+  g.add(new THREE.Points(geo, mat));
+
+  // 우주 배경 복사 구체 (가장 바깥 경계)
+  const cmb = new THREE.Mesh(
+    new THREE.SphereGeometry(3.8, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0x221122, transparent: true, opacity: 0.08, side: THREE.BackSide })
+  );
+  g.add(cmb);
+  return g;
+}
+
+// 오브젝트 생성 함수 맵핑
+const objectFactories = [
+  createProton,
+  createHydrogenAtom,
+  createDNA,
+  createRedBloodCell,
+  createCoin,
+  createBasketballHoop,
+  createCheomseongdae,
+  createEverest,
+  createMoon,
+  createEarth,
+  createSun,
+  createSolarSystem,
+  createMilkyWay,
+  createObservableUniverse,
+];
+
+// ─── UI 업데이트 ───
+
+const labelEl = document.getElementById('object-label');
+const labelNameEl = labelEl.querySelector('.name');
+const labelSizeEl = labelEl.querySelector('.size');
+const ipScale = document.getElementById('ip-scale');
+const ipObject = document.getElementById('ip-object');
+const ipSize = document.getElementById('ip-size');
+const ipCompare = document.getElementById('ip-compare');
+const scaleBarEl = document.getElementById('scale-bar');
+const markerEl = scaleBarEl.querySelector('.marker');
+const guideBtn = document.getElementById('guide-btn');
+const guidePanel = document.getElementById('guide-panel');
+const detailPopup = document.getElementById('detail-popup');
+const dpTitle = document.getElementById('dp-title');
+const dpDesc = document.getElementById('dp-desc');
+const dpClose = document.getElementById('dp-close');
+
+// 스케일바 틱 생성 (지수 라벨 포함)
+SCALES.forEach((s, i) => {
+  const tick = document.createElement('div');
+  tick.className = 'tick';
+  tick.dataset.index = i;
+  const pct = (i / (SCALES.length - 1)) * 100;
+  tick.style.top = pct + '%';
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  tick.appendChild(dot);
+  // 지수 라벨 텍스트 추가
+  const label = document.createElement('span');
+  label.className = 'tick-label';
+  label.textContent = `10${s.exponent < 0 ? '⁻' : ''}${Math.abs(s.exponent).toString().split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]).join('')}`;
+  tick.appendChild(label);
+  scaleBarEl.appendChild(tick);
+});
+// 미시/거시 세계 구분 라벨
+const microLabel = document.createElement('div');
+microLabel.className = 'world-label';
+microLabel.style.top = '15%';
+microLabel.style.color = '#6688ff';
+microLabel.textContent = '🔬 미시 세계';
+scaleBarEl.appendChild(microLabel);
+const macroLabel = document.createElement('div');
+macroLabel.className = 'world-label';
+macroLabel.style.top = '75%';
+macroLabel.style.color = '#ffcc44';
+macroLabel.textContent = '🔭 거시 세계';
+scaleBarEl.appendChild(macroLabel);
+
+function updateUI(index) {
+  const s = SCALES[index];
+  // 라벨
+  labelNameEl.textContent = s.name;
+  labelSizeEl.textContent = s.sizeStr;
+  // 정보 패널
+  ipScale.textContent = `10^${s.exponent} m`;
+  ipObject.textContent = `${s.name} (${s.nameEn})`;
+  ipSize.textContent = s.sizeStr;
+  ipCompare.textContent = s.compare;
+  // 스케일바 마커
+  const pct = (index / (SCALES.length - 1)) * 100;
+  markerEl.style.top = pct + '%';
+  // 틱 활성화
+  scaleBarEl.querySelectorAll('.tick').forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+  });
+}
+
+// 학습 가이드 토글
+guideBtn.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+// 디테일 팝업 닫기
+dpClose.addEventListener('click', () => {
+  detailPopup.style.display = 'none';
+});
+
+// ─── 스케일 전환 로직 ───
+
+function goToScale(index, animate = true) {
+  if (index < 0 || index >= SCALES.length) return;
+  if (isTransitioning && animate) return;
+  targetScaleIndex = index;
+
+  if (!animate || currentScaleIndex === index) {
+    // 즉시 전환
+    disposeObject(currentObjectGroup);
+    currentObjectGroup = objectFactories[index]();
+    scene.add(currentObjectGroup);
+    currentObjectGroup.scale.set(1, 1, 1);
+    updateBackground(SCALES[index].exponent);
+    updateUI(index);
+    currentScaleIndex = index;
+    return;
+  }
+
+  // 애니메이션 전환 시작
+  isTransitioning = true;
+  transitionState.phase = 'shrink';
+  transitionState.progress = 0;
+  transitionState.startTime = performance.now();
+}
+
+/** 전환 애니메이션 업데이트 (프레임마다 호출) */
+function updateTransition(now) {
+  if (!isTransitioning) return;
+
+  const elapsed = now - transitionState.startTime;
+
+  switch (transitionState.phase) {
+    case 'shrink': {
+      // 현재 오브젝트 축소 (0.8초)
+      const t = Math.min(elapsed / 800, 1);
+      const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic 반전
+      if (currentObjectGroup) {
+        const s = 1 - ease;
+        currentObjectGroup.scale.set(s, s, s);
+        // 투명도 효과를 위한 라벨 페이드
+        labelEl.style.opacity = 1 - ease;
+      }
+      if (t >= 1) {
+        transitionState.phase = 'bgChange';
+        transitionState.startTime = now;
+        // 이전 오브젝트 제거
+        disposeObject(currentObjectGroup);
+        currentObjectGroup = null;
+      }
+      break;
+    }
+    case 'bgChange': {
+      // 배경 전환 (0.5초)
+      const t = Math.min(elapsed / 500, 1);
+      const fromColor = getBgColor(SCALES[currentScaleIndex].exponent);
+      const toColor = getBgColor(SCALES[targetScaleIndex].exponent);
+      scene.background = new THREE.Color().lerpColors(fromColor, toColor, t);
+      if (t >= 1) {
+        transitionState.phase = 'grow';
+        transitionState.startTime = now;
+        // 새 오브젝트 생성 (스케일 0에서 시작)
+        currentObjectGroup = objectFactories[targetScaleIndex]();
+        currentObjectGroup.scale.set(0.01, 0.01, 0.01);
+        scene.add(currentObjectGroup);
+        updateBackground(SCALES[targetScaleIndex].exponent);
+        updateUI(targetScaleIndex);
+        currentScaleIndex = targetScaleIndex;
+      }
+      break;
+    }
+    case 'grow': {
+      // 새 오브젝트 확대 (0.8초)
+      const t = Math.min(elapsed / 800, 1);
+      const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      if (currentObjectGroup) {
+        const s = ease;
+        currentObjectGroup.scale.set(s, s, s);
+        labelEl.style.opacity = ease;
+      }
+      if (t >= 1) {
+        if (currentObjectGroup) {
+          currentObjectGroup.scale.set(1, 1, 1);
+        }
+        labelEl.style.opacity = 1;
+        transitionState.phase = 'idle';
+        isTransitioning = false;
+      }
+      break;
+    }
+  }
+}
+
+// ─── 오브젝트 애니메이션 (회전, 전자 공전 등) ───
+
+function animateObject(group, time) {
+  if (!group) return;
+  const idx = currentScaleIndex;
+
+  switch (idx) {
+    case 0: // 양성자 — 느린 회전
+      group.rotation.y = time * 0.3;
+      break;
+    case 1: // 수소 원자 — 전자 공전
+      group.children.forEach(child => {
+        if (child.userData.isElectron) {
+          const angle = time * 2;
+          child.position.x = Math.cos(angle) * 1.2;
+          child.position.z = Math.sin(angle) * 1.2;
+        }
+      });
+      group.rotation.y = time * 0.1;
+      break;
+    case 2: // DNA — 느린 회전
+      group.rotation.y = time * 0.2;
+      break;
+    case 3: // 적혈구 — 부유 효과
+      group.position.y = Math.sin(time * 0.8) * 0.15;
+      group.rotation.y = time * 0.15;
+      break;
+    case 4: // 동전 — 회전 + 약간 흔들림
+      group.rotation.y = time * 0.5;
+      break;
+    case 5: // 농구대 — 정적
+      break;
+    case 6: // 첨성대 — 아주 느린 회전
+      group.rotation.y = time * 0.05;
+      break;
+    case 7: // 에베레스트 — 정적
+      break;
+    case 8: // 달 — 느린 자전
+      group.rotation.y = time * 0.1;
+      break;
+    case 9: // 지구 — 자전
+      group.rotation.y = time * 0.15;
+      break;
+    case 10: // 태양 — 느린 회전 + 코로나 맥동
+      group.rotation.y = time * 0.05;
+      group.children.forEach((child, ci) => {
+        if (ci >= 1 && ci <= 3) {
+          const pulse = 1 + Math.sin(time * 2 + ci) * 0.05;
+          child.scale.set(pulse, pulse, pulse);
+        }
+      });
+      break;
+    case 11: // 태양계 — 행성 공전
+      group.children.forEach(child => {
+        if (child.userData.isPlanet) {
+          child.userData.orbitAngle += child.userData.orbitSpeed * 0.02;
+          const a = child.userData.orbitAngle;
+          const r = child.userData.orbitRadius;
+          child.position.x = Math.cos(a) * r;
+          child.position.z = Math.sin(a) * r;
+        }
+        // 토성 고리 따라가기
+        if (child.userData.parentPlanet) {
+          child.position.copy(child.userData.parentPlanet.position);
+        }
+      });
+      break;
+    case 12: // 은하 — 느린 회전
+      group.rotation.y = time * 0.03;
+      break;
+    case 13: // 우주 — 아주 느린 회전
+      group.rotation.y = time * 0.01;
+      break;
+  }
+}
+
+// ─── 미시 배경 파티클 애니메이션 ───
+function animateBgParticles(time) {
+  if (!bgParticles) return;
+  const pos = bgParticles.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.array[i*3+1] += Math.sin(time + i) * 0.002;
+  }
+  pos.needsUpdate = true;
+}
+
+// ─── 입력 처리 ───
+
+// 마우스 휠 — 스케일 이동
+let wheelCooldown = false;
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (wheelCooldown || isTransitioning) return;
+  wheelCooldown = true;
+  setTimeout(() => { wheelCooldown = false; }, 400);
+
+  if (e.deltaY > 0) {
+    goToScale(currentScaleIndex + 1);
+  } else {
+    goToScale(currentScaleIndex - 1);
+  }
+}, { passive: false });
+
+// 터치 스와이프 (모바일)
+let touchStartY = 0;
+renderer.domElement.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    touchStartY = e.touches[0].clientY;
+  }
+}, { passive: true });
+renderer.domElement.addEventListener('touchend', (e) => {
+  if (e.changedTouches.length === 1) {
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dy) > 40) {
+      if (dy < 0) goToScale(currentScaleIndex + 1);
+      else goToScale(currentScaleIndex - 1);
+    }
+  }
+}, { passive: true });
+
+// 레이캐스터 — 오브젝트 클릭 시 상세 팝업
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+renderer.domElement.addEventListener('click', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  if (currentObjectGroup) {
+    const intersects = raycaster.intersectObjects(currentObjectGroup.children, true);
+    if (intersects.length > 0) {
+      const s = SCALES[currentScaleIndex];
+      dpTitle.textContent = `${s.name} (${s.nameEn})`;
+      dpDesc.textContent = s.detail;
+      detailPopup.style.display = 'block';
+    }
+  }
+});
+
+// 키보드
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+    goToScale(currentScaleIndex + 1);
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+    goToScale(currentScaleIndex - 1);
+  } else if (e.key === 'Escape') {
+    detailPopup.style.display = 'none';
+    guidePanel.classList.remove('open');
+  }
+});
+
+// ─── lil-gui 컨트롤 ───
+
+const guiParams = {
+  scale: -15,
+  autoTour: false,
+  tourSpeed: 3,
+  reset: () => {
+    guiParams.scale = SCALES[0].exponent;
+    guiParams.autoTour = false;
+    if (autoTourInterval) {
+      clearInterval(autoTourInterval);
+      autoTourInterval = null;
+    }
+    goToScale(0);
+    // gui 반영
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
+};
+
+const gui = new GUI({ title: '스케일 컨트롤' });
+// 모바일에서 lil-gui 기본 접힘
+if (window.innerWidth < 768) gui.close();
+const scaleCtrl = gui.add(guiParams, 'scale', -15, 26, 1).name('스케일 (10^n)');
+scaleCtrl.onChange(v => {
+  // 가장 가까운 스케일 인덱스 찾기
+  let closest = 0;
+  let minDist = Infinity;
+  SCALES.forEach((s, i) => {
+    const d = Math.abs(s.exponent - v);
+    if (d < minDist) { minDist = d; closest = i; }
+  });
+  if (closest !== currentScaleIndex) {
+    goToScale(closest);
+  }
+});
+
+const tourCtrl = gui.add(guiParams, 'autoTour').name('자동 투어');
+tourCtrl.onChange(on => {
+  if (on) {
+    startAutoTour();
+  } else {
+    stopAutoTour();
+  }
+});
+gui.add(guiParams, 'tourSpeed', 1, 5, 0.5).name('투어 속도 (초)').onChange(() => {
+  // 투어 중 속도 변경 시 인터벌 재시작
+  if (guiParams.autoTour) { startAutoTour(); }
+});
+gui.add(guiParams, 'reset').name('리셋');
+
+function startAutoTour() {
+  stopAutoTour();
+  autoTourInterval = setInterval(() => {
+    if (isTransitioning) return;
+    let next = currentScaleIndex + 1;
+    if (next >= SCALES.length) next = 0;
+    goToScale(next);
+    guiParams.scale = SCALES[next].exponent;
+    scaleCtrl.updateDisplay();
+  }, guiParams.tourSpeed * 1000);
+}
+
+function stopAutoTour() {
+  if (autoTourInterval) {
+    clearInterval(autoTourInterval);
+    autoTourInterval = null;
+  }
+}
+
+// ─── 리사이즈 대응 ───
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── 초기화 ───
+goToScale(0, false);
+camera.position.set(0, 1, 5);
+controls.update();
+
+// ─── 메인 루프 ───
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const time = clock.getElapsedTime();
+  const now = performance.now();
+
+  // 전환 애니메이션
+  updateTransition(now);
+
+  // 오브젝트 고유 애니메이션
+  if (!isTransitioning) {
+    animateObject(currentObjectGroup, time);
+  }
+
+  // 배경 파티클 애니메이션
+  animateBgParticles(time);
+
+  // 별필드 느린 회전
+  if (starField) {
+    starField.rotation.y = time * 0.005;
+  }
+
+  // gui 슬라이더 동기화
+  if (!isTransitioning) {
+    guiParams.scale = SCALES[currentScaleIndex].exponent;
+    scaleCtrl.updateDisplay();
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

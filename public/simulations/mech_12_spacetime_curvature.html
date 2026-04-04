@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시공간의 휨과 중력 렌즈 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg: #000010;
+    --card: rgba(8, 14, 32, 0.84);
+    --card-strong: rgba(8, 14, 34, 0.92);
+    --border: rgba(255, 255, 255, 0.1);
+    --text-main: #eef5ff;
+    --text-dim: rgba(238, 245, 255, 0.72);
+    --text-faint: rgba(238, 245, 255, 0.48);
+    --accent-gold: #ffd36b;
+    --accent-green: #77ffb2;
+    --accent-cyan: #8ee7ff;
+    --accent-red: #ff7f7f;
+    --accent-blue: #86a9ff;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(72, 108, 255, 0.12), transparent 24%),
+      radial-gradient(circle at 82% 10%, rgba(255, 214, 98, 0.08), transparent 18%),
+      linear-gradient(180deg, #03050e 0%, #000010 46%, #02030a 100%);
+    color: var(--text-main);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .glass-card {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(13, 20, 44, 0.88) 0%, rgba(6, 10, 24, 0.76) 100%);
+    box-shadow: 0 18px 42px rgba(2, 5, 14, 0.34);
+    backdrop-filter: blur(16px);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: min(450px, calc(100vw - 32px));
+    padding: 18px 20px 16px;
+    border-radius: 24px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 29px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  #title-card p {
+    margin-top: 9px;
+    font-size: 13px;
+    line-height: 1.72;
+    color: var(--text-dim);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    max-width: min(430px, calc(100vw - 48px));
+    padding: 12px 16px;
+    border-radius: 999px;
+    z-index: 22;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.94);
+    text-align: center;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 156px;
+    left: 16px;
+    z-index: 24;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(7, 12, 28, 0.84);
+    color: var(--text-main);
+    cursor: pointer;
+    box-shadow: 0 12px 26px rgba(2, 5, 14, 0.28);
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(10, 18, 40, 0.94);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 198px;
+    left: 16px;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(64vh, 720px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    z-index: 23;
+    display: none;
+    font-size: 13px;
+    line-height: 1.72;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #ddf1ff;
+  }
+
+  #guide-panel h4 {
+    margin: 14px 0 6px;
+    font-size: 13px;
+    color: #99dfff;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(388px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    z-index: 20;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff0b9;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 12px 0 10px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .formula-row .label {
+    width: 98px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    white-space: pre-line;
+  }
+
+  #insight-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(348px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    z-index: 20;
+  }
+
+  #insight-panel h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #e0f4ff;
+  }
+
+  #insight-panel p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 19;
+  }
+
+  .scene-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 14, 30, 0.76);
+    box-shadow: 0 10px 24px rgba(4, 8, 18, 0.2);
+    backdrop-filter: blur(8px);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.95);
+    display: none;
+  }
+
+  .scene-label.gold {
+    color: #ffe8a3;
+  }
+
+  .scene-label.green {
+    color: #abffd1;
+  }
+
+  .scene-label.blue {
+    color: #bcd2ff;
+  }
+
+  .scene-label.red {
+    color: #ffb8b8;
+  }
+
+  .lil-gui.root {
+    --width: 320px;
+    --background-color: rgba(8, 14, 30, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --padding: 8px;
+    --spacing: 6px;
+    --name-width: 48%;
+    --focus-color: #8de7ff;
+    --hover-color: rgba(255, 255, 255, 0.12);
+    z-index: 40;
+  }
+
+  @media (max-width: 960px) {
+    #status-chip {
+      top: auto;
+      right: 16px;
+      left: 16px;
+      bottom: 16px;
+      max-width: none;
+      border-radius: 22px;
+    }
+
+    #insight-panel {
+      right: 16px;
+      bottom: 138px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-card,
+    #formula-panel,
+    #insight-panel,
+    #guide-panel {
+      width: calc(100vw - 20px);
+      left: 10px;
+      right: 10px;
+    }
+
+    #title-card {
+      top: 10px;
+      padding: 16px 16px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 24px;
+    }
+
+    #guide-toggle {
+      top: 144px;
+      left: 10px;
+    }
+
+    #guide-panel {
+      top: 186px;
+      max-height: 56vh;
+    }
+
+    #formula-panel {
+      bottom: 10px;
+      padding: 16px 16px 14px;
+    }
+
+    #insight-panel {
+      top: auto;
+      bottom: 186px;
+      left: 10px;
+      right: 10px;
+      width: auto;
+    }
+
+    #status-chip {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      font-size: 11px;
+    }
+
+    .scene-label {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+
+    .lil-gui.root {
+      --width: min(280px, calc(100vw - 20px));
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<section id="title-card" class="glass-card">
+  <div class="eyebrow">역학과 에너지 · 일반 상대성 이론</div>
+  <h1>시공간의 휨과 중력 렌즈</h1>
+  <p id="title-description">질량이 시공간을 어떻게 휘게 하는지, 그 결과 빛의 경로와 시간의 흐름이 어떻게 달라지는지 한 장면씩 비교해 보세요.</p>
+</section>
+
+<div id="status-chip" class="glass-card" aria-live="polite"></div>
+
+<button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+<aside id="guide-panel" class="glass-card">
+  <h3>학습 가이드</h3>
+  <p>질량이 있는 물체는 주위의 시공간을 휘게 합니다. 중력은 시공간의 휨에 의한 효과이며, 빛의 경로도 휘어집니다. 강한 중력장에서는 시간이 느리게 흐르며, 이러한 효과는 블랙홀과 GPS 시간 보정 같은 실제 현상으로 이어집니다.</p>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>고무 시트 비유에서 무거운 공을 놓으면 시트가 휘어지는 것이 시공간의 휨과 어떤 관계가 있나요?</li>
+    <li>1919년 개기 일식 관측이 일반 상대성 이론을 입증한 까닭은 무엇인가요?</li>
+    <li>GPS에서 일반 상대성 이론 보정이 필요한 까닭을 설명해 보세요.</li>
+  </ul>
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>GPS 위성의 시간 보정</li>
+    <li>LIGO의 중력파 검출</li>
+    <li>EHT의 블랙홀 그림자 관측</li>
+    <li>은하단 주변에서 나타나는 중력 렌즈 호와 아인슈타인 고리</li>
+  </ul>
+  <h4>교과서 연계</h4>
+  <p>역학과 에너지 I편 p52~59 - 등가 원리, 시공간의 휨, 중력 렌즈, 중력 시간 지연, 블랙홀</p>
+</aside>
+
+<section id="formula-panel" class="glass-card" aria-live="polite">
+  <h2>🌌 시공간의 휨과 중력 렌즈</h2>
+  <div class="divider"></div>
+  <div class="formula-row"><span class="label">모드</span><span class="value" id="formula-mode"></span></div>
+  <div class="formula-row"><span class="label">질량 M</span><span class="value" id="formula-mass"></span></div>
+  <div class="formula-row"><span class="label" id="formula-metric1-label">관찰값 1</span><span class="value" id="formula-metric1-value"></span></div>
+  <div class="formula-row"><span class="label" id="formula-metric2-label">관찰값 2</span><span class="value" id="formula-metric2-value"></span></div>
+  <div class="formula-block mono" id="formula-main"></div>
+  <div class="formula-block" id="formula-detail"></div>
+  <div class="formula-block" id="formula-note"></div>
+</section>
+
+<aside id="insight-panel" class="glass-card">
+  <h3 id="insight-title"></h3>
+  <p id="insight-body"></p>
+  <p id="insight-extra"></p>
+</aside>
+
+<div id="label-layer" aria-hidden="true">
+  <div class="scene-label" data-slot="0"></div>
+  <div class="scene-label" data-slot="1"></div>
+  <div class="scene-label" data-slot="2"></div>
+  <div class="scene-label" data-slot="3"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MODE_CURVATURE = '시공간 휨';
+const MODE_LENSING = '중력 렌즈';
+const MODE_TIME = '시간 지연';
+const EARTH_RADIUS_M = 6_371_000;
+const EARTH_MASS_KG = 5.972e24;
+const GRAVITATIONAL_G = 6.67430e-11;
+const LIGHT_SPEED = 299_792_458;
+
+const dom = {
+  titleDescription: document.getElementById('title-description'),
+  statusChip: document.getElementById('status-chip'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  insightTitle: document.getElementById('insight-title'),
+  insightBody: document.getElementById('insight-body'),
+  insightExtra: document.getElementById('insight-extra'),
+  formulaMode: document.getElementById('formula-mode'),
+  formulaMass: document.getElementById('formula-mass'),
+  formulaMetric1Label: document.getElementById('formula-metric1-label'),
+  formulaMetric1Value: document.getElementById('formula-metric1-value'),
+  formulaMetric2Label: document.getElementById('formula-metric2-label'),
+  formulaMetric2Value: document.getElementById('formula-metric2-value'),
+  formulaMain: document.getElementById('formula-main'),
+  formulaDetail: document.getElementById('formula-detail'),
+  formulaNote: document.getElementById('formula-note'),
+  labelEls: Array.from(document.querySelectorAll('.scene-label')),
+};
+
+const params = {
+  mode: MODE_CURVATURE,
+  massM: 10,
+  lensMass: 18,
+  altitudeKm: 20200,
+  showGrid: true,
+  showLightPaths: true,
+  placePlanet() {
+    activeMode?.placePlanet?.();
+  },
+  reset() {
+    activeMode?.reset?.();
+    syncGuiDisplay();
+    updatePanels();
+  },
+};
+
+const metrics = {
+  curvatureDepth: 0,
+  eventHorizonRadius: 0,
+  planetState: '행성을 놓아 곡선 경로를 관찰하세요.',
+  lensDeflectionDeg: 0,
+  einsteinRingVisible: false,
+  dailyDiffUs: 0,
+  gpsErrorKm: 0,
+  nearClock: 0,
+  farClock: 0,
+  visualRateDelta: 0,
+};
+
+const canvas = document.getElementById('scene');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000010);
+scene.fog = new THREE.Fog(0x000010, 22, 80);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 220);
+camera.position.set(11, 8, 12);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: false,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 6;
+controls.maxDistance = 42;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.55);
+keyLight.position.set(10, 12, 8);
+scene.add(keyLight);
+
+const fillLight = new THREE.PointLight(0x6eb7ff, 0.45, 36, 2);
+fillLight.position.set(-8, 6, -10);
+scene.add(fillLight);
+
+const clock = new THREE.Clock();
+const tempVector = new THREE.Vector3();
+let activeMode = null;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function makeCanvas(width, height) {
+  const element = document.createElement('canvas');
+  element.width = width;
+  element.height = height;
+  return element;
+}
+
+function randomSeeded(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function createBackgroundStars(count, radius) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i += 1) {
+    const r = radius * (0.3 + Math.random() * 0.7);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    positions[i * 3] = Math.sin(phi) * Math.cos(theta) * r;
+    positions[i * 3 + 1] = Math.cos(phi) * r * 0.65;
+    positions[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * r;
+
+    const tint = 0.72 + Math.random() * 0.28;
+    colors[i * 3] = tint;
+    colors[i * 3 + 1] = tint;
+    colors[i * 3 + 2] = 0.92 + Math.random() * 0.08;
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  return new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      size: 0.18,
+      transparent: true,
+      opacity: 0.9,
+      vertexColors: true,
+      depthWrite: false,
+    })
+  );
+}
+
+function createSoftGlow(color) {
+  const glowCanvas = makeCanvas(256, 256);
+  const ctx = glowCanvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gradient.addColorStop(0, `rgba(${(color >> 16) & 255}, ${(color >> 8) & 255}, ${color & 255}, 0.95)`);
+  gradient.addColorStop(0.35, `rgba(${(color >> 16) & 255}, ${(color >> 8) & 255}, ${color & 255}, 0.22)`);
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 256, 256);
+  const texture = new THREE.CanvasTexture(glowCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+}
+
+function createGalaxyTexture(colorA, colorB) {
+  const galaxyCanvas = makeCanvas(512, 512);
+  const ctx = galaxyCanvas.getContext('2d');
+  ctx.clearRect(0, 0, 512, 512);
+
+  const core = ctx.createRadialGradient(256, 256, 0, 256, 256, 90);
+  core.addColorStop(0, '#ffffff');
+  core.addColorStop(0.35, colorA);
+  core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(256, 256, 120, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(256, 256);
+  for (let i = 0; i < 18; i += 1) {
+    ctx.rotate(Math.PI / 9);
+    ctx.strokeStyle = i % 2 === 0 ? colorB : colorA;
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 14 - i * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(50, -30, 130, -50, 200, -10);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(galaxyCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createEarthTexture() {
+  const earthCanvas = makeCanvas(1024, 512);
+  const ctx = earthCanvas.getContext('2d');
+  const ocean = ctx.createLinearGradient(0, 0, 0, 512);
+  ocean.addColorStop(0, '#2f6dc7');
+  ocean.addColorStop(0.55, '#17428e');
+  ocean.addColorStop(1, '#102454');
+  ctx.fillStyle = ocean;
+  ctx.fillRect(0, 0, 1024, 512);
+
+  function blob(cx, cy, rx, ry, rotation, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+    ctx.beginPath();
+    for (let i = 0; i <= 72; i += 1) {
+      const angle = (i / 72) * Math.PI * 2;
+      const mod = 1 + 0.14 * Math.sin(angle * 3 + cx * 0.01) + 0.08 * Math.cos(angle * 5 + cy * 0.02);
+      const x = Math.cos(angle) * rx * mod;
+      const y = Math.sin(angle) * ry * mod;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  blob(230, 170, 110, 80, -0.22, '#6ea25d');
+  blob(270, 320, 64, 96, 0.2, '#5f8f4d');
+  blob(560, 190, 190, 96, 0.08, '#7eae64');
+  blob(585, 288, 82, 110, -0.08, '#6f9a50');
+  blob(782, 338, 66, 44, 0.1, '#8bb468');
+
+  ctx.fillStyle = 'rgba(237, 246, 255, 0.82)';
+  for (let i = 0; i < 12; i += 1) {
+    const y = 50 + i * 38 + randomSeeded(i * 13) * 18;
+    ctx.beginPath();
+    ctx.ellipse(80 + i * 78, y, 70, 18, randomSeeded(i * 29) * 0.4 - 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(earthCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createClockDisplay(label, accent) {
+  const canvasEl = makeCanvas(420, 210);
+  const ctx = canvasEl.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(3.6, 1.8, 1);
+
+  function draw(timeValue, subtitle) {
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    ctx.fillStyle = 'rgba(8, 16, 34, 0.88)';
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 4;
+    const radius = 28;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.arcTo(canvasEl.width, 0, canvasEl.width, canvasEl.height, radius);
+    ctx.arcTo(canvasEl.width, canvasEl.height, 0, canvasEl.height, radius);
+    ctx.arcTo(0, canvasEl.height, 0, 0, radius);
+    ctx.arcTo(0, 0, canvasEl.width, 0, radius);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.76)';
+    ctx.font = '700 30px Pretendard';
+    ctx.fillText(label, 28, 46);
+
+    ctx.fillStyle = accent;
+    ctx.font = '800 68px SFMono-Regular, Consolas, Menlo, monospace';
+    ctx.fillText(timeValue, 28, 122);
+
+    ctx.fillStyle = 'rgba(229,239,255,0.72)';
+    ctx.font = '500 22px Pretendard';
+    ctx.fillText(subtitle, 28, 168);
+
+    texture.needsUpdate = true;
+  }
+
+  draw('00.00 s', '동일한 순간에 출발');
+  return { sprite, draw };
+}
+
+function formatSeconds(value) {
+  return `${value.toFixed(2).padStart(5, '0')} s`;
+}
+
+function disposeHierarchy(root) {
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
+
+  root.traverse((child) => {
+    if (child.geometry) geometries.add(child.geometry);
+    const material = child.material;
+    if (Array.isArray(material)) material.forEach((entry) => materials.add(entry));
+    else if (material) materials.add(material);
+  });
+
+  materials.forEach((material) => {
+    Object.values(material).forEach((value) => {
+      if (value && value.isTexture) textures.add(value);
+    });
+  });
+
+  root.removeFromParent();
+  geometries.forEach((geometry) => geometry.dispose());
+  textures.forEach((texture) => texture.dispose());
+  materials.forEach((material) => material.dispose());
+}
+
+function syncGuiDisplay() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setControllerEnabled(controller, enabled) {
+  if (!controller) return;
+  if (enabled) {
+    if (typeof controller.enable === 'function') controller.enable();
+    if (controller.domElement) {
+      controller.domElement.style.opacity = '1';
+      controller.domElement.style.pointerEvents = '';
+    }
+    return;
+  }
+
+  if (typeof controller.disable === 'function') controller.disable();
+  if (controller.domElement) {
+    controller.domElement.style.opacity = '0.35';
+    controller.domElement.style.pointerEvents = 'none';
+  }
+}
+
+function applyCameraPreset(position, target) {
+  camera.position.copy(position);
+  controls.target.copy(target);
+  controls.update();
+}
+
+function updatePanels() {
+  if (!activeMode) return;
+
+  if (params.mode === MODE_CURVATURE) {
+    dom.titleDescription.textContent = '질량이 커질수록 시공간 격자가 얼마나 깊게 휘어지는지 보고, 작은 행성을 놓아 곡선 경로와 블랙홀 극한을 관찰해 보세요.';
+    dom.statusChip.textContent = '질량이 있는 물체는 주변 시공간을 휘게 합니다. 질량을 키우면 격자의 함몰이 깊어지고, 놓아 둔 행성은 휘어진 시공간을 따라 곡선 경로를 보입니다.';
+    dom.insightTitle.textContent = '고무 시트 비유';
+    dom.insightBody.textContent = '이 모드는 질량이 클수록 시공간의 곡률이 커진다는 점을 고무 시트 비유로 보여 줍니다. 작은 물체는 힘에 끌려간다기보다 휘어진 구조 위를 따라 움직이는 것처럼 해석할 수 있습니다.';
+    dom.insightExtra.textContent = params.massM >= 72
+      ? `현재는 블랙홀 극한에 가까운 상태로 표시됩니다. 사건의 지평선 반지름은 약 ${metrics.eventHorizonRadius.toFixed(2)} 장면 단위입니다.`
+      : '질량을 더 키우면 사건의 지평선이 표시되며, 빛조차 빠져나오기 어려운 블랙홀 비유로 이어집니다.';
+
+    dom.formulaMode.textContent = MODE_CURVATURE;
+    dom.formulaMass.textContent = `M = ${params.massM.toFixed(0)} (상대값)`;
+    dom.formulaMetric1Label.textContent = '최대 휨 깊이';
+    dom.formulaMetric1Value.textContent = `${metrics.curvatureDepth.toFixed(2)} 장면 단위`;
+    dom.formulaMetric2Label.textContent = '행성 상태';
+    dom.formulaMetric2Value.textContent = metrics.planetState;
+    dom.formulaMain.textContent =
+`일반 상대성 이론 (아인슈타인, 1915)
+질량이 시공간을 휘게 한다
+→ 중력 = 시공간 휨의 효과
+
+격자 변형: Δy = -kM / (r² + ε)`;
+    dom.formulaDetail.textContent = params.massM >= 72
+      ? '블랙홀 비유: 격자가 극도로 깊게 휘어 사건의 지평선이 나타납니다. 강한 중력장에서는 빛의 경로도 빠져나오기 어렵습니다.'
+      : '질량이 클수록 격자 중심이 더 깊게 내려가고, 멀리 떨어질수록 변형이 완만해집니다.';
+    dom.formulaNote.textContent = '엄밀한 시공간 방정식을 그대로 푸는 대신, 질량에 따른 곡률 변화를 직관적으로 이해하기 위한 교육용 시각화입니다.';
+  } else if (params.mode === MODE_LENSING) {
+    dom.titleDescription.textContent = '거대한 질량 주위에서 별빛의 경로가 어떻게 휘어지는지, 아인슈타인 고리와 렌즈 호가 언제 두드러지는지 비교해 보세요.';
+    dom.statusChip.textContent = '중력 렌즈에서는 빛도 휘어진 시공간을 따라 이동합니다. 1919년 개기 일식 때 태양 근처 별빛의 휨이 관측되며 일반 상대성 이론이 널리 주목받았습니다.';
+    dom.insightTitle.textContent = '1919년 에딩턴 관측';
+    dom.insightBody.textContent = '태양 근처를 지나는 별빛의 위치가 평소와 다르게 보인다는 사실을 개기 일식 때 측정해, 빛도 중력에 의해 휘어진다는 예측을 검증했습니다.';
+    dom.insightExtra.textContent = metrics.einsteinRingVisible
+      ? '현재 배치에서는 아인슈타인 고리가 뚜렷해지며, 배경 광원이 거의 정렬되었을 때 관측되는 대칭 고리 모습을 강조합니다.'
+      : '렌즈 질량을 더 키우면 호(arc) 왜곡이 더 강해지고, 정렬이 좋아질수록 아인슈타인 고리에 가까워집니다.';
+
+    dom.formulaMode.textContent = MODE_LENSING;
+    dom.formulaMass.textContent = `렌즈 질량 = ${params.lensMass.toFixed(0)} (상대값)`;
+    dom.formulaMetric1Label.textContent = '빛 경로 휨';
+    dom.formulaMetric1Value.textContent = `약 ${metrics.lensDeflectionDeg.toFixed(1)}°`;
+    dom.formulaMetric2Label.textContent = '아인슈타인 고리';
+    dom.formulaMetric2Value.textContent = metrics.einsteinRingVisible ? '형성 중' : '부분 호 왜곡';
+    dom.formulaMain.textContent =
+`중력 렌즈
+빛의 경로가 중력에 의해 휨
+→ 배경 천체의 상이 왜곡
+
+질량이 클수록 → 더 크게 휨`;
+    dom.formulaDetail.textContent = params.showLightPaths
+      ? '금색 경로는 질량이 없을 때의 직선 대신, 거대 질량 주변에서 휘어지는 별빛의 경로를 나타냅니다.'
+      : '빛 경로 표시를 다시 켜면 렌즈 질량 주변에서 곡선으로 굽는 광선을 볼 수 있습니다.';
+    dom.formulaNote.textContent = '실제 관측에서는 배경 은하가 늘어나 보이거나 여러 개의 상으로 갈라져 보일 수 있으며, 은하단의 질량 분포를 추정하는 데 활용됩니다.';
+  } else {
+    dom.titleDescription.textContent = '강한 중력장에서는 시간이 더 느리게 흐른다는 점을 지표면과 높은 궤도의 시계 비교로 살펴보고, GPS 시간 보정과 연결해 보세요.';
+    dom.statusChip.textContent = '중력 시간 지연은 중력이 약한 곳의 시계가 더 빠르게 간다는 뜻입니다. GPS 위성은 지표면보다 시간이 더 빨라지므로 상대론 보정이 반드시 필요합니다.';
+    dom.insightTitle.textContent = 'GPS 시간 보정';
+    dom.insightBody.textContent = '지표면과 20,200 km 고도 위성의 시계는 중력 차이 때문에 하루 기준 약 45 μs의 차이를 보입니다. 이를 보정하지 않으면 위치 계산에 큰 오차가 쌓입니다.';
+    dom.insightExtra.textContent = `현재 설정에서는 하루 약 ${metrics.dailyDiffUs.toFixed(1)} μs 차이가 나며, 보정이 없다면 약 ${metrics.gpsErrorKm.toFixed(1)} km/day 수준의 위치 오차가 누적될 수 있습니다.`;
+
+    dom.formulaMode.textContent = MODE_TIME;
+    dom.formulaMass.textContent = `지표면 ↔ ${params.altitudeKm.toLocaleString()} km`;
+    dom.formulaMetric1Label.textContent = '하루 시간 차이';
+    dom.formulaMetric1Value.textContent = `${metrics.dailyDiffUs.toFixed(2)} μs/day`;
+    dom.formulaMetric2Label.textContent = '가시화 배율';
+    dom.formulaMetric2Value.textContent = `원격 시계 ${((1 + metrics.visualRateDelta) * 100).toFixed(1)}% 속도`;
+    dom.formulaMain.textContent =
+`중력 시간 지연
+강한 중력 → 시간이 느리게
+약한 중력 → 시간이 빠르게
+
+GPS 위성: 하루 약 45 μs 빠름`;
+    dom.formulaDetail.textContent = `시계 A(지표면)와 시계 B(높은 궤도)는 동시에 출발하지만, 시계 B가 더 빨리 누적됩니다. 아래 수치는 실제 일반 상대성 이론 근사치를 바탕으로 계산했습니다.`;
+    dom.formulaNote.textContent = '화면의 디지털 시계 차이는 학습을 위해 확대해서 보인 값이며, 실제 GPS 보정량은 수십 마이크로초/일 수준입니다.';
+  }
+}
+
+function updateLabels() {
+  const items = activeMode?.getLabelItems?.() || [];
+
+  for (let i = 0; i < dom.labelEls.length; i += 1) {
+    const el = dom.labelEls[i];
+    const item = items[i];
+
+    if (!item || !item.object || !item.object.visible) {
+      el.style.display = 'none';
+      continue;
+    }
+
+    item.object.getWorldPosition(tempVector);
+    if (item.offset) tempVector.add(item.offset);
+    tempVector.project(camera);
+
+    if (tempVector.z > 1 || tempVector.z < -1) {
+      el.style.display = 'none';
+      continue;
+    }
+
+    const x = (tempVector.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-tempVector.y * 0.5 + 0.5) * window.innerHeight;
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.textContent = typeof item.text === 'function' ? item.text() : item.text;
+    el.className = `scene-label ${item.className || ''}`.trim();
+    el.style.display = 'block';
+  }
+}
+
+function createCurvatureMode() {
+  const root = new THREE.Group();
+  const sheetGeometry = new THREE.PlaneGeometry(20, 20, 40, 40);
+  sheetGeometry.rotateX(-Math.PI / 2);
+  const basePositions = Float32Array.from(sheetGeometry.attributes.position.array);
+
+  const sheetSurface = new THREE.Mesh(
+    sheetGeometry,
+    new THREE.MeshStandardMaterial({
+      color: 0x0d5533,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.DoubleSide,
+      roughness: 0.9,
+      metalness: 0.04,
+    })
+  );
+  root.add(sheetSurface);
+
+  const sheetWire = new THREE.Mesh(
+    sheetGeometry,
+    new THREE.MeshStandardMaterial({
+      color: 0x44ff88,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.95,
+      roughness: 0.4,
+      metalness: 0.08,
+      emissive: 0x1c6d42,
+      emissiveIntensity: 0.24,
+    })
+  );
+  root.add(sheetWire);
+
+  const massSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.72, 36, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0xffcc44,
+      emissive: 0x8a5200,
+      emissiveIntensity: 0.3,
+      roughness: 0.28,
+      metalness: 0.15,
+    })
+  );
+  root.add(massSphere);
+
+  const massGlow = createSoftGlow(0xffc24a);
+  massGlow.scale.set(3.6, 3.6, 1);
+  root.add(massGlow);
+
+  const eventRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.2, 1.5, 96),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe58e,
+      transparent: true,
+      opacity: 0.82,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  eventRing.rotation.x = -Math.PI / 2;
+  eventRing.visible = false;
+  root.add(eventRing);
+
+  const planetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 24, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0x2266aa,
+      emissive: 0x0d1c44,
+      emissiveIntensity: 0.22,
+      roughness: 0.5,
+      metalness: 0.18,
+    })
+  );
+  planetMesh.visible = false;
+  root.add(planetMesh);
+
+  const trailMaterial = new THREE.LineBasicMaterial({
+    color: 0x8ad9ff,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const trailLine = new THREE.Line(new THREE.BufferGeometry(), trailMaterial);
+  root.add(trailLine);
+
+  let planetState = null;
+  let trailPoints = [];
+
+  function heightAt(x, z) {
+    const r2 = x * x + z * z;
+    return -Math.min(5.2, (params.massM * 0.08) / (r2 + 0.75));
+  }
+
+  function updateSheet() {
+    const positions = sheetGeometry.attributes.position;
+    const array = positions.array;
+    for (let i = 0; i < array.length; i += 3) {
+      const x = basePositions[i];
+      const z = basePositions[i + 2];
+      array[i] = x;
+      array[i + 1] = heightAt(x, z);
+      array[i + 2] = z;
+    }
+    positions.needsUpdate = true;
+    sheetGeometry.computeVertexNormals();
+
+    metrics.curvatureDepth = Math.abs(heightAt(0, 0));
+    metrics.eventHorizonRadius = 1.2 + Math.max(0, params.massM - 72) * 0.045;
+
+    const sphereScale = 0.92 + params.massM * 0.008;
+    massSphere.scale.setScalar(sphereScale);
+    massSphere.position.set(0, heightAt(0, 0) + sphereScale * 0.9, 0);
+    massGlow.position.copy(massSphere.position);
+    massGlow.scale.setScalar(3.2 + params.massM * 0.03);
+
+    eventRing.visible = params.massM >= 72;
+    eventRing.scale.setScalar(metrics.eventHorizonRadius / 1.2);
+    eventRing.position.set(0, heightAt(metrics.eventHorizonRadius, 0) + 0.04, 0);
+
+    sheetWire.visible = params.showGrid;
+    sheetSurface.visible = true;
+  }
+
+  function refreshTrail() {
+    if (trailPoints.length < 2) {
+      trailLine.visible = false;
+      return;
+    }
+
+    trailLine.geometry.dispose();
+    trailLine.geometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
+    trailLine.visible = true;
+  }
+
+  function clearPlanet() {
+    planetState = null;
+    trailPoints = [];
+    refreshTrail();
+    planetMesh.visible = false;
+    metrics.planetState = '행성을 놓아 곡선 경로를 관찰하세요.';
+  }
+
+  function placePlanet() {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 6.3;
+    const start = new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    const tangent = new THREE.Vector2(-Math.sin(angle), Math.cos(angle));
+
+    planetState = {
+      pos: start,
+      vel: tangent.multiplyScalar(0.9 + params.massM * 0.004),
+      age: 0,
+    };
+
+    trailPoints = [];
+    planetMesh.visible = true;
+    metrics.planetState = '측지선 경로 추적 중';
+  }
+
+  updateSheet();
+
+  return {
+    root,
+    onGridToggle() {
+      updateSheet();
+    },
+    onMassChange() {
+      updateSheet();
+      if (planetState) {
+        metrics.planetState = '질량 변화에 맞춰 경로를 다시 계산 중';
+      }
+      updatePanels();
+    },
+    placePlanet,
+    reset() {
+      params.massM = 10;
+      params.showGrid = true;
+      updateSheet();
+      clearPlanet();
+    },
+    update(delta) {
+      massGlow.material.rotation += delta * 0.08;
+
+      if (!planetState) return;
+
+      const step = Math.min(0.035, delta) * 3.0;
+      for (let i = 0; i < 3; i += 1) {
+        const radius = Math.max(planetState.pos.length(), 1.05);
+        const accel = planetState.pos.clone().multiplyScalar((-params.massM * 0.11) / (radius * radius * radius + 0.25));
+        planetState.vel.addScaledVector(accel, step);
+        planetState.pos.addScaledVector(planetState.vel, step);
+        planetState.age += step;
+      }
+
+      const px = planetState.pos.x;
+      const pz = planetState.pos.y;
+      const py = heightAt(px, pz) + 0.22;
+      planetMesh.position.set(px, py, pz);
+
+      trailPoints.push(new THREE.Vector3(px, py, pz));
+      if (trailPoints.length > 240) trailPoints.shift();
+      refreshTrail();
+
+      const radius = Math.sqrt(px * px + pz * pz);
+      if (radius < 1.05) {
+        metrics.planetState = '질량 중심 쪽으로 낙하';
+      } else if (radius > 9.8 || planetState.age > 26) {
+        metrics.planetState = '궤적 종료, 다시 놓아 보세요.';
+        clearPlanet();
+      } else {
+        metrics.planetState = `반지름 ${radius.toFixed(1)}에서 곡선 운동`;
+      }
+    },
+    getLabelItems() {
+      return [
+        {
+          object: massSphere,
+          offset: new THREE.Vector3(0, 1.5, 0),
+          text: '질량이 시공간을 휘게 한다',
+          className: 'gold',
+        },
+        planetMesh.visible ? {
+          object: planetMesh,
+          offset: new THREE.Vector3(0, 0.7, 0),
+          text: '행성: 측지선 유사 경로',
+          className: 'blue',
+        } : null,
+        eventRing.visible ? {
+          object: eventRing,
+          offset: new THREE.Vector3(0, 0.35, 0),
+          text: '사건의 지평선',
+          className: 'red',
+        } : null,
+      ].filter(Boolean);
+    },
+    destroy() {
+      disposeHierarchy(root);
+    },
+  };
+}
+
+function createLensingMode() {
+  const root = new THREE.Group();
+  const localStars = createBackgroundStars(500, 28);
+  localStars.scale.set(1, 0.55, 1);
+  root.add(localStars);
+
+  const lensSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 36, 24),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffaa44,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.25,
+      metalness: 0.04,
+      transmission: 0.08,
+      emissive: 0x9a4f00,
+      emissiveIntensity: 0.22,
+    })
+  );
+  root.add(lensSphere);
+
+  const lensGlow = createSoftGlow(0xffbf66);
+  lensGlow.scale.set(5.2, 5.2, 1);
+  root.add(lensGlow);
+
+  const galaxyTextureA = createGalaxyTexture('rgba(126, 206, 255, 0.66)', 'rgba(255, 255, 255, 0.24)');
+  const galaxyTextureB = createGalaxyTexture('rgba(255, 198, 126, 0.54)', 'rgba(255, 255, 255, 0.22)');
+
+  const galaxyA = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTextureA, transparent: true, depthWrite: false }));
+  galaxyA.position.set(-4.8, 1.6, -14);
+  galaxyA.scale.set(5.8, 5.8, 1);
+  root.add(galaxyA);
+
+  const galaxyB = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTextureB, transparent: true, depthWrite: false }));
+  galaxyB.position.set(5.2, -1.4, -13);
+  galaxyB.scale.set(4.8, 4.8, 1);
+  root.add(galaxyB);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(1.9, 2.25, 96),
+    new THREE.MeshBasicMaterial({
+      color: 0xffee88,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  root.add(ring);
+
+  const arcGeometry = new THREE.TorusGeometry(2.8, 0.12, 16, 100, Math.PI * 0.88);
+  const arcMatA = new THREE.MeshBasicMaterial({ color: 0xffdfa1, transparent: true, opacity: 0.0 });
+  const arcMatB = new THREE.MeshBasicMaterial({ color: 0xbdefff, transparent: true, opacity: 0.0 });
+  const arcA = new THREE.Mesh(arcGeometry, arcMatA);
+  arcA.position.set(0.28, 0.42, 0.15);
+  arcA.rotation.set(Math.PI / 2, 0.2, 0.44);
+  root.add(arcA);
+
+  const arcB = new THREE.Mesh(arcGeometry.clone(), arcMatB);
+  arcB.position.set(-0.32, -0.25, -0.18);
+  arcB.rotation.set(Math.PI / 2, -0.12, -2.34);
+  root.add(arcB);
+
+  const lightPathGroup = new THREE.Group();
+  root.add(lightPathGroup);
+
+  function rebuildLightPaths() {
+    while (lightPathGroup.children.length) {
+      const child = lightPathGroup.children[0];
+      lightPathGroup.remove(child);
+      child.geometry.dispose();
+      child.material.dispose();
+    }
+
+    const deflection = 0.25 + params.lensMass * 0.05;
+    const offsets = [
+      { x: -3.8, y: 1.55 },
+      { x: -2.4, y: 0.45 },
+      { x: 2.2, y: -0.3 },
+      { x: 3.6, y: -1.4 },
+    ];
+
+    offsets.forEach((offset, index) => {
+      const sign = Math.sign(offset.x) || 1;
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(offset.x, offset.y, -13),
+        new THREE.Vector3(offset.x * 0.86, offset.y * 0.72, -6),
+        new THREE.Vector3(offset.x * 0.2 - sign * deflection * 0.42, offset.y * 0.22, -1.2),
+        new THREE.Vector3(-sign * deflection * 0.16, offset.y * 0.08, 3.2),
+        new THREE.Vector3(-sign * deflection * 0.08, offset.y * 0.02, 10.5),
+      ]);
+
+      const geometry = new THREE.TubeGeometry(curve, 72, 0.045 + index * 0.004, 8, false);
+      const material = new THREE.MeshBasicMaterial({
+        color: index % 2 === 0 ? 0xffdd44 : 0xfff0ae,
+        transparent: true,
+        opacity: 0.8,
+      });
+      const tube = new THREE.Mesh(geometry, material);
+      lightPathGroup.add(tube);
+    });
+
+    lightPathGroup.visible = params.showLightPaths;
+    metrics.lensDeflectionDeg = 0.9 + params.lensMass * 0.34;
+    metrics.einsteinRingVisible = params.lensMass >= 30;
+  }
+
+  function updateLensVisuals() {
+    const scale = 0.8 + params.lensMass * 0.024;
+    metrics.einsteinRingVisible = params.lensMass >= 30;
+    lensSphere.scale.setScalar(scale);
+    lensGlow.position.copy(lensSphere.position);
+    lensGlow.scale.setScalar(4.4 + params.lensMass * 0.08);
+
+    ring.quaternion.copy(camera.quaternion);
+    const ringScale = 1.0 + params.lensMass * 0.022;
+    ring.scale.setScalar(ringScale);
+    ring.material.opacity = metrics.einsteinRingVisible ? 0.84 : 0.08 + params.lensMass * 0.006;
+
+    const arcOpacity = clamp((params.lensMass - 10) / 22, 0, 0.72);
+    arcA.material.opacity = arcOpacity;
+    arcB.material.opacity = arcOpacity * 0.92;
+    arcA.scale.setScalar(1 + params.lensMass * 0.012);
+    arcB.scale.setScalar(1 + params.lensMass * 0.011);
+
+    rebuildLightPaths();
+  }
+
+  updateLensVisuals();
+
+  return {
+    root,
+    onLightPathToggle() {
+      lightPathGroup.visible = params.showLightPaths;
+      updatePanels();
+    },
+    onLensMassChange() {
+      updateLensVisuals();
+      updatePanels();
+    },
+    reset() {
+      params.lensMass = 18;
+      params.showLightPaths = true;
+      updateLensVisuals();
+    },
+    update(delta) {
+      lensSphere.rotation.y += delta * 0.36;
+      lensGlow.material.rotation -= delta * 0.12;
+      galaxyA.material.rotation += delta * 0.02;
+      galaxyB.material.rotation -= delta * 0.018;
+      ring.quaternion.copy(camera.quaternion);
+    },
+    getLabelItems() {
+      return [
+        {
+          object: lensSphere,
+          offset: new THREE.Vector3(0, 1.7, 0),
+          text: '거대 질량체',
+          className: 'gold',
+        },
+        params.showLightPaths && (lightPathGroup.children[1] || lightPathGroup.children[0]) ? {
+          object: lightPathGroup.children[1] || lightPathGroup.children[0],
+          offset: new THREE.Vector3(0, 0.22, 0),
+          text: '빛 경로가 휘어진다',
+          className: 'green',
+        } : null,
+        metrics.einsteinRingVisible ? {
+          object: ring,
+          offset: new THREE.Vector3(0, 0.2, 0),
+          text: '아인슈타인 고리',
+          className: 'blue',
+        } : null,
+      ].filter(Boolean);
+    },
+    destroy() {
+      disposeHierarchy(root);
+    },
+  };
+}
+
+function computeDailyDifferenceUs(altitudeKm) {
+  const rSurface = EARTH_RADIUS_M;
+  const rOrbit = EARTH_RADIUS_M + altitudeKm * 1000;
+  const schRadius = (2 * GRAVITATIONAL_G * EARTH_MASS_KG) / (LIGHT_SPEED * LIGHT_SPEED);
+  const rateSurface = Math.sqrt(1 - schRadius / rSurface);
+  const rateOrbit = Math.sqrt(1 - schRadius / rOrbit);
+  return (rateOrbit - rateSurface) * 86400 * 1e6;
+}
+
+function createTimeMode() {
+  const root = new THREE.Group();
+  const earthTexture = createEarthTexture();
+
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(2.2, 48, 36),
+    new THREE.MeshStandardMaterial({
+      map: earthTexture,
+      roughness: 0.88,
+      metalness: 0.05,
+    })
+  );
+  earth.rotation.z = 0.42;
+  root.add(earth);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(2.3, 40, 30),
+    new THREE.MeshBasicMaterial({
+      color: 0x67c5ff,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  root.add(atmosphere);
+
+  const orbitRing = new THREE.Mesh(
+    new THREE.TorusGeometry(4.9, 0.028, 8, 160),
+    new THREE.MeshBasicMaterial({
+      color: 0x74a8ff,
+      transparent: true,
+      opacity: 0.46,
+    })
+  );
+  orbitRing.rotation.x = Math.PI / 2;
+  root.add(orbitRing);
+
+  const surfaceMarker = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 0.6, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xff6666,
+      emissive: 0x5a1010,
+      emissiveIntensity: 0.3,
+    })
+  );
+  root.add(surfaceMarker);
+
+  const satellite = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.22, 0.22),
+    new THREE.MeshStandardMaterial({
+      color: 0xb7c8ff,
+      metalness: 0.72,
+      roughness: 0.32,
+    })
+  );
+  satellite.add(body);
+
+  const panelLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.04, 0.24),
+    new THREE.MeshStandardMaterial({
+      color: 0x4664d1,
+      emissive: 0x132166,
+      emissiveIntensity: 0.22,
+      metalness: 0.45,
+      roughness: 0.4,
+    })
+  );
+  panelLeft.position.x = -0.48;
+  satellite.add(panelLeft);
+
+  const panelRight = panelLeft.clone();
+  panelRight.position.x = 0.48;
+  satellite.add(panelRight);
+  root.add(satellite);
+
+  const nearClock = createClockDisplay('시계 A · 지표면', '#ff7676');
+  const farClock = createClockDisplay('시계 B · 높은 궤도', '#7ea7ff');
+  const nearClockGroup = new THREE.Group();
+  nearClockGroup.add(nearClock.sprite);
+  root.add(nearClockGroup);
+
+  const farClockGroup = new THREE.Group();
+  farClockGroup.add(farClock.sprite);
+  root.add(farClockGroup);
+
+  let orbitAngle = 0.1;
+  let nearElapsed = 0;
+  let farElapsed = 0;
+  let redrawTimer = 0;
+
+  function updateAltitude() {
+    const orbitRadius = 3.3 + (params.altitudeKm / 50000) * 3.4;
+    orbitRing.scale.setScalar(orbitRadius / 4.9);
+
+    metrics.dailyDiffUs = computeDailyDifferenceUs(params.altitudeKm);
+    metrics.gpsErrorKm = metrics.dailyDiffUs * 1e-6 * 299792.458;
+    metrics.visualRateDelta = clamp(metrics.dailyDiffUs * 0.0016, 0, 0.18);
+
+    surfaceMarker.position.set(0, 2.52, 0);
+    nearClockGroup.position.set(0, 4.1, 0);
+
+    satellite.userData.orbitRadius = orbitRadius;
+    metrics.nearClock = nearElapsed;
+    metrics.farClock = farElapsed;
+  }
+
+  updateAltitude();
+
+  return {
+    root,
+    onAltitudeChange() {
+      updateAltitude();
+      updatePanels();
+    },
+    reset() {
+      params.altitudeKm = 20200;
+      nearElapsed = 0;
+      farElapsed = 0;
+      orbitAngle = 0.1;
+      updateAltitude();
+    },
+    update(delta) {
+      earth.rotation.y += delta * 0.14;
+      atmosphere.rotation.y -= delta * 0.05;
+
+      nearElapsed += delta;
+      farElapsed += delta * (1 + metrics.visualRateDelta);
+      metrics.nearClock = nearElapsed;
+      metrics.farClock = farElapsed;
+
+      orbitAngle += delta * 0.38;
+      const orbitRadius = satellite.userData.orbitRadius || 4.8;
+      satellite.position.set(
+        Math.cos(orbitAngle) * orbitRadius,
+        0.75 + Math.sin(orbitAngle * 0.75) * 0.55,
+        Math.sin(orbitAngle) * orbitRadius
+      );
+      farClockGroup.position.copy(satellite.position).add(new THREE.Vector3(0, 1.25, 0));
+
+      redrawTimer += delta;
+      if (redrawTimer > 0.05) {
+        redrawTimer = 0;
+        nearClock.draw(formatSeconds(nearElapsed), '강한 중력: 더 느리게');
+        farClock.draw(formatSeconds(farElapsed), `약한 중력: +${(metrics.visualRateDelta * 100).toFixed(1)}%`);
+      }
+    },
+    getLabelItems() {
+      return [
+        {
+          object: surfaceMarker,
+          offset: new THREE.Vector3(0, 0.8, 0),
+          text: '지표면 시계 A',
+          className: 'red',
+        },
+        {
+          object: satellite,
+          offset: new THREE.Vector3(0, 0.8, 0),
+          text: 'GPS 유사 궤도 시계 B',
+          className: 'blue',
+        },
+        {
+          object: orbitRing,
+          offset: new THREE.Vector3(0, 0.22, 0),
+          text: '높은 궤도일수록 시간이 더 빠름',
+          className: 'green',
+        },
+      ];
+    },
+    destroy() {
+      disposeHierarchy(root);
+    },
+  };
+}
+
+function buildMode() {
+  if (activeMode) {
+    activeMode.destroy();
+    activeMode = null;
+  }
+
+  if (params.mode === MODE_CURVATURE) {
+    activeMode = createCurvatureMode();
+    applyCameraPreset(new THREE.Vector3(11, 7.5, 12), new THREE.Vector3(0, -1.5, 0));
+  } else if (params.mode === MODE_LENSING) {
+    activeMode = createLensingMode();
+    applyCameraPreset(new THREE.Vector3(8.6, 3.8, 11.5), new THREE.Vector3(0, 0, 0));
+  } else {
+    activeMode = createTimeMode();
+    applyCameraPreset(new THREE.Vector3(9.2, 6.2, 11.8), new THREE.Vector3(0, 1.2, 0));
+  }
+
+  scene.add(activeMode.root);
+  updateControllerStates();
+  updatePanels();
+}
+
+const gui = new GUI({ title: '시공간 컨트롤' });
+const controllers = {
+  mode: gui.add(params, 'mode', [MODE_CURVATURE, MODE_LENSING, MODE_TIME]).name('모드').onChange(() => {
+    buildMode();
+    syncGuiDisplay();
+  }),
+  massM: gui.add(params, 'massM', 1, 100, 1).name('질량 M').onChange(() => {
+    activeMode?.onMassChange?.();
+    updatePanels();
+  }),
+  placePlanet: gui.add(params, 'placePlanet').name('행성 놓기'),
+  lensMass: gui.add(params, 'lensMass', 1, 50, 1).name('렌즈 질량').onChange(() => {
+    activeMode?.onLensMassChange?.();
+    updatePanels();
+  }),
+  altitudeKm: gui.add(params, 'altitudeKm', 0, 50000, 100).name('고도 차이(km)').onChange(() => {
+    activeMode?.onAltitudeChange?.();
+    updatePanels();
+  }),
+  showGrid: gui.add(params, 'showGrid').name('격자 표시').onChange(() => {
+    activeMode?.onGridToggle?.();
+    updatePanels();
+  }),
+  showLightPaths: gui.add(params, 'showLightPaths').name('빛 경로 표시').onChange(() => {
+    activeMode?.onLightPathToggle?.();
+    updatePanels();
+  }),
+  reset: gui.add(params, 'reset').name('초기화'),
+};
+
+function updateControllerStates() {
+  const isCurvature = params.mode === MODE_CURVATURE;
+  const isLensing = params.mode === MODE_LENSING;
+  const isTime = params.mode === MODE_TIME;
+
+  setControllerEnabled(controllers.massM, isCurvature);
+  setControllerEnabled(controllers.placePlanet, isCurvature);
+  setControllerEnabled(controllers.showGrid, isCurvature);
+  setControllerEnabled(controllers.lensMass, isLensing);
+  setControllerEnabled(controllers.showLightPaths, isLensing);
+  setControllerEnabled(controllers.altitudeKm, isTime);
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  const isOpen = dom.guidePanel.classList.toggle('open');
+  dom.guideToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+scene.add(createBackgroundStars(1200, 72));
+buildMode();
+syncGuiDisplay();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+  activeMode?.update?.(delta);
+  controls.update();
+  updateLabels();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

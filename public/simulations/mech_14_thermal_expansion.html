@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>열팽창과 응용 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel-dark: rgba(10, 18, 30, 0.82);
+    --panel-mid: rgba(18, 28, 42, 0.76);
+    --panel-light: rgba(252, 251, 247, 0.92);
+    --line-light: rgba(255, 255, 255, 0.12);
+    --line-dark: rgba(37, 54, 72, 0.12);
+    --text-main: #f8fbff;
+    --text-dim: rgba(248, 251, 255, 0.74);
+    --text-body: #233547;
+    --text-muted: #6f7f8d;
+    --accent: #ff7c5c;
+    --cool: #4f8dff;
+    --warm: #ff7043;
+    --shadow-soft: 0 22px 58px rgba(11, 22, 36, 0.2);
+    --shadow-warm: 0 22px 54px rgba(70, 48, 34, 0.16);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 255, 255, 0.45), transparent 20%),
+      radial-gradient(circle at 84% 10%, rgba(112, 162, 255, 0.18), transparent 16%),
+      linear-gradient(180deg, #f6f8fc 0%, #eef0f5 54%, #dde3ef 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  #hero {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 22;
+    width: min(760px, calc(100vw - 32px));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #hero .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(26, 44, 64, 0.58);
+  }
+
+  #hero h1 {
+    margin-top: 5px;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: -0.05em;
+    color: rgba(16, 29, 45, 0.96);
+    text-shadow: 0 8px 28px rgba(255, 255, 255, 0.5);
+  }
+
+  #hero p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(25, 43, 62, 0.74);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 52;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(8, 21, 40, 0.84);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 51;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(78vh, 860px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: rgba(8, 18, 34, 0.92);
+    color: #f7fbff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-soft);
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+    backdrop-filter: blur(18px);
+  }
+
+  #guide-panel.open { display: block; }
+  #guide-panel h3 { margin: 14px 0 6px; font-size: 15px; color: #95d0ff; }
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #scenario-tabs {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(720px, calc(100vw - 32px));
+  }
+
+  .scenario-tab {
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.28);
+    color: rgba(16, 30, 47, 0.76);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  }
+
+  .scenario-tab:hover { transform: translateY(-1px); }
+
+  .scenario-tab.active {
+    background: rgba(9, 20, 36, 0.88);
+    color: #fff;
+    border-color: rgba(120, 192, 255, 0.26);
+    box-shadow: 0 14px 28px rgba(12, 24, 40, 0.18);
+  }
+
+  #status-panel {
+    position: fixed;
+    top: 146px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(620px, calc(100vw - 34px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: rgba(8, 19, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+  }
+
+  #status-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  #status-title {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  #status-body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 31;
+    width: min(410px, calc(100vw - 28px));
+    max-height: min(40vh, 340px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(247, 244, 237, 0.92));
+    color: var(--text-body);
+    border: 1px solid var(--line-dark);
+    box-shadow: var(--shadow-warm);
+    backdrop-filter: blur(18px);
+    line-height: 1.7;
+    font-size: 12px;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #a4562c;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(164, 86, 44, 0.4), rgba(164, 86, 44, 0.02));
+  }
+
+  #formula-panel .line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 2px;
+  }
+
+  #formula-panel .label {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+
+  #formula-panel .value {
+    text-align: right;
+    color: #233547;
+    font-weight: 600;
+  }
+
+  #formula-panel .block-title {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #b15c2f;
+  }
+
+  #formula-panel .note {
+    margin-top: 6px;
+    color: #526372;
+    font-size: 11px;
+  }
+
+  #insight-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 30;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(44vh, 380px);
+    overflow-y: auto;
+    padding: 16px;
+    border-radius: 22px;
+    background: rgba(9, 19, 34, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(18px);
+  }
+
+  #insight-panel h2 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  #insight-panel p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  .insight-card {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .insight-card h3 {
+    font-size: 13px;
+    color: #fff0cc;
+  }
+
+  .insight-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(245, 248, 255, 0.78);
+  }
+
+  #graph-panel {
+    position: fixed;
+    right: 14px;
+    top: 146px;
+    z-index: 29;
+    width: min(340px, calc(100vw - 28px));
+    padding: 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #213547;
+    border: 1px solid rgba(39, 53, 72, 0.1);
+    box-shadow: var(--shadow-warm);
+    display: none;
+  }
+
+  #graph-panel.show { display: block; }
+
+  #graph-panel h3 {
+    font-size: 14px;
+    color: #21435c;
+  }
+
+  #graph-panel p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #5b6c7b;
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: auto;
+    margin-top: 10px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(245, 249, 255, 0.98), rgba(235, 243, 251, 0.96));
+    border: 1px solid rgba(59, 92, 126, 0.1);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+  }
+
+  .floating-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(8, 19, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 10px 26px rgba(6, 15, 28, 0.18);
+    backdrop-filter: blur(10px);
+  }
+
+  .floating-label.warm { background: rgba(164, 49, 21, 0.78); }
+  .floating-label.cool { background: rgba(44, 94, 172, 0.82); }
+  .floating-label.neutral { background: rgba(35, 56, 78, 0.8); }
+
+  @media (max-width: 980px) {
+    #hero h1 { font-size: 26px; }
+    #graph-panel { top: auto; bottom: 212px; }
+  }
+
+  @media (max-width: 768px) {
+    #hero { top: 12px; width: calc(100vw - 24px); }
+    #hero h1 { font-size: 22px; }
+    #hero p { font-size: 11px; }
+    #scenario-tabs { top: 94px; width: calc(100vw - 24px); }
+    .scenario-tab { padding: 9px 12px; font-size: 11px; }
+    #status-panel { top: 142px; width: calc(100vw - 24px); }
+    #graph-panel,
+    #insight-panel,
+    #formula-panel {
+      width: calc(100vw - 24px);
+      right: 12px;
+      left: 12px;
+    }
+    #graph-panel { bottom: 232px; }
+    #formula-panel { bottom: 12px; max-height: 28vh; }
+    #insight-panel { bottom: 220px; max-height: 24vh; }
+  }
+</style>
+</head>
+<body>
+  <div id="scene-root"></div>
+
+  <button id="guide-toggle" type="button">📖 학습 가이드</button>
+  <div id="guide-panel">
+    <h3>핵심 원리</h3>
+    <p>물질은 온도가 올라가면 팽창합니다. 선팽창은 ΔL = αL₀ΔT로 나타내며, 열팽창 계수 α는 물질마다 다릅니다. 바이메탈은 α가 다른 두 금속을 접합하여 온도 변화에 따라 휘어지는 원리를 이용합니다.</p>
+    <h3>탐구 질문</h3>
+    <ul>
+      <li>길이 2m인 알루미늄 막대의 온도를 100°C 올리면 길이 변화는 몇 mm인가요?</li>
+      <li>철도 레일에 이음새 간격을 두는 까닭을 열팽창으로 설명해 보세요.</li>
+      <li>물이 4°C에서 밀도가 최대인 성질이 겨울 호수 생태계에 어떤 영향을 미치나요?</li>
+    </ul>
+    <h3>실생활 예시</h3>
+    <ul>
+      <li>철도 레일 이음새</li>
+      <li>다리 신축 이음 장치</li>
+      <li>바이메탈 서모스탯</li>
+      <li>수은 온도계</li>
+    </ul>
+    <h3>교과서 연계</h3>
+    <p>역학과 에너지 II편 p64~69 — 단열과 열팽창</p>
+  </div>
+
+  <div id="hero">
+    <div class="eyebrow">Mechanics & Energy</div>
+    <h1>열팽창과 응용</h1>
+    <p>선팽창, 부피 팽창, 바이메탈의 휨을 한 장면에서 오가며 비교해 보세요. 온도 변화가 길이, 부피, 회로 동작까지 어떻게 이어지는지 실시간으로 관찰합니다.</p>
+  </div>
+
+  <div id="scenario-tabs">
+    <button class="scenario-tab active" data-scenario="선팽창" type="button">선팽창</button>
+    <button class="scenario-tab" data-scenario="부피 팽창" type="button">부피 팽창</button>
+    <button class="scenario-tab" data-scenario="바이메탈" type="button">바이메탈</button>
+  </div>
+
+  <div id="status-panel">
+    <div id="status-eyebrow">실시간 관찰</div>
+    <div id="status-title">같은 ΔT에서도 물질마다 팽창량이 다릅니다.</div>
+    <div id="status-body">알루미늄, 구리, 인바를 비교하며 열팽창 계수 α의 차이를 확인해 보세요.</div>
+  </div>
+
+  <div id="graph-panel">
+    <h3>물의 밀도 vs 온도</h3>
+    <p>4°C에서 밀도가 최대가 되므로 0~4°C 구간에서는 가열해도 오히려 부피가 줄어듭니다.</p>
+    <canvas id="graph-canvas" width="600" height="360" aria-label="물의 밀도 그래프"></canvas>
+  </div>
+
+  <div id="formula-panel"></div>
+  <div id="insight-panel"></div>
+  <div id="label-layer"></div>
+
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const root = document.getElementById('scene-root');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const formulaPanel = document.getElementById('formula-panel');
+  const insightPanel = document.getElementById('insight-panel');
+  const graphPanel = document.getElementById('graph-panel');
+  const graphCanvas = document.getElementById('graph-canvas');
+  const labelLayer = document.getElementById('label-layer');
+  const statusTitle = document.getElementById('status-title');
+  const statusBody = document.getElementById('status-body');
+  const tabs = Array.from(document.querySelectorAll('.scenario-tab'));
+
+  const BASE_TEMP = 20;
+  const LINEAR_COMPARE_SET = ['알루미늄', '구리', '인바'];
+  const MATERIALS = {
+    '알루미늄': { alpha: 23e-6, color: 0xaabbcc, label: '알루미늄' },
+    '구리': { alpha: 17e-6, color: 0xcc8855, label: '구리' },
+    '철': { alpha: 12e-6, color: 0x9aa3b2, label: '철' },
+    '인바': { alpha: 1.2e-6, color: 0x888888, label: '인바' },
+  };
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  root.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xeef0f5);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(7.2, 4.6, 7.8);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 4.5;
+  controls.maxDistance = 15;
+  controls.target.set(0, 1.6, 0);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambient);
+
+  const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+  directional.position.set(5, 7, 6);
+  directional.castShadow = true;
+  directional.shadow.mapSize.set(2048, 2048);
+  directional.shadow.camera.left = -8;
+  directional.shadow.camera.right = 8;
+  directional.shadow.camera.top = 8;
+  directional.shadow.camera.bottom = -8;
+  scene.add(directional);
+
+  const fill = new THREE.PointLight(0xffffff, 0.35, 30);
+  fill.position.set(-6, 6, 8);
+  scene.add(fill);
+
+  const world = new THREE.Group();
+  scene.add(world);
+
+  const floor = new THREE.Mesh(
+    new THREE.CylinderGeometry(6.8, 7.4, 0.3, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0xd9dee8,
+      roughness: 0.9,
+      metalness: 0.05,
+    })
+  );
+  floor.position.y = -0.15;
+  floor.receiveShadow = true;
+  world.add(floor);
+
+  const floorRing = new THREE.Mesh(
+    new THREE.TorusGeometry(5.7, 0.04, 12, 90),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.1 })
+  );
+  floorRing.rotation.x = Math.PI / 2;
+  floorRing.position.y = 0.01;
+  world.add(floorRing);
+
+  const backWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(7.3, 7.3, 5.6, 64, 1, true, Math.PI * 0.18, Math.PI * 0.64),
+    new THREE.MeshStandardMaterial({
+      color: 0xf5f7fb,
+      roughness: 1,
+      side: THREE.BackSide,
+    })
+  );
+  backWall.position.set(0, 2.25, -0.9);
+  world.add(backWall);
+
+  const params = {
+    scenario: '선팽창',
+    temperature: 20,
+    material: '비교 모드',
+    baseLength: 2,
+    compareMode: true,
+    showDelta: true,
+    reset() {
+      params.scenario = '선팽창';
+      params.temperature = 20;
+      params.material = '비교 모드';
+      params.baseLength = 2;
+      params.compareMode = true;
+      params.showDelta = true;
+      syncScenarioUI();
+      buildScenario();
+    },
+  };
+
+  let currentScenario = null;
+  let floatingLabels = [];
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function lerpColor(a, b, t) {
+    return new THREE.Color(a).lerp(new THREE.Color(b), clamp(t, 0, 1));
+  }
+
+  function formatSignedMm(valueMeters) {
+    const mm = valueMeters * 1000;
+    return `${mm >= 0 ? '+' : ''}${mm.toFixed(2)} mm`;
+  }
+
+  function disposeObject(object) {
+    object.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((material) => material.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+      if (child.userData?.texture) {
+        child.userData.texture.dispose();
+      }
+    });
+  }
+
+  function clearFloatingLabels() {
+    floatingLabels.forEach((entry) => entry.el.remove());
+    floatingLabels = [];
+  }
+
+  function createFloatingLabel(className, getText, getPosition, getVisible = () => true) {
+    const el = document.createElement('div');
+    el.className = `floating-label ${className}`;
+    labelLayer.appendChild(el);
+    const entry = { el, getText, getPosition, getVisible };
+    floatingLabels.push(entry);
+    return entry;
+  }
+
+  function updateFloatingLabels() {
+    const width = renderer.domElement.clientWidth;
+    const height = renderer.domElement.clientHeight;
+    for (const entry of floatingLabels) {
+      if (!entry.getVisible()) {
+        entry.el.style.display = 'none';
+        continue;
+      }
+      const point = entry.getPosition();
+      const projected = point.clone().project(camera);
+      const visible = projected.z > -1 && projected.z < 1;
+      if (!visible) {
+        entry.el.style.display = 'none';
+        continue;
+      }
+      const x = (projected.x * 0.5 + 0.5) * width;
+      const y = (-projected.y * 0.5 + 0.5) * height;
+      entry.el.style.display = 'block';
+      entry.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      entry.el.textContent = entry.getText();
+    }
+  }
+
+  function createCanvasPanel(width, height, draw) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = Math.round(512 * (height / width));
+    const ctx = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, height),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true })
+    );
+    mesh.userData.texture = texture;
+
+    return {
+      mesh,
+      redraw(payload) {
+        draw(ctx, canvas, payload);
+        texture.needsUpdate = true;
+      },
+    };
+  }
+
+  function makeDisplayPanel(width, height) {
+    return createCanvasPanel(width, height, (ctx, canvas, payload) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(12, 24, 42, 0.95)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 4;
+      const radius = 28;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(canvas.width - radius, 0);
+      ctx.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+      ctx.lineTo(canvas.width, canvas.height - radius);
+      ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+      ctx.lineTo(radius, canvas.height);
+      ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#83d8ff';
+      ctx.font = '700 34px Pretendard, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(payload.title, canvas.width / 2, canvas.height * 0.44);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 82px "Space Grotesk", "Pretendard", sans-serif';
+      ctx.fillText(payload.value, canvas.width / 2, canvas.height * 0.76);
+    });
+  }
+
+  function makeNamePlate(width, height) {
+    return createCanvasPanel(width, height, (ctx, canvas, payload) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.strokeStyle = 'rgba(24, 42, 61, 0.14)';
+      ctx.lineWidth = 4;
+      const radius = 20;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(canvas.width - radius, 0);
+      ctx.quadraticCurveTo(canvas.width, 0, canvas.width, radius);
+      ctx.lineTo(canvas.width, canvas.height - radius);
+      ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height);
+      ctx.lineTo(radius, canvas.height);
+      ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = payload.color;
+      ctx.font = '800 48px Pretendard, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(payload.text, canvas.width / 2, canvas.height * 0.62);
+    });
+  }
+
+  function createThermometer() {
+    const group = new THREE.Group();
+
+    const glass = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 2.5, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xfafcff,
+        transparent: true,
+        opacity: 0.32,
+        roughness: 0.18,
+      })
+    );
+    glass.position.y = 1.3;
+    group.add(glass);
+
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.19, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.28,
+        roughness: 0.15,
+      })
+    );
+    bulb.position.y = 0.06;
+    group.add(bulb);
+
+    const mercury = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.038, 0.038, 1, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0xe94d4d,
+        emissive: 0x7a1616,
+        roughness: 0.25,
+      })
+    );
+    mercury.position.y = 0.58;
+    group.add(mercury);
+
+    const bulbMercury = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xff6565,
+        emissive: 0x8f2020,
+      })
+    );
+    bulbMercury.position.y = 0.06;
+    group.add(bulbMercury);
+
+    const display = makeDisplayPanel(1.28, 0.46);
+    display.mesh.position.set(0, 2.15, 0);
+    group.add(display.mesh);
+
+    function update(temp) {
+      const normalized = clamp((temp + 50) / 350, 0, 1);
+      const height = 0.24 + normalized * 1.92;
+      mercury.scale.y = height;
+      mercury.position.y = 0.1 + height / 2;
+      mercury.material.color.copy(lerpColor(0x5185ff, 0xff4f4f, normalized));
+      mercury.material.emissive.copy(lerpColor(0x214087, 0x7c1212, normalized));
+      display.redraw({
+        title: 'TEMPERATURE',
+        value: `${Math.round(temp)}°C`,
+      });
+    }
+
+    return { group, update };
+  }
+
+  function createRuler(length) {
+    const group = new THREE.Group();
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(length + 0.22, 0.06, 0.52),
+      new THREE.MeshStandardMaterial({
+        color: 0xf8f3e8,
+        roughness: 0.78,
+        metalness: 0.02,
+      })
+    );
+    group.add(board);
+
+    for (let i = 0; i <= 10; i += 1) {
+      const tick = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, i % 5 === 0 ? 0.18 : 0.1, 0.028),
+        new THREE.MeshStandardMaterial({ color: 0x3f4752, roughness: 0.8 })
+      );
+      tick.position.set(-length / 2 + (length * i) / 10, 0.06, 0);
+      group.add(tick);
+    }
+    return group;
+  }
+
+  function setCameraPreset(position, target) {
+    camera.position.copy(position);
+    controls.target.copy(target);
+    controls.update();
+  }
+
+  function buildLinearScenario() {
+    const rootGroup = new THREE.Group();
+    const rodEntries = [];
+    const thermometer = createThermometer();
+    thermometer.group.position.set(-3.6, 1.0, 1.9);
+    rootGroup.add(thermometer.group);
+
+    const activeMaterials = params.compareMode || params.material === '비교 모드'
+      ? LINEAR_COMPARE_SET
+      : [params.material];
+    const rowGap = activeMaterials.length === 1 ? [0] : [0.86, 0, -0.86];
+
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(5.8, 0.16, 2.8),
+      new THREE.MeshStandardMaterial({
+        color: 0xd7dce5,
+        roughness: 0.82,
+        metalness: 0.06,
+      })
+    );
+    rail.position.set(0, 0.55, 0);
+    rail.receiveShadow = true;
+    rootGroup.add(rail);
+
+    activeMaterials.forEach((name, index) => {
+      const spec = MATERIALS[name];
+      const row = new THREE.Group();
+      row.position.set(0, 1.25 + rowGap[index], 0);
+      rootGroup.add(row);
+
+      const anchorBlock = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.42, 0.48),
+        new THREE.MeshStandardMaterial({ color: 0x5c6675, roughness: 0.56 })
+      );
+      anchorBlock.position.set(-params.baseLength / 2 - 0.15, 0, 0);
+      row.add(anchorBlock);
+
+      const ruler = createRuler(params.baseLength + 0.15);
+      ruler.position.set(0, -0.35, 0);
+      row.add(ruler);
+
+      const refRod = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.24, 0.24),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.16,
+          wireframe: true,
+        })
+      );
+      refRod.scale.x = params.baseLength;
+      refRod.position.x = 0;
+      row.add(refRod);
+
+      const rod = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.3, 0.3),
+        new THREE.MeshStandardMaterial({
+          color: spec.color,
+          roughness: 0.36,
+          metalness: 0.44,
+        })
+      );
+      rod.castShadow = true;
+      row.add(rod);
+
+      const deltaSegment = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.18, 0.18),
+        new THREE.MeshStandardMaterial({
+          color: 0xf25a3c,
+          emissive: 0x551d13,
+          roughness: 0.32,
+          metalness: 0.12,
+        })
+      );
+      row.add(deltaSegment);
+
+      const plate = makeNamePlate(1.1, 0.26);
+      plate.mesh.position.set(0, 0.42, 0);
+      plate.redraw({
+        text: name,
+        color: `#${new THREE.Color(spec.color).getHexString()}`,
+      });
+      row.add(plate.mesh);
+
+      const tipMarker = new THREE.Object3D();
+      row.add(tipMarker);
+
+      rodEntries.push({ name, spec, row, refRod, rod, deltaSegment, tipMarker });
+
+      createFloatingLabel(
+        'warm',
+        () => `${name} ${formatSignedMm(params.baseLength * spec.alpha * (params.temperature - BASE_TEMP))}`,
+        () => tipMarker.getWorldPosition(new THREE.Vector3()),
+        () => params.showDelta
+      );
+    });
+
+    setCameraPreset(new THREE.Vector3(7.2, 4.3, 7.6), new THREE.Vector3(0, 1.25, 0));
+
+    return {
+      root: rootGroup,
+      update() {
+        const deltaT = params.temperature - BASE_TEMP;
+        const colorMix = clamp((params.temperature + 50) / 350, 0, 1);
+        thermometer.update(params.temperature);
+
+        rodEntries.forEach((entry) => {
+          const length = params.baseLength * (1 + entry.spec.alpha * deltaT);
+          const delta = length - params.baseLength;
+          const rodColor = lerpColor(0x4f86ff, 0xff6945, colorMix).lerp(new THREE.Color(entry.spec.color), 0.42);
+
+          entry.refRod.scale.x = params.baseLength;
+          entry.rod.scale.x = length;
+          entry.rod.position.x = delta / 2;
+          entry.rod.material.color.copy(rodColor);
+
+          const showDelta = params.showDelta && Math.abs(delta) > 0.00002;
+          entry.deltaSegment.visible = showDelta;
+          if (showDelta) {
+            entry.deltaSegment.scale.x = Math.max(Math.abs(delta), 0.02);
+            entry.deltaSegment.position.x = delta >= 0
+              ? params.baseLength / 2 + delta / 2
+              : params.baseLength / 2 + delta / 2;
+            entry.deltaSegment.material.color.set(delta >= 0 ? 0xf25a3c : 0x4f8dff);
+            entry.deltaSegment.material.emissive.set(delta >= 0 ? 0x552015 : 0x16366f);
+          }
+
+          entry.tipMarker.position.set(params.baseLength / 2 + delta + 0.18, 0.28, 0);
+        });
+      },
+      getPanelState() {
+        const compareList = rodEntries.map((entry) => ({
+          name: entry.name,
+          delta: params.baseLength * entry.spec.alpha * (params.temperature - BASE_TEMP),
+          alpha: entry.spec.alpha,
+        }));
+        const focus = params.compareMode || params.material === '비교 모드'
+          ? compareList[0]
+          : compareList[0];
+
+        return {
+          title: '같은 ΔT에서도 알루미늄이 가장 크게 늘어나고, 인바는 거의 변하지 않습니다.',
+          body: '선팽창은 ΔL = αL₀ΔT입니다. α가 큰 금속일수록 같은 온도 변화에서 더 크게 길어집니다.',
+          formula: renderLinearFormula(compareList, focus),
+          insights: renderLinearInsights(compareList),
+          graph: false,
+        };
+      },
+    };
+  }
+
+  function waterDensity(temp) {
+    if (temp <= 4) {
+      return 0.997 + 0.00075 * temp;
+    }
+    const d = temp - 4;
+    return 1 - 0.00012 * d - 0.0000012 * d * d;
+  }
+
+  function waterRelativeVolume(temp) {
+    if (temp <= 4) {
+      return 1.045 - 0.01125 * temp;
+    }
+    const d = temp - 4;
+    return 1 + 0.0007 * d + 0.000003 * d * d;
+  }
+
+  function buildVolumeScenario() {
+    const rootGroup = new THREE.Group();
+    const thermometer = createThermometer();
+    thermometer.group.position.set(-3.2, 0.85, 2.1);
+    rootGroup.add(thermometer.group);
+
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.2, 2.5, 0.24, 36),
+      new THREE.MeshStandardMaterial({ color: 0xd7d9e2, roughness: 0.84 })
+    );
+    base.position.y = 0.12;
+    rootGroup.add(base);
+
+    const stand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 3.6, 18),
+      new THREE.MeshStandardMaterial({ color: 0x647386, roughness: 0.45, metalness: 0.32 })
+    );
+    stand.position.set(2.25, 1.9, 0);
+    rootGroup.add(stand);
+
+    const clampArm = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.1, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0x647386, roughness: 0.45, metalness: 0.32 })
+    );
+    clampArm.position.set(1.7, 3.12, 0);
+    rootGroup.add(clampArm);
+
+    const flaskGroup = new THREE.Group();
+    flaskGroup.position.set(0, 1.25, 0);
+    rootGroup.add(flaskGroup);
+
+    const flask = new THREE.Mesh(
+      new THREE.SphereGeometry(1.05, 42, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xf8fbff,
+        transparent: true,
+        opacity: 0.24,
+        roughness: 0.06,
+        transmission: 0.84,
+        thickness: 0.2,
+      })
+    );
+    flask.scale.set(1.05, 1.02, 1.05);
+    flask.castShadow = true;
+    flaskGroup.add(flask);
+
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.23, 2.4, 28),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xf8fbff,
+        transparent: true,
+        opacity: 0.24,
+        roughness: 0.06,
+        transmission: 0.84,
+        thickness: 0.2,
+      })
+    );
+    neck.position.y = 1.75;
+    flaskGroup.add(neck);
+
+    const liquidBulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.9, 36, 28),
+      new THREE.MeshStandardMaterial({
+        color: 0xff6f6f,
+        emissive: 0x4f1616,
+        transparent: true,
+        opacity: 0.86,
+        roughness: 0.28,
+      })
+    );
+    liquidBulb.position.y = -0.12;
+    flaskGroup.add(liquidBulb);
+
+    const liquidColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.105, 0.105, 1, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xff6f6f,
+        emissive: 0x4f1616,
+        transparent: true,
+        opacity: 0.9,
+        roughness: 0.22,
+      })
+    );
+    flaskGroup.add(liquidColumn);
+
+    const pointMarker = new THREE.Object3D();
+    flaskGroup.add(pointMarker);
+
+    createFloatingLabel(
+      'neutral',
+      () => {
+        const current = waterRelativeVolume(params.temperature);
+        const ref = waterRelativeVolume(BASE_TEMP);
+        const deltaMl = (current / ref - 1) * 1000;
+        return `ΔV ${deltaMl >= 0 ? '+' : ''}${deltaMl.toFixed(1)} mL`;
+      },
+      () => pointMarker.getWorldPosition(new THREE.Vector3()),
+      () => params.showDelta
+    );
+
+    setCameraPreset(new THREE.Vector3(6.6, 4.8, 8.5), new THREE.Vector3(0, 1.9, 0));
+
+    return {
+      root: rootGroup,
+      update() {
+        thermometer.update(params.temperature);
+        const relativeVolume = waterRelativeVolume(params.temperature) / waterRelativeVolume(BASE_TEMP);
+        const density = waterDensity(params.temperature);
+        const bulbScale = 0.95 + (relativeVolume - 1) * 2.4;
+        liquidBulb.scale.set(1 + (relativeVolume - 1) * 0.8, 1 + (relativeVolume - 1) * 0.58, 1 + (relativeVolume - 1) * 0.8);
+        liquidBulb.material.color.copy(lerpColor(0x4f8dff, 0xff6f6f, clamp((params.temperature + 50) / 350, 0, 1)));
+
+        const columnHeight = clamp(1.08 + (relativeVolume - 1) * 10.5, 0.52, 3.1);
+        liquidColumn.scale.y = columnHeight;
+        liquidColumn.position.y = 1.02 + columnHeight / 2;
+        pointMarker.position.set(0.24, 1.2 + columnHeight, 0);
+        liquidBulb.position.y = -0.15 + (relativeVolume - 1) * 0.18;
+
+        drawWaterGraph(params.temperature, density);
+      },
+      getPanelState() {
+        const current = waterRelativeVolume(params.temperature);
+        const ref = waterRelativeVolume(BASE_TEMP);
+        const deltaV = current / ref - 1;
+        const density = waterDensity(params.temperature);
+        return {
+          title: params.temperature <= 4
+            ? '0~4°C에서는 가열해도 물이 수축하여 액주가 내려갑니다.'
+            : '4°C를 지나면 물도 일반적인 액체처럼 가열할수록 팽창합니다.',
+          body: '부피 팽창은 ΔV = βV₀ΔT로 설명할 수 있지만, 물은 4°C 부근에서 밀도가 최대가 되는 이상 팽창을 보입니다.',
+          formula: renderVolumeFormula(deltaV, density),
+          insights: renderVolumeInsights(density),
+          graph: true,
+        };
+      },
+    };
+  }
+
+  function createBimetalStrip(length, width, color, yOffset) {
+    const geometry = new THREE.PlaneGeometry(length, width, 80, 1);
+    const base = geometry.attributes.position.array.slice();
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.46,
+      roughness: 0.42,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = yOffset;
+    mesh.castShadow = true;
+    return {
+      mesh,
+      update(curvature) {
+        const position = geometry.attributes.position;
+        for (let i = 0; i < position.count; i += 1) {
+          const ix = i * 3;
+          const x = base[ix];
+          const local = (x + length / 2) / length;
+          const bend = curvature * local * local * length;
+          position.array[ix] = base[ix];
+          position.array[ix + 1] = base[ix + 1] + bend;
+          position.array[ix + 2] = base[ix + 2] + Math.sin(local * Math.PI) * 0.03;
+        }
+        position.needsUpdate = true;
+        geometry.computeVertexNormals();
+      },
+      dispose() {
+        geometry.dispose();
+        material.dispose();
+      },
+    };
+  }
+
+  function buildBimetalScenario() {
+    const rootGroup = new THREE.Group();
+    const thermometer = createThermometer();
+    thermometer.group.position.set(-3.6, 0.8, 2.1);
+    rootGroup.add(thermometer.group);
+
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(6.2, 3.2, 0.16),
+      new THREE.MeshStandardMaterial({ color: 0xf5f7fb, roughness: 0.88 })
+    );
+    panel.position.set(0, 1.85, -0.68);
+    panel.receiveShadow = true;
+    rootGroup.add(panel);
+
+    const stripGroup = new THREE.Group();
+    stripGroup.position.set(0, 1.92, 0.1);
+    rootGroup.add(stripGroup);
+
+    const topStrip = createBimetalStrip(4.2, 0.22, 0xcc8855, 0.065);
+    const bottomStrip = createBimetalStrip(4.2, 0.22, 0xaaaaaa, -0.065);
+    stripGroup.add(topStrip.mesh, bottomStrip.mesh);
+
+    const clamp = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.58, 0.72),
+      new THREE.MeshStandardMaterial({ color: 0x5e6775, roughness: 0.5, metalness: 0.22 })
+    );
+    clamp.position.set(-2.26, 0, 0);
+    stripGroup.add(clamp);
+
+    const support = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 2.2, 18),
+      new THREE.MeshStandardMaterial({ color: 0x647386, roughness: 0.48, metalness: 0.28 })
+    );
+    support.position.set(2.4, -0.26, -0.14);
+    rootGroup.add(support);
+
+    const contact = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.08, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0x4f5f6f, roughness: 0.4, metalness: 0.32 })
+    );
+    contact.position.set(2.34, 1.33, 0.1);
+    rootGroup.add(contact);
+
+    const circuitLine = new THREE.Mesh(
+      new THREE.TorusGeometry(1.08, 0.026, 12, 90, Math.PI * 1.55),
+      new THREE.MeshStandardMaterial({ color: 0x7a8794, roughness: 0.42, metalness: 0.24 })
+    );
+    circuitLine.position.set(2.35, 2.2, -0.04);
+    circuitLine.rotation.z = -0.7;
+    rootGroup.add(circuitLine);
+
+    const lamp = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe39a,
+        emissive: 0x332406,
+        roughness: 0.35,
+      })
+    );
+    lamp.position.set(2.35, 2.78, -0.04);
+    rootGroup.add(lamp);
+
+    const lampBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.17, 0.18, 18),
+      new THREE.MeshStandardMaterial({ color: 0x586470, roughness: 0.48, metalness: 0.22 })
+    );
+    lampBase.position.set(2.35, 2.49, -0.04);
+    rootGroup.add(lampBase);
+
+    const tipMarker = new THREE.Object3D();
+    stripGroup.add(tipMarker);
+
+    createFloatingLabel(
+      'neutral',
+      () => {
+        const alphaDiff = 5e-6;
+        const curvature = clamp(-(params.temperature - BASE_TEMP) * alphaDiff * 900, -0.32, 0.32);
+        const bendMm = Math.abs(curvature * 4.2 * 120);
+        return `끝단 휨 ${bendMm.toFixed(0)} mm`;
+      },
+      () => tipMarker.getWorldPosition(new THREE.Vector3()),
+      () => params.showDelta
+    );
+
+    setCameraPreset(new THREE.Vector3(7.4, 4.9, 8.4), new THREE.Vector3(0.7, 1.9, 0));
+
+    return {
+      root: rootGroup,
+      update() {
+        thermometer.update(params.temperature);
+        const alphaDiff = 5e-6;
+        const curvature = clamp(-(params.temperature - BASE_TEMP) * alphaDiff * 900, -0.32, 0.32);
+        topStrip.update(curvature);
+        bottomStrip.update(curvature);
+
+        const tipY = curvature * 4.2;
+        tipMarker.position.set(2.1, tipY + 0.1, 0);
+        const closed = tipY < -0.28;
+        lamp.material.emissive.set(closed ? 0xff9d2a : 0x332406);
+        lamp.material.color.set(closed ? 0xffd369 : 0xffe39a);
+        circuitLine.material.color.set(closed ? 0xff9944 : 0x7a8794);
+        contact.material.color.set(closed ? 0xffb15a : 0x4f5f6f);
+      },
+      getPanelState() {
+        const alphaDiff = 5e-6;
+        const curvature = clamp(-(params.temperature - BASE_TEMP) * alphaDiff * 900, -0.32, 0.32);
+        const tipY = curvature * 4.2;
+        return {
+          title: params.temperature >= BASE_TEMP
+            ? '구리층이 더 많이 팽창해 바이메탈이 아래로 휘어집니다.'
+            : '온도가 내려가면 높은 α 금속이 더 많이 수축해 반대 방향으로 휘어집니다.',
+          body: '서로 다른 열팽창 계수를 가진 두 금속을 붙이면 길이 변화 차이 때문에 휨이 생기고, 이 변형으로 회로를 열거나 닫을 수 있습니다.',
+          formula: renderBimetalFormula(tipY),
+          insights: renderBimetalInsights(tipY),
+          graph: false,
+        };
+      },
+    };
+  }
+
+  function renderLinearFormula(compareList, focus) {
+    const deltaT = params.temperature - BASE_TEMP;
+    const detailLines = compareList.map((entry) => {
+      const delta = params.baseLength * entry.alpha * deltaT * 1000;
+      return `<div class="line"><span class="label">${entry.name}</span><span class="value">${delta >= 0 ? '+' : ''}${delta.toFixed(2)} mm</span></div>`;
+    }).join('');
+
+    const focusDelta = params.baseLength * focus.alpha * deltaT;
+    const finalLength = params.baseLength + focusDelta;
+    return `
+      <div class="panel-title">📏 열팽창과 응용</div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">시나리오</span><span class="value">${params.scenario}</span></div>
+      <div class="line"><span class="label">온도</span><span class="value">${params.temperature.toFixed(0)}°C (ΔT = ${deltaT.toFixed(0)}°C)</span></div>
+      <div class="block-title">선팽창</div>
+      <div class="line"><span class="label">식</span><span class="value">ΔL = αL₀ΔT</span></div>
+      <div class="line"><span class="label">물질</span><span class="value">${params.compareMode ? '비교 모드' : focus.name} (α = ${(focus.alpha * 1e6).toFixed(1)}×10⁻⁶/K)</span></div>
+      <div class="line"><span class="label">초기 길이</span><span class="value">${params.baseLength.toFixed(2)} m</span></div>
+      <div class="line"><span class="label">대표 ΔL</span><span class="value">${formatSignedMm(focusDelta)}</span></div>
+      <div class="line"><span class="label">대표 최종 길이</span><span class="value">${finalLength.toFixed(6)} m</span></div>
+      ${detailLines}
+      <div class="block-title">부피 팽창</div>
+      <div class="line"><span class="label">개념</span><span class="value">ΔV = βV₀ΔT (β ≈ 3α)</span></div>
+      <div class="block-title">바이메탈</div>
+      <div class="line"><span class="label">원리</span><span class="value">α 차이 때문에 온도 변화 시 휨 발생</span></div>
+      <div class="note">철도 레일, 다리 신축 이음, 병뚜껑 가열은 모두 선팽창을 이용하거나 고려한 사례입니다.</div>
+    `;
+  }
+
+  function renderVolumeFormula(deltaV, density) {
+    const deltaT = params.temperature - BASE_TEMP;
+    const volumeMl = deltaV * 1000;
+    return `
+      <div class="panel-title">📏 열팽창과 응용</div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">시나리오</span><span class="value">${params.scenario}</span></div>
+      <div class="line"><span class="label">온도</span><span class="value">${params.temperature.toFixed(0)}°C (ΔT = ${deltaT.toFixed(0)}°C)</span></div>
+      <div class="block-title">선팽창</div>
+      <div class="line"><span class="label">참고</span><span class="value">ΔL = αL₀ΔT</span></div>
+      <div class="block-title">부피 팽창</div>
+      <div class="line"><span class="label">식</span><span class="value">ΔV = βV₀ΔT</span></div>
+      <div class="line"><span class="label">현재 ΔV</span><span class="value">${volumeMl >= 0 ? '+' : ''}${volumeMl.toFixed(1)} mL (기준 20°C)</span></div>
+      <div class="line"><span class="label">물의 밀도</span><span class="value">${density.toFixed(4)} (상대값)</span></div>
+      <div class="line"><span class="label">특이점</span><span class="value">4°C에서 밀도 최대, 그 아래에서는 가열 시 수축</span></div>
+      <div class="block-title">바이메탈</div>
+      <div class="line"><span class="label">응용</span><span class="value">서모스탯, 화재 경보기, 자동차 밸브</span></div>
+      <div class="note">겨울 호수는 표면수가 4°C보다 낮아지면 다시 가벼워져 위쪽에 머물고, 그래서 위에서부터 얼기 시작합니다.</div>
+    `;
+  }
+
+  function renderBimetalFormula(tipY) {
+    const deltaT = params.temperature - BASE_TEMP;
+    const bendMm = Math.abs(tipY * 120);
+    const circuitState = tipY < -0.28 ? '회로 연결' : '회로 차단';
+    return `
+      <div class="panel-title">📏 열팽창과 응용</div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">시나리오</span><span class="value">${params.scenario}</span></div>
+      <div class="line"><span class="label">온도</span><span class="value">${params.temperature.toFixed(0)}°C (ΔT = ${deltaT.toFixed(0)}°C)</span></div>
+      <div class="block-title">선팽창</div>
+      <div class="line"><span class="label">식</span><span class="value">ΔL = αL₀ΔT</span></div>
+      <div class="block-title">부피 팽창</div>
+      <div class="line"><span class="label">참고</span><span class="value">ΔV = βV₀ΔT (β ≈ 3α)</span></div>
+      <div class="block-title">바이메탈</div>
+      <div class="line"><span class="label">상단 금속 A</span><span class="value">구리 (17×10⁻⁶/K)</span></div>
+      <div class="line"><span class="label">하단 금속 B</span><span class="value">철 (12×10⁻⁶/K)</span></div>
+      <div class="line"><span class="label">끝단 휨</span><span class="value">${bendMm.toFixed(1)} mm</span></div>
+      <div class="line"><span class="label">회로 상태</span><span class="value">${circuitState}</span></div>
+      <div class="note">열팽창 계수가 큰 층이 더 많이 늘어나면서 전체 strip이 낮은 α 금속 쪽으로 휘어집니다.</div>
+    `;
+  }
+
+  function renderLinearInsights(compareList) {
+    const sorted = [...compareList].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    return `
+      <h2>실생활 연결</h2>
+      <p>${sorted[0].name}이(가) 같은 ΔT에서 가장 큰 길이 변화를 보입니다. 재료 선택이 설계의 핵심이라는 점을 확인해 보세요.</p>
+      <div class="insight-card">
+        <h3>철도 레일 이음새</h3>
+        <p>여름철 레일이 옆으로 밀려 휘지 않도록 간격을 둡니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>다리 신축 이음 장치</h3>
+        <p>교량 상판이 계절에 따라 늘고 줄어드는 변형을 흡수합니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>병뚜껑 가열</h3>
+        <p>유리병보다 금속 뚜껑이 더 잘 팽창해 쉽게 열립니다.</p>
+      </div>
+    `;
+  }
+
+  function renderVolumeInsights(density) {
+    return `
+      <h2>이상 팽창 포인트</h2>
+      <p>현재 밀도 상대값은 ${density.toFixed(4)}입니다. 4°C 부근이 가장 빽빽하게 모인 상태라, 물은 일반적인 액체와 다른 거동을 보입니다.</p>
+      <div class="insight-card">
+        <h3>겨울 호수의 결빙</h3>
+        <p>4°C 물이 아래로 가라앉고, 더 차가운 물은 위에 남아 표면부터 얼게 됩니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>액체 온도계</h3>
+        <p>액체가 가느다란 관으로 올라가는 현상을 이용해 온도를 읽습니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>가열 냉각 설계</h3>
+        <p>밀폐 용기에서는 작은 부피 변화도 압력 변화로 이어질 수 있어 안전 설계가 중요합니다.</p>
+      </div>
+    `;
+  }
+
+  function renderBimetalInsights(tipY) {
+    const closed = tipY < -0.28;
+    return `
+      <h2>응용 장치</h2>
+      <p>현재 바이메탈 끝단은 ${closed ? '접점에 닿아 회로를 닫고' : '접점에서 떨어져 회로를 열고'} 있습니다. 열팽창의 차이가 곧 스위치 동작으로 이어집니다.</p>
+      <div class="insight-card">
+        <h3>서모스탯</h3>
+        <p>설정 온도에서 회로를 끊거나 연결해 난방과 냉방을 자동 제어합니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>화재 경보기</h3>
+        <p>급격한 온도 상승이 바이메탈 변형을 키워 경보 회로를 동작시킵니다.</p>
+      </div>
+      <div class="insight-card">
+        <h3>자동차 냉각 밸브</h3>
+        <p>엔진 온도가 올라가면 밸브가 열려 냉각수 흐름을 조절합니다.</p>
+      </div>
+    `;
+  }
+
+  function drawWaterGraph(temp, density) {
+    const ctx = graphCanvas.getContext('2d');
+    const { width, height } = graphCanvas;
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = '#f2f7fd';
+    ctx.fillRect(0, 0, width, height);
+
+    const margin = { left: 62, right: 18, top: 20, bottom: 44 };
+    const graphW = width - margin.left - margin.right;
+    const graphH = height - margin.top - margin.bottom;
+
+    ctx.strokeStyle = 'rgba(52, 78, 108, 0.14)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 6; i += 1) {
+      const y = margin.top + (graphH * i) / 6;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(width - margin.right, y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#29476b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, height - margin.bottom);
+    ctx.lineTo(width - margin.right, height - margin.bottom);
+    ctx.stroke();
+
+    ctx.font = '12px Pretendard, sans-serif';
+    ctx.fillStyle = '#5b6c7b';
+    ctx.textAlign = 'center';
+    for (let t = 0; t <= 100; t += 20) {
+      const x = margin.left + (t / 100) * graphW;
+      ctx.fillText(`${t}`, x, height - 16);
+    }
+
+    ctx.save();
+    ctx.translate(18, height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('밀도 (상대값)', 0, 0);
+    ctx.restore();
+    ctx.fillText('온도 (°C)', margin.left + graphW / 2, height - 4);
+
+    const densityValues = [];
+    for (let t = 0; t <= 100; t += 1) {
+      densityValues.push(waterDensity(t));
+    }
+    const minDensity = Math.min(...densityValues) - 0.004;
+    const maxDensity = Math.max(...densityValues) + 0.004;
+
+    ctx.strokeStyle = '#2d89ff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    densityValues.forEach((value, index) => {
+      const x = margin.left + (index / 100) * graphW;
+      const y = margin.top + ((maxDensity - value) / (maxDensity - minDensity)) * graphH;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    const kinkX = margin.left + (4 / 100) * graphW;
+    ctx.strokeStyle = 'rgba(255, 107, 61, 0.7)';
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(kinkX, margin.top);
+    ctx.lineTo(kinkX, height - margin.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#cf5b30';
+    ctx.fillText('4°C', kinkX, margin.top + 14);
+
+    const clampedTemp = clamp(temp, 0, 100);
+    const px = margin.left + (clampedTemp / 100) * graphW;
+    const py = margin.top + ((maxDensity - density) / (maxDensity - minDensity)) * graphH;
+    ctx.fillStyle = '#ff7043';
+    ctx.beginPath();
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function syncScenarioUI() {
+    tabs.forEach((button) => {
+      button.classList.toggle('active', button.dataset.scenario === params.scenario);
+    });
+    syncGuiVisibility();
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function updatePanels() {
+    if (!currentScenario) return;
+    const panelState = currentScenario.getPanelState();
+    statusTitle.textContent = panelState.title;
+    statusBody.textContent = panelState.body;
+    formulaPanel.innerHTML = panelState.formula;
+    insightPanel.innerHTML = panelState.insights;
+    graphPanel.classList.toggle('show', panelState.graph);
+  }
+
+  function buildScenario() {
+    if (currentScenario) {
+      scene.remove(currentScenario.root);
+      disposeObject(currentScenario.root);
+    }
+    clearFloatingLabels();
+
+    if (params.material !== '비교 모드' && params.compareMode) {
+      params.material = '비교 모드';
+    }
+    if (!params.compareMode && params.material === '비교 모드') {
+      params.material = '알루미늄';
+    }
+
+    if (params.scenario === '선팽창') {
+      currentScenario = buildLinearScenario();
+    } else if (params.scenario === '부피 팽창') {
+      currentScenario = buildVolumeScenario();
+    } else {
+      currentScenario = buildBimetalScenario();
+    }
+
+    scene.add(currentScenario.root);
+    syncScenarioUI();
+    updatePanels();
+  }
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+  });
+
+  tabs.forEach((button) => {
+    button.addEventListener('click', () => {
+      params.scenario = button.dataset.scenario;
+      buildScenario();
+    });
+  });
+
+  const gui = new GUI({ title: '컨트롤 패널' });
+  const scenarioController = gui.add(params, 'scenario', ['선팽창', '부피 팽창', '바이메탈']).name('시나리오');
+  const tempController = gui.add(params, 'temperature', -50, 300, 1).name('온도');
+  const materialController = gui.add(params, 'material', ['알루미늄', '구리', '철', '인바', '비교 모드']).name('물질');
+  const lengthController = gui.add(params, 'baseLength', 1, 5, 0.1).name('초기 길이 L₀');
+  const compareController = gui.add(params, 'compareMode').name('물질별 비교');
+  const deltaController = gui.add(params, 'showDelta').name('팽창량 표시');
+  gui.add(params, 'reset').name('초기화');
+
+  function syncGuiVisibility() {
+    const linearVisible = params.scenario === '선팽창';
+    materialController.domElement.style.display = linearVisible ? '' : 'none';
+    lengthController.domElement.style.display = linearVisible ? '' : 'none';
+    compareController.domElement.style.display = linearVisible ? '' : 'none';
+    deltaController.domElement.style.display = '' ;
+  }
+
+  scenarioController.onChange(() => buildScenario());
+  tempController.onChange(() => updatePanels());
+  lengthController.onChange(() => buildScenario());
+  materialController.onChange((value) => {
+    params.compareMode = value === '비교 모드';
+    buildScenario();
+  });
+  compareController.onChange((value) => {
+    params.material = value ? '비교 모드' : '알루미늄';
+    buildScenario();
+  });
+  deltaController.onChange(() => updatePanels());
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    updateFloatingLabels();
+  }
+
+  window.addEventListener('resize', onResize);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    if (currentScenario) {
+      currentScenario.update();
+    }
+    updatePanels();
+    renderer.render(scene, camera);
+    updateFloatingLabels();
+  }
+
+  buildScenario();
+  animate();
+</script>
+</body>
+</html>

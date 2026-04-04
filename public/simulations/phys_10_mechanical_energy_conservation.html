@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역학적 에너지 보존 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --scene-bg: #ddeeff;
+    --panel-bg: rgba(8, 18, 33, 0.84);
+    --panel-strong: rgba(6, 16, 29, 0.94);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.72);
+    --text-deep: rgba(15, 34, 55, 0.88);
+    --red: #ff6b6b;
+    --blue: #5ba8ff;
+    --green: #6cff9d;
+    --orange: #ffb35c;
+    --shadow: 0 20px 42px rgba(7, 17, 30, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: var(--scene-bg);
+    color: var(--text-main);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 12% 14%, rgba(255, 255, 255, 0.44), transparent 20%),
+      radial-gradient(circle at 84% 12%, rgba(96, 165, 255, 0.18), transparent 18%),
+      linear-gradient(180deg, #edf7ff 0%, #ddeeff 52%, #cfe3f5 100%);
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 255, 255, 0.46), transparent 20%),
+      linear-gradient(180deg, rgba(241, 249, 255, 0.98) 0%, rgba(221, 238, 255, 0.94) 52%, rgba(204, 224, 242, 0.96) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 12% 10%, rgba(92, 169, 255, 0.18), transparent 20%),
+      linear-gradient(180deg, rgba(8, 18, 33, 0.98) 0%, rgba(4, 11, 22, 1) 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  #scene-header {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 18;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  #scene-header .eyebrow {
+    color: rgba(16, 40, 68, 0.62);
+  }
+
+  #scene-header h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: rgba(11, 31, 50, 0.92);
+    text-shadow: 0 6px 18px rgba(255, 255, 255, 0.46);
+  }
+
+  #scene-header p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(15, 42, 70, 0.7);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 50;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(8, 20, 36, 0.84);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 28px rgba(7, 17, 30, 0.2);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 16px;
+    z-index: 49;
+    width: min(460px, calc(100vw - 32px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: rgba(8, 19, 35, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 44px rgba(6, 15, 28, 0.24);
+    display: none;
+    line-height: 1.72;
+  }
+
+  #guide-panel.show {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #97d4ff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    font-size: 13px;
+    color: rgba(247, 251, 255, 0.88);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #status-pill {
+    position: absolute;
+    top: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, calc(100% - 36px));
+    padding: 13px 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 14px 34px rgba(43, 77, 108, 0.14);
+    color: rgba(13, 34, 54, 0.9);
+    font-size: 13px;
+    line-height: 1.55;
+    z-index: 18;
+    text-align: center;
+  }
+
+  #status-pill[data-tone="warning"] {
+    background: rgba(255, 240, 214, 0.7);
+    color: rgba(103, 57, 12, 0.95);
+  }
+
+  #status-pill[data-tone="success"] {
+    background: rgba(219, 255, 230, 0.68);
+    color: rgba(17, 88, 45, 0.95);
+  }
+
+  #status-pill[data-tone="accent"] {
+    background: rgba(219, 238, 255, 0.74);
+    color: rgba(18, 62, 111, 0.95);
+  }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    width: min(390px, calc(100% - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 19, 35, 0.82);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+    z-index: 18;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff0bf;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  }
+
+  .formula-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .formula-line .label {
+    color: rgba(247, 251, 255, 0.62);
+    flex-shrink: 0;
+  }
+
+  .formula-line .value {
+    text-align: right;
+    color: rgba(247, 251, 255, 0.96);
+  }
+
+  #formula-equation {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    white-space: pre-line;
+    color: rgba(244, 250, 255, 0.95);
+  }
+
+  #formula-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(90, 167, 255, 0.12);
+    color: rgba(225, 242, 255, 0.92);
+  }
+
+  #graph-header {
+    position: absolute;
+    top: 20px;
+    left: 24px;
+    right: 24px;
+    z-index: 14;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    pointer-events: none;
+  }
+
+  #graph-header h2 {
+    margin-top: 4px;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  #graph-header .eyebrow {
+    color: rgba(247, 251, 255, 0.5);
+  }
+
+  #graph-header p {
+    margin-top: 6px;
+    max-width: 280px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-content: flex-start;
+    max-width: 220px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(247, 251, 255, 0.84);
+    font-size: 11px;
+  }
+
+  .legend-chip[hidden] {
+    display: none;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #energy-cards {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 84px;
+    z-index: 14;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .energy-card {
+    min-height: 84px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .energy-card span {
+    display: block;
+    font-size: 11px;
+    color: rgba(247, 251, 255, 0.56);
+  }
+
+  .energy-card strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #energy-kinetic {
+    color: var(--red);
+  }
+
+  #energy-potential {
+    color: var(--blue);
+  }
+
+  #energy-mechanical {
+    color: var(--green);
+  }
+
+  #energy-extra {
+    color: var(--orange);
+  }
+
+  #graph-note {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 22px;
+    z-index: 14;
+    padding: 11px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(247, 251, 255, 0.78);
+    font-size: 12px;
+    line-height: 1.58;
+  }
+
+  .lil-gui {
+    --width: 320px;
+    z-index: 60 !important;
+  }
+
+  @media (max-width: 980px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    #status-pill {
+      top: 80px;
+      width: calc(100% - 30px);
+    }
+
+    #formula-panel {
+      width: calc(100% - 24px);
+      left: 12px;
+      bottom: 12px;
+    }
+
+    #graph-header {
+      top: 14px;
+      left: 16px;
+      right: 16px;
+    }
+
+    #energy-cards {
+      left: 16px;
+      right: 16px;
+      bottom: 86px;
+    }
+
+    #graph-note {
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #scene-header h1 {
+      font-size: 21px;
+    }
+
+    #scene-header p {
+      font-size: 11px;
+    }
+
+    #status-pill {
+      font-size: 12px;
+      padding: 11px 14px;
+    }
+
+    #energy-cards {
+      grid-template-columns: 1fr;
+    }
+
+    .energy-card {
+      min-height: 74px;
+    }
+
+    .energy-card strong {
+      font-size: 20px;
+    }
+
+    .lil-gui {
+      --width: min(300px, calc(100vw - 18px));
+    }
+  }
+</style>
+</head>
+<body>
+  <button id="guide-toggle">📖 학습 가이드</button>
+  <section id="guide-panel">
+    <h3>핵심 원리</h3>
+    <p>중력만 작용하는 경우 운동 에너지와 위치 에너지의 합인 역학적 에너지는 일정하게 보존됩니다. 즉, 1/2mv² + mgh = 일정입니다.</p>
+
+    <h3>탐구 질문</h3>
+    <ul>
+      <li>높이 10m에서 자유 낙하하는 2kg 물체의 바닥 도달 속력을 에너지 보존으로 구해 보세요.</li>
+      <li>진자가 최저점을 통과할 때 속력이 최대인 까닭을 에너지 전환으로 설명해 보세요.</li>
+      <li>롤러코스터가 루프 꼭대기를 통과하려면 출발 높이가 최소 얼마여야 하나요? (루프 반지름 r)</li>
+    </ul>
+
+    <h3>실생활 예시</h3>
+    <p>번지 점프, 롤러코스터, 그네, 스키 점프, 수력 발전처럼 높이와 속력이 서로 바뀌는 장면에서 역학적 에너지 보존을 관찰할 수 있습니다.</p>
+
+    <h3>교과서 연계</h3>
+    <p>물리학 I편 p56~61 내용과 연결되는 시뮬레이션으로, 중력과 탄성력에 의한 역학적 에너지 보존을 직관적으로 탐구할 수 있습니다.</p>
+  </section>
+
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+      <div id="scene-header">
+        <div class="eyebrow">Mechanical Energy Conservation</div>
+        <h1>역학적 에너지 보존</h1>
+        <p>자유 낙하, 진자 운동, 롤러코스터를 전환하며 위치 에너지와 운동 에너지의 변화를 살펴보세요.</p>
+      </div>
+      <div id="status-pill" data-tone="accent">시나리오를 선택하고 시작 버튼을 누르면 에너지 전환이 실시간으로 표시됩니다.</div>
+
+      <section id="formula-panel">
+        <div class="panel-title">🎢 역학적 에너지 보존</div>
+        <div class="divider"></div>
+        <div class="formula-line"><span class="label">시나리오</span><span class="value" id="formula-scenario">자유 낙하</span></div>
+        <div class="formula-line"><span class="label">질량 m</span><span class="value" id="formula-mass">1.00kg</span></div>
+        <div class="formula-line"><span class="label">현재 높이 h</span><span class="value" id="formula-height">10.00m</span></div>
+        <div class="formula-line"><span class="label">현재 속력 v</span><span class="value" id="formula-speed">0.00m/s</span></div>
+        <div class="formula-line"><span class="label">운동 에너지 Ek</span><span class="value" id="formula-kinetic">0.00J</span></div>
+        <div class="formula-line"><span class="label">위치 에너지 Ep</span><span class="value" id="formula-potential">98.00J</span></div>
+        <div class="formula-line"><span class="label">역학적 에너지 E</span><span class="value" id="formula-mechanical">98.00J</span></div>
+        <div class="formula-line"><span class="label">열에너지 E열</span><span class="value" id="formula-heat">0.00J</span></div>
+        <div id="formula-equation">1/2mv² + mgh = 일정
+(중력만 작용할 때, 마찰 없음)</div>
+        <div id="formula-note">마찰을 켜면 감소한 역학적 에너지가 열에너지 막대로 옮겨 가며, 전체 에너지 보존선은 그대로 유지됩니다.</div>
+      </section>
+    </section>
+
+    <aside id="graph-panel">
+      <div id="graph-header">
+        <div>
+          <div class="eyebrow">Real-time Energy Graph</div>
+          <h2>실시간 에너지 막대그래프</h2>
+          <p id="graph-caption">위치 에너지와 운동 에너지가 어떻게 서로 바뀌는지 막대 높이로 바로 비교할 수 있습니다.</p>
+        </div>
+        <div id="legend">
+          <div class="legend-chip"><span class="legend-dot" style="background: var(--red);"></span>Ek</div>
+          <div class="legend-chip"><span class="legend-dot" style="background: var(--blue);"></span>Ep</div>
+          <div class="legend-chip" id="heat-legend" hidden><span class="legend-dot" style="background: var(--orange);"></span>E열</div>
+          <div class="legend-chip"><span class="legend-dot" style="background: var(--green);"></span>보존선</div>
+        </div>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+
+      <div id="energy-cards">
+        <div class="energy-card">
+          <span>운동 에너지</span>
+          <strong id="energy-kinetic">0.00J</strong>
+        </div>
+        <div class="energy-card">
+          <span>위치 에너지</span>
+          <strong id="energy-potential">98.00J</strong>
+        </div>
+        <div class="energy-card">
+          <span>역학적 에너지</span>
+          <strong id="energy-mechanical">98.00J</strong>
+        </div>
+        <div class="energy-card">
+          <span id="energy-extra-label">보존선 E</span>
+          <strong id="energy-extra">98.00J</strong>
+        </div>
+      </div>
+
+      <div id="graph-note">마찰이 없으면 Ek + Ep가 일정하고, 마찰이 있으면 감소한 역학적 에너지가 열에너지로 바뀝니다.</div>
+    </aside>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const GRAVITY = 9.8;
+  const BALL_RADIUS = 0.3;
+  const LOOP_RADIUS = 3;
+  const MAX_TRAIL_POINTS = 160;
+
+  const scenePanel = document.getElementById('scene-panel');
+  const graphPanel = document.getElementById('graph-panel');
+  const sceneCanvas = document.getElementById('scene-canvas');
+  const graphCanvas = document.getElementById('graph-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const statusPill = document.getElementById('status-pill');
+  const graphCaption = document.getElementById('graph-caption');
+  const graphNote = document.getElementById('graph-note');
+  const heatLegend = document.getElementById('heat-legend');
+
+  const formulaScenario = document.getElementById('formula-scenario');
+  const formulaMass = document.getElementById('formula-mass');
+  const formulaHeight = document.getElementById('formula-height');
+  const formulaSpeed = document.getElementById('formula-speed');
+  const formulaKinetic = document.getElementById('formula-kinetic');
+  const formulaPotential = document.getElementById('formula-potential');
+  const formulaMechanical = document.getElementById('formula-mechanical');
+  const formulaHeat = document.getElementById('formula-heat');
+  const formulaEquation = document.getElementById('formula-equation');
+  const formulaNote = document.getElementById('formula-note');
+
+  const energyKinetic = document.getElementById('energy-kinetic');
+  const energyPotential = document.getElementById('energy-potential');
+  const energyMechanical = document.getElementById('energy-mechanical');
+  const energyExtraLabel = document.getElementById('energy-extra-label');
+  const energyExtra = document.getElementById('energy-extra');
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: sceneCanvas,
+    antialias: true,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0xddeeff, 1);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xddeeff);
+  scene.fog = new THREE.Fog(0xddeeff, 20, 78);
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 68;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  directionalLight.position.set(10, 18, 12);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.near = 1;
+  directionalLight.shadow.camera.far = 60;
+  directionalLight.shadow.camera.left = -30;
+  directionalLight.shadow.camera.right = 30;
+  directionalLight.shadow.camera.top = 30;
+  directionalLight.shadow.camera.bottom = -30;
+  scene.add(ambientLight, directionalLight);
+
+  const graphContext = graphCanvas.getContext('2d');
+  const graphSize = {
+    width: 0,
+    height: 0,
+    dpr: 1
+  };
+
+  const params = {
+    scenario: '자유 낙하',
+    initialHeight: 10,
+    mass: 1,
+    stringLength: 2,
+    initialAngle: 45,
+    friction: false,
+    showTrail: true
+  };
+
+  const runtime = {
+    running: false,
+    activeScenario: null,
+    currentState: {
+      height: params.initialHeight,
+      speed: 0,
+      kinetic: 0,
+      potential: params.mass * GRAVITY * params.initialHeight,
+      mechanical: params.mass * GRAVITY * params.initialHeight,
+      total: params.mass * GRAVITY * params.initialHeight,
+      heat: 0,
+      caption: '위치 에너지와 운동 에너지가 서로 바뀌는 과정을 관찰하세요.',
+      message: '시나리오를 선택하고 시작 버튼을 누르면 에너지 전환이 실시간으로 표시됩니다.',
+      tone: 'accent'
+    }
+  };
+
+  function formatNumber(value) {
+    return value.toFixed(2);
+  }
+
+  function formatEnergy(value) {
+    return `${formatNumber(value)}J`;
+  }
+
+  function formatHeight(value) {
+    return `${formatNumber(value)}m`;
+  }
+
+  function formatSpeed(value) {
+    return `${formatNumber(value)}m/s`;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function niceAxis(maxValue) {
+    const safe = Math.max(10, maxValue);
+    const power = Math.pow(10, Math.floor(Math.log10(safe)));
+    const normalized = safe / power;
+    let nice = 10;
+    if (normalized <= 1.2) nice = 1.2;
+    else if (normalized <= 1.6) nice = 1.6;
+    else if (normalized <= 2.5) nice = 2.5;
+    else if (normalized <= 4) nice = 4;
+    else if (normalized <= 6) nice = 6;
+    return nice * power;
+  }
+
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    if (material.map) material.map.dispose();
+    material.dispose();
+  }
+
+  function disposeObject(root) {
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) disposeMaterial(child.material);
+    });
+    if (root.parent) root.parent.remove(root);
+  }
+
+  function createTextSprite(text, options = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    const fill = options.fill || 'rgba(255, 255, 255, 0.92)';
+    const border = options.border || 'rgba(16, 40, 68, 0.18)';
+    const color = options.color || '#16314f';
+    const radius = 18;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 3;
+
+    ctx.beginPath();
+    ctx.moveTo(radius, 12);
+    ctx.lineTo(canvas.width - radius, 12);
+    ctx.quadraticCurveTo(canvas.width - 12, 12, canvas.width - 12, radius);
+    ctx.lineTo(canvas.width - 12, canvas.height - radius);
+    ctx.quadraticCurveTo(canvas.width - 12, canvas.height - 12, canvas.width - radius, canvas.height - 12);
+    ctx.lineTo(radius, canvas.height - 12);
+    ctx.quadraticCurveTo(12, canvas.height - 12, 12, canvas.height - radius);
+    ctx.lineTo(12, radius);
+    ctx.quadraticCurveTo(12, 12, radius, 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 26px sans-serif';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false
+    });
+    const sprite = new THREE.Sprite(material);
+    const scale = options.scale || 1;
+    sprite.scale.set(2.2 * scale, 0.82 * scale, 1);
+    return sprite;
+  }
+
+  function createTrailPoints(size = 0.16) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(MAX_TRAIL_POINTS * 3);
+    const colors = new Float32Array(MAX_TRAIL_POINTS * 3);
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setDrawRange(0, 0);
+
+    const material = new THREE.PointsMaterial({
+      size,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.visible = params.showTrail;
+
+    let count = 0;
+    let cursor = 0;
+
+    return {
+      object: points,
+      clear() {
+        count = 0;
+        cursor = 0;
+        geometry.setDrawRange(0, 0);
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+      },
+      setVisible(visible) {
+        points.visible = visible;
+      },
+      push(position, speed, referenceSpeed) {
+        if (!params.showTrail) return;
+        const index = cursor * 3;
+        positions[index] = position.x;
+        positions[index + 1] = position.y;
+        positions[index + 2] = position.z;
+
+        const ratio = clamp(speed / Math.max(referenceSpeed, 0.001), 0, 1);
+        const color = new THREE.Color().lerpColors(
+          new THREE.Color(0x4d8bff),
+          new THREE.Color(0xff5f5f),
+          ratio
+        );
+        colors[index] = color.r;
+        colors[index + 1] = color.g;
+        colors[index + 2] = color.b;
+
+        cursor = (cursor + 1) % MAX_TRAIL_POINTS;
+        count = Math.min(count + 1, MAX_TRAIL_POINTS);
+
+        if (count < MAX_TRAIL_POINTS) {
+          geometry.setDrawRange(0, count);
+        } else {
+          const orderedPositions = new Float32Array(MAX_TRAIL_POINTS * 3);
+          const orderedColors = new Float32Array(MAX_TRAIL_POINTS * 3);
+          for (let i = 0; i < MAX_TRAIL_POINTS; i += 1) {
+            const sourceIndex = ((cursor + i) % MAX_TRAIL_POINTS) * 3;
+            orderedPositions[i * 3] = positions[sourceIndex];
+            orderedPositions[i * 3 + 1] = positions[sourceIndex + 1];
+            orderedPositions[i * 3 + 2] = positions[sourceIndex + 2];
+            orderedColors[i * 3] = colors[sourceIndex];
+            orderedColors[i * 3 + 1] = colors[sourceIndex + 1];
+            orderedColors[i * 3 + 2] = colors[sourceIndex + 2];
+          }
+          positions.set(orderedPositions);
+          colors.set(orderedColors);
+          cursor = 0;
+          geometry.setDrawRange(0, MAX_TRAIL_POINTS);
+        }
+
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+      }
+    };
+  }
+
+  function createPathSampler(points) {
+    const cumulative = [0];
+    for (let i = 1; i < points.length; i += 1) {
+      cumulative[i] = cumulative[i - 1] + points[i].distanceTo(points[i - 1]);
+    }
+    const totalLength = cumulative[cumulative.length - 1];
+
+    function getPointAtDistance(distance) {
+      const clampedDistance = clamp(distance, 0, totalLength);
+      let index = 1;
+      while (index < cumulative.length && cumulative[index] < clampedDistance) {
+        index += 1;
+      }
+
+      const nextIndex = Math.min(index, points.length - 1);
+      const prevIndex = Math.max(nextIndex - 1, 0);
+      const segmentLength = Math.max(cumulative[nextIndex] - cumulative[prevIndex], 0.0001);
+      const localT = clamp((clampedDistance - cumulative[prevIndex]) / segmentLength, 0, 1);
+      const position = points[prevIndex].clone().lerp(points[nextIndex], localT);
+
+      const tangentSourceA = points[Math.max(prevIndex - 1, 0)];
+      const tangentSourceB = points[Math.min(nextIndex + 1, points.length - 1)];
+      const tangent = tangentSourceB.clone().sub(tangentSourceA).normalize();
+      return { position, tangent };
+    }
+
+    return {
+      points,
+      cumulative,
+      totalLength,
+      getPointAtDistance
+    };
+  }
+
+  function updateHud() {
+    const state = runtime.currentState;
+    const frictionNote = params.friction
+      ? `마찰 ON: 역학적 에너지 ${formatEnergy(state.mechanical)} + 열에너지 ${formatEnergy(state.heat)} = 전체 에너지 ${formatEnergy(state.total)}`
+      : `마찰 OFF: Ek + Ep = ${formatEnergy(state.total)}로 일정합니다.`;
+
+    statusPill.textContent = state.message;
+    statusPill.dataset.tone = state.tone;
+    graphCaption.textContent = state.caption;
+    graphNote.textContent = frictionNote;
+    heatLegend.hidden = !params.friction;
+
+    formulaScenario.textContent = params.scenario;
+    formulaMass.textContent = `${formatNumber(params.mass)}kg`;
+    formulaHeight.textContent = formatHeight(state.height);
+    formulaSpeed.textContent = formatSpeed(state.speed);
+    formulaKinetic.textContent = formatEnergy(state.kinetic);
+    formulaPotential.textContent = formatEnergy(state.potential);
+    formulaMechanical.textContent = formatEnergy(state.mechanical);
+    formulaHeat.textContent = formatEnergy(state.heat);
+
+    formulaEquation.textContent = params.friction
+      ? `1/2mv² + mgh = E역학\nE전체 = E역학 + E열 = 일정`
+      : `1/2mv² + mgh = 일정\n(중력만 작용할 때, 마찰 없음)`;
+    formulaNote.textContent = params.friction
+      ? '마찰이 켜지면 역학적 에너지는 조금씩 줄고, 줄어든 만큼 열에너지로 이동합니다.'
+      : '마찰이 없을 때는 위치 에너지가 줄어드는 만큼 운동 에너지가 정확히 늘어납니다.';
+
+    energyKinetic.textContent = formatEnergy(state.kinetic);
+    energyPotential.textContent = formatEnergy(state.potential);
+    energyMechanical.textContent = formatEnergy(state.mechanical);
+    energyExtraLabel.textContent = params.friction ? '열 에너지' : '보존선 E';
+    energyExtra.textContent = params.friction ? formatEnergy(state.heat) : formatEnergy(state.total);
+  }
+
+  function drawGraph() {
+    const state = runtime.currentState;
+    const width = graphSize.width;
+    const height = graphSize.height;
+    if (!width || !height) return;
+
+    graphContext.clearRect(0, 0, width, height);
+
+    const marginTop = 118;
+    const marginBottom = params.friction ? 242 : 214;
+    const marginLeft = 46;
+    const marginRight = 28;
+    const plotWidth = width - marginLeft - marginRight;
+    const plotHeight = Math.max(140, height - marginTop - marginBottom);
+    const plotBottom = marginTop + plotHeight;
+    const axisMax = niceAxis(Math.max(state.total * 1.08, state.kinetic, state.potential, state.heat, 10));
+
+    const backgroundGradient = graphContext.createLinearGradient(0, 0, 0, height);
+    backgroundGradient.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+    backgroundGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    graphContext.fillStyle = backgroundGradient;
+    graphContext.fillRect(0, 0, width, height);
+
+    graphContext.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    graphContext.lineWidth = 1;
+    graphContext.setLineDash([4, 8]);
+    graphContext.font = '11px sans-serif';
+    graphContext.fillStyle = 'rgba(247, 251, 255, 0.55)';
+    graphContext.textAlign = 'right';
+
+    for (let i = 0; i <= 4; i += 1) {
+      const value = (axisMax / 4) * i;
+      const y = plotBottom - (value / axisMax) * plotHeight;
+      graphContext.beginPath();
+      graphContext.moveTo(marginLeft, y);
+      graphContext.lineTo(width - marginRight, y);
+      graphContext.stroke();
+      graphContext.fillText(`${formatNumber(value)}J`, marginLeft - 8, y + 4);
+    }
+
+    graphContext.setLineDash([]);
+
+    const bars = [
+      { label: 'Ek', value: state.kinetic, color: '#ff6b6b' },
+      { label: 'Ep', value: state.potential, color: '#5ba8ff' }
+    ];
+    if (params.friction) {
+      bars.push({ label: 'E열', value: state.heat, color: '#ffb35c' });
+    }
+
+    const barWidth = Math.min(88, plotWidth / Math.max(bars.length * 2.1, 4));
+    const gap = (plotWidth - barWidth * bars.length) / (bars.length + 1);
+
+    bars.forEach((bar, index) => {
+      const x = marginLeft + gap * (index + 1) + barWidth * index;
+      const barHeight = (bar.value / axisMax) * plotHeight;
+      const y = plotBottom - barHeight;
+      const gradient = graphContext.createLinearGradient(0, y, 0, plotBottom);
+      gradient.addColorStop(0, `${bar.color}ff`);
+      gradient.addColorStop(1, `${bar.color}33`);
+
+      graphContext.fillStyle = gradient;
+      graphContext.strokeStyle = `${bar.color}aa`;
+      graphContext.lineWidth = 2;
+      graphContext.beginPath();
+      graphContext.roundRect(x, y, barWidth, Math.max(barHeight, 6), 18);
+      graphContext.fill();
+      graphContext.stroke();
+
+      graphContext.fillStyle = 'rgba(247, 251, 255, 0.92)';
+      graphContext.font = '700 12px sans-serif';
+      graphContext.textAlign = 'center';
+      graphContext.fillText(formatEnergy(bar.value), x + barWidth / 2, y - 10);
+      graphContext.fillStyle = 'rgba(247, 251, 255, 0.72)';
+      graphContext.font = '12px sans-serif';
+      graphContext.fillText(bar.label, x + barWidth / 2, plotBottom + 24);
+    });
+
+    const totalY = plotBottom - (state.total / axisMax) * plotHeight;
+    graphContext.strokeStyle = '#6cff9d';
+    graphContext.lineWidth = 2;
+    graphContext.setLineDash([10, 8]);
+    graphContext.beginPath();
+    graphContext.moveTo(marginLeft, totalY);
+    graphContext.lineTo(width - marginRight, totalY);
+    graphContext.stroke();
+    graphContext.setLineDash([]);
+
+    graphContext.fillStyle = '#8dffc0';
+    graphContext.font = '700 12px sans-serif';
+    graphContext.textAlign = 'left';
+    graphContext.fillText(`보존선 E = ${formatEnergy(state.total)}`, marginLeft + 6, totalY - 8);
+  }
+
+  function resize() {
+    const sceneRect = scenePanel.getBoundingClientRect();
+    camera.aspect = sceneRect.width / sceneRect.height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(sceneRect.width, sceneRect.height, false);
+
+    const graphRect = graphPanel.getBoundingClientRect();
+    graphSize.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    graphSize.width = graphRect.width;
+    graphSize.height = graphRect.height;
+    graphCanvas.width = Math.floor(graphRect.width * graphSize.dpr);
+    graphCanvas.height = Math.floor(graphRect.height * graphSize.dpr);
+    graphContext.setTransform(graphSize.dpr, 0, 0, graphSize.dpr, 0, 0);
+  }
+
+  function setCameraPreset() {
+    if (params.scenario === '자유 낙하') {
+      camera.position.set(7.5, 6.6, 12.5);
+      controls.target.set(0, 4.5, 0);
+    } else if (params.scenario === '진자 운동') {
+      camera.position.set(6.4, 6.4, 10.8);
+      controls.target.set(0, 4.8, 0);
+    } else {
+      camera.position.set(14, 11, 24);
+      controls.target.set(8, 3.5, 0);
+    }
+    controls.update();
+  }
+
+  function createGround(width, depth, color = 0xf4f8fb) {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.98,
+        metalness: 0.02
+      })
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function createFreeFallScenario() {
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const ground = createGround(24, 16, 0xe8eef3);
+    group.add(ground);
+
+    const grid = new THREE.GridHelper(22, 22, 0x9fb6ca, 0xc7d9e7);
+    grid.position.y = 0.01;
+    group.add(grid);
+
+    const rulerMaterial = new THREE.MeshStandardMaterial({ color: 0x73879a, roughness: 0.82 });
+    const ruler = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 11, 12), rulerMaterial);
+    ruler.position.set(-2.6, 5.5, 0);
+    group.add(ruler);
+
+    for (let mark = 0; mark <= 10; mark += 2) {
+      const tick = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.02, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x45627f, roughness: 0.74 })
+      );
+      tick.position.set(-2.42, mark, 0);
+      group.add(tick);
+
+      const label = createTextSprite(`${mark}m`, { scale: 0.54 });
+      label.position.set(-3.55, mark + 0.18, 0);
+      group.add(label);
+    }
+
+    const floorLabel = createTextSprite('기준면 h = 0', { scale: 0.7 });
+    floorLabel.position.set(2.8, 0.72, 0);
+    group.add(floorLabel);
+
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(BALL_RADIUS, 36, 36),
+      new THREE.MeshStandardMaterial({
+        color: 0xff4444,
+        roughness: 0.38,
+        metalness: 0.08
+      })
+    );
+    ball.castShadow = true;
+    group.add(ball);
+
+    const trail = createTrailPoints(0.16);
+    group.add(trail.object);
+
+    const startHeight = params.initialHeight;
+    const initialEnergy = params.mass * GRAVITY * startHeight;
+    const theoreticalMaxSpeed = Math.sqrt(2 * GRAVITY * startHeight);
+
+    let height = startHeight;
+    let speed = 0;
+
+    function applyPosition() {
+      ball.position.set(0.6, BALL_RADIUS + height, 0);
+    }
+
+    function setState() {
+      let kinetic = 0.5 * params.mass * speed * speed;
+      const potential = params.mass * GRAVITY * Math.max(height, 0);
+      let heat = 0;
+      if (params.friction) {
+        heat = Math.max(0, initialEnergy - (kinetic + potential));
+        kinetic = Math.max(0, initialEnergy - heat - potential);
+        speed = Math.sqrt(Math.max(0, (2 * kinetic) / params.mass));
+      }
+      const mechanical = kinetic + potential;
+      const tone = height <= 0.02 ? 'success' : (height < startHeight * 0.25 ? 'accent' : 'accent');
+
+      let message = '공이 높은 곳에 정지해 있어 위치 에너지가 최대입니다.';
+      if (runtime.running) {
+        if (height > startHeight * 0.66) {
+          message = '낙하가 시작되며 위치 에너지가 운동 에너지로 바뀌기 시작합니다.';
+        } else if (height > startHeight * 0.25) {
+          message = '중간 높이에서는 Ep가 줄어드는 만큼 Ek가 빠르게 늘어납니다.';
+        } else if (height > 0.02) {
+          message = '바닥에 가까워질수록 속력이 최대에 가까워집니다.';
+        } else {
+          message = '바닥에 도달했습니다. 위치 에너지가 운동 에너지로 거의 모두 전환되었습니다.';
+        }
+      } else if (height <= 0.02) {
+        message = '바닥 도달 상태입니다. 다시 시작하면 처음 높이에서 재출발합니다.';
+      }
+
+      runtime.currentState = {
+        height,
+        speed,
+        kinetic,
+        potential,
+        mechanical,
+        total: initialEnergy,
+        heat,
+        caption: '자유 낙하에서는 높이가 줄어들수록 속력이 커지고, Ek와 Ep의 합은 일정하게 유지됩니다.',
+        message: params.friction ? `${message} 마찰이 있으면 일부 역학적 에너지가 열에너지로 전환됩니다.` : message,
+        tone
+      };
+    }
+
+    function reset() {
+      runtime.running = false;
+      height = startHeight;
+      speed = 0;
+      trail.clear();
+      applyPosition();
+      setState();
+    }
+
+    return {
+      reset,
+      start() {
+        reset();
+        runtime.running = true;
+      },
+      update(deltaTime) {
+        if (runtime.running && height > 0.0001) {
+          const drag = params.friction ? 0.56 : 0;
+          const acceleration = GRAVITY - drag * speed;
+          speed += acceleration * deltaTime;
+          height -= speed * deltaTime;
+          if (height <= 0) {
+            height = 0;
+            if (!params.friction) speed = theoreticalMaxSpeed;
+            runtime.running = false;
+          }
+        }
+
+        applyPosition();
+        if (params.showTrail && (runtime.running || height < startHeight)) {
+          trail.push(ball.position, speed, theoreticalMaxSpeed);
+        }
+        trail.setVisible(params.showTrail);
+        setState();
+      },
+      clearTrail() {
+        trail.clear();
+      },
+      setTrailVisible(visible) {
+        trail.setVisible(visible);
+      },
+      dispose() {
+        disposeObject(group);
+      }
+    };
+  }
+
+  function createPendulumScenario() {
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const ground = createGround(18, 18, 0xecf3f8);
+    group.add(ground);
+
+    const grid = new THREE.GridHelper(16, 16, 0xa6bfce, 0xcfe0eb);
+    grid.position.y = 0.01;
+    group.add(grid);
+
+    const pivot = new THREE.Vector3(0, 7.2, 0);
+    const stringLength = params.stringLength;
+    const initialAngle = THREE.MathUtils.degToRad(params.initialAngle);
+    const initialEnergy = params.mass * GRAVITY * stringLength * (1 - Math.cos(initialAngle));
+
+    const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x70869b, roughness: 0.8 });
+    const postLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 6.8, 12), frameMaterial);
+    postLeft.position.set(-0.75, 3.4, 0);
+    const postRight = postLeft.clone();
+    postRight.position.x = 0.75;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.14, 0.18), frameMaterial);
+    beam.position.set(0, 6.85, 0);
+    group.add(postLeft, postRight, beam);
+
+    const pivotSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.78 })
+    );
+    pivotSphere.position.copy(pivot);
+    group.add(pivotSphere);
+
+    const stringMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 1, 14),
+      new THREE.MeshStandardMaterial({ color: 0x8b98a6, roughness: 0.62 })
+    );
+    group.add(stringMesh);
+
+    const bob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 32, 32),
+      new THREE.MeshStandardMaterial({
+        color: 0x4488aa,
+        roughness: 0.36,
+        metalness: 0.1
+      })
+    );
+    bob.castShadow = true;
+    group.add(bob);
+
+    const arcPoints = [];
+    for (let i = 0; i <= 64; i += 1) {
+      const theta = -initialAngle + (i / 64) * initialAngle * 2;
+      arcPoints.push(new THREE.Vector3(
+        Math.sin(theta) * stringLength,
+        pivot.y - Math.cos(theta) * stringLength,
+        0
+      ));
+    }
+    const arcGeometry = new THREE.BufferGeometry().setFromPoints(arcPoints);
+    const arcLine = new THREE.Line(
+      arcGeometry,
+      new THREE.LineDashedMaterial({
+        color: 0x87aeca,
+        dashSize: 0.22,
+        gapSize: 0.14
+      })
+    );
+    arcLine.computeLineDistances();
+    group.add(arcLine);
+
+    const bottomLabel = createTextSprite('최저점', { scale: 0.64 });
+    bottomLabel.position.set(0.98, pivot.y - stringLength - 0.15, 0);
+    group.add(bottomLabel);
+
+    const trail = createTrailPoints(0.13);
+    group.add(trail.object);
+
+    const velocityArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(),
+      0.4,
+      0xffc14d,
+      0.22,
+      0.12
+    );
+    group.add(velocityArrow);
+
+    let phase = 0;
+    let amplitude = initialAngle;
+
+    function applyPose(theta, speed, directionSign) {
+      const bobPosition = new THREE.Vector3(
+        pivot.x + Math.sin(theta) * stringLength,
+        pivot.y - Math.cos(theta) * stringLength,
+        0
+      );
+
+      bob.position.copy(bobPosition);
+      const ropeVector = bobPosition.clone().sub(pivot);
+      stringMesh.position.copy(pivot).addScaledVector(ropeVector, 0.5);
+      stringMesh.scale.set(1, stringLength, 1);
+      stringMesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        ropeVector.clone().normalize()
+      );
+
+      const tangent = new THREE.Vector3(
+        Math.cos(theta) * directionSign,
+        Math.sin(theta) * directionSign,
+        0
+      ).normalize();
+      velocityArrow.position.copy(bobPosition);
+      velocityArrow.setDirection(tangent);
+      velocityArrow.setLength(Math.max(0.18, speed * 0.22), 0.24, 0.14);
+      velocityArrow.visible = speed > 0.04;
+    }
+
+    function setState(theta, speed) {
+      const height = stringLength * (1 - Math.cos(theta));
+      let potential = params.mass * GRAVITY * height;
+      let kinetic;
+      let heat = 0;
+
+      if (params.friction) {
+        kinetic = 0.5 * params.mass * speed * speed;
+        heat = Math.max(0, initialEnergy - (kinetic + potential));
+      } else {
+        kinetic = Math.max(0, initialEnergy - potential);
+        heat = 0;
+      }
+      const mechanical = kinetic + potential;
+
+      let message = '최고점에서는 위치 에너지가 가장 크고 속력이 0에 가깝습니다.';
+      const nearBottom = Math.abs(theta) < Math.max(0.12, amplitude * 0.2);
+      const nearEdge = Math.abs(theta) > Math.max(0.28, amplitude * 0.78);
+      if (runtime.running) {
+        if (nearBottom) {
+          message = '최저점에서는 위치 에너지가 거의 0이고, 속력과 운동 에너지가 최대가 됩니다.';
+        } else if (nearEdge) {
+          message = '양끝 최고점으로 갈수록 속력이 감소하고 위치 에너지가 다시 커집니다.';
+        } else {
+          message = '진자가 내려오고 올라가면서 Ep와 Ek가 계속 서로 전환됩니다.';
+        }
+      }
+
+      runtime.currentState = {
+        height,
+        speed,
+        kinetic,
+        potential,
+        mechanical,
+        total: initialEnergy,
+        heat,
+        caption: '진자 운동에서는 최고점에서 Ep가 최대, 최저점에서 Ek가 최대가 됩니다.',
+        message: params.friction ? `${message} 감쇠가 생기면 진폭이 줄며 에너지가 열로 이동합니다.` : message,
+        tone: nearBottom ? 'success' : 'accent'
+      };
+    }
+
+    function reset() {
+      runtime.running = false;
+      phase = 0;
+      amplitude = initialAngle;
+      trail.clear();
+      applyPose(initialAngle, 0, 1);
+      setState(initialAngle, 0);
+    }
+
+    return {
+      reset,
+      start() {
+        reset();
+        runtime.running = true;
+      },
+      update(deltaTime) {
+        if (runtime.running) {
+          const omega = Math.sqrt(GRAVITY / stringLength);
+          if (params.friction) {
+            phase += omega * deltaTime;
+            amplitude *= Math.exp(-0.18 * deltaTime);
+          } else {
+            const correction = 1 - (initialAngle * initialAngle) / 16;
+            phase += omega * correction * deltaTime;
+          }
+        }
+
+        const theta = amplitude * Math.cos(phase);
+        const directionSign = Math.sign(-Math.sin(phase)) || 1;
+        let speed;
+
+        if (params.friction) {
+          const omegaApprox = amplitude * Math.sqrt(GRAVITY / stringLength) * Math.abs(Math.sin(phase));
+          speed = stringLength * omegaApprox;
+          if (amplitude < 0.02 && Math.abs(Math.sin(phase)) < 0.08) {
+            runtime.running = false;
+          }
+        } else {
+          const potential = params.mass * GRAVITY * stringLength * (1 - Math.cos(theta));
+          const kinetic = Math.max(0, initialEnergy - potential);
+          speed = Math.sqrt((2 * kinetic) / params.mass);
+        }
+
+        applyPose(theta, speed, directionSign);
+        if (params.showTrail && (runtime.running || Math.abs(theta) < initialAngle - 0.01)) {
+          trail.push(bob.position, speed, Math.sqrt(2 * GRAVITY * stringLength * (1 - Math.cos(initialAngle))));
+        }
+        trail.setVisible(params.showTrail);
+        setState(theta, speed);
+      },
+      clearTrail() {
+        trail.clear();
+      },
+      setTrailVisible(visible) {
+        trail.setVisible(visible);
+      },
+      dispose() {
+        disposeObject(group);
+      }
+    };
+  }
+
+  function buildRollerTrack(startHeight) {
+    const points = [];
+
+    for (let i = 0; i <= 60; i += 1) {
+      const t = i / 60;
+      const ease = t * t * (3 - 2 * t);
+      points.push(new THREE.Vector3(
+        THREE.MathUtils.lerp(-18, 1, t),
+        startHeight * (1 - ease),
+        0
+      ));
+    }
+
+    for (let i = 1; i <= 18; i += 1) {
+      const t = i / 18;
+      points.push(new THREE.Vector3(
+        THREE.MathUtils.lerp(1, 7, t),
+        0,
+        0
+      ));
+    }
+    const loopStartIndex = points.length - 1;
+
+    for (let i = 1; i <= 96; i += 1) {
+      const angle = -Math.PI / 2 + (i / 96) * Math.PI * 2;
+      points.push(new THREE.Vector3(
+        7 + LOOP_RADIUS * Math.cos(angle),
+        LOOP_RADIUS + LOOP_RADIUS * Math.sin(angle),
+        0
+      ));
+    }
+    const loopEndIndex = points.length - 1;
+
+    const hillCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(7, 0, 0),
+      new THREE.Vector3(12, 2.6, 0),
+      new THREE.Vector3(18, 7, 0),
+      new THREE.Vector3(23, 5.1, 0),
+      new THREE.Vector3(29, 1, 0)
+    ], false, 'centripetal', 0.24);
+
+    hillCurve.getPoints(84).forEach((point, index) => {
+      if (index > 0) points.push(point);
+    });
+
+    for (let i = 1; i <= 22; i += 1) {
+      const t = i / 22;
+      points.push(new THREE.Vector3(
+        THREE.MathUtils.lerp(29, 33.5, t),
+        THREE.MathUtils.lerp(1, 0.8, t),
+        0
+      ));
+    }
+
+    const sampler = createPathSampler(points);
+    const loopStartDistance = sampler.cumulative[loopStartIndex];
+    const loopEndDistance = sampler.cumulative[loopEndIndex];
+
+    let hillPeakDistance = loopEndDistance;
+    let hillPeakHeight = -Infinity;
+    for (let i = loopEndIndex; i < points.length; i += 1) {
+      if (points[i].y > hillPeakHeight) {
+        hillPeakHeight = points[i].y;
+        hillPeakDistance = sampler.cumulative[i];
+      }
+    }
+
+    return {
+      ...sampler,
+      loopStartDistance,
+      loopEndDistance,
+      loopTopDistance: loopStartDistance + (loopEndDistance - loopStartDistance) / 2,
+      hillPeakDistance
+    };
+  }
+
+  function createCart() {
+    const cart = new THREE.Group();
+
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.78, 0.28, 0.46),
+      new THREE.MeshStandardMaterial({
+        color: 0xff4444,
+        roughness: 0.38,
+        metalness: 0.06
+      })
+    );
+    body.position.y = 0.18;
+    body.castShadow = true;
+    cart.add(body);
+
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.18, 0.42),
+      new THREE.MeshStandardMaterial({
+        color: 0xfbe7d7,
+        roughness: 0.66,
+        metalness: 0.02
+      })
+    );
+    seat.position.set(-0.05, 0.4, 0);
+    seat.castShadow = true;
+    cart.add(seat);
+
+    const wheelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x384857,
+      roughness: 0.68,
+      metalness: 0.12
+    });
+    const wheelPositions = [
+      [-0.24, 0.04, -0.2],
+      [0.24, 0.04, -0.2],
+      [-0.24, 0.04, 0.2],
+      [0.24, 0.04, 0.2]
+    ];
+    wheelPositions.forEach(([x, y, z]) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.1, 0.08, 16),
+        wheelMaterial
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, y, z);
+      wheel.castShadow = true;
+      cart.add(wheel);
+    });
+
+    return cart;
+  }
+
+  function createRollerCoasterScenario() {
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const ground = createGround(72, 28, 0xe9eef4);
+    group.add(ground);
+
+    const grid = new THREE.GridHelper(70, 35, 0xb8c9d7, 0xd7e3ec);
+    grid.position.y = 0.02;
+    group.add(grid);
+
+    const trackData = buildRollerTrack(params.initialHeight);
+    const trackCurve = new THREE.CatmullRomCurve3(trackData.points, false, 'centripetal', 0.22);
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(trackCurve, 520, 0.18, 14, false),
+      new THREE.MeshStandardMaterial({
+        color: 0x888888,
+        roughness: 0.58,
+        metalness: 0.24
+      })
+    );
+    tube.castShadow = true;
+    tube.receiveShadow = true;
+    group.add(tube);
+
+    const railAccent = new THREE.Mesh(
+      new THREE.TubeGeometry(trackCurve, 520, 0.07, 12, false),
+      new THREE.MeshStandardMaterial({
+        color: 0xd5dde5,
+        roughness: 0.2,
+        metalness: 0.6
+      })
+    );
+    group.add(railAccent);
+
+    const supportMaterial = new THREE.MeshStandardMaterial({ color: 0x75889b, roughness: 0.82 });
+    for (let i = 0; i < trackData.points.length; i += 12) {
+      const point = trackData.points[i];
+      if (point.y < 0.35) continue;
+      const support = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.09, point.y, 10),
+        supportMaterial
+      );
+      support.position.set(point.x, point.y / 2, point.z);
+      support.castShadow = true;
+      support.receiveShadow = true;
+      group.add(support);
+    }
+
+    const startLabel = createTextSprite(`출발 ${params.initialHeight.toFixed(1)}m`, { scale: 0.7 });
+    startLabel.position.set(-16.8, params.initialHeight + 1.1, 0);
+    group.add(startLabel);
+
+    const loopTopLabel = createTextSprite('루프 꼭대기', { scale: 0.72 });
+    loopTopLabel.position.set(7, 7.3, 0);
+    group.add(loopTopLabel);
+
+    const hillLabel = createTextSprite('언덕 7m', { scale: 0.66 });
+    hillLabel.position.set(18, 8.1, 0);
+    group.add(hillLabel);
+
+    const cart = createCart();
+    group.add(cart);
+
+    const trail = createTrailPoints(0.14);
+    group.add(trail.object);
+
+    const startHeight = params.initialHeight;
+    const initialEnergy = params.mass * GRAVITY * startHeight;
+    const loopRequiredHeight = 2.5 * LOOP_RADIUS;
+
+    let distance = 0;
+    let heat = 0;
+    let direction = 1;
+    let failedLoop = false;
+    let loopSuccess = false;
+
+    function placeCart() {
+      const sample = trackData.getPointAtDistance(distance);
+      const tangent = sample.tangent.clone();
+      const normal = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+      const cartPosition = sample.position.clone().addScaledVector(normal, 0.34);
+      cart.position.copy(cartPosition);
+      cart.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), tangent);
+    }
+
+    function computeSpeed(height) {
+      const mechanicalBudget = Math.max(0, initialEnergy - heat);
+      return Math.sqrt(Math.max(0, 2 * (mechanicalBudget / params.mass - GRAVITY * height)));
+    }
+
+    function setState() {
+      const sample = trackData.getPointAtDistance(distance);
+      const height = sample.position.y;
+      const speed = computeSpeed(height);
+      const potential = params.mass * GRAVITY * height;
+      let kinetic = 0.5 * params.mass * speed * speed;
+      let heatEnergy = 0;
+      if (params.friction) {
+        heatEnergy = Math.max(0, heat);
+        kinetic = Math.max(0, initialEnergy - heatEnergy - potential);
+      }
+      const mechanical = kinetic + potential;
+
+      let message = '출발점에서는 위치 에너지가 최대이고 카트가 정지해 있습니다.';
+      let tone = 'accent';
+
+      if (runtime.running) {
+        if (direction < 0) {
+          message = '속력이 부족해 되돌아가고 있습니다. 운동 에너지가 다시 위치 에너지로 바뀝니다.';
+          tone = 'warning';
+        } else if (distance < trackData.loopStartDistance) {
+          message = '내리막을 내려오며 위치 에너지가 빠르게 운동 에너지로 전환됩니다.';
+        } else if (distance < trackData.loopEndDistance) {
+          message = loopSuccess
+            ? '루프 구간에서도 역학적 에너지가 유지되어 카트가 안정적으로 회전합니다.'
+            : '루프 구간에서는 꼭대기에서 최소 속력이 필요합니다.';
+          tone = loopSuccess ? 'success' : 'accent';
+        } else if (distance < trackData.hillPeakDistance) {
+          message = '언덕을 오르면서 운동 에너지가 다시 위치 에너지로 바뀝니다.';
+        } else {
+          message = '최종 내리막에서 다시 속력이 커지며 완주 지점으로 향합니다.';
+        }
+      } else if (loopSuccess && distance >= trackData.totalLength - 0.04) {
+        message = '완주했습니다. 시작 높이가 충분하면 루프와 언덕을 모두 통과할 수 있습니다.';
+        tone = 'success';
+      } else if (failedLoop) {
+        message = `루프 통과 실패: 반지름 ${LOOP_RADIUS}m 루프는 이론적으로 최소 ${formatNumber(loopRequiredHeight)}m 이상의 출발 높이가 필요합니다.`;
+        tone = 'warning';
+      }
+
+      runtime.currentState = {
+        height,
+        speed,
+        kinetic,
+        potential,
+        mechanical,
+        total: initialEnergy,
+        heat: heatEnergy,
+        caption: '롤러코스터는 출발 높이가 충분하면 루프 꼭대기에서도 필요한 속력을 유지하며 지나갈 수 있습니다.',
+        message: params.friction ? `${message} 마찰이 있으면 일부 에너지가 열로 빠져나갑니다.` : message,
+        tone
+      };
+    }
+
+    function reset() {
+      runtime.running = false;
+      distance = 0;
+      heat = 0;
+      direction = 1;
+      failedLoop = false;
+      loopSuccess = false;
+      trail.clear();
+      placeCart();
+      setState();
+    }
+
+    return {
+      reset,
+      start() {
+        reset();
+        runtime.running = true;
+      },
+      update(deltaTime) {
+        if (runtime.running) {
+          const currentSample = trackData.getPointAtDistance(distance);
+          const currentSpeed = computeSpeed(currentSample.position.y);
+          if (currentSpeed < 0.04 && direction < 0 && distance < 0.03) {
+            runtime.running = false;
+          } else {
+            const proposedDistance = clamp(
+              distance + currentSpeed * deltaTime * direction,
+              0,
+              trackData.totalLength
+            );
+
+            if (params.friction) {
+              const travelled = Math.abs(proposedDistance - distance);
+              heat = Math.min(initialEnergy * 0.92, heat + 0.11 * params.mass * GRAVITY * travelled);
+            }
+
+            const nextSample = trackData.getPointAtDistance(proposedDistance);
+            const mechanicalBudget = Math.max(0, initialEnergy - heat);
+            const reachable = mechanicalBudget >= params.mass * GRAVITY * nextSample.position.y - 1e-6;
+
+            if (!reachable) {
+              if (direction > 0) {
+                direction = -1;
+                failedLoop = true;
+              } else {
+                runtime.running = false;
+              }
+            } else {
+              distance = proposedDistance;
+            }
+
+            if (!loopSuccess && direction > 0 && distance >= trackData.loopTopDistance - 0.08) {
+              const topSpeed = computeSpeed(LOOP_RADIUS * 2);
+              if (topSpeed * topSpeed >= GRAVITY * LOOP_RADIUS) {
+                loopSuccess = true;
+              } else {
+                direction = -1;
+                failedLoop = true;
+              }
+            }
+
+            if (distance >= trackData.totalLength - 0.001) {
+              runtime.running = false;
+              loopSuccess = true;
+            }
+          }
+        }
+
+        placeCart();
+        if (params.showTrail && (runtime.running || distance > 0.02)) {
+          trail.push(cart.position, runtime.currentState.speed || 0, Math.sqrt(2 * GRAVITY * Math.max(startHeight, 0.1)));
+        }
+        trail.setVisible(params.showTrail);
+        setState();
+      },
+      clearTrail() {
+        trail.clear();
+      },
+      setTrailVisible(visible) {
+        trail.setVisible(visible);
+      },
+      dispose() {
+        disposeObject(group);
+      }
+    };
+  }
+
+  function rebuildScenario() {
+    if (runtime.activeScenario) {
+      runtime.activeScenario.dispose();
+    }
+
+    if (params.scenario === '자유 낙하') {
+      runtime.activeScenario = createFreeFallScenario();
+    } else if (params.scenario === '진자 운동') {
+      runtime.activeScenario = createPendulumScenario();
+    } else {
+      runtime.activeScenario = createRollerCoasterScenario();
+    }
+
+    setCameraPreset();
+    runtime.activeScenario.reset();
+    updateControllerVisibility();
+    syncGui();
+    updateHud();
+    drawGraph();
+  }
+
+  function startSimulation() {
+    runtime.activeScenario.start();
+    updateHud();
+  }
+
+  function resetSimulation() {
+    runtime.activeScenario.reset();
+    updateHud();
+  }
+
+  const gui = new GUI({ title: '시뮬레이션 제어' });
+  gui.domElement.style.zIndex = '60';
+
+  const scenarioController = gui
+    .add(params, 'scenario', ['자유 낙하', '진자 운동', '롤러코스터'])
+    .name('시나리오')
+    .onChange(() => rebuildScenario());
+
+  const heightController = gui
+    .add(params, 'initialHeight', 2, 15, 0.1)
+    .name('초기 높이 (m)')
+    .onFinishChange(() => rebuildScenario());
+
+  const massController = gui
+    .add(params, 'mass', 0.5, 5, 0.1)
+    .name('질량 (kg)')
+    .onFinishChange(() => rebuildScenario());
+
+  const lengthController = gui
+    .add(params, 'stringLength', 1, 5, 0.1)
+    .name('실 길이 (m)')
+    .onFinishChange(() => rebuildScenario());
+
+  const angleController = gui
+    .add(params, 'initialAngle', 10, 80, 1)
+    .name('초기 각도 (°)')
+    .onFinishChange(() => rebuildScenario());
+
+  gui
+    .add(params, 'friction')
+    .name('마찰')
+    .onChange(() => rebuildScenario());
+
+  gui
+    .add(params, 'showTrail')
+    .name('잔상 표시')
+    .onChange((visible) => {
+      if (runtime.activeScenario) {
+        if (!visible) runtime.activeScenario.clearTrail();
+        runtime.activeScenario.setTrailVisible(visible);
+      }
+    });
+
+  const actions = {
+    '시뮬레이션 시작': startSimulation,
+    '초기화': resetSimulation
+  };
+  gui.add(actions, '시뮬레이션 시작');
+  gui.add(actions, '초기화');
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function updateControllerVisibility() {
+    const isPendulum = params.scenario === '진자 운동';
+    heightController.domElement.style.display = isPendulum ? 'none' : '';
+    lengthController.domElement.style.display = isPendulum ? '' : 'none';
+    angleController.domElement.style.display = isPendulum ? '' : 'none';
+    scenarioController.domElement.style.display = '';
+    massController.domElement.style.display = '';
+  }
+
+  guideToggle.addEventListener('click', () => {
+    const isOpen = guidePanel.classList.toggle('show');
+    guideToggle.textContent = isOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  });
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = Math.min(clock.getDelta(), 0.033);
+
+    if (runtime.activeScenario) {
+      runtime.activeScenario.update(deltaTime);
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+    updateHud();
+    drawGraph();
+  }
+
+  window.addEventListener('resize', resize);
+
+  resize();
+  rebuildScenario();
+  animate();
+</script>
+</body>
+</html>

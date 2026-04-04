@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이상 기체 법칙과 열역학 과정 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel: rgba(9, 19, 34, 0.84);
+    --panel-strong: rgba(7, 15, 28, 0.92);
+    --panel-line: rgba(255, 255, 255, 0.1);
+    --text: #f6f9ff;
+    --text-dim: rgba(246, 249, 255, 0.74);
+    --accent-red: #ff7461;
+    --accent-blue: #68b4ff;
+    --accent-green: #62d79b;
+    --accent-purple: #b185ff;
+    --accent-yellow: #ffd578;
+    --shadow: 0 18px 42px rgba(8, 16, 28, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 14% 18%, rgba(255, 183, 137, 0.3), transparent 24%),
+      radial-gradient(circle at 88% 16%, rgba(108, 180, 255, 0.26), transparent 24%),
+      linear-gradient(180deg, #f3f5f9 0%, #e7ecf5 44%, #dbe3ee 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(640px, calc(100vw - 32px));
+    padding: 12px 20px 14px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #fff;
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 28;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(8, 18, 34, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 14px;
+    z-index: 27;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(76vh, 760px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    background: var(--panel-strong);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: var(--shadow);
+    display: none;
+    line-height: 1.75;
+    font-size: 12px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 6px;
+    font-size: 15px;
+    color: #d3e8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 13px;
+    margin-bottom: 4px;
+    color: #ffe4a2;
+    font-size: 12px;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 104px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(620px, calc(100vw - 40px));
+    padding: 10px 16px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #fff;
+  }
+
+  #state-panel {
+    position: fixed;
+    left: 14px;
+    top: 106px;
+    z-index: 18;
+    width: min(320px, calc(100vw - 28px));
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  #state-panel h2 {
+    font-size: 17px;
+    color: #fff;
+  }
+
+  #state-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  .state-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .state-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .state-card .label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.62);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .state-card .value {
+    margin-top: 5px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .state-card .sub {
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #fff;
+  }
+
+  .formula-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .formula-row span:last-child {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .formula-divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .process-notes {
+    margin-top: 8px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .process-note {
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .process-note.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  .formula-foot {
+    margin-top: 10px;
+    color: var(--text-dim);
+  }
+
+  #graph-panel {
+    position: fixed;
+    top: 104px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(560px, 46vw);
+    padding: 16px;
+    border-radius: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #graph-panel h2 {
+    font-size: 19px;
+    color: #fff;
+  }
+
+  #graph-panel p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #pv-canvas {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 320px;
+    margin-top: 14px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .legend-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  .graph-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .graph-stat {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .graph-stat .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .graph-stat .value {
+    margin-top: 6px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .graph-stat .sub {
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #scene-badge {
+    position: fixed;
+    left: 14px;
+    top: 312px;
+    z-index: 18;
+    width: min(320px, calc(100vw - 28px));
+    padding: 12px 14px;
+    border-radius: 18px;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #scene-badge strong {
+    color: #fff;
+  }
+
+  .lil-gui.root {
+    --width: 320px;
+    z-index: 32 !important;
+    margin-top: 54px;
+    margin-right: 12px;
+  }
+
+  .lil-gui {
+    --background-color: rgba(8, 16, 30, 0.92);
+    --widget-color: rgba(255, 255, 255, 0.06);
+    --widget-height: 28px;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --title-text-color: #f6f9ff;
+    --text-color: #f6f9ff;
+    --number-color: #86ffe4;
+    --string-color: #ffd98c;
+    --focus-color: rgba(104, 180, 255, 0.3);
+  }
+
+  @media (max-width: 1080px) {
+    #graph-panel {
+      width: min(520px, 44vw);
+    }
+
+    #state-panel {
+      top: 136px;
+    }
+
+    #scene-badge {
+      top: 342px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    #status-chip {
+      top: 118px;
+      border-radius: 18px;
+    }
+
+    #state-panel {
+      top: auto;
+      left: 10px;
+      right: 10px;
+      bottom: 316px;
+      width: auto;
+    }
+
+    #scene-badge {
+      display: none;
+    }
+
+    #graph-panel {
+      left: 10px;
+      right: 10px;
+      top: auto;
+      bottom: 10px;
+      width: auto;
+      height: 292px;
+    }
+
+    #pv-canvas {
+      min-height: 0;
+      height: 100%;
+    }
+
+    .graph-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 312px;
+    }
+
+    .lil-gui.root {
+      margin-top: 160px;
+      margin-right: 8px;
+      transform: scale(0.96);
+      transform-origin: top right;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-card {
+      width: calc(100vw - 24px);
+      padding: 12px 14px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 14px;
+      left: 14px;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 54px;
+      max-height: min(54vh, 520px);
+    }
+
+    #status-chip {
+      top: 126px;
+      width: calc(100vw - 20px);
+      font-size: 11px;
+    }
+
+    #formula-panel {
+      bottom: 332px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    #state-panel {
+      bottom: 520px;
+    }
+
+    #graph-panel {
+      height: 308px;
+    }
+
+    .state-grid,
+    .graph-stats {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .lil-gui.root {
+      margin-top: 176px;
+      --width: 280px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Mechanics & Energy · Ideal Gas Law</div>
+  <h1>이상 기체 법칙과 열역학 과정</h1>
+  <p>실린더 속 기체를 등온, 등적, 등압, 단열 과정으로 바꾸며 분자 운동과 P-V 다이어그램을 함께 관찰해 보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass">
+  <h3>핵심 원리</h3>
+  <p>이상 기체 상태 방정식은 <strong>PV = nRT</strong> 입니다. 기체의 압력 P, 부피 V, 몰수 n, 절대 온도 T 사이의 관계를 연결하며, 온도와 부피, 압력이 달라지는 여러 열역학 과정은 이 식을 바탕으로 해석할 수 있습니다. 등온 과정은 <strong>PV = 일정</strong>, 등적 과정은 <strong>P/T = 일정</strong>, 등압 과정은 <strong>V/T = 일정</strong>, 단열 과정은 <strong>PV^γ = 일정</strong>으로 표현됩니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>등온 과정에서 기체를 압축하면 압력은 어떻게 변하나요? P와 V의 곱은 왜 일정하게 남을까요?</li>
+    <li>등적 과정에서 열을 가하면 내부 에너지와 압력은 어떻게 변하나요? 왜 W=0일까요?</li>
+    <li>단열 압축으로 디젤 엔진에서 연료가 자연 발화하는 원리를 분자 운동 에너지 증가와 연결해 설명해 보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>자전거 펌프: 빠른 단열 압축 때문에 펌프 끝이 뜨거워집니다.</li>
+    <li>냉장고와 냉매 팽창: 외부와 열을 주고받는 과정에서 온도와 압력이 달라집니다.</li>
+    <li>디젤 엔진: 공기를 강하게 단열 압축해 높은 온도를 만든 뒤 연료를 분사합니다.</li>
+    <li>풍선: 온도 변화와 외부 압력 변화에 따라 부피가 달라집니다.</li>
+  </ul>
+
+  <div class="guide-ref">
+    교과서 연계: 역학과 에너지 II편 p70~81 — 이상 기체, 열역학 과정, 열역학 제1법칙
+  </div>
+</div>
+
+<div id="status-chip" class="glass"></div>
+
+<div id="state-panel" class="glass">
+  <h2>현재 상태</h2>
+  <p>분자 속도와 피스톤 위치, 추의 개수, 히터/냉각 장치의 색이 현재 과정의 변화를 동시에 보여 줍니다.</p>
+  <div class="state-grid">
+    <div class="state-card">
+      <div class="label">압력 P</div>
+      <div class="value" id="state-pressure">1.00 atm</div>
+      <div class="sub">벽 충돌이 많을수록 압력 증가</div>
+    </div>
+    <div class="state-card">
+      <div class="label">부피 V</div>
+      <div class="value" id="state-volume">5.00 L</div>
+      <div class="sub">피스톤 높이가 부피를 결정</div>
+    </div>
+    <div class="state-card">
+      <div class="label">온도 T</div>
+      <div class="value" id="state-temperature">300 K</div>
+      <div class="sub">분자 속도와 색상 변화</div>
+    </div>
+    <div class="state-card">
+      <div class="label">몰수 n</div>
+      <div class="value" id="state-moles">0.20 mol</div>
+      <div class="sub">초기 P, V, T에서 계산</div>
+    </div>
+  </div>
+</div>
+
+<div id="scene-badge" class="glass">
+  <strong id="scene-badge-title">실린더+피스톤 관찰 포인트</strong><br>
+  <span id="scene-badge-body">등온 과정에서는 분자 속도가 거의 유지된 채 피스톤만 천천히 움직이고, 단열 과정에서는 실린더 단열재가 켜지며 분자 속도가 빠르게 달라집니다.</span>
+</div>
+
+<div id="formula-panel" class="glass"></div>
+
+<div id="graph-panel" class="glass">
+  <h2>P-V 다이어그램</h2>
+  <p>현재 상태 점과 이동 경로를 실시간으로 그리고, 그래프 아래 면적으로 기체가 한 일 W를 시각화합니다.</p>
+  <canvas id="pv-canvas"></canvas>
+  <div class="graph-legend">
+    <div class="legend-pill"><span class="legend-dot" style="background:#ff7461"></span>등온</div>
+    <div class="legend-pill"><span class="legend-dot" style="background:#68b4ff"></span>등적</div>
+    <div class="legend-pill"><span class="legend-dot" style="background:#62d79b"></span>등압</div>
+    <div class="legend-pill"><span class="legend-dot" style="background:#b185ff"></span>단열</div>
+    <div class="legend-pill"><span class="legend-dot" style="background:#ffd578"></span>현재 경로</div>
+  </div>
+  <div class="graph-stats">
+    <div class="graph-stat">
+      <div class="label">Q</div>
+      <div class="value" id="graph-q">0 J</div>
+      <div class="sub">흡수열(+), 방출열(-)</div>
+    </div>
+    <div class="graph-stat">
+      <div class="label">ΔU</div>
+      <div class="value" id="graph-du">0 J</div>
+      <div class="sub">내부 에너지 변화</div>
+    </div>
+    <div class="graph-stat">
+      <div class="label">W</div>
+      <div class="value" id="graph-work">0 J</div>
+      <div class="sub">기체가 외부에 한 일</div>
+    </div>
+    <div class="graph-stat">
+      <div class="label">현재 과정</div>
+      <div class="value" id="graph-process">등온</div>
+      <div class="sub" id="graph-relation">PV = 일정</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const R = 8.314;
+const ATM_TO_PA = 101325;
+const LITER_TO_M3 = 0.001;
+const GAMMA = 1.4;
+const CV = R / (GAMMA - 1);
+const MOLECULE_COUNT = 48;
+const PROCESS_ORDER = ['등온', '등적', '등압', '단열'];
+const PROCESS_META = {
+  '등온': {
+    relation: 'PV = 일정',
+    color: '#ff7461',
+    duration: 4.2
+  },
+  '등적': {
+    relation: 'P/T = 일정',
+    color: '#68b4ff',
+    duration: 3.4
+  },
+  '등압': {
+    relation: 'V/T = 일정',
+    color: '#62d79b',
+    duration: 4.0
+  },
+  '단열': {
+    relation: 'PV^γ = 일정',
+    color: '#b185ff',
+    duration: 2.8
+  }
+};
+
+const CHAMBER = {
+  radius: 1.08,
+  bottom: 0.34,
+  minHeight: 0.62,
+  maxHeight: 3.48,
+  visibleVolumeMin: 0.5,
+  visibleVolumeMax: 20
+};
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  pvCanvas: document.getElementById('pv-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusChip: document.getElementById('status-chip'),
+  formulaPanel: document.getElementById('formula-panel'),
+  sceneBadgeTitle: document.getElementById('scene-badge-title'),
+  sceneBadgeBody: document.getElementById('scene-badge-body'),
+  statePressure: document.getElementById('state-pressure'),
+  stateVolume: document.getElementById('state-volume'),
+  stateTemperature: document.getElementById('state-temperature'),
+  stateMoles: document.getElementById('state-moles'),
+  graphQ: document.getElementById('graph-q'),
+  graphDU: document.getElementById('graph-du'),
+  graphWork: document.getElementById('graph-work'),
+  graphProcess: document.getElementById('graph-process'),
+  graphRelation: document.getElementById('graph-relation')
+};
+
+const params = {
+  process: '등온',
+  initialTemperature: 300,
+  initialVolume: 5,
+  initialPressure: 1,
+  volumeChange: 140,
+  temperatureChange: 100,
+  showMolecules: true,
+  showArea: true,
+  runProcess: () => startProcess(),
+  reset: () => resetSimulation()
+};
+
+const sim = {
+  baseState: null,
+  currentState: null,
+  targetState: null,
+  currentThermo: { Q: 0, dU: 0, W: 0 },
+  path: [],
+  running: false,
+  progress: 0,
+  startedAt: 0,
+  duration: PROCESS_META[params.process].duration,
+  moles: 0
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 14, 28);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 80);
+camera.position.set(2.8, 4.2, 10.8);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.canvas,
+  antialias: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.02;
+
+const controls = new OrbitControls(camera, dom.canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 6;
+controls.maxDistance = 18;
+controls.target.set(-2.9, 2.2, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
+sunLight.position.set(6, 12, 8);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -12;
+sunLight.shadow.camera.right = 12;
+sunLight.shadow.camera.top = 12;
+sunLight.shadow.camera.bottom = -6;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 36;
+scene.add(sunLight);
+
+const fillLight = new THREE.PointLight(0xcfe2ff, 0.45, 28, 2);
+fillLight.position.set(-8, 5, -2);
+scene.add(fillLight);
+
+const floor = new THREE.Mesh(
+  new THREE.CylinderGeometry(8.8, 9.4, 0.4, 72),
+  new THREE.MeshStandardMaterial({
+    color: 0xc6d1de,
+    roughness: 0.94,
+    metalness: 0.05
+  })
+);
+floor.position.y = -0.22;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const orbitRing = new THREE.Mesh(
+  new THREE.TorusGeometry(6.6, 0.06, 18, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.18
+  })
+);
+orbitRing.rotation.x = Math.PI / 2;
+orbitRing.position.y = 0.02;
+scene.add(orbitRing);
+
+const stage = new THREE.Mesh(
+  new THREE.BoxGeometry(9.8, 0.32, 4.6),
+  new THREE.MeshStandardMaterial({
+    color: 0x4d5e72,
+    roughness: 0.84,
+    metalness: 0.24
+  })
+);
+stage.position.set(-1.8, 0.1, 0);
+stage.receiveShadow = true;
+scene.add(stage);
+
+const cylinderGroup = new THREE.Group();
+cylinderGroup.position.set(-3.2, 0, 0);
+scene.add(cylinderGroup);
+
+const cylinderMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0xaaaaaa,
+  transparent: true,
+  opacity: 0.28,
+  transmission: 0.4,
+  roughness: 0.12,
+  metalness: 0.55,
+  side: THREE.DoubleSide
+});
+const cylinderBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.2, 1.2, 4, 48, 1, true),
+  cylinderMaterial
+);
+cylinderBody.position.y = 2.2;
+cylinderBody.castShadow = true;
+cylinderBody.receiveShadow = true;
+cylinderGroup.add(cylinderBody);
+
+const cylinderRimTop = new THREE.Mesh(
+  new THREE.TorusGeometry(1.2, 0.03, 14, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0xbcc7d2,
+    roughness: 0.36,
+    metalness: 0.7
+  })
+);
+cylinderRimTop.rotation.x = Math.PI / 2;
+cylinderRimTop.position.y = 4.2;
+cylinderGroup.add(cylinderRimTop);
+
+const cylinderBase = new THREE.Mesh(
+  new THREE.CircleGeometry(1.2, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    roughness: 0.5,
+    metalness: 0.5
+  })
+);
+cylinderBase.rotation.x = -Math.PI / 2;
+cylinderBase.position.y = 0.2;
+cylinderBase.receiveShadow = true;
+cylinderBase.castShadow = true;
+cylinderGroup.add(cylinderBase);
+
+const chamberGlow = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.16, 1.16, 3.92, 48, 1, true),
+  new THREE.MeshBasicMaterial({
+    color: 0x75d4ff,
+    transparent: true,
+    opacity: 0.06,
+    side: THREE.DoubleSide
+  })
+);
+chamberGlow.position.y = 2.16;
+cylinderGroup.add(chamberGlow);
+
+const insulation = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.34, 1.34, 4.08, 48, 1, true),
+  new THREE.MeshStandardMaterial({
+    color: 0x8f7ad8,
+    transparent: true,
+    opacity: 0.14,
+    roughness: 0.86,
+    metalness: 0.08,
+    side: THREE.DoubleSide
+  })
+);
+insulation.position.y = 2.2;
+insulation.visible = false;
+cylinderGroup.add(insulation);
+
+const pistonGroup = new THREE.Group();
+cylinderGroup.add(pistonGroup);
+
+const piston = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.18, 1.18, 0.28, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0x666688,
+    roughness: 0.35,
+    metalness: 0.6,
+    emissive: 0x1b1d3f,
+    emissiveIntensity: 0.4
+  })
+);
+piston.castShadow = true;
+piston.receiveShadow = true;
+pistonGroup.add(piston);
+
+const pistonCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.2, 0.2, 0.3, 24),
+  new THREE.MeshStandardMaterial({
+    color: 0xcfd5df,
+    roughness: 0.3,
+    metalness: 0.8
+  })
+);
+pistonCap.position.y = 0.26;
+pistonCap.castShadow = true;
+pistonGroup.add(pistonCap);
+
+const guideRodGeometry = new THREE.CylinderGeometry(0.05, 0.05, 4.2, 18);
+const guideRodMaterial = new THREE.MeshStandardMaterial({
+  color: 0xaeb8c8,
+  roughness: 0.28,
+  metalness: 0.76
+});
+for (const x of [-0.72, 0.72]) {
+  const rod = new THREE.Mesh(guideRodGeometry, guideRodMaterial);
+  rod.position.set(x, 2.3, -0.12);
+  rod.castShadow = true;
+  cylinderGroup.add(rod);
+}
+
+const weightsGroup = new THREE.Group();
+weightsGroup.position.y = 0.36;
+pistonGroup.add(weightsGroup);
+
+const weightDiscs = [];
+for (let index = 0; index < 6; index += 1) {
+  const disc = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.5, 0.12, 28),
+    new THREE.MeshStandardMaterial({
+      color: 0x4f5668,
+      roughness: 0.44,
+      metalness: 0.48
+    })
+  );
+  disc.position.y = index * 0.14;
+  disc.castShadow = true;
+  weightsGroup.add(disc);
+  weightDiscs.push(disc);
+}
+
+const heaterBase = new THREE.Mesh(
+  new THREE.BoxGeometry(2.3, 0.22, 2.2),
+  new THREE.MeshStandardMaterial({
+    color: 0x882e2e,
+    roughness: 0.72,
+    metalness: 0.24
+  })
+);
+heaterBase.position.set(0, 0.05, 0);
+heaterBase.castShadow = true;
+heaterBase.receiveShadow = true;
+cylinderGroup.add(heaterBase);
+
+const heaterGlow = new THREE.Mesh(
+  new THREE.BoxGeometry(1.9, 0.05, 1.8),
+  new THREE.MeshBasicMaterial({
+    color: 0xff4444,
+    transparent: true,
+    opacity: 0.2
+  })
+);
+heaterGlow.position.set(0, 0.19, 0);
+cylinderGroup.add(heaterGlow);
+
+const chamberMarkerGeometry = new THREE.BufferGeometry();
+const markerVertices = [];
+for (const volume of [2, 5, 10, 15, 20]) {
+  const y = volumeToPistonY(volume) - 0.16;
+  markerVertices.push(
+    1.22, y, 0.2,
+    1.44, y, 0.2,
+    -1.22, y, 0.2,
+    -1.44, y, 0.2
+  );
+}
+chamberMarkerGeometry.setAttribute('position', new THREE.Float32BufferAttribute(markerVertices, 3));
+const chamberMarkers = new THREE.LineSegments(
+  chamberMarkerGeometry,
+  new THREE.LineBasicMaterial({
+    color: 0x8c95a7,
+    transparent: true,
+    opacity: 0.72
+  })
+);
+cylinderGroup.add(chamberMarkers);
+
+for (const volume of [2, 5, 10, 15, 20]) {
+  const label = createTextSprite(`${volume} L`);
+  label.position.set(1.7, volumeToPistonY(volume) - 0.16, 0.18);
+  cylinderGroup.add(label);
+}
+
+const moleculeGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+const moleculeMaterial = new THREE.MeshStandardMaterial({
+  color: 0x44cc88,
+  roughness: 0.22,
+  metalness: 0.12,
+  emissive: 0x0f3025,
+  emissiveIntensity: 0.45
+});
+const moleculeMesh = new THREE.InstancedMesh(moleculeGeometry, moleculeMaterial, MOLECULE_COUNT);
+moleculeMesh.castShadow = true;
+moleculeMesh.receiveShadow = true;
+cylinderGroup.add(moleculeMesh);
+
+const moleculeDummy = new THREE.Object3D();
+const molecules = Array.from({ length: MOLECULE_COUNT }, () => ({
+  position: new THREE.Vector3(),
+  velocity: new THREE.Vector3()
+}));
+
+const flashPool = [];
+for (let index = 0; index < 28; index += 1) {
+  const flash = {
+    mesh: new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff2ab,
+        transparent: true,
+        opacity: 0
+      })
+    ),
+    life: 0
+  };
+  flash.mesh.visible = false;
+  cylinderGroup.add(flash.mesh);
+  flashPool.push(flash);
+}
+
+const clock = new THREE.Clock();
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.classList.toggle('open');
+});
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function toPa(atm) {
+  return atm * ATM_TO_PA;
+}
+
+function toM3(liter) {
+  return liter * LITER_TO_M3;
+}
+
+function formatAtm(value) {
+  return `${value.toFixed(2)} atm`;
+}
+
+function formatLiter(value) {
+  return `${value.toFixed(2)} L`;
+}
+
+function formatKelvin(value) {
+  return `${value.toFixed(0)} K`;
+}
+
+function formatMoles(value) {
+  return `${value.toFixed(2)} mol`;
+}
+
+function formatEnergy(value) {
+  const sign = value > 0 ? '' : value < 0 ? '-' : '';
+  return `${sign}${Math.abs(value).toFixed(0)} J`;
+}
+
+function niceUpper(value) {
+  if (value <= 1) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function volumeToPistonY(volume) {
+  const t = clamp(
+    (volume - CHAMBER.visibleVolumeMin) / (CHAMBER.visibleVolumeMax - CHAMBER.visibleVolumeMin),
+    0,
+    1
+  );
+  return CHAMBER.bottom + lerp(CHAMBER.minHeight, CHAMBER.maxHeight, t);
+}
+
+function createTextSprite(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 192;
+  canvas.height = 72;
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = 'rgba(8, 16, 28, 0.68)';
+  roundRect(context, 8, 10, 176, 52, 16);
+  context.fill();
+  context.fillStyle = '#f8fbff';
+  context.font = '600 28px Pretendard';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.96, 0.36, 1);
+  return sprite;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function makeBaseState() {
+  const pressure = params.initialPressure;
+  const volume = params.initialVolume;
+  const temperature = params.initialTemperature;
+  const moles = (toPa(pressure) * toM3(volume)) / (R * temperature);
+  sim.moles = moles;
+  return { pressure, volume, temperature, moles };
+}
+
+function cloneState(state) {
+  return {
+    pressure: state.pressure,
+    volume: state.volume,
+    temperature: state.temperature,
+    moles: state.moles
+  };
+}
+
+function computeTargetState(baseState) {
+  const factor = params.volumeChange / 100;
+  const deltaT = params.temperatureChange;
+  if (params.process === '등온') {
+    const volume = clamp(baseState.volume * factor, CHAMBER.visibleVolumeMin, CHAMBER.visibleVolumeMax);
+    const pressure = (baseState.moles * R * baseState.temperature) / toM3(volume) / ATM_TO_PA;
+    return { pressure, volume, temperature: baseState.temperature, moles: baseState.moles };
+  }
+
+  if (params.process === '등적') {
+    const temperature = clamp(baseState.temperature + deltaT, 80, 900);
+    const pressure = (baseState.moles * R * temperature) / toM3(baseState.volume) / ATM_TO_PA;
+    return { pressure, volume: baseState.volume, temperature, moles: baseState.moles };
+  }
+
+  if (params.process === '등압') {
+    const temperature = clamp(baseState.temperature + deltaT, 80, 900);
+    const volume = (baseState.moles * R * temperature) / toPa(baseState.pressure) / LITER_TO_M3;
+    return { pressure: baseState.pressure, volume, temperature, moles: baseState.moles };
+  }
+
+  const volume = clamp(baseState.volume * factor, CHAMBER.visibleVolumeMin, CHAMBER.visibleVolumeMax);
+  const temperature = baseState.temperature * Math.pow(baseState.volume / volume, GAMMA - 1);
+  const pressure = baseState.pressure * Math.pow(baseState.volume / volume, GAMMA);
+  return { pressure, volume, temperature, moles: baseState.moles };
+}
+
+function computeThermo(baseState, currentState) {
+  const Vi = toM3(baseState.volume);
+  const Vf = toM3(currentState.volume);
+  const Pi = toPa(baseState.pressure);
+  const Pf = toPa(currentState.pressure);
+  const dU = baseState.moles * CV * (currentState.temperature - baseState.temperature);
+  let W = 0;
+
+  if (params.process === '등온') {
+    W = baseState.moles * R * baseState.temperature * Math.log(Vf / Vi);
+  } else if (params.process === '등적') {
+    W = 0;
+  } else if (params.process === '등압') {
+    W = Pi * (Vf - Vi);
+  } else {
+    W = (Pi * Vi - Pf * Vf) / (GAMMA - 1);
+  }
+
+  const Q = dU + W;
+  return { Q, dU, W };
+}
+
+function updateWeights(pressure) {
+  const count = clamp(Math.round(pressure * 1.2), 1, 6);
+  weightDiscs.forEach((disc, index) => {
+    disc.visible = index < count;
+  });
+}
+
+function temperatureToColor(temperature) {
+  const cold = new THREE.Color(0x5aa7ff);
+  const neutral = new THREE.Color(0x44cc88);
+  const hot = new THREE.Color(0xff7761);
+  const t = clamp((temperature - 200) / 400, 0, 1);
+  return t < 0.5 ? cold.clone().lerp(neutral, t * 2) : neutral.clone().lerp(hot, (t - 0.5) * 2);
+}
+
+function targetSpeedFromTemperature(temperature) {
+  return lerp(0.72, 2.35, clamp((temperature - 160) / 560, 0, 1));
+}
+
+function resetMolecules() {
+  const top = pistonGroup.position.y - 0.18;
+  const speed = targetSpeedFromTemperature(sim.currentState.temperature);
+  for (const molecule of molecules) {
+    const radius = Math.sqrt(Math.random()) * (CHAMBER.radius - 0.12);
+    const theta = Math.random() * Math.PI * 2;
+    molecule.position.set(
+      Math.cos(theta) * radius,
+      lerp(CHAMBER.bottom + 0.1, top - 0.08, Math.random()),
+      Math.sin(theta) * radius
+    );
+    const velocity = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize().multiplyScalar(speed * lerp(0.7, 1.25, Math.random()));
+    molecule.velocity.copy(velocity);
+  }
+}
+
+function updateMoleculeVisuals() {
+  const color = temperatureToColor(sim.currentState.temperature);
+  moleculeMaterial.color.copy(color);
+  moleculeMaterial.emissive.copy(color).multiplyScalar(0.24);
+  moleculeMesh.visible = params.showMolecules;
+}
+
+function emitFlash(position, speed, cool = false) {
+  if (speed < 0.7 || Math.random() > 0.26) return;
+  const flash = flashPool.find((entry) => entry.life <= 0) || flashPool[0];
+  flash.life = 0.22;
+  flash.mesh.visible = true;
+  flash.mesh.position.copy(position);
+  flash.mesh.scale.setScalar(lerp(0.9, 1.6, clamp(speed / 2.8, 0, 1)));
+  flash.mesh.material.color.set(cool ? 0x8fd2ff : 0xfff0a4);
+  flash.mesh.material.opacity = 0.42;
+}
+
+function syncPistonAndDecorations() {
+  const pistonY = volumeToPistonY(sim.currentState.volume);
+  pistonGroup.position.y = pistonY;
+  updateWeights(params.process === '등압' ? sim.baseState.pressure : sim.currentState.pressure);
+
+  const thermo = sim.currentThermo;
+  const heatMagnitude = clamp(Math.abs(thermo.Q) / 600, 0, 1);
+  if (params.process === '단열') {
+    insulation.visible = true;
+    insulation.material.opacity = 0.14 + sim.progress * 0.06;
+    heaterGlow.material.opacity = 0.06;
+    heaterGlow.material.color.set(0xd0a7ff);
+  } else {
+    insulation.visible = false;
+    heaterGlow.material.opacity = 0.12 + heatMagnitude * 0.4;
+    heaterGlow.material.color.set(thermo.Q >= 0 ? 0xff4b4b : 0x56aaff);
+  }
+
+  chamberGlow.material.opacity = 0.04 + clamp(sim.currentState.pressure / 8, 0, 0.18);
+}
+
+function updateMolecules(delta) {
+  if (!params.showMolecules) return;
+  const top = pistonGroup.position.y - 0.18;
+  const speedTarget = targetSpeedFromTemperature(sim.currentState.temperature);
+  const coolCollision = sim.currentThermo.Q < 0 && params.process !== '단열';
+
+  for (let index = 0; index < molecules.length; index += 1) {
+    const molecule = molecules[index];
+    const currentSpeed = molecule.velocity.length() || 0.001;
+    molecule.velocity.multiplyScalar(1 + (speedTarget / currentSpeed - 1) * 0.08);
+    molecule.position.addScaledVector(molecule.velocity, delta * 0.72);
+
+    const radial = Math.hypot(molecule.position.x, molecule.position.z);
+    const limit = CHAMBER.radius - 0.08;
+    if (radial > limit) {
+      const normal = new THREE.Vector3(molecule.position.x, 0, molecule.position.z).normalize();
+      molecule.position.x = normal.x * limit;
+      molecule.position.z = normal.z * limit;
+      molecule.velocity.reflect(normal).multiplyScalar(0.98);
+      emitFlash(molecule.position, molecule.velocity.length(), coolCollision);
+    }
+
+    if (molecule.position.y < CHAMBER.bottom + 0.08) {
+      molecule.position.y = CHAMBER.bottom + 0.08;
+      molecule.velocity.y = Math.abs(molecule.velocity.y);
+      emitFlash(molecule.position, molecule.velocity.length(), coolCollision);
+    }
+
+    if (molecule.position.y > top - 0.06) {
+      molecule.position.y = top - 0.06;
+      molecule.velocity.y = -Math.abs(molecule.velocity.y);
+      emitFlash(molecule.position, molecule.velocity.length(), coolCollision);
+    }
+
+    moleculeDummy.position.copy(molecule.position);
+    moleculeDummy.updateMatrix();
+    moleculeMesh.setMatrixAt(index, moleculeDummy.matrix);
+  }
+
+  moleculeMesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateFlashes(delta) {
+  for (const flash of flashPool) {
+    if (flash.life <= 0) continue;
+    flash.life = Math.max(0, flash.life - delta);
+    flash.mesh.visible = flash.life > 0;
+    flash.mesh.material.opacity = flash.life * 1.8;
+    flash.mesh.scale.multiplyScalar(1 + delta * 2.8);
+  }
+}
+
+function addPathSample() {
+  const path = sim.path;
+  const current = sim.currentState;
+  const last = path[path.length - 1];
+  if (!last || Math.abs(last.volume - current.volume) > 0.04 || Math.abs(last.pressure - current.pressure) > 0.03) {
+    path.push(cloneState(current));
+  }
+}
+
+function interpolateState(progress) {
+  const base = sim.baseState;
+  const target = sim.targetState;
+  const eased = params.process === '단열' ? easeInOutCubic(progress) : easeInOutSine(progress);
+
+  if (params.process === '등온') {
+    sim.currentState.volume = lerp(base.volume, target.volume, eased);
+    sim.currentState.temperature = base.temperature;
+    sim.currentState.pressure = (base.moles * R * sim.currentState.temperature) / toM3(sim.currentState.volume) / ATM_TO_PA;
+  } else if (params.process === '등적') {
+    sim.currentState.temperature = lerp(base.temperature, target.temperature, eased);
+    sim.currentState.volume = base.volume;
+    sim.currentState.pressure = (base.moles * R * sim.currentState.temperature) / toM3(sim.currentState.volume) / ATM_TO_PA;
+  } else if (params.process === '등압') {
+    sim.currentState.temperature = lerp(base.temperature, target.temperature, eased);
+    sim.currentState.pressure = base.pressure;
+    sim.currentState.volume = (base.moles * R * sim.currentState.temperature) / toPa(sim.currentState.pressure) / LITER_TO_M3;
+  } else {
+    sim.currentState.volume = lerp(base.volume, target.volume, eased);
+    sim.currentState.temperature = base.temperature * Math.pow(base.volume / sim.currentState.volume, GAMMA - 1);
+    sim.currentState.pressure = base.pressure * Math.pow(base.volume / sim.currentState.volume, GAMMA);
+  }
+
+  sim.currentThermo = computeThermo(sim.baseState, sim.currentState);
+  sim.progress = progress;
+}
+
+function resetSimulation() {
+  sim.running = false;
+  sim.progress = 0;
+  sim.baseState = makeBaseState();
+  sim.currentState = cloneState(sim.baseState);
+  sim.targetState = computeTargetState(sim.baseState);
+  sim.currentThermo = { Q: 0, dU: 0, W: 0 };
+  sim.path = [cloneState(sim.baseState)];
+  syncPistonAndDecorations();
+  resetMolecules();
+  updateMoleculeVisuals();
+  updateUi();
+  drawPVDiagram();
+}
+
+function startProcess() {
+  resetSimulation();
+  sim.running = true;
+  sim.startedAt = performance.now();
+  sim.duration = PROCESS_META[params.process].duration;
+}
+
+function processNarrative() {
+  const current = sim.currentState;
+  const base = sim.baseState;
+  const expanding = current.volume > base.volume + 0.01;
+  const heating = sim.currentThermo.Q > 0.4;
+  const cooling = sim.currentThermo.Q < -0.4;
+
+  if (params.process === '등온') {
+    return expanding
+      ? '등온 팽창: 분자 속도는 거의 일정하지만 피스톤이 올라가며 압력은 감소하고, 공급된 열이 일로 전환됩니다.'
+      : '등온 압축: 온도는 유지되지만 피스톤이 내려가며 압력이 증가하고, 외부가 한 일만큼 열이 밖으로 방출됩니다.';
+  }
+
+  if (params.process === '등적') {
+    return heating
+      ? '등적 가열: 피스톤이 고정되어 W=0이고, 들어온 열이 모두 내부 에너지 증가와 압력 상승으로 이어집니다.'
+      : '등적 냉각: 부피는 그대로지만 분자 운동이 느려져 압력과 내부 에너지가 함께 감소합니다.';
+  }
+
+  if (params.process === '등압') {
+    return heating
+      ? '등압 가열: 추의 무게가 압력을 일정하게 유지하고, 분자 속도 증가와 함께 피스톤이 올라가며 부피가 커집니다.'
+      : '등압 냉각: 압력은 유지된 채 피스톤이 내려가고, 내부 에너지와 부피가 함께 감소합니다.';
+  }
+
+  return expanding
+    ? '단열 팽창: 열교환 없이 기체가 일을 하므로 내부 에너지가 줄고 온도와 압력이 함께 내려갑니다.'
+    : '단열 압축: 외부가 기체에 일을 하면서 열교환 없이 내부 에너지가 커져 온도와 압력이 빠르게 상승합니다.';
+}
+
+function sceneBadgeText() {
+  if (params.process === '등온') {
+    return {
+      title: '등온 과정 관찰 포인트',
+      body: '피스톤은 움직이지만 분자 색과 평균 속도는 크게 바뀌지 않습니다. 대신 벽 충돌 밀도와 피스톤 높이가 압력 변화를 보여 줍니다.'
+    };
+  }
+
+  if (params.process === '등적') {
+    return {
+      title: '등적 과정 관찰 포인트',
+      body: '피스톤이 잠겨 있어 높이가 고정됩니다. 히터가 켜질수록 분자 운동이 빨라지고 벽 충돌 플래시가 더 자주 생깁니다.'
+    };
+  }
+
+  if (params.process === '등압') {
+    return {
+      title: '등압 과정 관찰 포인트',
+      body: '추의 개수가 거의 일정하게 유지되며, 가열되면 피스톤이 천천히 상승해 부피가 늘어납니다. 압력은 큰 변화 없이 유지됩니다.'
+    };
+  }
+
+  return {
+    title: '단열 과정 관찰 포인트',
+    body: '실린더를 감싼 단열재가 켜지고 히터는 꺼집니다. 피스톤이 빠르게 움직일수록 분자 속도와 색 변화가 더 뚜렷하게 나타납니다.'
+  };
+}
+
+function updateUi() {
+  const relation = PROCESS_META[params.process].relation;
+  const processColor = PROCESS_META[params.process].color;
+  const badge = sceneBadgeText();
+
+  dom.statePressure.textContent = formatAtm(sim.currentState.pressure);
+  dom.stateVolume.textContent = formatLiter(sim.currentState.volume);
+  dom.stateTemperature.textContent = formatKelvin(sim.currentState.temperature);
+  dom.stateMoles.textContent = formatMoles(sim.currentState.moles);
+
+  dom.graphQ.textContent = formatEnergy(sim.currentThermo.Q);
+  dom.graphDU.textContent = formatEnergy(sim.currentThermo.dU);
+  dom.graphWork.textContent = formatEnergy(sim.currentThermo.W);
+  dom.graphProcess.textContent = params.process;
+  dom.graphRelation.textContent = relation;
+  dom.graphProcess.style.color = processColor;
+
+  dom.statusChip.innerHTML = `<strong>${params.process}</strong> · ${relation} · ${processNarrative()}`;
+  dom.sceneBadgeTitle.textContent = badge.title;
+  dom.sceneBadgeBody.textContent = badge.body;
+
+  dom.formulaPanel.innerHTML = `
+    <h2>🔬 이상 기체 법칙</h2>
+    <div class="formula-row"><span>과정</span><span style="color:${processColor}">${params.process}</span></div>
+    <div class="formula-row"><span>상태 방정식</span><span>PV = nRT</span></div>
+    <div class="formula-row"><span>현재 상태</span><span>${formatAtm(sim.currentState.pressure)}, ${formatLiter(sim.currentState.volume)}, ${formatKelvin(sim.currentState.temperature)}</span></div>
+    <div class="formula-divider"></div>
+    <div class="formula-row"><span>Q</span><span>${formatEnergy(sim.currentThermo.Q)}</span></div>
+    <div class="formula-row"><span>ΔU</span><span>${formatEnergy(sim.currentThermo.dU)}</span></div>
+    <div class="formula-row"><span>W</span><span>${formatEnergy(sim.currentThermo.W)}</span></div>
+    <div class="formula-divider"></div>
+    <div class="process-notes">
+      ${PROCESS_ORDER.map((name) => `
+        <div class="process-note ${params.process === name ? 'active' : ''}">
+          <strong>${name}</strong>: ${
+            name === '등온' ? 'T 일정, PV = 일정, Q = W' :
+            name === '등적' ? 'V 일정, P/T = 일정, W = 0' :
+            name === '등압' ? 'P 일정, V/T = 일정, Q = ΔU + W' :
+            'Q = 0, PV^γ = 일정, ΔU = -W'
+          }
+        </div>
+      `).join('')}
+    </div>
+    <div class="formula-foot">
+      열역학 제1법칙: <strong>Q = ΔU + W</strong><br>
+      Q는 흡수한 열, ΔU는 내부 에너지 변화, W는 기체가 외부에 한 일입니다.
+    </div>
+  `;
+}
+
+function referenceCurvePoints(process, maxVolume) {
+  const base = sim.baseState;
+  const points = [];
+  if (process === '등적') {
+    points.push({ volume: base.volume, pressure: 0.1 });
+    points.push({ volume: base.volume, pressure: maxPressurePreview(maxVolume) });
+    return points;
+  }
+
+  if (process === '등압') {
+    points.push({ volume: CHAMBER.visibleVolumeMin, pressure: base.pressure });
+    points.push({ volume: maxVolume, pressure: base.pressure });
+    return points;
+  }
+
+  const start = CHAMBER.visibleVolumeMin;
+  const end = maxVolume;
+  for (let step = 0; step <= 80; step += 1) {
+    const volume = lerp(start, end, step / 80);
+    const pressure = process === '등온'
+      ? base.pressure * base.volume / volume
+      : base.pressure * Math.pow(base.volume / volume, GAMMA);
+    points.push({ volume, pressure });
+  }
+  return points;
+}
+
+function maxPressurePreview(maxVolume) {
+  const base = sim.baseState;
+  const compactVolume = Math.max(CHAMBER.visibleVolumeMin, Math.min(base.volume, maxVolume) * 0.5);
+  return Math.max(
+    base.pressure * base.volume / compactVolume,
+    base.pressure * Math.pow(base.volume / compactVolume, GAMMA),
+    base.pressure * 1.8
+  );
+}
+
+function drawPVDiagram() {
+  const canvas = dom.pvCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const padding = { left: 58, right: 20, top: 24, bottom: 44 };
+  const graphWidth = rect.width - padding.left - padding.right;
+  const graphHeight = rect.height - padding.top - padding.bottom;
+  const pointCloud = [sim.baseState, sim.currentState, sim.targetState, ...sim.path];
+  const rawMaxV = Math.max(...pointCloud.map((point) => point.volume), params.initialVolume, 6);
+  const rawMaxP = Math.max(
+    ...pointCloud.map((point) => point.pressure),
+    maxPressurePreview(Math.max(rawMaxV * 1.12, 4))
+  );
+  const maxVolume = Math.max(4, niceUpper(rawMaxV * 1.12));
+  const maxPressure = Math.max(1, niceUpper(rawMaxP * 1.14));
+
+  const toX = (volume) => padding.left + (volume / maxVolume) * graphWidth;
+  const toY = (pressure) => padding.top + graphHeight - (pressure / maxPressure) * graphHeight;
+  const baseLineY = padding.top + graphHeight;
+
+  const background = ctx.createLinearGradient(0, padding.top, 0, baseLineY);
+  background.addColorStop(0, 'rgba(255,255,255,0.04)');
+  background.addColorStop(1, 'rgba(255,255,255,0.015)');
+  ctx.fillStyle = background;
+  ctx.fillRect(padding.left, padding.top, graphWidth, graphHeight);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1;
+  for (let index = 0; index <= 5; index += 1) {
+    const y = padding.top + (graphHeight / 5) * index;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + graphWidth, y);
+    ctx.stroke();
+  }
+  for (let index = 0; index <= 5; index += 1) {
+    const x = padding.left + (graphWidth / 5) * index;
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, padding.top + graphHeight);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, baseLineY);
+  ctx.lineTo(padding.left + graphWidth, baseLineY);
+  ctx.stroke();
+
+  for (const name of PROCESS_ORDER) {
+    const curve = referenceCurvePoints(name, maxVolume);
+    ctx.beginPath();
+    curve.forEach((point, index) => {
+      const x = toX(point.volume);
+      const y = toY(point.pressure);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = PROCESS_META[name].color;
+    ctx.lineWidth = name === params.process ? 2.2 : 1.4;
+    ctx.globalAlpha = name === params.process ? 0.48 : 0.2;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  if (params.showArea && sim.path.length > 1 && params.process !== '등적') {
+    ctx.beginPath();
+    ctx.moveTo(toX(sim.path[0].volume), baseLineY);
+    for (const point of sim.path) {
+      ctx.lineTo(toX(point.volume), toY(point.pressure));
+    }
+    ctx.lineTo(toX(sim.path[sim.path.length - 1].volume), baseLineY);
+    ctx.closePath();
+    const fill = ctx.createLinearGradient(0, padding.top, 0, baseLineY);
+    fill.addColorStop(0, 'rgba(255, 213, 120, 0.22)');
+    fill.addColorStop(1, 'rgba(255, 213, 120, 0.05)');
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  if (sim.path.length > 1) {
+    ctx.beginPath();
+    sim.path.forEach((point, index) => {
+      const x = toX(point.volume);
+      const y = toY(point.pressure);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#ffd578';
+    ctx.lineWidth = 2.8;
+    ctx.stroke();
+  }
+
+  if (sim.targetState) {
+    const targetX = toX(sim.targetState.volume);
+    const targetY = toY(sim.targetState.pressure);
+    ctx.beginPath();
+    ctx.arc(targetX, targetY, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const currentX = toX(sim.currentState.volume);
+  const currentY = toY(sim.currentState.pressure);
+  ctx.beginPath();
+  ctx.arc(currentX, currentY, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff6a5f';
+  ctx.shadowColor = 'rgba(255,106,95,0.42)';
+  ctx.shadowBlur = 16;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.font = '12px Pretendard';
+  ctx.fillText('P (atm)', 10, padding.top - 4);
+  ctx.fillText('V (L)', padding.left + graphWidth - 24, baseLineY + 30);
+
+  ctx.textAlign = 'right';
+  for (let index = 0; index <= 5; index += 1) {
+    const value = (maxPressure / 5) * (5 - index);
+    const y = padding.top + (graphHeight / 5) * index + 4;
+    ctx.fillText(value.toFixed(1), padding.left - 8, y);
+  }
+
+  ctx.textAlign = 'center';
+  for (let index = 0; index <= 5; index += 1) {
+    const value = (maxVolume / 5) * index;
+    const x = padding.left + (graphWidth / 5) * index;
+    ctx.fillText(value.toFixed(0), x, baseLineY + 18);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillText(`현재점: (${sim.currentState.volume.toFixed(2)} L, ${sim.currentState.pressure.toFixed(2)} atm)`, padding.left, padding.top - 6);
+  ctx.fillStyle = 'rgba(255,255,255,0.68)';
+  ctx.fillText(`면적 ≈ W = ${formatEnergy(sim.currentThermo.W)}`, padding.left + 196, padding.top - 6);
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function onParameterChange() {
+  sim.duration = PROCESS_META[params.process].duration;
+  resetSimulation();
+  syncGui();
+}
+
+const gui = new GUI({ title: '이상 기체 제어', width: 320 });
+gui.add(params, 'process', PROCESS_ORDER).name('과정').onChange(onParameterChange);
+gui.add(params, 'initialTemperature', 200, 600, 10).name('초기 온도 T').onChange(onParameterChange);
+gui.add(params, 'initialVolume', 1, 10, 0.1).name('초기 부피 V').onChange(onParameterChange);
+gui.add(params, 'initialPressure', 0.5, 5, 0.1).name('초기 압력 P').onChange(onParameterChange);
+gui.add(params, 'volumeChange', 50, 200, 1).name('부피 변화 (%)').onChange(onParameterChange);
+gui.add(params, 'temperatureChange', -200, 200, 5).name('온도 변화 (K)').onChange(onParameterChange);
+gui.add(params, 'runProcess').name('과정 실행');
+gui.add(params, 'showMolecules').name('분자 표시').onChange(() => {
+  updateMoleculeVisuals();
+  drawPVDiagram();
+});
+gui.add(params, 'showArea').name('P-V 그래프 면적').onChange(drawPVDiagram);
+gui.add(params, 'reset').name('초기화');
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+
+  if (sim.running) {
+    const elapsed = performance.now() - sim.startedAt;
+    const progress = clamp(elapsed / (sim.duration * 1000), 0, 1);
+    interpolateState(progress);
+    addPathSample();
+    if (progress >= 1) {
+      sim.running = false;
+      sim.currentState = cloneState(sim.targetState);
+      sim.currentThermo = computeThermo(sim.baseState, sim.currentState);
+      sim.progress = 1;
+      addPathSample();
+    }
+  }
+
+  updateMoleculeVisuals();
+  syncPistonAndDecorations();
+  updateMolecules(delta);
+  updateFlashes(delta);
+  updateUi();
+  drawPVDiagram();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  drawPVDiagram();
+}
+
+window.addEventListener('resize', onResize);
+
+resetSimulation();
+animate();
+</script>
+</body>
+</html>

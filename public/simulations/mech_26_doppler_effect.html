@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>도플러 효과와 속도 측정 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --sky-top: #ddeeff;
+    --sky-bottom: #b9d7f7;
+    --panel: rgba(8, 21, 39, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.72);
+    --shadow: 0 24px 54px rgba(7, 18, 34, 0.26);
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 247, 189, 0.45), transparent 18%),
+      radial-gradient(circle at 84% 10%, rgba(120, 191, 255, 0.32), transparent 22%),
+      linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(360px, 0.82fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 16% 16%, rgba(255, 248, 198, 0.46), transparent 20%),
+      linear-gradient(180deg, #ddeeff 0%, #cfe6fb 44%, #abd18d 44%, #96c66e 100%);
+    border-right: 1px solid rgba(17, 40, 67, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 15% 14%, rgba(94, 192, 255, 0.22), transparent 18%),
+      radial-gradient(circle at 86% 12%, rgba(255, 224, 133, 0.16), transparent 20%),
+      linear-gradient(180deg, #0f2240 0%, #091426 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-panel.webgl-unavailable #scene-canvas {
+    opacity: 0.14;
+    filter: saturate(0.55);
+  }
+
+  #scene-fallback {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    width: min(340px, calc(100% - 36px));
+    padding: 14px 16px;
+    border-radius: 18px;
+    color: #f4fbff;
+    background: rgba(10, 18, 31, 0.82);
+    border: 1px solid rgba(164, 214, 255, 0.24);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.26);
+    backdrop-filter: blur(14px);
+    z-index: 21;
+    display: none;
+    line-height: 1.5;
+  }
+
+  #scene-panel.webgl-unavailable #scene-fallback {
+    display: block;
+  }
+
+  #scene-fallback strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  #scene-fallback p {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(237, 248, 255, 0.82);
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, calc(100% - 200px));
+    padding: 14px 22px 16px;
+    border-radius: 24px;
+    z-index: 22;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(245, 251, 255, 0.54);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 30;
+    padding: 10px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(8, 22, 40, 0.88);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(7, 18, 34, 0.22);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(11, 29, 52, 0.92);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    display: none;
+    z-index: 29;
+    line-height: 1.78;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 15px 0 6px;
+    font-size: 15px;
+    color: #bfe5ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #guide-panel .book-ref {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(245, 251, 255, 0.72);
+    font-size: 11px;
+  }
+
+  #status-chip {
+    position: absolute;
+    top: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(760px, calc(100% - 36px));
+    padding: 15px 18px;
+    border-radius: 22px;
+    z-index: 21;
+    pointer-events: none;
+  }
+
+  #status-chip .title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff4c4;
+  }
+
+  #status-chip .body {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(245, 251, 255, 0.82);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 22;
+    width: min(410px, calc(100vw - 32px));
+    max-height: min(40vh, 340px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffefb1;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02));
+  }
+
+  .formula-line {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-line .label {
+    width: 108px;
+    flex-shrink: 0;
+    color: rgba(245, 251, 255, 0.62);
+  }
+
+  .formula-line .value {
+    flex: 1;
+    color: rgba(245, 251, 255, 0.98);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #live-chip {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 22;
+    width: min(320px, calc(100vw - 32px));
+    padding: 14px 15px;
+    border-radius: 22px;
+  }
+
+  #live-chip .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(245, 251, 255, 0.55);
+  }
+
+  #live-chip .big {
+    margin-top: 6px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #live-chip .sub {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(245, 251, 255, 0.74);
+  }
+
+  #graph-header {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    right: 18px;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #graph-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(245, 251, 255, 0.48);
+  }
+
+  #graph-header h2 {
+    margin-top: 6px;
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  #graph-header p {
+    margin-top: 6px;
+    max-width: 520px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(245, 251, 255, 0.72);
+  }
+
+  #graph-legend {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .legend-card {
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 38px rgba(5, 12, 24, 0.2);
+  }
+
+  .legend-card .label {
+    display: block;
+    font-size: 11px;
+    color: rgba(245, 251, 255, 0.58);
+  }
+
+  .legend-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  .legend-card small {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(245, 251, 255, 0.68);
+  }
+
+  #gui-mount {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 50;
+  }
+
+  #gui-mount .lil-gui.root {
+    --background-color: rgba(7, 18, 35, 0.92);
+    --widget-color: rgba(255, 255, 255, 0.1);
+    --focus-color: rgba(107, 198, 255, 0.28);
+    --hover-color: rgba(255, 255, 255, 0.14);
+    --text-color: #f4fbff;
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    width: 292px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 42px rgba(7, 18, 35, 0.28);
+    backdrop-filter: blur(18px);
+  }
+
+  .warning {
+    color: #ffb9b9;
+    font-weight: 700;
+  }
+
+  @media (max-width: 1120px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1fr) minmax(280px, 42vh);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(17, 40, 67, 0.08);
+    }
+
+    #title-card {
+      width: min(700px, calc(100% - 40px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-card {
+      top: 66px;
+      width: calc(100% - 24px);
+      padding: 12px 16px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 24px;
+    }
+
+    #status-chip {
+      top: 166px;
+      width: calc(100% - 24px);
+    }
+
+    #formula-panel,
+    #live-chip {
+      width: calc(100% - 24px);
+      left: 12px;
+      right: 12px;
+    }
+
+    #formula-panel {
+      bottom: 132px;
+    }
+
+    #live-chip {
+      bottom: 12px;
+    }
+
+    #graph-header {
+      top: 12px;
+      left: 12px;
+      right: 12px;
+    }
+
+    #graph-header h2 {
+      font-size: 19px;
+    }
+
+    #graph-legend {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      grid-template-columns: 1fr;
+    }
+
+    #guide-panel {
+      top: 56px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #gui-mount {
+      top: 12px;
+      right: 12px;
+    }
+
+    #gui-mount .lil-gui.root {
+      width: min(280px, calc(100vw - 24px));
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div id="scene-fallback" aria-live="polite">
+      <strong>3D 장면을 불러오지 못했습니다.</strong>
+      <p>이 브라우저에서는 WebGL을 사용할 수 없어 3D 캔버스 대신 그래프와 수식 패널 중심으로 학습할 수 있습니다.</p>
+    </div>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+    <aside id="guide-panel" class="glass">
+      <h3>핵심 원리</h3>
+      <p>
+        음원과 관측자 사이의 상대적 운동에 의해 관측되는 진동수가 변하는 현상을 도플러 효과라 합니다.
+        다가오면 진동수는 커져 고음처럼 들리고, 멀어지면 작아져 저음처럼 들립니다.
+      </p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>구급차가 다가올 때 사이렌 소리가 높게 들리는 까닭을 도플러 효과로 설명해 보세요.</li>
+        <li>음원의 속도가 음속에 가까워지면 앞쪽 파장은 어떻게 변할까요? 충격파와 어떤 관련이 있을까요?</li>
+        <li>천문학에서 별빛의 적색 편이는 무엇을 의미하며, 도플러 효과와 어떻게 연결될까요?</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>구급차, 경찰차, 소방차의 사이렌</li>
+        <li>레이더 스피드건을 이용한 차량 속도 측정</li>
+        <li>우주 팽창을 추적하는 적색 편이 관측</li>
+        <li>도플러 초음파를 이용한 혈류 속도 측정</li>
+      </ul>
+
+      <h3>활용 팁</h3>
+      <ul>
+        <li><strong>음원 이동</strong> 모드에서는 앞쪽 파면이 압축되고 뒤쪽 파면이 벌어지는 모습을 관찰하세요.</li>
+        <li><strong>관측자 이동</strong> 모드에서는 음원은 정지해 있어도 듣는 사람의 움직임만으로 주파수가 바뀝니다.</li>
+        <li><strong>스피드건</strong> 모드에서는 반사파의 도플러 편이를 이용해 차량 속도를 계산합니다.</li>
+      </ul>
+
+      <div class="book-ref">교과서 연계: 역학과 에너지 III편 p108~113 — 도플러 효과와 속도 측정</div>
+    </aside>
+
+    <div id="title-card" class="glass">
+      <div class="eyebrow">Mechanics &amp; Energy III · Sound Wave</div>
+      <h1>도플러 효과와 속도 측정</h1>
+      <p>
+        움직이는 구급차의 원형 음파와 관측 주파수 변화를 동시에 추적하며,
+        스피드건이 도플러 편이로 속도를 재는 원리를 한 화면에서 탐구합니다.
+      </p>
+    </div>
+
+    <div id="status-chip" class="glass">
+      <div class="title" id="status-title">대기 중: 모드를 고르고 시뮬레이션 시작을 눌러 보세요.</div>
+      <div class="body" id="status-body">음원이 다가오면 파면 간격이 줄어들고, 멀어지면 파면 간격이 넓어집니다.</div>
+    </div>
+
+    <div id="formula-panel" class="glass">
+      <h3>🚑 도플러 효과와 속도 측정</h3>
+      <div class="divider"></div>
+      <div class="formula-line"><span class="label">모드</span><span class="value" id="formula-mode">음원 이동</span></div>
+      <div class="formula-line"><span class="label">v_음원</span><span class="value" id="formula-source-speed">15.0 m/s</span></div>
+      <div class="formula-line"><span class="label">v_관측자</span><span class="value" id="formula-observer-speed">0.0 m/s</span></div>
+      <div class="formula-line"><span class="label">f_원래</span><span class="value" id="formula-base-frequency">440.0 Hz</span></div>
+      <div class="formula-line"><span class="label">v_음속</span><span class="value" id="formula-sound-speed">340.0 m/s</span></div>
+
+      <div class="formula-block">
+        <div id="formula-approach" class="mono">다가올 때: f' = f × v/(v-v_s) = 460.3 Hz ↑</div>
+        <div id="formula-recede" class="mono" style="margin-top: 5px;">멀어질 때: f' = f × v/(v+v_s) = 421.4 Hz ↓</div>
+      </div>
+
+      <div class="formula-line" style="margin-top: 10px;"><span class="label">현재 거리</span><span class="value" id="formula-distance">-150.0 m</span></div>
+      <div class="formula-line"><span class="label">현재 관측 진동수</span><span class="value" id="formula-current-frequency">460.3 Hz</span></div>
+      <div class="formula-line"><span class="label">파장 변화</span><span class="value" id="formula-wavelength">0.739 m</span></div>
+
+      <div class="formula-block" id="formula-radar-block">
+        <div id="formula-radar" class="mono">스피드건: Δf = 2v_s·f/c = 0.00 Hz → v_s = 0.00 m/s</div>
+      </div>
+    </div>
+
+    <div id="live-chip" class="glass">
+      <div class="eyebrow" id="live-chip-label">현재 관측 진동수</div>
+      <div class="big" id="live-chip-value">460.3 Hz</div>
+      <div class="sub" id="live-chip-sub">다가오는 구간에서는 파면이 압축되어 더 높은 음으로 관측됩니다.</div>
+    </div>
+  </section>
+
+  <section id="graph-panel">
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="graph-header">
+      <div class="eyebrow">Canvas 2D Graph</div>
+      <h2>진동수와 파장 변화</h2>
+      <p id="graph-description">
+        음원과 관측자의 상대적 위치에 따라 관측 주파수가 어떻게 달라지는지,
+        그리고 앞쪽과 뒤쪽 파장이 어떻게 비교되는지 함께 읽어 보세요.
+      </p>
+    </div>
+
+    <div id="graph-legend">
+      <div class="legend-card">
+        <span class="label" id="legend-a-label">전방 파장</span>
+        <strong id="legend-a-value">0.739 m</strong>
+        <small id="legend-a-sub">진행 방향에서는 파면 간격이 줄어듭니다.</small>
+      </div>
+      <div class="legend-card">
+        <span class="label" id="legend-b-label">후방 파장</span>
+        <strong id="legend-b-value">0.807 m</strong>
+        <small id="legend-b-sub">뒤쪽에서는 파면 간격이 넓어집니다.</small>
+      </div>
+      <div class="legend-card">
+        <span class="label" id="legend-c-label">상태</span>
+        <strong id="legend-c-value">접근 중</strong>
+        <small id="legend-c-sub">현재 구간의 도플러 효과를 한 줄로 요약합니다.</small>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="gui-mount"></div>
+
+<script type="module">
+  import * as THREE from 'https://esm.sh/three@0.160.0';
+  import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+  import GUI from 'https://esm.sh/lil-gui@0.19.2';
+
+  const MODES = {
+    SOURCE: '음원 이동',
+    OBSERVER: '관측자 이동',
+    RADAR: '스피드건',
+  };
+
+  const SOUND_SPEED = 340;
+  const SPEED_OF_LIGHT = 299792458;
+  const RADAR_FREQUENCY = 24.15e9;
+  const WORLD_SCALE = 0.08;
+  const ROAD_MIN_X = -12;
+  const ROAD_MAX_X = 12;
+  const OBSERVER_Z = -3.05;
+  const POLICE_X = 8.6;
+  const WAVE_LIMIT = 30;
+  const TRANSITION_DISTANCE = 10;
+  const SPEED_LIMIT_KMH = 60;
+
+  const dom = {
+    scenePanel: document.getElementById('scene-panel'),
+    graphPanel: document.getElementById('graph-panel'),
+    sceneCanvas: document.getElementById('scene-canvas'),
+    graphCanvas: document.getElementById('graph-canvas'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel'),
+    statusTitle: document.getElementById('status-title'),
+    statusBody: document.getElementById('status-body'),
+    formulaMode: document.getElementById('formula-mode'),
+    formulaSourceSpeed: document.getElementById('formula-source-speed'),
+    formulaObserverSpeed: document.getElementById('formula-observer-speed'),
+    formulaBaseFrequency: document.getElementById('formula-base-frequency'),
+    formulaSoundSpeed: document.getElementById('formula-sound-speed'),
+    formulaApproach: document.getElementById('formula-approach'),
+    formulaRecede: document.getElementById('formula-recede'),
+    formulaDistance: document.getElementById('formula-distance'),
+    formulaCurrentFrequency: document.getElementById('formula-current-frequency'),
+    formulaWavelength: document.getElementById('formula-wavelength'),
+    formulaRadar: document.getElementById('formula-radar'),
+    liveChipLabel: document.getElementById('live-chip-label'),
+    liveChipValue: document.getElementById('live-chip-value'),
+    liveChipSub: document.getElementById('live-chip-sub'),
+    graphDescription: document.getElementById('graph-description'),
+    legendALabel: document.getElementById('legend-a-label'),
+    legendAValue: document.getElementById('legend-a-value'),
+    legendASub: document.getElementById('legend-a-sub'),
+    legendBLabel: document.getElementById('legend-b-label'),
+    legendBValue: document.getElementById('legend-b-value'),
+    legendBSub: document.getElementById('legend-b-sub'),
+    legendCLabel: document.getElementById('legend-c-label'),
+    legendCValue: document.getElementById('legend-c-value'),
+    legendCSub: document.getElementById('legend-c-sub'),
+    guiMount: document.getElementById('gui-mount'),
+  };
+
+  const graphCtx = dom.graphCanvas.getContext('2d');
+  const clock = new THREE.Clock();
+
+  const app = {
+    mode: MODES.SOURCE,
+    sourceSpeed: 15,
+    observerSpeed: 8,
+    sourceFrequency: 440,
+    soundSpeed: SOUND_SPEED,
+    soundEnabled: false,
+    showWaves: true,
+    running: false,
+    sourceX: ROAD_MIN_X,
+    observerX: ROAD_MIN_X,
+    measuredSpeedKmh: 0,
+    displayedFrequency: 440,
+    displayedShiftHz: 0,
+    phaseLabel: '접근 중',
+    phaseDescription: '다가오는 구간에서는 더 높은 주파수가 관측됩니다.',
+    waveTimer: 0,
+    radarTimer: 0,
+    totalTime: 0,
+  };
+
+  const guiState = {
+    모드: app.mode,
+    '음원 속도 v_s': app.sourceSpeed,
+    '관측자 속도 v_o': app.observerSpeed,
+    '음원 진동수 f': app.sourceFrequency,
+    '음속 v': app.soundSpeed,
+    '소리 재생': app.soundEnabled,
+    '음파 표시': app.showWaves,
+    '시뮬레이션 시작': () => startSimulation(),
+    초기화: () => resetSimulation(),
+  };
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xddeeff);
+  scene.fog = new THREE.Fog(0xd6ebff, 25, 58);
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 160);
+  camera.position.set(0, 10.5, 13.5);
+
+  let renderer = null;
+  let controls = { update() {} };
+
+  function activateWebglFallback(error = null) {
+    dom.scenePanel.classList.add('webgl-unavailable');
+    dom.statusTitle.textContent = '제한 모드: 3D 캔버스를 사용할 수 없어 그래프와 수식 중심으로 표시합니다.';
+    dom.statusBody.textContent = 'WebGL이 가능한 브라우저에서는 도로, 구급차, 원형 파면을 3차원으로 함께 관찰할 수 있습니다.';
+    if (error) {
+      console.warn('WebGL renderer unavailable for mech_26_doppler_effect:', error);
+    }
+  }
+
+  function requestWebglContext(canvas) {
+    return (
+      canvas.getContext('webgl2', { antialias: true, alpha: false }) ||
+      canvas.getContext('webgl', { antialias: true, alpha: false }) ||
+      canvas.getContext('experimental-webgl', { antialias: true, alpha: false })
+    );
+  }
+
+  const webglContext = requestWebglContext(dom.sceneCanvas);
+
+  if (webglContext) {
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: dom.sceneCanvas,
+        context: webglContext,
+        antialias: true,
+        alpha: false,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.enablePan = false;
+      controls.minDistance = 7;
+      controls.maxDistance = 28;
+      controls.maxPolarAngle = Math.PI * 0.46;
+      controls.target.set(0, 0.9, -0.2);
+    } catch (error) {
+      activateWebglFallback(error);
+    }
+  } else {
+    activateWebglFallback();
+  }
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  directionalLight.position.set(8, 16, 7);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.left = -20;
+  directionalLight.shadow.camera.right = 20;
+  directionalLight.shadow.camera.top = 18;
+  directionalLight.shadow.camera.bottom = -12;
+  scene.add(directionalLight);
+
+  const fillLight = new THREE.DirectionalLight(0xb6dbff, 0.35);
+  fillLight.position.set(-10, 8, -8);
+  scene.add(fillLight);
+
+  const world = {
+    waveGroup: new THREE.Group(),
+    radarPulseGroup: new THREE.Group(),
+    source: null,
+    observer: null,
+    police: null,
+    beamLine: createBeamLine(),
+    wheels: [],
+    sourceRoofLight: null,
+    policeSignalLight: null,
+  };
+
+  scene.add(world.waveGroup);
+  scene.add(world.radarPulseGroup);
+  scene.add(world.beamLine);
+
+  buildEnvironment();
+  world.source = createAmbulance();
+  world.observer = createPerson(0x4488aa, false);
+  world.police = createPerson(0x273a57, true);
+  scene.add(world.source.group);
+  scene.add(world.observer.group);
+  scene.add(world.police.group);
+
+  const wavePackets = [];
+  const radarPulses = [];
+  const reusableVector = new THREE.Vector3();
+
+  const audioState = {
+    context: null,
+    oscillator: null,
+    gain: null,
+    ready: false,
+  };
+
+  const gui = new GUI({
+    container: dom.guiMount,
+    title: '도플러 컨트롤',
+  });
+
+  gui.add(guiState, '모드', Object.values(MODES)).onChange((value) => {
+    app.mode = value;
+    resetSimulation();
+    updateControllerAvailability();
+  });
+  gui.add(guiState, '음원 속도 v_s', 0, 30, 1).onChange((value) => {
+    app.sourceSpeed = value;
+  });
+  const observerController = gui.add(guiState, '관측자 속도 v_o', 0, 20, 1).onChange((value) => {
+    app.observerSpeed = value;
+  });
+  gui.add(guiState, '음원 진동수 f', 200, 1000, 10).onChange((value) => {
+    app.sourceFrequency = value;
+  });
+  const soundSpeedDisplay = gui.add(guiState, '음속 v').listen();
+  soundSpeedDisplay.disable();
+  const soundController = gui.add(guiState, '소리 재생').onChange(async (value) => {
+    app.soundEnabled = value;
+    if (value) {
+      await ensureAudio();
+    }
+    syncGui();
+  });
+  gui.add(guiState, '음파 표시').onChange((value) => {
+    app.showWaves = value;
+    if (!value) clearWaves();
+  });
+  gui.add(guiState, '시뮬레이션 시작');
+  gui.add(guiState, '초기화');
+
+  function buildEnvironment() {
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(70, 42),
+      new THREE.MeshStandardMaterial({ color: 0x89bf68, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const road = new THREE.Mesh(
+      new THREE.BoxGeometry(30, 0.05, 4),
+      new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.85 })
+    );
+    road.position.set(0, 0.025, 0);
+    road.receiveShadow = true;
+    scene.add(road);
+
+    const shoulder = new THREE.Mesh(
+      new THREE.BoxGeometry(30, 0.02, 0.28),
+      new THREE.MeshStandardMaterial({ color: 0x7b8797, roughness: 0.9 })
+    );
+    shoulder.position.set(0, 0.03, 2.02);
+    scene.add(shoulder);
+    const shoulder2 = shoulder.clone();
+    shoulder2.position.z = -2.02;
+    scene.add(shoulder2);
+
+    const lineMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf2d14b,
+      emissive: 0x8a6f18,
+      emissiveIntensity: 0.2,
+    });
+    for (let x = -13.5; x < 13.5; x += 2.1) {
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.03, 0.12), lineMaterial);
+      dash.position.set(x, 0.06, 0);
+      dash.castShadow = true;
+      scene.add(dash);
+    }
+
+    const sidewalk = new THREE.Mesh(
+      new THREE.BoxGeometry(30, 0.12, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0xd3d7dd, roughness: 0.95 })
+    );
+    sidewalk.position.set(0, 0.06, OBSERVER_Z - 0.8);
+    sidewalk.receiveShadow = true;
+    scene.add(sidewalk);
+
+    const curb = new THREE.Mesh(
+      new THREE.BoxGeometry(30, 0.2, 0.18),
+      new THREE.MeshStandardMaterial({ color: 0xf6f1d6, roughness: 0.8 })
+    );
+    curb.position.set(0, 0.1, -2.15);
+    scene.add(curb);
+
+    const signPole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, 2.1, 16),
+      new THREE.MeshStandardMaterial({ color: 0x98a7b7, roughness: 0.45, metalness: 0.18 })
+    );
+    signPole.position.set(POLICE_X, 1.05, OBSERVER_Z - 0.5);
+    signPole.castShadow = true;
+    scene.add(signPole);
+
+    const signBoard = new THREE.Mesh(
+      new THREE.BoxGeometry(1.3, 0.78, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0xeff7ff, roughness: 0.32 })
+    );
+    signBoard.position.set(POLICE_X, 2.2, OBSERVER_Z - 0.5);
+    signBoard.castShadow = true;
+    scene.add(signBoard);
+  }
+
+  function createWheel() {
+    const wheel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.14, 18),
+      new THREE.MeshStandardMaterial({ color: 0x181b20, roughness: 0.82, metalness: 0.18 })
+    );
+    wheel.rotation.z = Math.PI / 2;
+    wheel.castShadow = true;
+    return wheel;
+  }
+
+  function createAmbulance() {
+    const group = new THREE.Group();
+    group.position.set(ROAD_MIN_X, 0.02, 0);
+
+    const chassis = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.46, 0.82),
+      new THREE.MeshStandardMaterial({ color: 0xf5f7fa, roughness: 0.38, metalness: 0.06 })
+    );
+    chassis.position.y = 0.32;
+    chassis.castShadow = true;
+    group.add(chassis);
+
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(1.72, 0.14, 0.84),
+      new THREE.MeshStandardMaterial({ color: 0xff5050, roughness: 0.44 })
+    );
+    stripe.position.y = 0.35;
+    group.add(stripe);
+
+    const cabin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.72, 0.34, 0.76),
+      new THREE.MeshStandardMaterial({ color: 0xff4c4c, roughness: 0.36 })
+    );
+    cabin.position.set(0.28, 0.65, 0);
+    cabin.castShadow = true;
+    group.add(cabin);
+
+    const windshield = new THREE.Mesh(
+      new THREE.BoxGeometry(0.32, 0.18, 0.7),
+      new THREE.MeshStandardMaterial({
+        color: 0x9fd7ff,
+        emissive: 0x11324d,
+        emissiveIntensity: 0.18,
+        transparent: true,
+        opacity: 0.9,
+        roughness: 0.1,
+      })
+    );
+    windshield.position.set(0.48, 0.66, 0);
+    group.add(windshield);
+
+    const crossV = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.24, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xfffbfb, roughness: 0.38 })
+    );
+    crossV.position.set(-0.25, 0.5, 0.42);
+    group.add(crossV);
+    const crossH = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.1, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xfffbfb, roughness: 0.38 })
+    );
+    crossH.position.set(-0.25, 0.5, 0.42);
+    group.add(crossH);
+
+    const lightBar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.08, 0.18),
+      new THREE.MeshStandardMaterial({
+        color: 0x9be7ff,
+        emissive: 0x4ba7ff,
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.9,
+      })
+    );
+    lightBar.position.set(0.1, 0.88, 0);
+    group.add(lightBar);
+
+    const wheelOffsets = [
+      [-0.52, 0.18, 0.42],
+      [0.48, 0.18, 0.42],
+      [-0.52, 0.18, -0.42],
+      [0.48, 0.18, -0.42],
+    ];
+    const wheels = wheelOffsets.map(([x, y, z]) => {
+      const wheel = createWheel();
+      wheel.position.set(x, y, z);
+      group.add(wheel);
+      return wheel;
+    });
+
+    world.wheels = wheels;
+    world.sourceRoofLight = lightBar;
+    return { group, wheels };
+  }
+
+  function createPerson(color, withGun) {
+    const group = new THREE.Group();
+    group.position.set(0, 0, OBSERVER_Z);
+
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x253447, roughness: 0.76 });
+    const torsoMat = new THREE.MeshStandardMaterial({ color, roughness: 0.62 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcc88, roughness: 0.65 });
+
+    const legLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.52, 0.12), legMat);
+    legLeft.position.set(-0.08, 0.3, 0);
+    group.add(legLeft);
+    const legRight = legLeft.clone();
+    legRight.position.x = 0.08;
+    group.add(legRight);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.56, 0.24), torsoMat);
+    torso.position.set(0, 0.86, 0);
+    torso.castShadow = true;
+    group.add(torso);
+
+    const armLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.4, 0.1), torsoMat);
+    armLeft.position.set(-0.24, 0.9, 0.02);
+    armLeft.rotation.z = 0.15;
+    group.add(armLeft);
+    const armRight = armLeft.clone();
+    armRight.position.x = 0.24;
+    armRight.rotation.z = -0.2;
+    group.add(armRight);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 20, 20), skinMat);
+    head.position.set(0, 1.28, 0);
+    head.castShadow = true;
+    group.add(head);
+
+    const ear = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 16, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0xffcc88,
+        emissive: 0xf39c67,
+        emissiveIntensity: 0.15,
+      })
+    );
+    ear.position.set(0.17, 1.28, -0.02);
+    group.add(ear);
+
+    let gun = null;
+    if (withGun) {
+      const hat = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.08, 0.3),
+        new THREE.MeshStandardMaterial({ color: 0x0d1c32, roughness: 0.7 })
+      );
+      hat.position.set(0, 1.46, 0);
+      group.add(hat);
+
+      gun = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.26, 0.16, 0.16),
+        new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.45, metalness: 0.1 })
+      );
+      gun.add(body);
+      const barrel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.22, 0.06, 0.06),
+        new THREE.MeshStandardMaterial({ color: 0x444e5e, roughness: 0.35, metalness: 0.18 })
+      );
+      barrel.position.set(0.2, 0.02, 0);
+      gun.add(barrel);
+      const signalLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x80e7ff,
+          emissive: 0x4cc8ff,
+          emissiveIntensity: 0.65,
+          transparent: true,
+          opacity: 0.9,
+        })
+      );
+      signalLight.position.set(0.33, 0.02, 0);
+      gun.add(signalLight);
+      gun.position.set(0.32, 0.95, 0.02);
+      gun.rotation.z = -0.1;
+      group.add(gun);
+      world.policeSignalLight = signalLight;
+    }
+
+    group.traverse((child) => {
+      if (child.isMesh) child.castShadow = true;
+    });
+
+    return { group, gun };
+  }
+
+  function createBeamLine() {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+    const material = new THREE.LineDashedMaterial({
+      color: 0x7ce5ff,
+      dashSize: 0.3,
+      gapSize: 0.16,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const line = new THREE.Line(geometry, material);
+    line.visible = false;
+    return line;
+  }
+
+  function formatNumber(value, digits = 1) {
+    return Number(value).toFixed(digits);
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function smoothFactor(distanceMeters) {
+    const x = THREE.MathUtils.clamp(Math.abs(distanceMeters) / TRANSITION_DISTANCE, 0, 1);
+    return x * x * (3 - 2 * x);
+  }
+
+  function packetInterval() {
+    return THREE.MathUtils.clamp(180 / app.sourceFrequency, 0.18, 0.46);
+  }
+
+  function worldToMeters(worldX) {
+    return worldX / WORLD_SCALE;
+  }
+
+  function metersToWorld(meters) {
+    return meters * WORLD_SCALE;
+  }
+
+  function sourceTowardForDistance(distanceMeters) {
+    const sign = distanceMeters < 0 ? 1 : distanceMeters > 0 ? -1 : 0;
+    return app.sourceSpeed * sign * smoothFactor(distanceMeters);
+  }
+
+  function observerTowardForDistance(distanceMeters) {
+    const sign = distanceMeters < 0 ? 1 : distanceMeters > 0 ? -1 : 0;
+    return app.observerSpeed * sign * smoothFactor(distanceMeters);
+  }
+
+  function observedFrequencySourceMode(distanceMeters) {
+    const toward = sourceTowardForDistance(distanceMeters);
+    return app.sourceFrequency * app.soundSpeed / Math.max(10, app.soundSpeed - toward);
+  }
+
+  function observedFrequencyObserverMode(distanceMeters) {
+    const toward = observerTowardForDistance(distanceMeters);
+    return app.sourceFrequency * (app.soundSpeed + toward) / app.soundSpeed;
+  }
+
+  function radarShiftForDistance(distanceMeters) {
+    const sign = distanceMeters < 0 ? 1 : distanceMeters > 0 ? -1 : 0;
+    const effectiveSpeed = app.sourceSpeed * sign * smoothFactor(distanceMeters);
+    return 2 * effectiveSpeed * RADAR_FREQUENCY / SPEED_OF_LIGHT;
+  }
+
+  function currentDistanceMeters() {
+    if (app.mode === MODES.SOURCE) return worldToMeters(app.sourceX);
+    if (app.mode === MODES.OBSERVER) return worldToMeters(app.observerX - app.sourceX);
+    return worldToMeters(app.sourceX - POLICE_X);
+  }
+
+  function currentAcousticFrequency() {
+    if (app.mode === MODES.SOURCE) return observedFrequencySourceMode(currentDistanceMeters());
+    return observedFrequencyObserverMode(currentDistanceMeters());
+  }
+
+  function clearWaves() {
+    while (wavePackets.length) {
+      const packet = wavePackets.pop();
+      packet.mesh.geometry.dispose();
+      packet.mesh.material.dispose();
+      world.waveGroup.remove(packet.mesh);
+    }
+  }
+
+  function clearRadarPulses() {
+    while (radarPulses.length) {
+      const pulse = radarPulses.pop();
+      pulse.mesh.geometry.dispose();
+      pulse.mesh.material.dispose();
+      world.radarPulseGroup.remove(pulse.mesh);
+    }
+  }
+
+  function emitWavePacket() {
+    if (!app.showWaves || app.mode === MODES.RADAR) return;
+    const geometry = new THREE.RingGeometry(0.92, 1.08, 64);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x44ff88,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(geometry, material);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(app.mode === MODES.SOURCE ? app.sourceX : 0, 0.08, 0);
+    ring.scale.setScalar(0.08);
+    wavePackets.push({ mesh: ring, radius: 0.08, age: 0 });
+    world.waveGroup.add(ring);
+    if (wavePackets.length > WAVE_LIMIT) {
+      const old = wavePackets.shift();
+      old.mesh.geometry.dispose();
+      old.mesh.material.dispose();
+      world.waveGroup.remove(old.mesh);
+    }
+  }
+
+  function getPoliceGunTip() {
+    reusableVector.set(0.33, 0.02, 0);
+    if (world.police.gun) {
+      world.police.gun.updateWorldMatrix(true, false);
+      world.police.gun.localToWorld(reusableVector);
+      return reusableVector.clone();
+    }
+    return new THREE.Vector3(POLICE_X, 1, OBSERVER_Z);
+  }
+
+  function emitRadarPulse() {
+    if (app.mode !== MODES.RADAR || !app.running) return;
+    const gunTip = getPoliceGunTip();
+    const target = world.source.group.position.clone().add(new THREE.Vector3(0, 0.48, 0));
+    const createPulse = (start, end, color) => {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.7,
+          transparent: true,
+          opacity: 0.9,
+        })
+      );
+      mesh.position.copy(start);
+      radarPulses.push({
+        mesh,
+        start: start.clone(),
+        end: end.clone(),
+        progress: 0,
+      });
+      world.radarPulseGroup.add(mesh);
+    };
+    createPulse(gunTip, target, 0x7ce5ff);
+    createPulse(target, gunTip, 0xffdf7a);
+  }
+
+  function updateWaves(delta) {
+    const expansion = app.soundSpeed * WORLD_SCALE * delta * 0.9;
+    for (let index = wavePackets.length - 1; index >= 0; index -= 1) {
+      const packet = wavePackets[index];
+      packet.age += delta;
+      packet.radius += expansion;
+      packet.mesh.scale.setScalar(packet.radius);
+      packet.mesh.material.opacity = Math.max(0, 0.25 - packet.age * 0.12);
+      packet.mesh.position.y = 0.08 + packet.age * 0.02;
+      if (packet.radius > 26 || packet.mesh.material.opacity <= 0.01) {
+        packet.mesh.geometry.dispose();
+        packet.mesh.material.dispose();
+        world.waveGroup.remove(packet.mesh);
+        wavePackets.splice(index, 1);
+      }
+    }
+  }
+
+  function updateRadarPulses(delta) {
+    for (let index = radarPulses.length - 1; index >= 0; index -= 1) {
+      const pulse = radarPulses[index];
+      pulse.progress += delta * 1.4;
+      if (pulse.progress >= 1) {
+        pulse.mesh.geometry.dispose();
+        pulse.mesh.material.dispose();
+        world.radarPulseGroup.remove(pulse.mesh);
+        radarPulses.splice(index, 1);
+        continue;
+      }
+      pulse.mesh.position.lerpVectors(pulse.start, pulse.end, pulse.progress);
+      pulse.mesh.material.opacity = 0.95 - pulse.progress * 0.6;
+    }
+  }
+
+  function startSimulation() {
+    app.running = true;
+    ensureAudio();
+    syncGui();
+  }
+
+  function resetSimulation() {
+    app.running = false;
+    app.waveTimer = 0;
+    app.radarTimer = 0;
+    app.totalTime = 0;
+    clearWaves();
+    clearRadarPulses();
+    if (app.mode === MODES.SOURCE) {
+      app.sourceX = ROAD_MIN_X;
+      app.observerX = 0;
+    } else if (app.mode === MODES.OBSERVER) {
+      app.sourceX = 0;
+      app.observerX = ROAD_MIN_X;
+    } else {
+      app.sourceX = ROAD_MIN_X;
+      app.observerX = POLICE_X;
+    }
+    updateActors(0);
+    updateDerivedState();
+    updateUi();
+    updateBeamLine();
+    drawGraph();
+    syncGui();
+  }
+
+  async function ensureAudio() {
+    if (!app.soundEnabled) return;
+    if (!audioState.context) {
+      audioState.context = new window.AudioContext();
+      audioState.oscillator = audioState.context.createOscillator();
+      audioState.oscillator.type = 'sawtooth';
+      audioState.gain = audioState.context.createGain();
+      audioState.gain.gain.value = 0;
+      audioState.oscillator.connect(audioState.gain);
+      audioState.gain.connect(audioState.context.destination);
+      audioState.oscillator.start();
+      audioState.ready = true;
+    }
+    if (audioState.context.state !== 'running') {
+      await audioState.context.resume();
+    }
+  }
+
+  function updateAudio() {
+    if (!audioState.ready || !audioState.context) return;
+    const ctx = audioState.context;
+    const shouldPlay = app.soundEnabled && app.running && app.mode !== MODES.RADAR;
+    const targetGain = shouldPlay ? 0.045 : 0;
+    const targetFrequency = THREE.MathUtils.clamp(app.displayedFrequency * (1 + 0.08 * Math.sin(app.totalTime * 4.2)), 150, 1500);
+    audioState.oscillator.frequency.setTargetAtTime(targetFrequency, ctx.currentTime, 0.04);
+    audioState.gain.gain.setTargetAtTime(targetGain, ctx.currentTime, 0.06);
+  }
+
+  function updateControllerAvailability() {
+    if (app.mode === MODES.OBSERVER) observerController.enable();
+    else observerController.disable();
+    if (app.mode === MODES.RADAR) soundController.disable();
+    else soundController.enable();
+    syncGui();
+  }
+
+  function syncGui() {
+    guiState.모드 = app.mode;
+    guiState['음원 속도 v_s'] = app.sourceSpeed;
+    guiState['관측자 속도 v_o'] = app.observerSpeed;
+    guiState['음원 진동수 f'] = app.sourceFrequency;
+    guiState['음속 v'] = app.soundSpeed;
+    guiState['소리 재생'] = app.soundEnabled;
+    guiState['음파 표시'] = app.showWaves;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function updateActors(delta) {
+    if (app.mode === MODES.SOURCE && app.running) {
+      app.sourceX += metersToWorld(app.sourceSpeed * delta);
+      if (app.sourceX > ROAD_MAX_X) {
+        app.sourceX = ROAD_MIN_X;
+        clearWaves();
+      }
+    } else if (app.mode === MODES.OBSERVER && app.running) {
+      app.observerX += metersToWorld(app.observerSpeed * delta);
+      if (app.observerX > ROAD_MAX_X) app.observerX = ROAD_MIN_X;
+    } else if (app.mode === MODES.RADAR && app.running) {
+      app.sourceX += metersToWorld(app.sourceSpeed * delta);
+      if (app.sourceX > ROAD_MAX_X) {
+        app.sourceX = ROAD_MIN_X;
+        clearRadarPulses();
+      }
+    }
+
+    if (app.mode === MODES.SOURCE) {
+      world.source.group.position.set(app.sourceX, 0.02, 0);
+      world.observer.group.position.set(0, 0, OBSERVER_Z);
+    } else if (app.mode === MODES.OBSERVER) {
+      world.source.group.position.set(0, 0.02, 0);
+      world.observer.group.position.set(app.observerX, 0, OBSERVER_Z);
+    } else {
+      world.source.group.position.set(app.sourceX, 0.02, 0);
+      world.observer.group.position.set(0, 0, OBSERVER_Z);
+    }
+
+    world.police.group.position.set(POLICE_X, 0, OBSERVER_Z);
+    world.observer.group.visible = app.mode !== MODES.RADAR;
+    world.police.group.visible = app.mode === MODES.RADAR;
+    world.beamLine.visible = app.mode === MODES.RADAR;
+
+    world.wheels.forEach((wheel) => {
+      wheel.rotation.x -= metersToWorld(app.sourceSpeed) * delta * 9;
+    });
+
+    if (world.sourceRoofLight) {
+      world.sourceRoofLight.material.emissiveIntensity = 0.42 + 0.42 * (0.5 + 0.5 * Math.sin(app.totalTime * 8));
+    }
+    if (world.policeSignalLight) {
+      world.policeSignalLight.material.emissiveIntensity = 0.34 + 0.44 * (0.5 + 0.5 * Math.sin(app.totalTime * 10));
+    }
+  }
+
+  function updateDerivedState() {
+    const distance = currentDistanceMeters();
+    if (app.mode === MODES.RADAR) {
+      const shift = radarShiftForDistance(distance);
+      const magnitude = Math.abs(shift);
+      app.displayedShiftHz = shift;
+      app.displayedFrequency = RADAR_FREQUENCY + shift;
+      app.measuredSpeedKmh = magnitude * SPEED_OF_LIGHT / (2 * RADAR_FREQUENCY) * 3.6;
+      if (distance < -TRANSITION_DISTANCE * 0.65) {
+        app.phaseLabel = '접근 중';
+        app.phaseDescription = '반사파 진동수가 기준보다 높아집니다.';
+      } else if (distance > TRANSITION_DISTANCE * 0.65) {
+        app.phaseLabel = '이탈 중';
+        app.phaseDescription = '반사파 진동수가 기준보다 낮아집니다.';
+      } else {
+        app.phaseLabel = '정면 통과';
+        app.phaseDescription = '도플러 편이가 0에 가까워지는 구간입니다.';
+      }
+      return;
+    }
+
+    app.displayedFrequency = currentAcousticFrequency();
+    app.displayedShiftHz = app.displayedFrequency - app.sourceFrequency;
+    app.measuredSpeedKmh = 0;
+    if (distance < -TRANSITION_DISTANCE * 0.65) {
+      app.phaseLabel = '접근 중';
+      app.phaseDescription = '다가오는 쪽 파면이 압축되어 더 높은 주파수로 들립니다.';
+    } else if (distance > TRANSITION_DISTANCE * 0.65) {
+      app.phaseLabel = '이탈 중';
+      app.phaseDescription = '멀어지는 쪽 파면이 퍼져 더 낮은 주파수로 들립니다.';
+    } else {
+      app.phaseLabel = '교차 순간';
+      app.phaseDescription = '접근에서 이탈로 넘어가며 원래 주파수에 가까워집니다.';
+    }
+  }
+
+  function wavelengthInfo() {
+    const base = app.soundSpeed / app.sourceFrequency;
+    if (app.mode === MODES.SOURCE) {
+      return {
+        primaryLabel: '전방 파장',
+        primaryValue: Math.max(0.01, (app.soundSpeed - app.sourceSpeed) / app.sourceFrequency),
+        primarySub: '진행 방향에서는 파면 간격이 줄어듭니다.',
+        secondaryLabel: '후방 파장',
+        secondaryValue: (app.soundSpeed + app.sourceSpeed) / app.sourceFrequency,
+        secondarySub: '뒤쪽에서는 파면 간격이 더 넓어집니다.',
+      };
+    }
+    if (app.mode === MODES.OBSERVER) {
+      return {
+        primaryLabel: '매질 속 파장',
+        primaryValue: base,
+        primarySub: '음원은 정지해 있으므로 매질 속 파장은 일정합니다.',
+        secondaryLabel: '관측 주기',
+        secondaryValue: 1 / Math.max(1, app.displayedFrequency),
+        secondarySub: '관측자가 파면을 만나는 시간 간격만 변합니다.',
+      };
+    }
+    return {
+      primaryLabel: '보낸 주파수',
+      primaryValue: RADAR_FREQUENCY / 1e9,
+      primarySub: '레이더는 일정한 기준 주파수를 발사합니다.',
+      secondaryLabel: '도플러 편이',
+      secondaryValue: Math.abs(app.displayedShiftHz) / 1000,
+      secondarySub: '편이량에서 차량 속도를 계산합니다.',
+    };
+  }
+
+  function updateUi() {
+    const distance = currentDistanceMeters();
+    const wavelength = app.mode === MODES.RADAR ? null : app.soundSpeed / Math.max(1, app.displayedFrequency);
+    const approachFrequency =
+      app.mode === MODES.RADAR
+        ? RADAR_FREQUENCY + Math.abs(2 * app.sourceSpeed * RADAR_FREQUENCY / SPEED_OF_LIGHT)
+        : app.mode === MODES.SOURCE
+          ? app.sourceFrequency * app.soundSpeed / Math.max(10, app.soundSpeed - app.sourceSpeed)
+          : app.sourceFrequency * (app.soundSpeed + app.observerSpeed) / app.soundSpeed;
+    const recedeFrequency =
+      app.mode === MODES.RADAR
+        ? RADAR_FREQUENCY - Math.abs(2 * app.sourceSpeed * RADAR_FREQUENCY / SPEED_OF_LIGHT)
+        : app.mode === MODES.SOURCE
+          ? app.sourceFrequency * app.soundSpeed / (app.soundSpeed + app.sourceSpeed)
+          : app.sourceFrequency * (app.soundSpeed - app.observerSpeed) / app.soundSpeed;
+
+    dom.formulaMode.textContent = app.mode;
+    dom.formulaSourceSpeed.textContent = `${formatNumber(app.sourceSpeed)} m/s`;
+    dom.formulaObserverSpeed.textContent = `${formatNumber(app.mode === MODES.OBSERVER ? app.observerSpeed : 0)} m/s`;
+    dom.formulaBaseFrequency.textContent = `${formatNumber(app.sourceFrequency)} Hz`;
+    dom.formulaSoundSpeed.textContent = `${formatNumber(app.soundSpeed)} m/s`;
+    dom.formulaDistance.textContent = `${formatNumber(distance)} m`;
+
+    if (app.mode === MODES.SOURCE) {
+      dom.formulaApproach.textContent = `다가올 때: f' = f × v/(v-v_s) = ${formatNumber(approachFrequency)} Hz ↑`;
+      dom.formulaRecede.textContent = `멀어질 때: f' = f × v/(v+v_s) = ${formatNumber(recedeFrequency)} Hz ↓`;
+    } else if (app.mode === MODES.OBSERVER) {
+      dom.formulaApproach.textContent = `다가갈 때: f' = f × (v+v_o)/v = ${formatNumber(approachFrequency)} Hz ↑`;
+      dom.formulaRecede.textContent = `멀어질 때: f' = f × (v-v_o)/v = ${formatNumber(recedeFrequency)} Hz ↓`;
+    } else {
+      dom.formulaApproach.textContent = `다가올 때: f_r = f + Δf = ${(approachFrequency / 1e9).toFixed(6)} GHz`;
+      dom.formulaRecede.textContent = `멀어질 때: f_r = f - Δf = ${(recedeFrequency / 1e9).toFixed(6)} GHz`;
+    }
+
+    dom.formulaCurrentFrequency.textContent =
+      app.mode === MODES.RADAR
+        ? `${(app.displayedFrequency / 1e9).toFixed(6)} GHz`
+        : `${formatNumber(app.displayedFrequency)} Hz`;
+    dom.formulaWavelength.textContent =
+      app.mode === MODES.RADAR
+        ? `${formatNumber(Math.abs(app.displayedShiftHz) / 1000, 2)} kHz 편이`
+        : `${formatNumber(wavelength, 3)} m`;
+    dom.formulaRadar.textContent =
+      `스피드건: Δf = 2v_s·f/c = ${formatNumber(Math.abs(app.displayedShiftHz), 2)} Hz → v_s = ${formatNumber(app.measuredSpeedKmh / 3.6, 2)} m/s`;
+
+    if (app.mode === MODES.RADAR) {
+      dom.liveChipLabel.textContent = '측정 속도';
+      dom.liveChipValue.innerHTML =
+        `${formatNumber(app.measuredSpeedKmh, 1)} km/h${app.measuredSpeedKmh > SPEED_LIMIT_KMH ? ' <span class="warning">⚠️ 과속!</span>' : ''}`;
+    } else {
+      dom.liveChipLabel.textContent = '현재 관측 진동수';
+      dom.liveChipValue.textContent = `${formatNumber(app.displayedFrequency)} Hz`;
+    }
+    dom.liveChipSub.textContent = app.phaseDescription;
+
+    dom.statusTitle.textContent =
+      app.running
+        ? `${app.mode} · ${app.phaseLabel}`
+        : '대기 중: 모드를 고르고 시뮬레이션 시작을 눌러 보세요.';
+    dom.statusBody.textContent =
+      app.running
+        ? `${app.phaseDescription} 현재 상대 거리 ${formatNumber(Math.abs(distance))} m`
+        : '음원과 관측자의 상대 운동이 0이면 원래 주파수 그대로 들립니다.';
+
+    const info = wavelengthInfo();
+    dom.legendALabel.textContent = info.primaryLabel;
+    dom.legendAValue.textContent =
+      app.mode === MODES.RADAR ? `${formatNumber(info.primaryValue, 2)} GHz` : `${formatNumber(info.primaryValue, 3)}${info.primaryLabel === '관측 주기' ? ' s' : ' m'}`;
+    dom.legendASub.textContent = info.primarySub;
+    dom.legendBLabel.textContent = info.secondaryLabel;
+    dom.legendBValue.textContent =
+      app.mode === MODES.RADAR ? `${formatNumber(info.secondaryValue, 2)} kHz` : `${formatNumber(info.secondaryValue, info.secondaryLabel === '관측 주기' ? 4 : 3)}${info.secondaryLabel === '관측 주기' ? ' s' : ' m'}`;
+    dom.legendBSub.textContent = info.secondarySub;
+    dom.legendCLabel.textContent = app.mode === MODES.RADAR ? '단속 판정' : '현재 상태';
+    dom.legendCValue.textContent =
+      app.mode === MODES.RADAR && app.measuredSpeedKmh > SPEED_LIMIT_KMH ? '⚠️ 과속!' : app.phaseLabel;
+    dom.legendCSub.textContent =
+      app.mode === MODES.RADAR
+        ? `제한 속도 ${SPEED_LIMIT_KMH} km/h 기준으로 단속 여부를 표시합니다.`
+        : app.phaseDescription;
+
+    dom.graphDescription.textContent =
+      app.mode === MODES.RADAR
+        ? '거리 변화에 따라 레이더 반사파의 도플러 편이 부호가 바뀌고, 그 크기에서 속도를 계산합니다.'
+        : '가로축은 음원과 관측자의 상대 위치, 세로축은 관측 주파수입니다. 아래 막대는 파장 또는 관측 주기 변화를 함께 보여 줍니다.';
+  }
+
+  function updateBeamLine() {
+    if (app.mode !== MODES.RADAR) return;
+    const positions = world.beamLine.geometry.attributes.position.array;
+    const start = getPoliceGunTip();
+    const end = world.source.group.position.clone().add(new THREE.Vector3(0, 0.48, 0));
+    positions[0] = start.x;
+    positions[1] = start.y;
+    positions[2] = start.z;
+    positions[3] = end.x;
+    positions[4] = end.y;
+    positions[5] = end.z;
+    world.beamLine.geometry.attributes.position.needsUpdate = true;
+    world.beamLine.computeLineDistances();
+  }
+
+  function drawAxes(ctx, left, top, width, height, yLabel, xLabel, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, top + height);
+    ctx.lineTo(left + width, top + height);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = '12px Pretendard';
+    ctx.fillText(yLabel, left + 6, top + 14);
+    ctx.fillText(xLabel, left + width - 90, top + height - 10);
+    ctx.restore();
+  }
+
+  function drawGraph() {
+    const rect = dom.graphCanvas.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio, 2);
+    dom.graphCanvas.width = Math.max(1, Math.floor(rect.width * ratio));
+    dom.graphCanvas.height = Math.max(1, Math.floor(rect.height * ratio));
+    graphCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    const width = rect.width;
+    const height = rect.height;
+    graphCtx.clearRect(0, 0, width, height);
+
+    const gradient = graphCtx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#12274a');
+    gradient.addColorStop(1, '#091222');
+    graphCtx.fillStyle = gradient;
+    graphCtx.fillRect(0, 0, width, height);
+
+    const chartLeft = 58;
+    const chartRight = width - 28;
+    const chartTop = 98;
+    const chartHeight = Math.max(130, height - 310);
+    const chartWidth = chartRight - chartLeft;
+    const barTop = chartTop + chartHeight + 42;
+    const barHeight = 88;
+
+    for (let i = 0; i <= 4; i += 1) {
+      const y = chartTop + (chartHeight * i) / 4;
+      graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      graphCtx.lineWidth = 1;
+      graphCtx.beginPath();
+      graphCtx.moveTo(chartLeft, y);
+      graphCtx.lineTo(chartRight, y);
+      graphCtx.stroke();
+    }
+
+    drawAxes(
+      graphCtx,
+      chartLeft,
+      chartTop,
+      chartWidth,
+      chartHeight,
+      app.mode === MODES.RADAR ? '도플러 편이 (kHz)' : "관측 진동수 f' (Hz)",
+      '상대 위치 / 거리',
+      'rgba(245,251,255,0.76)'
+    );
+
+    const sampleCount = 140;
+    const range = app.mode === MODES.RADAR ? 220 : 180;
+    const samples = [];
+    let minValue = Infinity;
+    let maxValue = -Infinity;
+
+    for (let index = 0; index < sampleCount; index += 1) {
+      const t = index / (sampleCount - 1);
+      const distance = lerp(-range, range, t);
+      const value =
+        app.mode === MODES.SOURCE
+          ? observedFrequencySourceMode(distance)
+          : app.mode === MODES.OBSERVER
+            ? observedFrequencyObserverMode(distance)
+            : radarShiftForDistance(distance) / 1000;
+      minValue = Math.min(minValue, value);
+      maxValue = Math.max(maxValue, value);
+      samples.push({ distance, value });
+    }
+
+    const currentDistance = currentDistanceMeters();
+    const currentValue = app.mode === MODES.RADAR ? app.displayedShiftHz / 1000 : app.displayedFrequency;
+    minValue = Math.min(minValue, currentValue);
+    maxValue = Math.max(maxValue, currentValue);
+    const pad = Math.max(1, (maxValue - minValue) * 0.18);
+    minValue -= pad;
+    maxValue += pad;
+
+    const mapX = (distance) => chartLeft + ((distance + range) / (range * 2)) * chartWidth;
+    const mapY = (value) => chartTop + (1 - (value - minValue) / (maxValue - minValue)) * chartHeight;
+
+    graphCtx.strokeStyle = 'rgba(107, 198, 255, 0.95)';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    samples.forEach((sample, index) => {
+      const x = mapX(sample.distance);
+      const y = mapY(sample.value);
+      if (index === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    });
+    graphCtx.stroke();
+
+    graphCtx.fillStyle = 'rgba(107, 198, 255, 0.14)';
+    graphCtx.beginPath();
+    samples.forEach((sample, index) => {
+      const x = mapX(sample.distance);
+      const y = mapY(sample.value);
+      if (index === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    });
+    graphCtx.lineTo(chartRight, chartTop + chartHeight);
+    graphCtx.lineTo(chartLeft, chartTop + chartHeight);
+    graphCtx.closePath();
+    graphCtx.fill();
+
+    graphCtx.strokeStyle = 'rgba(255, 214, 122, 0.82)';
+    graphCtx.lineWidth = 1.5;
+    graphCtx.setLineDash([5, 6]);
+    graphCtx.beginPath();
+    graphCtx.moveTo(mapX(currentDistance), chartTop);
+    graphCtx.lineTo(mapX(currentDistance), chartTop + chartHeight);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    graphCtx.fillStyle = '#ffd77a';
+    graphCtx.beginPath();
+    graphCtx.arc(mapX(currentDistance), mapY(currentValue), 5.5, 0, Math.PI * 2);
+    graphCtx.fill();
+
+    graphCtx.fillStyle = 'rgba(245,251,255,0.8)';
+    graphCtx.font = '11px Pretendard';
+    graphCtx.fillText(`${(-range).toFixed(0)} m`, chartLeft - 10, chartTop + chartHeight + 16);
+    graphCtx.fillText('0 m', chartLeft + chartWidth / 2 - 10, chartTop + chartHeight + 16);
+    graphCtx.fillText(`${range.toFixed(0)} m`, chartRight - 28, chartTop + chartHeight + 16);
+    graphCtx.fillText(formatNumber(maxValue, app.mode === MODES.RADAR ? 1 : 0), 10, chartTop + 6);
+    graphCtx.fillText(formatNumber(minValue, app.mode === MODES.RADAR ? 1 : 0), 10, chartTop + chartHeight);
+
+    graphCtx.fillStyle = 'rgba(255,255,255,0.08)';
+    graphCtx.fillRect(chartLeft, barTop, chartWidth, barHeight);
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+    graphCtx.strokeRect(chartLeft, barTop, chartWidth, barHeight);
+
+    const info = wavelengthInfo();
+    const valueA = info.primaryValue;
+    const valueB = info.secondaryValue;
+    const maxBarValue = Math.max(valueA, valueB) * 1.18;
+    const barWidth = (chartWidth - 90) / 2;
+    const baseY = barTop + barHeight - 16;
+    const barAHeight = THREE.MathUtils.clamp((valueA / maxBarValue) * (barHeight - 28), 6, barHeight - 24);
+    const barBHeight = THREE.MathUtils.clamp((valueB / maxBarValue) * (barHeight - 28), 6, barHeight - 24);
+
+    graphCtx.fillStyle = '#44ff88';
+    graphCtx.fillRect(chartLeft + 28, baseY - barAHeight, barWidth, barAHeight);
+    graphCtx.fillStyle = '#6bc6ff';
+    graphCtx.fillRect(chartLeft + 58 + barWidth, baseY - barBHeight, barWidth, barBHeight);
+
+    graphCtx.fillStyle = '#eff9ff';
+    graphCtx.font = '12px Pretendard';
+    graphCtx.fillText(info.primaryLabel, chartLeft + 28, barTop + 14);
+    graphCtx.fillText(info.secondaryLabel, chartLeft + 58 + barWidth, barTop + 14);
+  }
+
+  function resizeRenderer() {
+    const rect = dom.scenePanel.getBoundingClientRect();
+    if (renderer) {
+      renderer.setSize(rect.width, rect.height);
+    }
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+    drawGraph();
+  }
+
+  function tick() {
+    const delta = Math.min(clock.getDelta(), 0.05);
+    app.totalTime += delta;
+    updateActors(delta);
+
+    if (app.running) {
+      app.waveTimer += delta;
+      app.radarTimer += delta;
+      if (app.waveTimer >= packetInterval()) {
+        app.waveTimer = 0;
+        emitWavePacket();
+      }
+      if (app.radarTimer >= 0.42) {
+        app.radarTimer = 0;
+        emitRadarPulse();
+      }
+    }
+
+    updateWaves(delta);
+    updateRadarPulses(delta);
+    updateBeamLine();
+    updateDerivedState();
+    updateUi();
+    updateAudio();
+    drawGraph();
+    controls.update();
+    if (renderer) {
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  dom.guideToggle.addEventListener('click', () => {
+    dom.guidePanel.classList.toggle('open');
+    dom.guideToggle.textContent = dom.guidePanel.classList.contains('open') ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  });
+
+  window.addEventListener('resize', resizeRenderer);
+
+  resetSimulation();
+  updateControllerAvailability();
+  resizeRenderer();
+  tick();
+</script>
+</body>
+</html>

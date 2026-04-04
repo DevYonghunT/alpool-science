@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뉴턴 법칙과 연결된 물체 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel-bg: rgba(8, 18, 30, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-soft: rgba(255, 255, 255, 0.82);
+    --panel-soft-border: rgba(18, 36, 58, 0.12);
+    --text-main: #f4f9ff;
+    --text-dim: rgba(244, 249, 255, 0.72);
+    --ink: #142338;
+    --accent-blue: #65b7ff;
+    --accent-red: #ff7171;
+    --accent-gold: #ffcb63;
+    --accent-green: #7fe9a8;
+    --accent-cyan: #84ecff;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.8), transparent 20%),
+      radial-gradient(circle at 86% 12%, rgba(125, 175, 255, 0.16), transparent 18%),
+      linear-gradient(180deg, #f7f9fc 0%, #eef0f5 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass-card {
+    position: fixed;
+    z-index: 18;
+    border: 1px solid var(--panel-soft-border);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 18px 40px rgba(58, 82, 118, 0.14);
+    backdrop-filter: blur(14px);
+  }
+
+  #title-pill {
+    top: 14px;
+    left: 14px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  #status-banner {
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 320px;
+    max-width: min(84vw, 760px);
+    padding: 14px 18px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: rgba(16, 35, 56, 0.96);
+  }
+
+  #status-body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(20, 35, 56, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 22;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(18, 36, 58, 0.1);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 16px 34px rgba(58, 82, 118, 0.12);
+    backdrop-filter: blur(14px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    right: 14px;
+    z-index: 21;
+    display: none;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(72vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 18, 30, 0.9);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    box-shadow: 0 22px 48px rgba(8, 18, 30, 0.26);
+    line-height: 1.72;
+    font-size: 13px;
+    backdrop-filter: blur(16px);
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 10px;
+    color: #a8ddff;
+    font-size: 16px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 14px;
+    margin-bottom: 6px;
+    color: #ffe39f;
+    font-size: 13px;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .guide-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(390px, calc(100vw - 28px));
+    max-height: min(70vh, 640px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 24px 46px rgba(8, 18, 30, 0.24);
+    backdrop-filter: blur(16px);
+  }
+
+  #formula-panel h2 {
+    font-size: 19px;
+    color: #fff0bd;
+  }
+
+  #formula-panel .subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 12px 0 14px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #formula-panel .summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  #formula-panel .summary .item {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  #formula-panel .summary .label {
+    display: block;
+    color: rgba(244, 249, 255, 0.58);
+    font-size: 11px;
+  }
+
+  #formula-panel .summary strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 14px;
+  }
+
+  #formula-panel .formula-section {
+    margin-top: 12px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #formula-panel .formula-section.active {
+    background: linear-gradient(135deg, rgba(101, 183, 255, 0.16), rgba(255, 203, 99, 0.11));
+    border-color: rgba(133, 211, 255, 0.22);
+  }
+
+  #formula-panel .formula-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #formula-panel .formula-note {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .formula-line {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #formula-panel .highlight {
+    margin-top: 9px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  #scenario-note {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(320px, calc(100vw - 28px));
+    padding: 15px 16px 14px;
+    border-radius: 22px;
+    line-height: 1.68;
+  }
+
+  #scenario-note .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(20, 35, 56, 0.55);
+    font-weight: 800;
+  }
+
+  #scenario-note h3 {
+    margin-top: 5px;
+    font-size: 18px;
+    line-height: 1.24;
+  }
+
+  #scenario-note p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(20, 35, 56, 0.72);
+  }
+
+  #scenario-note .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  #scenario-note .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(20, 35, 56, 0.08);
+  }
+
+  #scenario-note .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  #gui-mount {
+    position: fixed;
+    top: 86px;
+    right: 14px;
+    z-index: 23;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(8, 18, 30, 0.82);
+    --title-background-color: rgba(17, 31, 47, 0.95);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --hover-color: rgba(101, 183, 255, 0.2);
+    --focus-color: rgba(101, 183, 255, 0.24);
+    --text-color: #f5fbff;
+    --number-color: #ffcb63;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 22px 44px rgba(8, 18, 30, 0.24);
+  }
+
+  #runtime-error-panel {
+    position: fixed;
+    left: 14px;
+    top: 74px;
+    z-index: 40;
+    display: none;
+    width: min(520px, calc(100vw - 28px));
+    max-height: 40vh;
+    overflow: auto;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(104, 18, 24, 0.94);
+    color: #fff1f1;
+    border: 1px solid rgba(255, 200, 200, 0.18);
+    box-shadow: 0 18px 38px rgba(84, 16, 23, 0.22);
+    font-size: 12px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+  }
+
+  #runtime-error-panel.visible {
+    display: block;
+  }
+
+  @media (max-width: 980px) {
+    #status-banner {
+      top: 64px;
+      max-width: calc(100vw - 28px);
+      min-width: 0;
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 188px;
+    }
+
+    #scenario-note {
+      width: min(100vw - 28px, 340px);
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-pill {
+      max-width: calc(100vw - 136px);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    #status-banner {
+      top: 58px;
+      padding: 12px 14px;
+    }
+
+    #status-title {
+      font-size: 14px;
+    }
+
+    #guide-panel,
+    #formula-panel,
+    #scenario-note {
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      bottom: 12px;
+      max-height: 42vh;
+    }
+
+    #scenario-note {
+      display: none;
+    }
+
+    #gui-mount {
+      right: 12px;
+      left: 12px;
+      bottom: 164px;
+    }
+
+    #gui-mount .lil-gui.root {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-pill" class="glass-card">역학과 에너지 · 뉴턴 법칙과 연결된 물체</div>
+
+<div id="status-banner" class="glass-card">
+  <div id="status-title"></div>
+  <div id="status-body"></div>
+</div>
+
+<button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+<section id="guide-panel" aria-label="학습 가이드">
+  <h3>📖 학습 가이드</h3>
+  <p>실로 연결된 물체는 따로따로 보기보다 하나의 계로 보면 훨씬 잘 이해됩니다. 계 전체의 가속도는 <span class="mono">a = F<sub>net</sub> / m<sub>total</sub></span>로 정해지고, 장력 <span class="mono">T</span>는 각 물체에 대해 뉴턴 운동 법칙을 적용해 구합니다. 엘리베이터 안 체중계가 가리키는 겉보기 무게는 수직 항력 <span class="mono">N</span>과 같습니다.</p>
+
+  <div class="guide-box">
+    <strong>핵심 원리</strong><br>
+    실로 연결된 물체 전체를 하나의 계로 보면 가속도는 <span class="mono">a = F<sub>net</sub> / m<sub>total</sub></span>입니다. 각 물체의 장력은 개별 운동 방정식으로 구하고, 엘리베이터 안의 겉보기 무게는 <span class="mono">W' = m(g ± a)</span>로 해석합니다.
+  </div>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>수레+추 시스템에서 매달린 추의 질량을 늘리면 가속도와 장력은 각각 어떻게 달라질까요?</li>
+    <li>앳우드 기계에서 두 물체의 질량이 같아지면 운동은 왜 멈출까요?</li>
+    <li>엘리베이터가 자유 낙하할 때 체중계가 0을 가리키는 이유를 수직 항력으로 설명할 수 있을까요?</li>
+  </ul>
+
+  <h4>실생활 연결</h4>
+  <ul>
+    <li>엘리베이터 출발 직후 몸이 무겁거나 가볍게 느껴지는 순간</li>
+    <li>놀이기구 자이로드롭에서 느끼는 무중력 감각</li>
+    <li>도르래, 크레인, 케이블 시스템에서 질량비에 따라 달라지는 운동</li>
+  </ul>
+
+  <h4>사용 팁</h4>
+  <ul>
+    <li>수레+추와 앳우드 기계에서는 <strong>m₁, m₂</strong>를 바꾸며 계 전체 질량과 알짜힘이 함께 어떻게 변하는지 보세요.</li>
+    <li>엘리베이터 시나리오에서는 <strong>m₁</strong>이 사람의 질량으로 사용됩니다.</li>
+    <li><strong>힘 화살표 표시</strong>를 켜고 장력, 중력, 수직 항력의 상대 크기를 비교해 보세요.</li>
+  </ul>
+
+  <div class="guide-box">교과서 연계: 역학과 에너지 I편 p16~21 · 뉴턴 운동 법칙 · 연결된 물체 · 엘리베이터</div>
+</section>
+
+<div id="gui-mount" aria-label="시뮬레이션 제어"></div>
+
+<section id="runtime-error-panel" aria-live="polite"></section>
+
+<section id="formula-panel" aria-live="polite"></section>
+
+<section id="scenario-note" class="glass-card">
+  <div class="eyebrow">Force Legend</div>
+  <h3>힘과 운동을 함께 보세요</h3>
+  <p id="scenario-note-body">각 시나리오에서 실시간 운동과 힘 분석을 동시에 확인할 수 있습니다. 장력, 중력, 수직 항력의 크기와 방향을 비교해 보세요.</p>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#ff7171"></span>중력</span>
+    <span class="chip"><span class="dot" style="background:#ffcb63"></span>장력</span>
+    <span class="chip"><span class="dot" style="background:#7fe9a8"></span>수직 항력</span>
+    <span class="chip"><span class="dot" style="background:#65b7ff"></span>가속도 해석</span>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const panel = document.getElementById('runtime-error-panel');
+    const showError = (prefix, message) => {
+      if (!panel) return;
+      panel.classList.add('visible');
+      panel.textContent = `${prefix}\n${message}`;
+    };
+
+    window.addEventListener('error', (event) => {
+      const detail = event.error?.stack || event.message || '알 수 없는 오류';
+      showError('시뮬레이션 초기화 오류', detail);
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason?.stack || event.reason?.message || String(event.reason);
+      showError('처리되지 않은 Promise 오류', reason);
+    });
+  })();
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const G = 9.8;
+const CART_WORLD_SCALE = 0.84;
+const ATWOOD_WORLD_SCALE = 0.8;
+const ELEVATOR_MOTION_SCALE = 0.085;
+
+const canvas = document.getElementById('scene-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xeef0f5, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 18;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(6, 8, 7);
+scene.add(ambientLight, directionalLight);
+
+const hemiFloor = new THREE.Mesh(
+  new THREE.CircleGeometry(8, 80),
+  new THREE.MeshPhongMaterial({ color: 0xf9fbff, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+);
+hemiFloor.rotation.x = -Math.PI / 2;
+hemiFloor.position.y = -0.01;
+scene.add(hemiFloor);
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  formulaPanel: document.getElementById('formula-panel'),
+  statusTitle: document.getElementById('status-title'),
+  statusBody: document.getElementById('status-body'),
+  scenarioNoteBody: document.getElementById('scenario-note-body')
+};
+
+const config = {
+  scenario: '수레+추',
+  m1: 2,
+  m2: 3,
+  elevatorState: '정지',
+  elevatorAccel: 2,
+  showForces: true
+};
+
+const runtime = {
+  scenarioKey: 'cart',
+  root: null,
+  forceObjects: [],
+  updateVisuals: null,
+  running: false,
+  complete: false,
+  elapsed: 0,
+  displacement: 0,
+  velocity: 0,
+  uiTimer: 0
+};
+
+const tmpVecA = new THREE.Vector3();
+const tmpVecB = new THREE.Vector3();
+const tmpVecC = new THREE.Vector3();
+
+function formatNumber(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function scenarioKeyOf(name) {
+  if (name === '앳우드 기계') return 'atwood';
+  if (name === '엘리베이터') return 'elevator';
+  return 'cart';
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = options.width ?? 512;
+  canvasEl.height = options.height ?? 192;
+  const ctx = canvasEl.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.renderOrder = 10;
+  sprite.userData.options = {
+    background: options.background ?? 'rgba(9, 18, 30, 0.86)',
+    border: options.border ?? 'rgba(255, 255, 255, 0.16)',
+    textColor: options.textColor ?? '#f5fbff',
+    fontSize: options.fontSize ?? 46,
+    fontWeight: options.fontWeight ?? 700,
+    scaleX: options.scaleX ?? 1.9,
+    scaleY: options.scaleY ?? 0.72,
+    padding: options.padding ?? 16,
+    lineHeight: options.lineHeight ?? 56
+  };
+  sprite.userData.canvas = canvasEl;
+  sprite.userData.ctx = ctx;
+  sprite.userData.texture = texture;
+  sprite.userData.lastText = '';
+  updateTextSprite(sprite, text);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text) {
+  if (!sprite || sprite.userData.lastText === text) return;
+
+  const canvasEl = sprite.userData.canvas;
+  const ctx = sprite.userData.ctx;
+  const texture = sprite.userData.texture;
+  const options = sprite.userData.options;
+  const lines = String(text).split('\n');
+
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  roundRect(ctx, 4, 4, canvasEl.width - 8, canvasEl.height - 8, 28);
+  ctx.fillStyle = options.background;
+  ctx.fill();
+  ctx.strokeStyle = options.border;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = options.textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${options.fontWeight} ${options.fontSize}px Pretendard, sans-serif`;
+
+  const blockHeight = lines.length * options.lineHeight;
+  lines.forEach((line, index) => {
+    const y = canvasEl.height / 2 - blockHeight / 2 + options.lineHeight * index + options.lineHeight / 2;
+    ctx.fillText(line, canvasEl.width / 2, y);
+  });
+
+  texture.needsUpdate = true;
+  sprite.scale.set(options.scaleX, options.scaleY + (lines.length - 1) * 0.28, 1);
+  sprite.userData.lastText = text;
+}
+
+function createSegmentMesh(radius = 0.015, color = 0xdddddd) {
+  return new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 1, 12),
+    new THREE.MeshPhongMaterial({ color })
+  );
+}
+
+function setSegment(mesh, start, end) {
+  const delta = tmpVecA.copy(end).sub(start);
+  const length = delta.length();
+  if (length < 1e-4) {
+    mesh.visible = false;
+    return;
+  }
+
+  mesh.visible = true;
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.scale.set(1, length, 1);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
+}
+
+function disposeHierarchy(root) {
+  if (!root) return;
+
+  root.traverse((node) => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+    if (node.material) {
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        Object.keys(material).forEach((key) => {
+          const value = material[key];
+          if (value && value.isTexture) {
+            value.dispose();
+          }
+        });
+        material.dispose();
+      });
+    }
+  });
+
+  if (root.parent) {
+    root.parent.remove(root);
+  }
+}
+
+function createForceArrow(label, color) {
+  const wrapper = new THREE.Group();
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 1, color, 0.18, 0.1);
+  const sprite = createTextSprite(label, {
+    width: 384,
+    height: 150,
+    background: 'rgba(255,255,255,0.88)',
+    border: 'rgba(20,35,56,0.1)',
+    textColor: '#142338',
+    fontSize: 40,
+    scaleX: 1.25,
+    scaleY: 0.48
+  });
+  wrapper.add(arrow, sprite);
+  wrapper.userData.arrow = arrow;
+  wrapper.userData.label = sprite;
+  return wrapper;
+}
+
+function placeForceArrow(wrapper, origin, direction, length, text) {
+  const dir = tmpVecB.copy(direction).normalize();
+  wrapper.position.copy(origin);
+  wrapper.userData.arrow.position.set(0, 0, 0);
+  wrapper.userData.arrow.setDirection(dir);
+  wrapper.userData.arrow.setLength(length, Math.min(0.24, length * 0.28), Math.min(0.12, length * 0.16));
+  wrapper.userData.label.position.copy(dir).multiplyScalar(length + 0.22);
+  updateTextSprite(wrapper.userData.label, text);
+  wrapper.visible = config.showForces;
+}
+
+function forceLength(force) {
+  return 0.28 + Math.sqrt(Math.max(force, 0)) * 0.085;
+}
+
+function localToWorld(object, vector) {
+  return object.localToWorld(vector.clone());
+}
+
+function createMassLabel(text) {
+  return createTextSprite(text, {
+    width: 448,
+    height: 156,
+    background: 'rgba(12, 24, 40, 0.82)',
+    border: 'rgba(255, 255, 255, 0.16)',
+    textColor: '#f4fbff',
+    fontSize: 40,
+    scaleX: 1.65,
+    scaleY: 0.54
+  });
+}
+
+function createFloorLabel(text) {
+  return createTextSprite(text, {
+    width: 320,
+    height: 140,
+    background: 'rgba(255, 255, 255, 0.9)',
+    border: 'rgba(20, 35, 56, 0.1)',
+    textColor: '#142338',
+    fontSize: 38,
+    scaleX: 1.1,
+    scaleY: 0.42
+  });
+}
+
+function computeCartMetrics() {
+  const totalMass = config.m1 + config.m2;
+  const acceleration = totalMass === 0 ? 0 : (config.m2 * G) / totalMass;
+  const tension = config.m1 * acceleration;
+  return { totalMass, acceleration, tension };
+}
+
+function computeAtwoodMetrics() {
+  const totalMass = config.m1 + config.m2;
+  const difference = config.m2 - config.m1;
+  const acceleration = totalMass === 0 ? 0 : Math.abs(difference) * G / totalMass;
+  const tension = totalMass === 0 ? 0 : (2 * config.m1 * config.m2 * G) / totalMass;
+  const direction = Math.sign(difference);
+  return { totalMass, difference, acceleration, tension, direction };
+}
+
+function computeElevatorMetrics() {
+  const mass = config.m1;
+  const actualWeight = mass * G;
+  let apparentWeight = actualWeight;
+  let signedAcceleration = 0;
+
+  if (config.elevatorState === '위로 가속') {
+    signedAcceleration = config.elevatorAccel;
+    apparentWeight = mass * (G + config.elevatorAccel);
+  } else if (config.elevatorState === '아래로 가속') {
+    signedAcceleration = -config.elevatorAccel;
+    apparentWeight = mass * Math.max(G - config.elevatorAccel, 0);
+  } else if (config.elevatorState === '자유낙하') {
+    signedAcceleration = -G;
+    apparentWeight = 0;
+  }
+
+  return { mass, actualWeight, apparentWeight, signedAcceleration };
+}
+
+function clearScenario() {
+  if (runtime.root) {
+    disposeHierarchy(runtime.root);
+    runtime.root = null;
+  }
+  runtime.forceObjects = [];
+  runtime.updateVisuals = null;
+  runtime.running = false;
+  runtime.complete = false;
+  runtime.elapsed = 0;
+  runtime.displacement = 0;
+  runtime.velocity = 0;
+}
+
+function buildCartScenario() {
+  const root = new THREE.Group();
+  runtime.root = root;
+  runtime.scenarioKey = 'cart';
+  scene.add(root);
+
+  const platform = new THREE.Mesh(
+    new THREE.BoxGeometry(11, 0.12, 3.6),
+    new THREE.MeshPhongMaterial({ color: 0xf5f7fb })
+  );
+  platform.position.set(0, -0.06, 0);
+  root.add(platform);
+
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 0.1, 0.5),
+    new THREE.MeshPhongMaterial({ color: 0xaaaaaa })
+  );
+  rail.position.set(0, 0.06, 0);
+  root.add(rail);
+
+  const support = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 1.6, 0.22),
+    new THREE.MeshPhongMaterial({ color: 0x7a8597 })
+  );
+  support.position.set(4.2, 0.8, 0);
+  root.add(support);
+
+  const brace = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.12, 0.22),
+    new THREE.MeshPhongMaterial({ color: 0x7a8597 })
+  );
+  brace.position.set(3.8, 1.55, 0);
+  root.add(brace);
+
+  const pulley = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.038, 18, 48),
+    new THREE.MeshPhongMaterial({ color: 0x888888 })
+  );
+  pulley.position.set(4.2, 0.95, 0);
+  root.add(pulley);
+
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.2, 18),
+    new THREE.MeshPhongMaterial({ color: 0x586171 })
+  );
+  axle.rotation.z = Math.PI / 2;
+  axle.position.copy(pulley.position);
+  root.add(axle);
+
+  const cart = new THREE.Group();
+  const cartBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.5, 0.6),
+    new THREE.MeshPhongMaterial({ color: 0x4488aa })
+  );
+  cartBody.position.y = 0.3;
+  cart.add(cartBody);
+
+  const wheelGeometry = new THREE.CylinderGeometry(0.11, 0.11, 0.08, 24);
+  const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x2d3a4f });
+  [
+    [-0.28, 0.08, 0.26],
+    [0.28, 0.08, 0.26],
+    [-0.28, 0.08, -0.26],
+    [0.28, 0.08, -0.26]
+  ].forEach(([x, y, z]) => {
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x, y, z);
+    cart.add(wheel);
+  });
+
+  const loadCount = Math.max(1, Math.round(config.m1 / 2));
+  const loadGroup = new THREE.Group();
+  for (let i = 0; i < loadCount; i += 1) {
+    const block = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.15, 0.22),
+      new THREE.MeshPhongMaterial({ color: 0xdce4ee })
+    );
+    const row = i % 3;
+    const col = Math.floor(i / 3);
+    block.position.set(-0.24 + row * 0.24, 0.67 + col * 0.16, 0);
+    loadGroup.add(block);
+  }
+  cart.add(loadGroup);
+
+  const cartLabel = createMassLabel(`m₁ = ${formatNumber(config.m1, 1)}kg`);
+  cartLabel.position.set(0, 1.16, 0);
+  cart.add(cartLabel);
+
+  const cartStartX = -2.8;
+  cart.position.x = cartStartX;
+  root.add(cart);
+
+  const diskCount = Math.max(1, Math.round(config.m2));
+  const diskHeight = 0.16;
+  const diskGap = 0.02;
+  const hangingHeight = diskCount * diskHeight + Math.max(0, diskCount - 1) * diskGap;
+  const hanging = new THREE.Group();
+  for (let i = 0; i < diskCount; i += 1) {
+    const disk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, diskHeight, 22),
+      new THREE.MeshPhongMaterial({ color: 0xff4444 })
+    );
+    disk.position.y = hangingHeight / 2 - diskHeight / 2 - i * (diskHeight + diskGap);
+    hanging.add(disk);
+  }
+
+  const hangingLabel = createMassLabel(`m₂ = ${formatNumber(config.m2, 1)}kg`);
+  hangingLabel.position.set(0, hangingHeight / 2 + 0.45, 0);
+  hanging.add(hangingLabel);
+  root.add(hanging);
+
+  const horizontalRope = createSegmentMesh(0.012, 0xdddddd);
+  const verticalRope = createSegmentMesh(0.012, 0xdddddd);
+  const ropeArc = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.013, 10, 48),
+    new THREE.MeshPhongMaterial({ color: 0xdddddd })
+  );
+  ropeArc.position.copy(pulley.position);
+  root.add(horizontalRope, verticalRope, ropeArc);
+
+  const cartT = createForceArrow('T');
+  const cartN = createForceArrow('N');
+  const cartW = createForceArrow('m₁g');
+  const hangingT = createForceArrow('T');
+  const hangingW = createForceArrow('m₂g');
+  cartT.userData.arrow.setColor(new THREE.Color(0xffcb63));
+  cartN.userData.arrow.setColor(new THREE.Color(0x7fe9a8));
+  cartW.userData.arrow.setColor(new THREE.Color(0xff7171));
+  hangingT.userData.arrow.setColor(new THREE.Color(0xffcb63));
+  hangingW.userData.arrow.setColor(new THREE.Color(0xff7171));
+  runtime.forceObjects.push(cartT, cartN, cartW, hangingT, hangingW);
+  root.add(cartT, cartN, cartW, hangingT, hangingW);
+
+  controls.target.set(0.4, 0.7, 0);
+  camera.position.set(6.2, 4.7, 7.5);
+  controls.update();
+
+  const cartAttachLocal = new THREE.Vector3(0.54, 0.52, 0);
+  const pulleyLeft = new THREE.Vector3(4.02, 0.95, 0);
+  const pulleyBottom = new THREE.Vector3(4.2, 0.77, 0);
+  const hangingStartTopY = 0.58;
+  const hangingStartCenterY = hangingStartTopY - hangingHeight / 2;
+  const travelLimit = 3.6;
+
+  runtime.updateVisuals = () => {
+    const metrics = computeCartMetrics();
+    let travel = 0;
+    let speed = 0;
+
+    if (runtime.running && metrics.acceleration > 0) {
+      const rawTravel = 0.5 * metrics.acceleration * runtime.elapsed * runtime.elapsed;
+      if (rawTravel >= travelLimit) {
+        travel = travelLimit;
+        speed = Math.sqrt(2 * metrics.acceleration * travelLimit);
+        runtime.running = false;
+        runtime.complete = true;
+      } else {
+        travel = rawTravel;
+        speed = metrics.acceleration * runtime.elapsed;
+      }
+    } else if (runtime.complete) {
+      travel = runtime.displacement;
+      speed = runtime.velocity;
+    }
+
+    runtime.displacement = travel;
+    runtime.velocity = speed;
+
+    const cartX = cartStartX + travel * CART_WORLD_SCALE;
+    cart.position.x = cartX;
+    const hangingY = hangingStartCenterY - travel * CART_WORLD_SCALE;
+    hanging.position.set(4.2, hangingY, 0);
+
+    const cartAttach = localToWorld(cart, cartAttachLocal);
+    const hangingTop = localToWorld(hanging, new THREE.Vector3(0, hangingHeight / 2, 0));
+    setSegment(horizontalRope, cartAttach, pulleyLeft);
+    setSegment(verticalRope, pulleyBottom, hangingTop);
+    const angle = (travel * CART_WORLD_SCALE) / 0.18;
+    pulley.rotation.z = -angle;
+    ropeArc.rotation.z = -angle;
+
+    const cartCenter = cart.getWorldPosition(tmpVecA);
+    const hangingCenter = hanging.getWorldPosition(tmpVecC);
+    placeForceArrow(cartT, cartCenter.clone().add(new THREE.Vector3(0, 0.35, 0)), new THREE.Vector3(1, 0, 0), forceLength(metrics.tension), `T = ${formatNumber(metrics.tension, 1)}N`);
+    placeForceArrow(cartN, cartCenter.clone().add(new THREE.Vector3(-0.2, 0.05, 0)), new THREE.Vector3(0, 1, 0), forceLength(config.m1 * G), `N = ${formatNumber(config.m1 * G, 1)}N`);
+    placeForceArrow(cartW, cartCenter.clone().add(new THREE.Vector3(0.18, 0.55, 0)), new THREE.Vector3(0, -1, 0), forceLength(config.m1 * G), `m₁g = ${formatNumber(config.m1 * G, 1)}N`);
+    placeForceArrow(hangingT, hangingCenter.clone().add(new THREE.Vector3(-0.22, 0, 0)), new THREE.Vector3(0, 1, 0), forceLength(metrics.tension), `T = ${formatNumber(metrics.tension, 1)}N`);
+    placeForceArrow(hangingW, hangingCenter.clone().add(new THREE.Vector3(0.22, 0.15, 0)), new THREE.Vector3(0, -1, 0), forceLength(config.m2 * G), `m₂g = ${formatNumber(config.m2 * G, 1)}N`);
+  };
+
+  runtime.updateVisuals();
+}
+
+function buildAtwoodScenario() {
+  const root = new THREE.Group();
+  runtime.root = root;
+  runtime.scenarioKey = 'atwood';
+  scene.add(root);
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(6, 0.16, 2.6),
+    new THREE.MeshPhongMaterial({ color: 0xf6f8fb })
+  );
+  base.position.set(0, -0.08, 0);
+  root.add(base);
+
+  const frameMaterial = new THREE.MeshPhongMaterial({ color: 0x7a8597 });
+  [
+    [-1.55, 1.75, 0],
+    [1.55, 1.75, 0]
+  ].forEach(([x, y, z]) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.6, 0.18), frameMaterial);
+    post.position.set(x, y, z);
+    root.add(post);
+  });
+
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 0.18), frameMaterial);
+  beam.position.set(0, 3.5, 0);
+  root.add(beam);
+
+  const pulley = new THREE.Mesh(
+    new THREE.TorusGeometry(0.3, 0.05, 18, 56),
+    new THREE.MeshPhongMaterial({ color: 0x888888 })
+  );
+  pulley.position.set(0, 3.1, 0);
+  root.add(pulley);
+
+  const pulleyAxle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.22, 18),
+    new THREE.MeshPhongMaterial({ color: 0x596474 })
+  );
+  pulleyAxle.rotation.z = Math.PI / 2;
+  pulleyAxle.position.copy(pulley.position);
+  root.add(pulleyAxle);
+
+  const ropeLoop = new THREE.Mesh(
+    new THREE.TorusGeometry(0.3, 0.016, 10, 48),
+    new THREE.MeshPhongMaterial({ color: 0xdddddd })
+  );
+  ropeLoop.position.copy(pulley.position);
+  root.add(ropeLoop);
+
+  const leftRadius = THREE.MathUtils.mapLinear(config.m1, 0.5, 10, 0.18, 0.28);
+  const rightRadius = THREE.MathUtils.mapLinear(config.m2, 0.5, 10, 0.18, 0.3);
+
+  const leftMass = new THREE.Group();
+  const leftSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(leftRadius, 26, 24),
+    new THREE.MeshPhongMaterial({ color: 0xff4444 })
+  );
+  leftMass.add(leftSphere);
+  const leftLabel = createMassLabel(`m₁ = ${formatNumber(config.m1, 1)}kg`);
+  leftLabel.position.set(0, leftRadius + 0.46, 0);
+  leftMass.add(leftLabel);
+  root.add(leftMass);
+
+  const rightMass = new THREE.Group();
+  const rightSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(rightRadius, 26, 24),
+    new THREE.MeshPhongMaterial({ color: 0x4444ff })
+  );
+  rightMass.add(rightSphere);
+  const rightLabel = createMassLabel(`m₂ = ${formatNumber(config.m2, 1)}kg`);
+  rightLabel.position.set(0, rightRadius + 0.46, 0);
+  rightMass.add(rightLabel);
+  root.add(rightMass);
+
+  const leftRope = createSegmentMesh(0.012, 0xdddddd);
+  const rightRope = createSegmentMesh(0.012, 0xdddddd);
+  root.add(leftRope, rightRope);
+
+  const leftT = createForceArrow('T');
+  const leftW = createForceArrow('m₁g');
+  const rightT = createForceArrow('T');
+  const rightW = createForceArrow('m₂g');
+  leftT.userData.arrow.setColor(new THREE.Color(0xffcb63));
+  leftW.userData.arrow.setColor(new THREE.Color(0xff7171));
+  rightT.userData.arrow.setColor(new THREE.Color(0xffcb63));
+  rightW.userData.arrow.setColor(new THREE.Color(0xff7171));
+  runtime.forceObjects.push(leftT, leftW, rightT, rightW);
+  root.add(leftT, leftW, rightT, rightW);
+
+  controls.target.set(0, 1.8, 0);
+  camera.position.set(0, 4.7, 8.2);
+  controls.update();
+
+  const leftAnchor = new THREE.Vector3(-0.3, 3.1, 0);
+  const rightAnchor = new THREE.Vector3(0.3, 3.1, 0);
+  const leftStartY = 1.6;
+  const rightStartY = 1.6;
+  const travelLimit = 2.1;
+
+  runtime.updateVisuals = () => {
+    const metrics = computeAtwoodMetrics();
+    let travel = 0;
+    let speed = 0;
+
+    if (runtime.running && metrics.acceleration > 0) {
+      const rawTravel = 0.5 * metrics.acceleration * runtime.elapsed * runtime.elapsed;
+      if (rawTravel >= travelLimit) {
+        travel = travelLimit;
+        speed = Math.sqrt(2 * metrics.acceleration * travelLimit);
+        runtime.running = false;
+        runtime.complete = true;
+      } else {
+        travel = rawTravel;
+        speed = metrics.acceleration * runtime.elapsed;
+      }
+    } else if (runtime.complete) {
+      travel = runtime.displacement;
+      speed = runtime.velocity;
+    }
+
+    runtime.displacement = travel;
+    runtime.velocity = speed;
+
+    const direction = metrics.direction;
+    const offset = direction * travel * ATWOOD_WORLD_SCALE;
+    leftMass.position.set(-0.95, leftStartY + offset, 0);
+    rightMass.position.set(0.95, rightStartY - offset, 0);
+
+    const leftTop = localToWorld(leftMass, new THREE.Vector3(0, leftRadius, 0));
+    const rightTop = localToWorld(rightMass, new THREE.Vector3(0, rightRadius, 0));
+    setSegment(leftRope, leftAnchor, leftTop);
+    setSegment(rightRope, rightAnchor, rightTop);
+    const angle = direction === 0 ? 0 : -(direction * travel * ATWOOD_WORLD_SCALE) / 0.3;
+    pulley.rotation.z = angle;
+    ropeLoop.rotation.z = angle;
+
+    const leftCenter = leftMass.getWorldPosition(tmpVecA);
+    const rightCenter = rightMass.getWorldPosition(tmpVecB);
+    placeForceArrow(leftT, leftCenter.clone().add(new THREE.Vector3(-0.25, 0, 0)), new THREE.Vector3(0, 1, 0), forceLength(metrics.tension), `T = ${formatNumber(metrics.tension, 1)}N`);
+    placeForceArrow(leftW, leftCenter.clone().add(new THREE.Vector3(0.25, 0.18, 0)), new THREE.Vector3(0, -1, 0), forceLength(config.m1 * G), `m₁g = ${formatNumber(config.m1 * G, 1)}N`);
+    placeForceArrow(rightT, rightCenter.clone().add(new THREE.Vector3(-0.25, 0, 0)), new THREE.Vector3(0, 1, 0), forceLength(metrics.tension), `T = ${formatNumber(metrics.tension, 1)}N`);
+    placeForceArrow(rightW, rightCenter.clone().add(new THREE.Vector3(0.25, 0.18, 0)), new THREE.Vector3(0, -1, 0), forceLength(config.m2 * G), `m₂g = ${formatNumber(config.m2 * G, 1)}N`);
+  };
+
+  runtime.updateVisuals();
+}
+
+function elevatorStartY() {
+  if (config.elevatorState === '위로 가속' || config.elevatorState === '등속') return -2.2;
+  if (config.elevatorState === '정지') return -0.4;
+  return 2.2;
+}
+
+function buildElevatorScenario() {
+  const root = new THREE.Group();
+  runtime.root = root;
+  runtime.scenarioKey = 'elevator';
+  scene.add(root);
+
+  const shaft = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 6.6, 2.6),
+    new THREE.MeshPhongMaterial({ color: 0xf5f6fa, transparent: true, opacity: 0.2 })
+  );
+  shaft.position.set(0, 0.5, 0);
+  root.add(shaft);
+
+  const railMaterial = new THREE.MeshPhongMaterial({ color: 0x7a8597 });
+  [
+    [-1.15, 0.5, 0],
+    [1.15, 0.5, 0]
+  ].forEach(([x, y, z]) => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 6.5, 0.12), railMaterial);
+    rail.position.set(x, y, z);
+    root.add(rail);
+  });
+
+  const floorYs = [-2.3, -0.75, 0.8, 2.35];
+  floorYs.forEach((y, index) => {
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry(3.8, 0.08, 2.7),
+      new THREE.MeshPhongMaterial({ color: 0xd6dce6 })
+    );
+    slab.position.set(0, y, 0);
+    root.add(slab);
+
+    const label = createFloorLabel(`${index + 1}F`);
+    label.position.set(1.8, y + 0.22, 0.96);
+    root.add(label);
+  });
+
+  const cab = new THREE.Group();
+  const cabFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 0.12, 2),
+    new THREE.MeshPhongMaterial({ color: 0xe7eaef })
+  );
+  cabFloor.position.y = 0;
+  cab.add(cabFloor);
+
+  const cabRoof = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 0.12, 2),
+    new THREE.MeshPhongMaterial({ color: 0xd5d9e0 })
+  );
+  cabRoof.position.y = 2.85;
+  cab.add(cabRoof);
+
+  const wallMaterial = new THREE.MeshPhongMaterial({
+    color: 0xdddccf,
+    transparent: true,
+    opacity: 0.42
+  });
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(2, 2.7, 0.08), wallMaterial);
+  backWall.position.set(0, 1.4, -0.96);
+  cab.add(backWall);
+
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.7, 2), wallMaterial);
+  leftWall.position.set(-0.96, 1.4, 0);
+  cab.add(leftWall);
+
+  const rightWall = leftWall.clone();
+  rightWall.position.x = 0.96;
+  cab.add(rightWall);
+
+  [
+    [-0.9, 1.4, -0.9],
+    [0.9, 1.4, -0.9],
+    [-0.9, 1.4, 0.9],
+    [0.9, 1.4, 0.9]
+  ].forEach(([x, y, z]) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.8, 0.08), railMaterial);
+    post.position.set(x, y, z);
+    cab.add(post);
+  });
+
+  const scaleBase = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, 0.12, 0.95),
+    new THREE.MeshPhongMaterial({ color: 0xcccccc })
+  );
+  scaleBase.position.set(0, 0.1, 0);
+  cab.add(scaleBase);
+
+  const display = createTextSprite(`W' = ${formatNumber(computeElevatorMetrics().apparentWeight, 1)}N`, {
+    width: 512,
+    height: 150,
+    background: 'rgba(7, 18, 30, 0.92)',
+    border: 'rgba(126, 245, 201, 0.22)',
+    textColor: '#7ef5c9',
+    fontSize: 42,
+    scaleX: 1.6,
+    scaleY: 0.46
+  });
+  display.position.set(0, 0.34, 0.56);
+  cab.add(display);
+
+  const person = new THREE.Group();
+  const skin = new THREE.MeshPhongMaterial({ color: 0xddccbb });
+  const clothes = new THREE.MeshPhongMaterial({ color: 0x4a6c9b });
+  const dark = new THREE.MeshPhongMaterial({ color: 0x334057 });
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 22, 20), skin);
+  head.position.y = 1.65;
+  person.add(head);
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.78, 0.28), clothes);
+  torso.position.y = 1.05;
+  person.add(torso);
+
+  const hip = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.24), dark);
+  hip.position.y = 0.62;
+  person.add(hip);
+
+  [
+    [-0.13, 0.22],
+    [0.13, 0.22]
+  ].forEach(([x, y]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.14), dark);
+    leg.position.set(x, y, 0);
+    person.add(leg);
+  });
+
+  [
+    [-0.32, 1.08],
+    [0.32, 1.08]
+  ].forEach(([x, y]) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.58, 0.12), clothes);
+    arm.position.set(x, y, 0);
+    person.add(arm);
+  });
+
+  person.position.set(0, 0.16, 0);
+  cab.add(person);
+
+  const personLabel = createMassLabel(`사람 m = ${formatNumber(config.m1, 1)}kg`);
+  personLabel.position.set(0, 2.35, 0);
+  cab.add(personLabel);
+
+  root.add(cab);
+
+  const normalArrow = createForceArrow('N');
+  const weightArrow = createForceArrow('mg');
+  normalArrow.userData.arrow.setColor(new THREE.Color(0x7fe9a8));
+  weightArrow.userData.arrow.setColor(new THREE.Color(0xff7171));
+  runtime.forceObjects.push(normalArrow, weightArrow);
+  root.add(normalArrow, weightArrow);
+
+  controls.target.set(0, 0.9, 0);
+  camera.position.set(5.4, 3.5, 8.4);
+  controls.update();
+
+  const baseY = elevatorStartY();
+  const maxY = 2.35;
+  const minY = -2.3;
+
+  runtime.updateVisuals = () => {
+    const metrics = computeElevatorMetrics();
+    let cabY = baseY;
+    let speed = 0;
+
+    if (runtime.running) {
+      const t = runtime.elapsed;
+
+      if (config.elevatorState === '등속') {
+        cabY = clamp(baseY + 0.72 * t, minY, maxY);
+        speed = 0.72;
+      } else if (config.elevatorState === '위로 가속') {
+        cabY = clamp(baseY + 0.18 * t + 0.5 * ELEVATOR_MOTION_SCALE * config.elevatorAccel * t * t, minY, maxY);
+        speed = 0.18 + ELEVATOR_MOTION_SCALE * config.elevatorAccel * t;
+      } else if (config.elevatorState === '아래로 가속') {
+        cabY = clamp(baseY - 0.18 * t - 0.5 * ELEVATOR_MOTION_SCALE * config.elevatorAccel * t * t, minY, maxY);
+        speed = 0.18 + ELEVATOR_MOTION_SCALE * config.elevatorAccel * t;
+      } else if (config.elevatorState === '자유낙하') {
+        cabY = clamp(baseY - 0.5 * ELEVATOR_MOTION_SCALE * G * t * t, minY, maxY);
+        speed = ELEVATOR_MOTION_SCALE * G * t;
+      }
+
+      if (cabY === maxY || cabY === minY) {
+        runtime.running = false;
+        runtime.complete = true;
+      }
+    } else if (runtime.complete) {
+      cabY = runtime.displacement;
+      speed = runtime.velocity;
+    }
+
+    runtime.displacement = cabY;
+    runtime.velocity = speed;
+
+    cab.position.y = cabY;
+    updateTextSprite(display, `W' = ${formatNumber(metrics.apparentWeight, 1)}N`);
+
+    const personCenter = person.getWorldPosition(tmpVecA);
+    placeForceArrow(normalArrow, personCenter.clone().add(new THREE.Vector3(-0.28, -0.18, 0)), new THREE.Vector3(0, 1, 0), forceLength(Math.max(metrics.apparentWeight, 0.01)), `N = ${formatNumber(metrics.apparentWeight, 1)}N`);
+    placeForceArrow(weightArrow, personCenter.clone().add(new THREE.Vector3(0.3, 0.6, 0)), new THREE.Vector3(0, -1, 0), forceLength(metrics.actualWeight), `mg = ${formatNumber(metrics.actualWeight, 1)}N`);
+  };
+
+  runtime.updateVisuals();
+}
+
+function rebuildScenario() {
+  clearScenario();
+  const key = scenarioKeyOf(config.scenario);
+  if (key === 'atwood') {
+    buildAtwoodScenario();
+  } else if (key === 'elevator') {
+    buildElevatorScenario();
+  } else {
+    buildCartScenario();
+  }
+  updateControllerVisibility();
+  syncGui();
+  updatePanels(true);
+}
+
+function startSimulation() {
+  const atwood = computeAtwoodMetrics();
+  runtime.complete = false;
+  runtime.elapsed = 0;
+  runtime.uiTimer = 0;
+  runtime.running = true;
+  runtime.displacement = runtime.scenarioKey === 'elevator' ? elevatorStartY() : 0;
+  runtime.velocity = 0;
+
+  if ((runtime.scenarioKey === 'atwood' && atwood.acceleration === 0) || (runtime.scenarioKey === 'elevator' && config.elevatorState === '정지')) {
+    runtime.running = false;
+  }
+
+  if (runtime.updateVisuals) runtime.updateVisuals();
+  updatePanels(true);
+}
+
+function resetSimulation() {
+  rebuildScenario();
+}
+
+const gui = new GUI({ container: document.getElementById('gui-mount'), title: '실험 제어', width: 308 });
+const controllers = {
+  scenario: gui.add(config, 'scenario', ['수레+추', '앳우드 기계', '엘리베이터']).name('시나리오'),
+  m1: gui.add(config, 'm1', 0.5, 10, 0.1).name('m₁ 질량 (kg)'),
+  m2: gui.add(config, 'm2', 0.5, 10, 0.1).name('m₂ 질량 (kg)'),
+  elevatorState: gui.add(config, 'elevatorState', ['정지', '위로 가속', '아래로 가속', '등속', '자유낙하']).name('엘리베이터 상태'),
+  elevatorAccel: gui.add(config, 'elevatorAccel', 0, 9.8, 0.1).name('가속도 (m/s²)'),
+  start: gui.add({ startSimulation }, 'startSimulation').name('시뮬레이션 시작'),
+  showForces: gui.add(config, 'showForces').name('힘 화살표 표시'),
+  reset: gui.add({ resetSimulation }, 'resetSimulation').name('초기화')
+};
+
+controllers.scenario.onChange(rebuildScenario);
+controllers.m1.onChange(rebuildScenario);
+controllers.m2.onChange(rebuildScenario);
+controllers.elevatorState.onChange(rebuildScenario);
+controllers.elevatorAccel.onChange(() => {
+  if (runtime.scenarioKey === 'elevator') {
+    rebuildScenario();
+  } else {
+    updatePanels(true);
+  }
+});
+controllers.showForces.onChange(() => {
+  runtime.forceObjects.forEach((arrow) => {
+    arrow.visible = config.showForces;
+  });
+});
+
+function updateControllerVisibility() {
+  const showElevatorControls = runtime.scenarioKey === 'elevator';
+  controllers.elevatorState.domElement.style.display = showElevatorControls ? '' : 'none';
+  controllers.elevatorAccel.domElement.style.display = showElevatorControls ? '' : 'none';
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function updateStatusPanel() {
+  const cart = computeCartMetrics();
+  const atwood = computeAtwoodMetrics();
+  const elevator = computeElevatorMetrics();
+
+  if (runtime.scenarioKey === 'cart') {
+    dom.statusTitle.textContent = runtime.running
+      ? '수레는 오른쪽, 추는 아래쪽으로 가속 중입니다.'
+      : '매달린 추의 무게가 계 전체를 끌어당깁니다.';
+    dom.statusBody.textContent = `가속도 ${formatNumber(cart.acceleration, 2)}m/s² · 장력 ${formatNumber(cart.tension, 2)}N · 이동거리 ${formatNumber(runtime.displacement, 2)}m · 속력 ${formatNumber(runtime.velocity, 2)}m/s`;
+    dom.scenarioNoteBody.textContent = '계 전체의 알짜힘은 m₂g이고, 수레와 추는 같은 크기의 가속도로 함께 움직입니다.';
+    return;
+  }
+
+  if (runtime.scenarioKey === 'atwood') {
+    let directionText = '두 물체의 질량이 같아 평형입니다.';
+    if (atwood.direction > 0) directionText = '오른쪽의 더 무거운 물체가 아래로 내려갑니다.';
+    if (atwood.direction < 0) directionText = '왼쪽의 더 무거운 물체가 아래로 내려갑니다.';
+    dom.statusTitle.textContent = directionText;
+    dom.statusBody.textContent = `가속도 ${formatNumber(atwood.acceleration, 2)}m/s² · 장력 ${formatNumber(atwood.tension, 2)}N · 변위 ${formatNumber(runtime.displacement, 2)}m`;
+    dom.scenarioNoteBody.textContent = '앳우드 기계에서는 (m₂ - m₁)g가 계의 알짜힘이 됩니다. 질량 차가 클수록 가속도도 커집니다.';
+    return;
+  }
+
+  let weightFeeling = '실제 무게와 같습니다.';
+  if (config.elevatorState === '위로 가속') weightFeeling = '체중계가 실제보다 크게 표시됩니다.';
+  if (config.elevatorState === '아래로 가속') weightFeeling = '체중계가 실제보다 작게 표시됩니다.';
+  if (config.elevatorState === '자유낙하') weightFeeling = '자유 낙하로 수직 항력이 0이 되어 무중력처럼 보입니다.';
+  dom.statusTitle.textContent = `엘리베이터 상태: ${config.elevatorState}`;
+  dom.statusBody.textContent = `겉보기 무게 ${formatNumber(elevator.apparentWeight, 2)}N · 실제 무게 ${formatNumber(elevator.actualWeight, 2)}N · ${weightFeeling}`;
+  dom.scenarioNoteBody.textContent = '엘리베이터에서 체중계가 재는 값은 중력이 아니라 바닥이 사람을 밀어 올리는 수직 항력의 크기입니다.';
+}
+
+function formulaSection(title, note, lines, active = false) {
+  return `
+    <div class="formula-section ${active ? 'active' : ''}">
+      <div class="formula-title">${title}</div>
+      <div class="formula-note">${note}</div>
+      ${lines.map((line) => `<div class="formula-line">${line}</div>`).join('')}
+    </div>
+  `;
+}
+
+function updateFormulaPanel() {
+  const cart = computeCartMetrics();
+  const atwood = computeAtwoodMetrics();
+  const elevator = computeElevatorMetrics();
+  const atwoodDirection = atwood.direction === 0
+    ? '평형'
+    : atwood.direction > 0
+      ? 'm₂가 아래로, m₁이 위로'
+      : 'm₁이 아래로, m₂가 위로';
+
+  dom.formulaPanel.innerHTML = `
+    <h2>🔗 뉴턴 법칙과 연결된 물체</h2>
+    <p class="subtitle">시나리오별 운동 방정식과 힘의 크기를 한눈에 비교합니다.</p>
+    <div class="divider"></div>
+    <div class="summary">
+      <div class="item">
+        <span class="label">현재 시나리오</span>
+        <strong>${config.scenario}</strong>
+      </div>
+      <div class="item">
+        <span class="label">질량 설정</span>
+        <strong>m₁ = ${formatNumber(config.m1, 1)}kg · m₂ = ${formatNumber(config.m2, 1)}kg</strong>
+      </div>
+    </div>
+
+    ${formulaSection(
+      '수레 + 추',
+      '계 전체: F_net = m₂g, m_total = m₁ + m₂',
+      [
+        `<span class="mono">a = m₂g / (m₁ + m₂) = ${formatNumber(cart.acceleration, 2)} m/s²</span>`,
+        `<span class="mono">T = m₁m₂g / (m₁ + m₂) = ${formatNumber(cart.tension, 2)} N</span>`,
+        `<div class="highlight">수레는 오른쪽, 추는 아래쪽으로 같은 크기의 가속도로 운동합니다.</div>`
+      ],
+      runtime.scenarioKey === 'cart'
+    )}
+
+    ${formulaSection(
+      '앳우드 기계',
+      '계 전체: F_net = (m₂ - m₁)g, m_total = m₁ + m₂',
+      [
+        `<span class="mono">a = |m₂ - m₁|g / (m₁ + m₂) = ${formatNumber(atwood.acceleration, 2)} m/s²</span>`,
+        `<span class="mono">T = 2m₁m₂g / (m₁ + m₂) = ${formatNumber(atwood.tension, 2)} N</span>`,
+        `<div class="highlight">운동 방향: ${atwoodDirection}</div>`
+      ],
+      runtime.scenarioKey === 'atwood'
+    )}
+
+    ${formulaSection(
+      '엘리베이터와 겉보기 무게',
+      '이 시나리오에서는 m₁을 사람의 질량으로 사용합니다.',
+      [
+        `<span class="mono">상태: ${config.elevatorState}</span>`,
+        `<span class="mono">W' = ${formatNumber(elevator.apparentWeight, 2)} N</span>`,
+        `<span class="mono">W = mg = ${formatNumber(elevator.actualWeight, 2)} N</span>`,
+        `<div class="highlight">위로 가속: m(g+a) · 아래로 가속: m(g-a) · 자유 낙하: 0</div>`
+      ],
+      runtime.scenarioKey === 'elevator'
+    )}
+  `;
+}
+
+function updatePanels(force = false, delta = 0) {
+  runtime.uiTimer += delta;
+  if (!force && runtime.uiTimer < 0.08) return;
+  runtime.uiTimer = 0;
+  updateStatusPanel();
+  updateFormulaPanel();
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  const willOpen = !dom.guidePanel.classList.contains('open');
+  dom.guidePanel.classList.toggle('open', willOpen);
+  dom.guideToggle.textContent = willOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  dom.guideToggle.setAttribute('aria-expanded', String(willOpen));
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+rebuildScenario();
+
+let previousTime = performance.now();
+function animate(now) {
+  const delta = Math.min((now - previousTime) / 1000, 0.05);
+  previousTime = now;
+
+  if (runtime.running) {
+    runtime.elapsed += delta;
+  }
+
+  if (runtime.updateVisuals) {
+    runtime.updateVisuals();
+  }
+
+  if (runtime.running) {
+    updatePanels(false, delta);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+document.body.dataset.simBooted = '1';
+</script>
+</body>
+</html>

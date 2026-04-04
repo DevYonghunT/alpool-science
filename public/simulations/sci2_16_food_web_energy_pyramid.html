@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>먹이 관계와 에너지 피라미드 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --panel-bg: rgba(10, 19, 12, 0.78);
+    --panel-stroke: rgba(214, 241, 196, 0.12);
+    --text-main: #f3f8ee;
+    --text-dim: rgba(243, 248, 238, 0.7);
+    --producer: #55c65b;
+    --primary: #ffd85b;
+    --secondary: #ff9d4d;
+    --tertiary: #ff5e57;
+    --decomposer: #c89660;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 18%, rgba(109, 170, 77, 0.18), transparent 24%),
+      radial-gradient(circle at 80% 16%, rgba(255, 203, 108, 0.08), transparent 22%),
+      linear-gradient(180deg, #223322 0%, #101912 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-stroke);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.24);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 32;
+    width: min(620px, calc(100vw - 140px));
+    padding: 12px 18px 14px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(243, 248, 238, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(243, 248, 238, 0.72);
+    line-height: 1.55;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 42;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(9, 19, 12, 0.9);
+    color: #fff;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 68vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    z-index: 41;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #e3ffbf;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd991;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(243, 248, 238, 0.72);
+    font-size: 11px;
+  }
+
+  #stage-legend {
+    position: fixed;
+    top: 112px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 25;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(680px, calc(100vw - 170px));
+    padding: 10px 14px;
+    border-radius: 18px;
+    pointer-events: none;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: rgba(243, 248, 238, 0.82);
+    white-space: nowrap;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.22);
+  }
+
+  #pyramid-panel {
+    position: fixed;
+    top: 258px;
+    right: 14px;
+    width: min(420px, 38vw);
+    max-height: calc(100vh - 272px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 24px;
+    z-index: 30;
+  }
+
+  #pyramid-panel.focused {
+    border-color: rgba(255, 211, 102, 0.28);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 211, 102, 0.1) inset;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .panel-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(243, 248, 238, 0.54);
+  }
+
+  .panel-head h2 {
+    margin-top: 4px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .panel-head p {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #pyramid-kind-chip {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff1b1;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  #pyramid-stack {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .pyramid-level {
+    width: min(100%, calc(var(--scale) * 1%));
+    padding: 12px 14px;
+    border-radius: 18px;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+  }
+
+  .pyramid-level.active {
+    transform: translateY(-2px) scale(1.02);
+    border-color: rgba(255, 255, 255, 0.34);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .pyramid-level.stage-tertiary { background: linear-gradient(135deg, #ff5e57, #d03e38); }
+  .pyramid-level.stage-secondary { background: linear-gradient(135deg, #ff9d4d, #d9792f); }
+  .pyramid-level.stage-primary { background: linear-gradient(135deg, #ffd85b, #d9b53c); color: #372500; }
+  .pyramid-level.stage-producer { background: linear-gradient(135deg, #55c65b, #2f9f43); }
+
+  .pyramid-level .stage {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .pyramid-level .species {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    opacity: 0.88;
+  }
+
+  .pyramid-level .metric {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  #pyramid-note,
+  #pyramid-context {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(243, 248, 238, 0.8);
+  }
+
+  #pyramid-note strong,
+  #pyramid-context strong {
+    color: #fff4b4;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(388px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    z-index: 34;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #dbffb5;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(243, 248, 238, 0.42), rgba(243, 248, 238, 0.04));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 94px;
+    flex-shrink: 0;
+    color: rgba(243, 248, 238, 0.56);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(243, 248, 238, 0.96);
+  }
+
+  #formula-levels {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .level-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .level-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .level-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .level-copy strong {
+    display: block;
+    font-size: 11px;
+  }
+
+  .level-copy span {
+    display: block;
+    margin-top: 1px;
+    color: rgba(243, 248, 238, 0.72);
+  }
+
+  .rule-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .rule-box strong {
+    color: #ffe5a7;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    max-width: min(420px, 38vw);
+    padding: 10px 14px;
+    border-radius: 999px;
+    z-index: 22;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 1.6;
+    color: rgba(243, 248, 238, 0.76);
+  }
+
+  .lil-gui {
+    z-index: 60 !important;
+    margin-top: 14px;
+    margin-right: 14px;
+  }
+
+  @media (max-width: 1180px) {
+    #pyramid-panel {
+      width: min(430px, 42vw);
+    }
+  }
+
+  @media (max-width: 960px) {
+    #title-card {
+      width: calc(100vw - 120px);
+    }
+
+    #stage-legend {
+      top: 128px;
+      width: calc(100vw - 32px);
+    }
+
+    #pyramid-panel {
+      top: auto;
+      bottom: 154px;
+      width: min(420px, calc(100vw - 28px));
+      max-height: 42vh;
+    }
+
+    #hint-chip {
+      right: auto;
+      left: 14px;
+      bottom: 118px;
+      max-width: calc(100vw - 28px);
+      border-radius: 16px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      top: 12px;
+      width: calc(100vw - 24px);
+      padding: 10px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #guide-toggle {
+      top: 92px;
+      left: 10px;
+    }
+
+    #guide-panel {
+      top: 130px;
+      left: 10px;
+      width: calc(100vw - 20px);
+      max-height: 54vh;
+    }
+
+    #stage-legend {
+      display: none;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    #pyramid-panel {
+      right: 10px;
+      left: 10px;
+      width: auto;
+      bottom: 196px;
+      max-height: 34vh;
+    }
+
+    #hint-chip {
+      left: 10px;
+      right: 10px;
+      bottom: 168px;
+      max-width: none;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Integrated Science 2 · Ecosystem Balance</div>
+  <h1>먹이 관계와 에너지 피라미드</h1>
+  <p>먹이 사슬과 먹이 그물의 차이를 비교하고, 상위 영양단계로 갈수록 에너지와 개체수가 왜 줄어드는지 함께 확인해 보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<section id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+
+  <h4>🔑 핵심 원리</h4>
+  <p>생태계에서 먹이 관계는 한 줄로만 이어지지 않고 여러 생물이 얽혀 있는 먹이 그물 형태를 이룹니다. 또 생산자가 저장한 에너지는 상위 영양단계로 갈수록 대부분 생명 활동에 사용되어 줄어들기 때문에, 에너지양과 개체수는 피라미드 형태로 나타납니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>생산자의 에너지가 1차 소비자로 전달될 때 약 10%만 전달되는 까닭은 무엇인가요?</li>
+    <li>먹이 사슬과 먹이 그물의 차이점은 무엇인가요?</li>
+    <li>3차 소비자(매)의 개체수가 갑자기 감소하면 생태계에 어떤 변화가 일어날까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li><strong>식량 생산 효율</strong>: 곡물을 직접 먹는 것과 가축을 거쳐 먹는 것의 에너지 효율은 다릅니다.</li>
+    <li><strong>멸종위기종 보호</strong>: 상위 포식자가 사라지면 전체 먹이 그물의 균형이 흔들릴 수 있습니다.</li>
+    <li><strong>생태 복원</strong>: 특정 종의 복원은 여러 종의 개체수와 서식 관계를 함께 고려해야 합니다.</li>
+  </ul>
+
+  <div class="textbook-ref">📚 미래엔 통합과학2 II편 p76~77 — 먹이 관계, 에너지 피라미드, 생태피라미드</div>
+</section>
+
+<div id="stage-legend" class="glass" aria-hidden="true">
+  <span class="legend-item"><span class="legend-dot" style="background: var(--producer);"></span>생산자</span>
+  <span class="legend-item"><span class="legend-dot" style="background: var(--primary);"></span>1차 소비자</span>
+  <span class="legend-item"><span class="legend-dot" style="background: var(--secondary);"></span>2차 소비자</span>
+  <span class="legend-item"><span class="legend-dot" style="background: var(--tertiary);"></span>3차 소비자</span>
+  <span class="legend-item"><span class="legend-dot" style="background: var(--decomposer);"></span>분해자</span>
+</div>
+
+<aside id="pyramid-panel" class="glass">
+  <div class="panel-head">
+    <div>
+      <div class="eyebrow">Energy / Numbers / Biomass</div>
+      <h2>생태피라미드</h2>
+      <p id="pyramid-subtitle">생산자에서 3차 소비자로 갈수록 전달되는 에너지와 유지 가능한 개체수가 줄어듭니다.</p>
+    </div>
+    <div id="pyramid-kind-chip">에너지 피라미드</div>
+  </div>
+
+  <div id="pyramid-stack"></div>
+
+  <div id="pyramid-note"><strong>핵심 규칙</strong><br>상위 영양단계로 갈수록 에너지양과 개체수가 줄어드는 피라미드 형태가 안정된 생태계의 특징입니다.</div>
+  <div id="pyramid-context">생물을 클릭하거나 GUI에서 특정 생물을 선택하면 그 생물이 속한 영양단계가 함께 강조됩니다.</div>
+</aside>
+
+<section id="formula-panel" class="glass" aria-live="polite">
+  <h3>🔗 먹이 관계와 에너지 피라미드</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 보기:</span><span class="value" id="fp-view">전체</span></div>
+  <div class="info-row"><span class="label">피라미드 종류:</span><span class="value" id="fp-type">에너지</span></div>
+  <div class="info-row"><span class="label">강조 생물:</span><span class="value" id="fp-focus">전체</span></div>
+  <div class="info-row"><span class="label">먹이 흐름:</span><span class="value">먹히는 생물 → 먹는 생물</span></div>
+
+  <div id="formula-levels"></div>
+
+  <div class="rule-box">
+    <strong>규칙</strong><br>
+    상위 영양단계로 갈수록 에너지양과 개체수가 줄어듭니다.<br>
+    먹이 사슬은 한 줄 경로를, 먹이 그물은 여러 경로가 얽힌 실제 생태계 관계를 보여 줍니다.
+  </div>
+
+  <div class="rule-box">
+    <strong>현재 해석</strong><br>
+    <span id="fp-interpretation">먹이 그물과 생태피라미드를 함께 보면 생태계의 복잡한 관계와 에너지 감소를 동시에 파악할 수 있습니다.</span>
+  </div>
+</section>
+
+<div id="hint-chip" class="glass">생물을 클릭하면 연결된 먹이 관계만 강조됩니다. GUI에서 먹이 사슬, 먹이 그물, 에너지 피라미드를 전환하고 에너지 흐름 애니메이션을 재생해 보세요.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DISPLAY_MODES = ['먹이 사슬', '먹이 그물', '에너지 피라미드', '전체'];
+const PYRAMID_TYPES = ['에너지', '개체수', '생물량'];
+
+const STAGE_INFO = {
+  producer: { label: '생산자', color: 0x55c65b, css: 'var(--producer)' },
+  primary: { label: '1차 소비자', color: 0xffd85b, css: 'var(--primary)' },
+  secondary: { label: '2차 소비자', color: 0xff9d4d, css: 'var(--secondary)' },
+  tertiary: { label: '3차 소비자', color: 0xff5e57, css: 'var(--tertiary)' },
+  decomposer: { label: '분해자', color: 0xc89660, css: 'var(--decomposer)' }
+};
+
+const PYRAMID_LEVELS = [
+  { stage: 'tertiary', title: '3차 소비자', species: '매 · 여우', scale: 36, values: { 에너지: '0.1% (10 kcal)', 개체수: '약 8개체', 생물량: '약 1 kg' } },
+  { stage: 'secondary', title: '2차 소비자', species: '개구리 · 뱀 · 참새', scale: 55, values: { 에너지: '1% (100 kcal)', 개체수: '약 70개체', 생물량: '약 12 kg' } },
+  { stage: 'primary', title: '1차 소비자', species: '메뚜기 · 토끼 · 쥐', scale: 74, values: { 에너지: '10% (1,000 kcal)', 개체수: '약 600개체', 생물량: '약 120 kg' } },
+  { stage: 'producer', title: '생산자', species: '풀 · 나무 · 해초', scale: 92, values: { 에너지: '100% (10,000 kcal)', 개체수: '약 5,000개체', 생물량: '약 1,000 kg' } }
+];
+
+const ORGANISMS = {
+  grass: { label: '풀', stage: 'producer', connector: new THREE.Vector3(0, 0.85, 0), layouts: { overall: new THREE.Vector3(-8.8, 0, 1.6), chain: new THREE.Vector3(-9.2, 0, 0.2), pyramid: new THREE.Vector3(-8.8, 0, 1.6) } },
+  tree: { label: '나무', stage: 'producer', connector: new THREE.Vector3(0, 2.2, 0), layouts: { overall: new THREE.Vector3(-3.2, 0, -3.4), chain: new THREE.Vector3(-10.2, 0, -2.8), pyramid: new THREE.Vector3(-3.2, 0, -3.4) } },
+  seaweed: { label: '해초', stage: 'producer', connector: new THREE.Vector3(0, 1.0, 0), layouts: { overall: new THREE.Vector3(-10.2, 0, -4.6), chain: new THREE.Vector3(-10.5, 0, 2.8), pyramid: new THREE.Vector3(-10.2, 0, -4.6) } },
+  grasshopper: { label: '메뚜기', stage: 'primary', connector: new THREE.Vector3(0, 0.5, 0), layouts: { overall: new THREE.Vector3(-6.6, 0, 2.8), chain: new THREE.Vector3(-6.1, 0, 0.8), pyramid: new THREE.Vector3(-6.6, 0, 2.8) } },
+  rabbit: { label: '토끼', stage: 'primary', connector: new THREE.Vector3(0, 0.95, 0), layouts: { overall: new THREE.Vector3(-1.6, 0, 0.4), chain: new THREE.Vector3(-6.4, 0, -2.3), pyramid: new THREE.Vector3(-1.6, 0, 0.4) } },
+  mouse: { label: '쥐', stage: 'primary', connector: new THREE.Vector3(0, 0.45, 0), layouts: { overall: new THREE.Vector3(-4.8, 0, -4.2), chain: new THREE.Vector3(-6.2, 0, 3.1), pyramid: new THREE.Vector3(-4.8, 0, -4.2) } },
+  frog: { label: '개구리', stage: 'secondary', connector: new THREE.Vector3(0, 0.7, 0), layouts: { overall: new THREE.Vector3(-5.5, 0, 0.6), chain: new THREE.Vector3(-2.5, 0, 0.8), pyramid: new THREE.Vector3(-5.5, 0, 0.6) } },
+  snake: { label: '뱀', stage: 'secondary', connector: new THREE.Vector3(0, 0.85, 0), layouts: { overall: new THREE.Vector3(-0.7, 0, -2.1), chain: new THREE.Vector3(1.5, 0, -0.2), pyramid: new THREE.Vector3(-0.7, 0, -2.1) } },
+  sparrow: { label: '참새', stage: 'secondary', connector: new THREE.Vector3(0, 0.9, 0), layouts: { overall: new THREE.Vector3(-2.8, 0, 3.2), chain: new THREE.Vector3(-1.8, 0, 3.0), pyramid: new THREE.Vector3(-2.8, 0, 3.2) } },
+  hawk: { label: '매', stage: 'tertiary', connector: new THREE.Vector3(0, 1.2, 0), layouts: { overall: new THREE.Vector3(2.2, 0, 0.9), chain: new THREE.Vector3(4.7, 0, 1.1), pyramid: new THREE.Vector3(2.2, 0, 0.9) } },
+  fox: { label: '여우', stage: 'tertiary', connector: new THREE.Vector3(0, 1.0, 0), layouts: { overall: new THREE.Vector3(1.4, 0, 3.8), chain: new THREE.Vector3(4.4, 0, -2.5), pyramid: new THREE.Vector3(1.4, 0, 3.8) } },
+  mushroom: { label: '버섯', stage: 'decomposer', connector: new THREE.Vector3(0, 0.45, 0), layouts: { overall: new THREE.Vector3(-8.8, 0, 4.6), chain: new THREE.Vector3(-10.0, 0, 5.0), pyramid: new THREE.Vector3(-8.8, 0, 4.6) } }
+};
+
+const EDGE_SPECS = [
+  { from: 'grass', to: 'grasshopper', chain: true, bend: 1.2, lift: 1.4 },
+  { from: 'grass', to: 'rabbit', chain: true, bend: -1.3, lift: 1.2 },
+  { from: 'grass', to: 'mouse', chain: false, bend: -1.8, lift: 1.3 },
+  { from: 'tree', to: 'rabbit', chain: false, bend: 1.9, lift: 1.8 },
+  { from: 'tree', to: 'mouse', chain: true, bend: -1.4, lift: 1.6 },
+  { from: 'tree', to: 'sparrow', chain: false, bend: 2.2, lift: 2.3 },
+  { from: 'grasshopper', to: 'frog', chain: true, bend: 0.8, lift: 1.6 },
+  { from: 'grasshopper', to: 'sparrow', chain: false, bend: 2.3, lift: 2.4 },
+  { from: 'rabbit', to: 'fox', chain: true, bend: -1.5, lift: 1.8 },
+  { from: 'rabbit', to: 'hawk', chain: false, bend: 1.8, lift: 2.8 },
+  { from: 'mouse', to: 'snake', chain: true, bend: -0.9, lift: 1.8 },
+  { from: 'mouse', to: 'fox', chain: false, bend: 1.6, lift: 2.0 },
+  { from: 'mouse', to: 'hawk', chain: false, bend: -1.9, lift: 2.8 },
+  { from: 'frog', to: 'snake', chain: true, bend: -0.8, lift: 1.9 },
+  { from: 'frog', to: 'hawk', chain: false, bend: 1.4, lift: 2.7 },
+  { from: 'snake', to: 'hawk', chain: true, bend: 0.7, lift: 1.8 },
+  { from: 'sparrow', to: 'hawk', chain: false, bend: 1.1, lift: 1.8 },
+  { from: 'sparrow', to: 'fox', chain: false, bend: -1.8, lift: 2.0 }
+];
+
+const ORGANISM_KEYS = Object.keys(ORGANISMS);
+const LABEL_TO_KEY = Object.fromEntries(ORGANISM_KEYS.map((key) => [ORGANISMS[key].label, key]));
+
+const dom = {
+  canvas: document.getElementById('scene-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  pyramidPanel: document.getElementById('pyramid-panel'),
+  pyramidStack: document.getElementById('pyramid-stack'),
+  pyramidKindChip: document.getElementById('pyramid-kind-chip'),
+  pyramidNote: document.getElementById('pyramid-note'),
+  pyramidContext: document.getElementById('pyramid-context'),
+  pyramidSubtitle: document.getElementById('pyramid-subtitle'),
+  formulaLevels: document.getElementById('formula-levels'),
+  fpView: document.getElementById('fp-view'),
+  fpType: document.getElementById('fp-type'),
+  fpFocus: document.getElementById('fp-focus'),
+  fpInterpretation: document.getElementById('fp-interpretation')
+};
+
+const state = {
+  displayMode: '전체',
+  pyramidType: '에너지',
+  highlightTarget: '전체',
+  guideOpen: false,
+  energyFlowEnd: 0
+};
+
+const guiState = {
+  표시모드: '전체',
+  피라미드종류: '에너지',
+  특정생물강조: '전체',
+  에너지흐름애니메이션: () => triggerEnergyFlow(),
+  초기화: () => resetSimulation()
+};
+
+const renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x223322);
+scene.fog = new THREE.Fog(0x223322, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+camera.position.set(6.4, 10.3, 17.4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 9;
+controls.maxDistance = 25;
+controls.target.set(-3.4, 2.6, 0.2);
+controls.update();
+controls.saveState();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+const directionalLight = new THREE.DirectionalLight(0xfff1c1, 0.6);
+directionalLight.position.set(-7, 14, 8);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -18;
+directionalLight.shadow.camera.right = 18;
+directionalLight.shadow.camera.top = 18;
+directionalLight.shadow.camera.bottom = -18;
+scene.add(directionalLight);
+
+const world = new THREE.Group();
+const arrowLayer = new THREE.Group();
+const particleLayer = new THREE.Group();
+world.add(arrowLayer);
+world.add(particleLayer);
+scene.add(world);
+
+const organismEntities = {};
+const activeConnections = [];
+const clickTargets = [];
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+let gui;
+let highlightController;
+let pointerDown = null;
+
+function addPart(record, parent, geometry, color, options = {}) {
+  const { position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1], roughness = 0.62, metalness = 0.05 } = options;
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+    transparent: true,
+    opacity: 1,
+    emissive: 0x000000
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.set(...position);
+  mesh.rotation.set(...rotation);
+  mesh.scale.set(...scale);
+  parent.add(mesh);
+  record.materials.push({ material, baseColor: new THREE.Color(color) });
+  return mesh;
+}
+
+function tagInteractive(object, key) {
+  object.traverse((child) => {
+    if (child.isMesh) {
+      child.userData.organismKey = key;
+      clickTargets.push(child);
+    }
+  });
+}
+
+function createGrass(record) {
+  const avatar = new THREE.Group();
+  const blades = [];
+  for (let i = 0; i < 7; i += 1) {
+    blades.push(addPart(record, avatar, new THREE.ConeGeometry(0.12, 0.85, 6), 0x44aa33, {
+      position: [(i - 3) * 0.12, 0.42, (i % 2 === 0 ? -1 : 1) * 0.08],
+      rotation: [0, i * 0.24, (i - 3) * 0.08]
+    }));
+  }
+  addPart(record, avatar, new THREE.CylinderGeometry(0.34, 0.42, 0.08, 16), 0x2f5b26, { position: [0, 0.03, 0] });
+  record.animate = (time) => {
+    blades.forEach((blade, index) => {
+      blade.rotation.z = (index - 3) * 0.08 + Math.sin(time * 1.8 + index * 0.35) * 0.09;
+    });
+  };
+  return avatar;
+}
+
+function createTree(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.CylinderGeometry(0.18, 0.26, 2.4, 14), 0x6a4728, { position: [0, 1.2, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.82, 18, 18), 0x3fa239, { position: [-0.45, 2.45, 0.2] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.98, 18, 18), 0x338822, { position: [0.3, 2.8, -0.15] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.76, 18, 18), 0x4faa47, { position: [0.6, 2.35, 0.4] });
+  record.animate = (time) => {
+    avatar.rotation.z = Math.sin(time * 0.8) * 0.03;
+  };
+  return avatar;
+}
+
+function createSeaweed(record) {
+  const avatar = new THREE.Group();
+  const fronds = [];
+  for (let i = 0; i < 5; i += 1) {
+    const frond = new THREE.Group();
+    frond.position.set((i - 2) * 0.16, 0, (i % 2 === 0 ? 1 : -1) * 0.1);
+    avatar.add(frond);
+    for (let j = 0; j < 4; j += 1) {
+      addPart(record, frond, new THREE.CylinderGeometry(0.04, 0.05, 0.42, 8), 0x55bb55, {
+        position: [Math.sin(j * 0.45) * 0.04, 0.22 + j * 0.34, 0],
+        rotation: [0, 0, (j - 1.5) * 0.1]
+      });
+    }
+    fronds.push(frond);
+  }
+  addPart(record, avatar, new THREE.CylinderGeometry(0.4, 0.5, 0.06, 16), 0x2a5338, { position: [0, 0.03, 0] });
+  record.animate = (time) => {
+    fronds.forEach((frond, index) => {
+      frond.rotation.z = Math.sin(time * 1.2 + index * 0.7) * 0.16;
+    });
+  };
+  return avatar;
+}
+
+function createGrasshopper(record) {
+  const avatar = new THREE.Group();
+  const body = addPart(record, avatar, new THREE.BoxGeometry(0.72, 0.22, 0.22), 0x55aa33, { position: [0, 0.35, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.14, 12, 12), 0x67c143, { position: [0.42, 0.38, 0] });
+  for (let i = -1; i <= 1; i += 1) {
+    addPart(record, avatar, new THREE.CylinderGeometry(0.02, 0.02, 0.55, 6), 0x355e26, {
+      position: [-0.12 + i * 0.2, 0.24, i * 0.04],
+      rotation: [0.2, 0, i * 0.9]
+    });
+  }
+  record.animate = (time) => {
+    body.position.y = 0.35 + Math.sin(time * 4.6) * 0.05;
+    avatar.rotation.y = Math.sin(time * 1.8) * 0.14;
+  };
+  return avatar;
+}
+
+function createRabbit(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.SphereGeometry(0.5, 18, 18), 0xddccaa, { position: [0, 0.62, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.24, 16, 16), 0xe7d9bf, { position: [0.42, 0.78, 0] });
+  const earLeft = addPart(record, avatar, new THREE.BoxGeometry(0.12, 0.56, 0.1), 0xf0e5d0, {
+    position: [0.36, 1.18, -0.1],
+    rotation: [0, 0, -0.12]
+  });
+  const earRight = addPart(record, avatar, new THREE.BoxGeometry(0.12, 0.56, 0.1), 0xf0e5d0, {
+    position: [0.36, 1.18, 0.1],
+    rotation: [0, 0, -0.04]
+  });
+  addPart(record, avatar, new THREE.SphereGeometry(0.14, 12, 12), 0xf6f0e6, { position: [-0.44, 0.7, 0] });
+  record.animate = (time) => {
+    avatar.position.y = Math.sin(time * 2.4) * 0.04;
+    earLeft.rotation.z = -0.12 + Math.sin(time * 3.1) * 0.05;
+    earRight.rotation.z = -0.04 + Math.cos(time * 3.4) * 0.05;
+  };
+  return avatar;
+}
+
+function createMouse(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.SphereGeometry(0.34, 16, 16), 0x888877, { position: [0, 0.36, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.18, 14, 14), 0x9c9b89, { position: [0.28, 0.42, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.08, 10, 10), 0xa7a696, { position: [0.26, 0.58, -0.12] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.08, 10, 10), 0xa7a696, { position: [0.26, 0.58, 0.12] });
+  const tail = addPart(record, avatar, new THREE.CylinderGeometry(0.02, 0.03, 0.72, 8), 0xc78c84, {
+    position: [-0.44, 0.34, 0],
+    rotation: [0, 0, 1.18]
+  });
+  record.animate = (time) => {
+    avatar.rotation.y = Math.sin(time * 2.2) * 0.12;
+    tail.rotation.z = 1.18 + Math.sin(time * 4.4) * 0.08;
+  };
+  return avatar;
+}
+
+function createFrog(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.SphereGeometry(0.4, 18, 18), 0x44aa44, { position: [0, 0.36, 0], scale: [1.2, 0.78, 1] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.1, 10, 10), 0x70d06f, { position: [0.16, 0.62, -0.15] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.1, 10, 10), 0x70d06f, { position: [0.16, 0.62, 0.15] });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.04, 0.05, 0.38, 6), 0x2f7f2e, { position: [-0.18, 0.2, -0.22], rotation: [0, 0, -0.8] });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.04, 0.05, 0.38, 6), 0x2f7f2e, { position: [-0.18, 0.2, 0.22], rotation: [0, 0, 0.8] });
+  record.animate = (time) => {
+    avatar.position.y = Math.max(0, Math.sin(time * 2.8)) * 0.07;
+  };
+  return avatar;
+}
+
+function createSnake(record) {
+  const avatar = new THREE.Group();
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.7, 0.18, 0),
+    new THREE.Vector3(-0.15, 0.45, -0.28),
+    new THREE.Vector3(0.35, 0.32, 0.26),
+    new THREE.Vector3(0.72, 0.76, 0)
+  ]);
+  addPart(record, avatar, new THREE.TubeGeometry(curve, 36, 0.11, 12, false), 0x667744);
+  addPart(record, avatar, new THREE.SphereGeometry(0.12, 12, 12), 0x7b8f52, { position: [0.76, 0.78, 0] });
+  record.animate = (time) => {
+    avatar.rotation.y = Math.sin(time * 1.5) * 0.18;
+  };
+  return avatar;
+}
+
+function createSparrow(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.BoxGeometry(0.46, 0.28, 0.28), 0x887766, { position: [0, 0.74, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.16, 12, 12), 0x9a8a79, { position: [0.3, 0.8, 0] });
+  addPart(record, avatar, new THREE.ConeGeometry(0.07, 0.18, 8), 0xd9b16e, {
+    position: [0.49, 0.78, 0],
+    rotation: [0, 0, -Math.PI / 2]
+  });
+  const wingLeft = addPart(record, avatar, new THREE.BoxGeometry(0.42, 0.06, 0.24), 0x6b5a4b, { position: [-0.02, 0.76, -0.2], rotation: [0.2, 0, 0.22] });
+  const wingRight = addPart(record, avatar, new THREE.BoxGeometry(0.42, 0.06, 0.24), 0x6b5a4b, { position: [-0.02, 0.76, 0.2], rotation: [-0.2, 0, -0.22] });
+  record.animate = (time) => {
+    const flap = Math.sin(time * 6.2) * 0.28;
+    wingLeft.rotation.x = 0.2 + flap;
+    wingRight.rotation.x = -0.2 - flap;
+    avatar.position.y = Math.sin(time * 2.1) * 0.08;
+  };
+  return avatar;
+}
+
+function createHawk(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.BoxGeometry(0.78, 0.34, 0.34), 0x554433, { position: [0, 1.0, 0] });
+  addPart(record, avatar, new THREE.SphereGeometry(0.22, 14, 14), 0x6a513f, { position: [0.46, 1.08, 0] });
+  addPart(record, avatar, new THREE.ConeGeometry(0.08, 0.22, 8), 0xe5c063, { position: [0.67, 1.06, 0], rotation: [0, 0, -Math.PI / 2] });
+  const wingLeft = addPart(record, avatar, new THREE.BoxGeometry(0.78, 0.07, 0.32), 0x473226, { position: [-0.06, 1.0, -0.35], rotation: [0.08, 0, 0.2] });
+  const wingRight = addPart(record, avatar, new THREE.BoxGeometry(0.78, 0.07, 0.32), 0x473226, { position: [-0.06, 1.0, 0.35], rotation: [-0.08, 0, -0.2] });
+  record.animate = (time) => {
+    const flap = Math.sin(time * 4.1) * 0.22;
+    wingLeft.rotation.x = 0.08 + flap;
+    wingRight.rotation.x = -0.08 - flap;
+    avatar.position.y = Math.sin(time * 1.8) * 0.12;
+  };
+  return avatar;
+}
+
+function createFox(record) {
+  const avatar = new THREE.Group();
+  addPart(record, avatar, new THREE.BoxGeometry(0.92, 0.42, 0.34), 0xcc7733, { position: [0, 0.78, 0] });
+  addPart(record, avatar, new THREE.BoxGeometry(0.3, 0.26, 0.24), 0xd98a4e, { position: [0.56, 0.9, 0] });
+  const tail = addPart(record, avatar, new THREE.ConeGeometry(0.15, 0.7, 10), 0xe0a46d, {
+    position: [-0.58, 0.86, 0],
+    rotation: [0, 0, -1.05]
+  });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.05, 0.06, 0.42, 6), 0x804e2d, { position: [-0.22, 0.24, -0.1] });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.05, 0.06, 0.42, 6), 0x804e2d, { position: [-0.22, 0.24, 0.1] });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.05, 0.06, 0.42, 6), 0x804e2d, { position: [0.2, 0.24, -0.1] });
+  addPart(record, avatar, new THREE.CylinderGeometry(0.05, 0.06, 0.42, 6), 0x804e2d, { position: [0.2, 0.24, 0.1] });
+  record.animate = (time) => {
+    tail.rotation.z = -1.05 + Math.sin(time * 2.4) * 0.16;
+    avatar.rotation.y = Math.sin(time * 1.4) * 0.08;
+  };
+  return avatar;
+}
+
+function createMushroom(record) {
+  const avatar = new THREE.Group();
+  for (let i = 0; i < 3; i += 1) {
+    const cluster = new THREE.Group();
+    cluster.position.set((i - 1) * 0.22, 0, i === 1 ? 0.08 : -0.08);
+    avatar.add(cluster);
+    addPart(record, cluster, new THREE.CylinderGeometry(0.05, 0.06, 0.34, 10), 0xe0d0bb, { position: [0, 0.17, 0] });
+    addPart(record, cluster, new THREE.SphereGeometry(0.16, 14, 14), 0xaa7744, { position: [0, 0.38, 0], scale: [1.3, 0.7, 1.3] });
+  }
+  record.animate = (time) => {
+    avatar.rotation.y = Math.sin(time * 1.1) * 0.08;
+  };
+  return avatar;
+}
+
+function createOrganismEntity(key) {
+  const record = {
+    key,
+    materials: [],
+    animate: () => {},
+    group: new THREE.Group(),
+    wobbleOffset: Math.random() * Math.PI * 2
+  };
+  const spec = ORGANISMS[key];
+  record.group.position.copy(spec.layouts.overall);
+
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(0.34, 0.58, 36),
+    new THREE.MeshBasicMaterial({
+      color: STAGE_INFO[spec.stage].color,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide
+    })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = 0.05;
+  record.group.add(halo);
+  record.halo = halo;
+
+  const shadowPad = new THREE.Mesh(
+    new THREE.CircleGeometry(0.48, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 })
+  );
+  shadowPad.rotation.x = -Math.PI / 2;
+  shadowPad.position.y = 0.01;
+  shadowPad.scale.set(1.2, 0.7, 1);
+  record.group.add(shadowPad);
+
+  const builders = {
+    grass: createGrass,
+    tree: createTree,
+    seaweed: createSeaweed,
+    grasshopper: createGrasshopper,
+    rabbit: createRabbit,
+    mouse: createMouse,
+    frog: createFrog,
+    snake: createSnake,
+    sparrow: createSparrow,
+    hawk: createHawk,
+    fox: createFox,
+    mushroom: createMushroom
+  };
+
+  record.avatar = builders[key](record);
+  record.group.add(record.avatar);
+  tagInteractive(record.avatar, key);
+  world.add(record.group);
+  organismEntities[key] = record;
+}
+
+function buildEnvironment() {
+  const ground = new THREE.Mesh(
+    new THREE.CylinderGeometry(8.4, 10.6, 0.5, 48),
+    new THREE.MeshStandardMaterial({ color: 0x37552e, roughness: 0.95, metalness: 0.02 })
+  );
+  ground.position.set(-3.6, -0.24, 0.1);
+  ground.scale.set(1.45, 1, 1.1);
+  ground.receiveShadow = true;
+  world.add(ground);
+
+  const moss = new THREE.Mesh(
+    new THREE.CylinderGeometry(6.9, 8.4, 0.06, 48),
+    new THREE.MeshStandardMaterial({ color: 0x486f35, roughness: 1 })
+  );
+  moss.position.set(-3.8, 0.01, 0.2);
+  moss.scale.set(1.42, 1, 1.07);
+  moss.receiveShadow = true;
+  world.add(moss);
+
+  const pond = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.55, 1.95, 0.08, 32),
+    new THREE.MeshStandardMaterial({ color: 0x2d6a7b, roughness: 0.2, metalness: 0.15, transparent: true, opacity: 0.9 })
+  );
+  pond.position.set(-10.3, 0.04, -4.8);
+  pond.scale.set(1.2, 1, 0.82);
+  world.add(pond);
+
+  for (let i = 0; i < 14; i += 1) {
+    const stone = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.18 + (i % 3) * 0.05, 0),
+      new THREE.MeshStandardMaterial({ color: 0x5c6454, roughness: 0.92 })
+    );
+    stone.position.set(-10 + (i * 1.1) % 12, 0.07, -5 + Math.sin(i * 1.7) * 4.8);
+    stone.scale.set(1.1, 0.65, 0.9);
+    stone.castShadow = true;
+    stone.receiveShadow = true;
+    world.add(stone);
+  }
+
+  for (let i = 0; i < 10; i += 1) {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, 1.3, 8),
+      new THREE.MeshStandardMaterial({ color: 0x4e3721, roughness: 0.9 })
+    );
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 14, 14),
+      new THREE.MeshStandardMaterial({ color: 0x2d4f2d, roughness: 0.9 })
+    );
+    trunk.position.y = 0.65;
+    crown.position.y = 1.46;
+    crown.scale.set(1.2, 1, 1.1);
+    tree.add(trunk);
+    tree.add(crown);
+    tree.position.set(-12.5 + i * 1.8, 0, -7.4 - (i % 2) * 0.8);
+    tree.scale.set(1.1 + (i % 3) * 0.2, 1.1 + (i % 4) * 0.12, 1.1);
+    world.add(tree);
+  }
+}
+
+function applyLayout(modeName) {
+  const layoutKey = modeName === '먹이 사슬' ? 'chain' : modeName === '에너지 피라미드' ? 'pyramid' : 'overall';
+  ORGANISM_KEYS.forEach((key) => {
+    organismEntities[key].group.position.copy(ORGANISMS[key].layouts[layoutKey]);
+  });
+}
+
+function getConnectorPosition(key) {
+  return organismEntities[key].group.position.clone().add(ORGANISMS[key].connector);
+}
+
+function clearThreeGroup(group) {
+  while (group.children.length) {
+    const child = group.children[0];
+    group.remove(child);
+    child.traverse((node) => {
+      if (node.geometry) node.geometry.dispose();
+      if (node.material) {
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        materials.forEach((material) => {
+          if (material.map) material.map.dispose();
+          material.dispose();
+        });
+      }
+    });
+  }
+}
+
+function createCurveForEdge(edge, index, isChainMode) {
+  const start = getConnectorPosition(edge.from);
+  const end = getConnectorPosition(edge.to);
+  const direction = end.clone().sub(start);
+  const distance = direction.length();
+  const mid = start.clone().lerp(end, 0.5);
+  mid.y += edge.lift + distance * 0.06;
+  mid.z += isChainMode ? 0 : edge.bend * 0.25;
+  mid.x += isChainMode ? 0.08 * (index % 2 === 0 ? 1 : -1) : 0;
+  return new THREE.CatmullRomCurve3([start, mid, end]);
+}
+
+function createArrowForEdge(edge, index, isChainMode) {
+  const curve = createCurveForEdge(edge, index, isChainMode);
+  const stageColor = STAGE_INFO[ORGANISMS[edge.from].stage].color;
+  const radius = isChainMode ? 0.06 : 0.048;
+  const material = new THREE.MeshStandardMaterial({
+    color: stageColor,
+    emissive: stageColor,
+    emissiveIntensity: 0.22,
+    transparent: true,
+    opacity: 0.86,
+    roughness: 0.35,
+    metalness: 0.08
+  });
+  const tipMaterial = material.clone();
+
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, radius, 10, false), material);
+  tube.castShadow = true;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(radius * 2.9, radius * 6.2, 12), tipMaterial);
+  const tipPoint = curve.getPoint(0.97);
+  const tipTangent = curve.getTangent(0.97).normalize();
+  tip.position.copy(tipPoint);
+  tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tipTangent);
+
+  const arrow = new THREE.Group();
+  arrow.add(tube);
+  arrow.add(tip);
+  arrow.userData.materials = [material, tipMaterial];
+  return { arrow, curve };
+}
+
+function clearEnergyParticles() {
+  clearThreeGroup(particleLayer);
+}
+
+function getConnectedSet(key) {
+  const connected = new Set([key]);
+  EDGE_SPECS.forEach((edge) => {
+    if (edge.from === key || edge.to === key) {
+      connected.add(edge.from);
+      connected.add(edge.to);
+    }
+  });
+  return connected;
+}
+
+function setMaterialState(entry, opacity, glow) {
+  entry.material.opacity = opacity;
+  entry.material.transparent = opacity < 0.999;
+  entry.material.emissive.copy(entry.baseColor).multiplyScalar(glow);
+}
+
+function getInterpretation() {
+  const focusLabel = state.highlightTarget;
+  if (focusLabel !== '전체') {
+    const key = LABEL_TO_KEY[focusLabel];
+    const stage = STAGE_INFO[ORGANISMS[key].stage].label;
+    if (ORGANISMS[key].stage === 'tertiary') {
+      return `${focusLabel}는 ${stage}로, 전달받는 에너지양이 매우 적어 개체수가 적고 생태계 변화에 민감합니다.`;
+    }
+    if (ORGANISMS[key].stage === 'producer') {
+      return `${focusLabel}는 ${stage}로, 먹이 관계의 출발점이며 가장 많은 에너지를 저장하는 단계입니다.`;
+    }
+    return `${focusLabel}는 ${stage}에 속하며, 연결된 여러 먹이 경로를 통해 에너지를 다음 단계로 전달합니다.`;
+  }
+  if (state.displayMode === '먹이 사슬') return '먹이 사슬은 한 줄 경로로 에너지 이동을 단순하게 보여 주어 단계별 감소를 파악하기 쉽습니다.';
+  if (state.displayMode === '먹이 그물') return '먹이 그물은 한 생물이 여러 생물과 연결되는 실제 생태계의 복잡한 관계를 보여 줍니다.';
+  if (state.displayMode === '에너지 피라미드') return '에너지 피라미드는 상위 영양단계로 갈수록 에너지양과 유지 가능한 개체수가 감소함을 한눈에 보여 줍니다.';
+  if (state.pyramidType === '개체수') return '개체수 피라미드는 일반적으로 생산자 수가 가장 많고 상위 소비자로 갈수록 적어지는 구조를 보입니다.';
+  if (state.pyramidType === '생물량') return '생물량 피라미드는 각 영양단계에 축적된 총 유기물량이 위로 갈수록 줄어드는 경향을 강조합니다.';
+  return '먹이 그물과 생태피라미드를 함께 보면 복잡한 생물 간 관계와 에너지 감소를 동시에 이해할 수 있습니다.';
+}
+
+function syncPanels() {
+  dom.fpView.textContent = state.displayMode;
+  dom.fpType.textContent = state.pyramidType;
+  dom.fpFocus.textContent = state.highlightTarget;
+  dom.fpInterpretation.textContent = getInterpretation();
+  dom.pyramidKindChip.textContent = `${state.pyramidType} 피라미드`;
+
+  if (state.pyramidType === '에너지') {
+    dom.pyramidSubtitle.textContent = '생산자가 저장한 에너지는 다음 단계로 이동할 때마다 큰 폭으로 감소합니다.';
+    dom.pyramidNote.innerHTML = '<strong>핵심 규칙</strong><br>생산자의 에너지 중 약 10%만 다음 영양단계로 전달되고, 나머지는 생명 활동과 열로 소모됩니다.';
+  } else if (state.pyramidType === '개체수') {
+    dom.pyramidSubtitle.textContent = '안정된 생태계에서는 생산자 수가 가장 많고 상위 포식자는 가장 적습니다.';
+    dom.pyramidNote.innerHTML = '<strong>핵심 규칙</strong><br>상위 영양단계로 갈수록 이용 가능한 먹이와 에너지가 줄어들어 개체수도 함께 감소합니다.';
+  } else {
+    dom.pyramidSubtitle.textContent = '각 영양단계에 축적된 총 생물량 역시 상위로 갈수록 줄어드는 경향이 있습니다.';
+    dom.pyramidNote.innerHTML = '<strong>핵심 규칙</strong><br>생물량 피라미드는 한 시점에 저장된 유기물량을 비교하며, 상위 단계일수록 축적량이 적습니다.';
+  }
+
+  const selectedKey = state.highlightTarget === '전체' ? null : LABEL_TO_KEY[state.highlightTarget];
+  const selectedStage = selectedKey ? ORGANISMS[selectedKey].stage : null;
+  dom.pyramidContext.textContent = selectedKey
+    ? `${state.highlightTarget}는 ${STAGE_INFO[selectedStage].label}에 속합니다. 이 단계의 피라미드 블록과 연결된 먹이 관계를 함께 관찰해 보세요.`
+    : '생물을 클릭하거나 GUI에서 특정 생물을 선택하면 그 생물이 속한 영양단계와 연결된 먹이 관계를 함께 강조합니다.';
+
+  dom.pyramidStack.innerHTML = '';
+  dom.formulaLevels.innerHTML = '';
+  PYRAMID_LEVELS.forEach((level) => {
+    const levelEl = document.createElement('div');
+    levelEl.className = `pyramid-level stage-${level.stage}`;
+    levelEl.style.setProperty('--scale', String(level.scale));
+    if (selectedStage === level.stage) levelEl.classList.add('active');
+    levelEl.innerHTML = `
+      <span class="stage">${level.title}</span>
+      <span class="species">${level.species}</span>
+      <span class="metric">${level.values[state.pyramidType]}</span>
+    `;
+    dom.pyramidStack.appendChild(levelEl);
+
+    const row = document.createElement('div');
+    row.className = 'level-row';
+    row.innerHTML = `
+      <span class="level-dot" style="background:${STAGE_INFO[level.stage].css}"></span>
+      <div class="level-copy">
+        <strong>${level.title}</strong>
+        <span>${level.values[state.pyramidType]} · ${level.species}</span>
+      </div>
+    `;
+    dom.formulaLevels.appendChild(row);
+  });
+}
+
+function updateVisualState() {
+  const selectedKey = state.highlightTarget === '전체' ? null : LABEL_TO_KEY[state.highlightTarget];
+  const connectedSet = selectedKey ? getConnectedSet(selectedKey) : null;
+  const pyramidFocused = state.displayMode === '에너지 피라미드';
+
+  ORGANISM_KEYS.forEach((key) => {
+    const entity = organismEntities[key];
+    const isSelected = key === selectedKey;
+    const isConnected = connectedSet ? connectedSet.has(key) : false;
+    let opacity = pyramidFocused ? 0.2 : 1;
+    let glow = 0;
+    let scale = 1;
+
+    if (!selectedKey) {
+      if (pyramidFocused && ORGANISMS[key].stage !== 'decomposer') opacity = 0.34;
+      if (pyramidFocused && ORGANISMS[key].stage === 'decomposer') opacity = 0.16;
+    } else if (isSelected) {
+      opacity = 1;
+      glow = 0.28;
+      scale = 1.12;
+    } else if (isConnected) {
+      opacity = pyramidFocused ? 0.4 : 0.88;
+      glow = 0.12;
+      scale = 1.03;
+    } else {
+      opacity = pyramidFocused ? 0.1 : 0.16;
+    }
+
+    if (!selectedKey && state.displayMode === '먹이 사슬' && !EDGE_SPECS.some((edge) => edge.chain && (edge.from === key || edge.to === key))) {
+      opacity *= 0.42;
+    }
+
+    entity.materials.forEach((entry) => setMaterialState(entry, opacity, glow));
+    entity.halo.material.opacity = isSelected ? 0.62 : isConnected ? 0.28 : 0;
+    entity.halo.scale.setScalar(scale);
+    entity.avatar.scale.setScalar(scale);
+  });
+
+  activeConnections.forEach((edge) => {
+    const related = selectedKey ? edge.from === selectedKey || edge.to === selectedKey : true;
+    const opacity = selectedKey ? (related ? 1 : 0.12) : 0.86;
+    const glow = selectedKey ? (related ? 0.3 : 0.04) : 0.22;
+    edge.materials.forEach((material) => {
+      material.opacity = opacity;
+      material.transparent = opacity < 0.999;
+      material.emissiveIntensity = glow;
+    });
+  });
+
+  dom.pyramidPanel.classList.toggle('focused', pyramidFocused);
+  syncPanels();
+}
+
+function rebuildConnections() {
+  clearThreeGroup(arrowLayer);
+  activeConnections.length = 0;
+  clearEnergyParticles();
+
+  let edgesToShow = [];
+  if (state.displayMode === '먹이 사슬') {
+    edgesToShow = EDGE_SPECS.filter((edge) => edge.chain);
+  } else if (state.displayMode === '먹이 그물' || state.displayMode === '전체') {
+    edgesToShow = EDGE_SPECS;
+  }
+
+  edgesToShow.forEach((edge, index) => {
+    const built = createArrowForEdge(edge, index, state.displayMode === '먹이 사슬');
+    arrowLayer.add(built.arrow);
+    activeConnections.push({ ...edge, curve: built.curve, materials: built.arrow.userData.materials });
+  });
+
+  updateVisualState();
+}
+
+function triggerEnergyFlow() {
+  clearEnergyParticles();
+  const edges = activeConnections.length ? activeConnections : EDGE_SPECS.filter((edge) => edge.chain).map((edge, index) => ({
+    ...edge,
+    curve: createCurveForEdge(edge, index, false)
+  }));
+
+  edges.forEach((edge, index) => {
+    for (let i = 0; i < 2; i += 1) {
+      const color = STAGE_INFO[ORGANISMS[edge.from].stage].color;
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+      const particle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), material);
+      particle.userData = {
+        curve: edge.curve,
+        phase: index * 0.17 + i * 0.38,
+        speed: 0.22 + (index % 3) * 0.05
+      };
+      particleLayer.add(particle);
+    }
+  });
+  state.energyFlowEnd = performance.now() + 6200;
+}
+
+function setHighlightTarget(label, syncGui = true) {
+  state.highlightTarget = label;
+  guiState.특정생물강조 = label;
+  updateVisualState();
+  if (syncGui && highlightController) highlightController.updateDisplay();
+}
+
+function setDisplayMode(mode, syncGui = true) {
+  state.displayMode = mode;
+  state.highlightTarget = '전체';
+  guiState.표시모드 = mode;
+  guiState.특정생물강조 = '전체';
+  applyLayout(mode);
+  rebuildConnections();
+  updateVisualState();
+  if (syncGui && gui) gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setPyramidType(type, syncGui = true) {
+  state.pyramidType = type;
+  guiState.피라미드종류 = type;
+  syncPanels();
+  if (syncGui && gui) gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function resetSimulation() {
+  state.displayMode = '전체';
+  state.pyramidType = '에너지';
+  state.highlightTarget = '전체';
+  guiState.표시모드 = '전체';
+  guiState.피라미드종류 = '에너지';
+  guiState.특정생물강조 = '전체';
+  clearEnergyParticles();
+  state.energyFlowEnd = 0;
+  controls.reset();
+  applyLayout('전체');
+  rebuildConnections();
+  updateVisualState();
+  if (gui) gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function initGui() {
+  gui = new GUI({ title: '먹이 관계 제어', width: 290 });
+  gui.add(guiState, '표시모드', DISPLAY_MODES).name('표시 모드').onChange((value) => {
+    setDisplayMode(value, false);
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  });
+  gui.add(guiState, '피라미드종류', PYRAMID_TYPES).name('피라미드 종류').onChange((value) => {
+    setPyramidType(value, false);
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  });
+  highlightController = gui.add(guiState, '특정생물강조', ['전체', ...ORGANISM_KEYS.map((key) => ORGANISMS[key].label)]).name('특정 생물 강조').onChange((value) => {
+    setHighlightTarget(value, false);
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  });
+  gui.add(guiState, '에너지흐름애니메이션').name('에너지 흐름 애니메이션');
+  gui.add(guiState, '초기화').name('초기화');
+  if (window.innerWidth < 960) gui.close();
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+}
+
+function pickOrganism(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const intersections = raycaster.intersectObjects(clickTargets, false);
+  if (!intersections.length) {
+    setHighlightTarget('전체');
+    return;
+  }
+  const key = intersections[0].object.userData.organismKey;
+  if (!key) return;
+  const label = ORGANISMS[key].label;
+  setHighlightTarget(state.highlightTarget === label ? '전체' : label);
+}
+
+function animateParticles(now) {
+  if (!particleLayer.children.length) return;
+  if (now > state.energyFlowEnd) {
+    clearEnergyParticles();
+    return;
+  }
+  particleLayer.children.forEach((particle) => {
+    const t = (now * 0.00012 * particle.userData.speed + particle.userData.phase) % 1;
+    particle.position.copy(particle.userData.curve.getPointAt(t));
+    particle.material.opacity = 0.35 + Math.sin(t * Math.PI) * 0.55;
+  });
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const time = now * 0.001;
+  ORGANISM_KEYS.forEach((key) => {
+    const entity = organismEntities[key];
+    entity.animate(time + entity.wobbleOffset);
+  });
+  animateParticles(now);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  state.guideOpen = !state.guideOpen;
+  dom.guidePanel.classList.toggle('open', state.guideOpen);
+  dom.guideToggle.setAttribute('aria-expanded', String(state.guideOpen));
+});
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  pointerDown = { x: event.clientX, y: event.clientY };
+});
+
+renderer.domElement.addEventListener('pointerup', (event) => {
+  if (!pointerDown) return;
+  const dx = event.clientX - pointerDown.x;
+  const dy = event.clientY - pointerDown.y;
+  pointerDown = null;
+  if (Math.hypot(dx, dy) <= 6) pickOrganism(event);
+});
+
+buildEnvironment();
+ORGANISM_KEYS.forEach((key) => createOrganismEntity(key));
+applyLayout('전체');
+rebuildConnections();
+syncPanels();
+updateVisualState();
+initGui();
+onResize();
+window.addEventListener('resize', onResize);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

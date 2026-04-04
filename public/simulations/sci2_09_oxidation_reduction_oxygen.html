@@ -1,0 +1,2337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>산화와 환원 — 산소의 이동</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #1a1a2e;
+    --panel: rgba(8, 12, 28, 0.88);
+    --panel-strong: rgba(7, 10, 22, 0.94);
+    --line: rgba(255, 255, 255, 0.09);
+    --text-main: #f7f7fb;
+    --text-dim: rgba(247, 247, 251, 0.72);
+    --text-soft: rgba(247, 247, 251, 0.55);
+    --accent: #ffb06a;
+    --accent-blue: #79a8ff;
+    --accent-red: #ff7e73;
+    --accent-green: #73e0a8;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 166, 102, 0.13), transparent 26%),
+      radial-gradient(circle at 88% 18%, rgba(102, 136, 255, 0.12), transparent 26%),
+      linear-gradient(180deg, #1a1a2e, #111523 70%, #0c101b);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,0.02), transparent 16%, transparent 84%, rgba(255,255,255,0.02)),
+      linear-gradient(180deg, rgba(255,255,255,0.02), transparent 24%, transparent 76%, rgba(255,255,255,0.02));
+    pointer-events: none;
+  }
+
+  #sim-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  #overlay > * {
+    pointer-events: auto;
+  }
+
+  #divider {
+    position: fixed;
+    top: 10vh;
+    bottom: 10vh;
+    left: 50%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.16), transparent);
+    box-shadow: 0 0 24px rgba(255, 166, 102, 0.15);
+    pointer-events: none;
+  }
+
+  .section-chip {
+    position: fixed;
+    top: 16px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(9, 14, 31, 0.68);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    z-index: 20;
+  }
+
+  .section-chip.left {
+    left: calc(25vw - 78px);
+  }
+
+  .section-chip.right {
+    left: calc(75vw - 72px);
+  }
+
+  #headline-card {
+    position: fixed;
+    left: 16px;
+    top: 52px;
+    width: min(430px, calc(100vw - 32px));
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(12, 18, 42, 0.92), rgba(8, 11, 26, 0.8));
+    border: 1px solid var(--line);
+    box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+    z-index: 22;
+  }
+
+  #headline-card .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.46);
+  }
+
+  #headline-card h1 {
+    margin-top: 8px;
+    font-size: 30px;
+    line-height: 1.06;
+    letter-spacing: -0.05em;
+  }
+
+  #headline-desc {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #focus-note {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 176, 106, 0.08);
+    border: 1px solid rgba(255, 176, 106, 0.16);
+    color: rgba(255, 228, 204, 0.92);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  #sync-banner {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(255, 126, 115, 0.1);
+    border: 1px solid rgba(255, 126, 115, 0.2);
+    color: #ffd4cf;
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    z-index: 28;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(10, 14, 28, 0.8);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  #guide-toggle:hover {
+    background: rgba(18, 24, 46, 0.95);
+    transform: translateY(-1px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    right: 16px;
+    top: 56px;
+    z-index: 27;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(66vh, 720px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(10, 14, 28, 0.98), rgba(8, 10, 22, 0.95));
+    border: 1px solid var(--line);
+    box-shadow: 0 22px 48px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(18px);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #bcd2ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffcb92;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+  }
+
+  #formula-panel,
+  #legend-panel {
+    position: fixed;
+    bottom: 16px;
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(8, 12, 28, 0.94), rgba(8, 12, 28, 0.84));
+    border: 1px solid var(--line);
+    box-shadow: 0 20px 42px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+    z-index: 22;
+  }
+
+  #formula-panel {
+    left: 16px;
+    width: min(380px, calc(100vw - 32px));
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #legend-panel {
+    right: 16px;
+    width: min(360px, calc(100vw - 32px));
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  .panel-title {
+    font-size: 15px;
+    color: #9fd2ff;
+  }
+
+  .panel-divider {
+    margin: 10px 0 12px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0));
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-label {
+    width: 92px;
+    flex-shrink: 0;
+    color: var(--text-soft);
+  }
+
+  .formula-value {
+    flex: 1;
+  }
+
+  #equation-box,
+  #rules-box,
+  #legend-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  #equation-box .eq-title,
+  #rules-box .eq-title,
+  #legend-box .eq-title {
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffd0a2;
+  }
+
+  #equation-text {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 15px;
+    color: #fff1df;
+    letter-spacing: -0.02em;
+  }
+
+  #rules-box {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  #legend-note {
+    color: var(--text-dim);
+  }
+
+  .legend-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .legend-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: 0 0 14px rgba(255,255,255,0.1);
+  }
+
+  .hint-chip {
+    position: fixed;
+    right: 16px;
+    bottom: 230px;
+    z-index: 22;
+    max-width: 320px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(8, 12, 28, 0.78);
+    border: 1px solid var(--line);
+    color: rgba(255,255,255,0.74);
+    font-size: 11px;
+    line-height: 1.6;
+    backdrop-filter: blur(10px);
+  }
+
+  .lil-gui {
+    z-index: 40 !important;
+  }
+
+  @media (max-width: 980px) {
+    #divider {
+      left: 12vw;
+      right: 12vw;
+      top: 50%;
+      bottom: auto;
+      width: auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+    }
+
+    .section-chip.left,
+    .section-chip.right {
+      top: auto;
+      left: 16px;
+    }
+
+    .section-chip.left {
+      bottom: calc(50vh + 10px);
+    }
+
+    .section-chip.right {
+      bottom: calc(50vh - 34px);
+    }
+
+    #headline-card {
+      top: 56px;
+      width: min(420px, calc(100vw - 32px));
+    }
+
+    #sync-banner {
+      top: auto;
+      bottom: 164px;
+      left: 16px;
+      transform: none;
+      white-space: normal;
+      width: min(420px, calc(100vw - 32px));
+      border-radius: 18px;
+    }
+
+    .hint-chip {
+      left: 16px;
+      right: auto;
+      bottom: 112px;
+      max-width: min(420px, calc(100vw - 32px));
+    }
+
+    #legend-panel {
+      width: min(420px, calc(100vw - 32px));
+      bottom: 16px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #headline-card h1 {
+      font-size: 24px;
+    }
+
+    #headline-desc,
+    #focus-note {
+      font-size: 12px;
+    }
+
+    #formula-panel,
+    #legend-panel,
+    #headline-card {
+      width: calc(100vw - 32px);
+    }
+
+    #formula-panel {
+      max-width: none;
+      bottom: 192px;
+    }
+
+    #legend-panel {
+      max-width: none;
+    }
+
+    .hint-chip {
+      display: none;
+    }
+
+    #guide-panel {
+      max-height: 56vh;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="sim-canvas"></canvas>
+
+<div id="overlay">
+  <div id="divider"></div>
+  <div class="section-chip left">실험 장치</div>
+  <div class="section-chip right">입자 모형</div>
+
+  <div id="sync-banner">산화와 환원은 항상 동시에 일어난다</div>
+
+  <div id="headline-card">
+    <div class="eyebrow">통합과학2 · 산화와 환원</div>
+    <h1 id="headline-title">산소의 이동</h1>
+    <p id="headline-desc">산소를 얻는 반응은 산화, 산소를 잃는 반응은 환원입니다. 산소의 이동은 언제나 짝을 이루어 동시에 일어납니다.</p>
+    <div id="focus-note">겉불꽃과 속불꽃의 차이를 비교하며 구리판의 색 변화와 산소 이동을 함께 관찰해 보세요.</div>
+  </div>
+
+  <button id="guide-toggle">📖 학습 가이드</button>
+  <div id="guide-panel">
+    <h3>학습 가이드</h3>
+    <h4>🔑 핵심 원리</h4>
+    <p>산소가 관여하는 반응에서 물질이 산소를 얻는 반응을 산화, 산소를 잃는 반응을 환원이라고 합니다. 어떤 물질이 산소를 얻을 때 다른 물질은 산소를 잃으므로 산화와 환원은 항상 동시에 일어납니다.</p>
+
+    <h4>❓ 탐구 질문</h4>
+    <ul>
+      <li>구리판을 겉불꽃에 넣어 가열하면 검은색으로 변하는 까닭을 산화 반응으로 설명해 보세요.</li>
+      <li>검은색의 산화 구리(II)를 속불꽃에 넣으면 다시 붉은색으로 변하는 까닭은 무엇인가요?</li>
+      <li>철로 만든 다리나 손잡이에 페인트를 칠하면 녹스는 것을 막을 수 있는 까닭은 무엇인가요?</li>
+    </ul>
+
+    <h4>🌍 실생활 예시</h4>
+    <ul>
+      <li>철이 녹슨다: 철이 산소를 얻어 산화됩니다.</li>
+      <li>사과 갈변: 공기 중 산소와 반응하며 산화가 진행됩니다.</li>
+      <li>유화 물감이 굳는다: 산소와 반응하며 굳는 과정이 진행됩니다.</li>
+    </ul>
+
+    <div class="guide-ref">📚 교과서 연계: 미래엔 통합과학2 I편 p40~45 — 산소의 이동에 의한 산화·환원 반응</div>
+  </div>
+
+  <div id="formula-panel">
+    <div class="panel-title">⚗️ 산화와 환원 — 산소의 이동</div>
+    <div class="panel-divider"></div>
+
+    <div class="formula-row"><span class="formula-label">현재 실험:</span><span class="formula-value" id="fp-experiment">구리 산화 (겉불꽃)</span></div>
+    <div class="formula-row"><span class="formula-label">산화 물질:</span><span class="formula-value" id="fp-oxidized">구리(Cu) (산소를 얻음)</span></div>
+    <div class="formula-row"><span class="formula-label">환원 물질:</span><span class="formula-value" id="fp-reduced">산소(O₂) (산소를 잃음)</span></div>
+
+    <div id="equation-box">
+      <div class="eq-title">화학 반응식</div>
+      <div id="equation-text">2Cu + O₂ → 2CuO</div>
+    </div>
+
+    <div id="rules-box">
+      <div class="eq-title">규칙</div>
+      산화: 물질이 산소를 얻는 반응<br>
+      환원: 물질이 산소를 잃는 반응<br>
+      → 산화와 환원은 항상 동시에 일어난다
+    </div>
+  </div>
+
+  <div id="legend-panel">
+    <div class="panel-title">관찰 포인트</div>
+    <div class="panel-divider"></div>
+    <p id="legend-note">구리색, 검은색, 빨간 산소 입자의 변화를 함께 보며 어떤 물질이 산소를 얻고 잃는지 비교하세요.</p>
+    <div id="legend-box">
+      <div class="eq-title">현재 장면의 색과 의미</div>
+      <div id="legend-items"></div>
+    </div>
+  </div>
+
+  <div class="hint-chip">드래그로 회전 · 휠로 확대/축소 · GUI에서 실험 전환, 라벨 표시, 입자 크기를 조절할 수 있습니다.</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const COLORS = {
+  background: 0x1a1a2e,
+  copper: 0xcc6633,
+  copperOxide: 0x222222,
+  oxygen: 0xff3333,
+  carbon: 0x444444,
+  hydrogen: 0xf4f7ff,
+  iron: 0xb4b7c9,
+  leaf: 0x41c978,
+  water: 0x66b7ff,
+  glucose: 0xffcf6b,
+  flameOuter: 0xff8844,
+  flameInner: 0x4466ff,
+  gold: 0xffd77a,
+  softBlue: 0x7aa8ff,
+  softRed: 0xff7b6d,
+  softGreen: 0x70e2a8
+};
+
+const UP = new THREE.Vector3(0, 1, 0);
+const TEMP_A = new THREE.Color();
+const TEMP_B = new THREE.Color();
+const TEMP_C = new THREE.Vector3();
+
+const canvas = document.getElementById('sim-canvas');
+const headlineTitle = document.getElementById('headline-title');
+const headlineDesc = document.getElementById('headline-desc');
+const focusNote = document.getElementById('focus-note');
+const syncBanner = document.getElementById('sync-banner');
+const fpExperiment = document.getElementById('fp-experiment');
+const fpOxidized = document.getElementById('fp-oxidized');
+const fpReduced = document.getElementById('fp-reduced');
+const equationText = document.getElementById('equation-text');
+const legendNote = document.getElementById('legend-note');
+const legendItems = document.getElementById('legend-items');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.style.display = guidePanel.style.display === 'block' ? 'none' : 'block';
+});
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(COLORS.background);
+scene.fog = new THREE.FogExp2(COLORS.background, 0.026);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.7, 16.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 8;
+controls.maxDistance = 24;
+controls.maxPolarAngle = 1.45;
+controls.target.set(0, 0.3, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambientLight);
+
+const hemisphere = new THREE.HemisphereLight(0xb6c8ff, 0x15101d, 0.45);
+scene.add(hemisphere);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
+fillLight.position.set(0, 8, 10);
+scene.add(fillLight);
+
+const lampPointLight = new THREE.PointLight(0xffaa66, 1.5, 18, 2);
+lampPointLight.castShadow = false;
+scene.add(lampPointLight);
+
+const particleLight = new THREE.PointLight(0x88b4ff, 0.65, 18, 2);
+particleLight.position.set(5.5, 1.2, 5);
+scene.add(particleLight);
+
+const backgroundStars = createBackgroundStars();
+scene.add(backgroundStars);
+
+let currentScenario = null;
+const clock = new THREE.Clock();
+
+const scenarioLabels = {
+  '구리 산화 (겉불꽃)': 'copperOxidation',
+  '구리 환원 (속불꽃)': 'copperReduction',
+  '광합성': 'photosynthesis',
+  '세포호흡': 'respiration',
+  '연소': 'combustion',
+  '제련': 'smelting'
+};
+
+const params = {
+  experiment: '구리 산화 (겉불꽃)',
+  labels: true,
+  particleScale: 1,
+  replay() {
+    if (currentScenario) currentScenario.play();
+  },
+  reset() {
+    if (currentScenario) currentScenario.reset();
+  }
+};
+
+const gui = new GUI({ title: '실험 제어', width: 308 });
+gui.add(params, 'experiment', Object.keys(scenarioLabels)).name('실험').onChange((label) => {
+  loadScenario(scenarioLabels[label]);
+});
+gui.add(params, 'replay').name('반응 재생');
+gui.add(params, 'labels').name('산화/환원 라벨').onChange((visible) => {
+  if (currentScenario) currentScenario.setLabelsVisible(visible);
+});
+gui.add(params, 'particleScale', 0.5, 2, 0.01).name('입자 크기').onChange((value) => {
+  if (currentScenario) currentScenario.setParticleScale(value);
+});
+gui.add(params, 'reset').name('초기화');
+if (window.innerWidth < 768) gui.close();
+
+const SCENARIOS = {
+  copperOxidation: {
+    title: '구리 산화 — 겉불꽃',
+    experiment: '구리 산화 (겉불꽃)',
+    equation: '2Cu + O₂ → 2CuO',
+    oxidized: '구리(Cu) (산소를 얻음)',
+    reduced: '산소(O₂) (산소를 잃음)',
+    headline: '겉불꽃은 산소가 풍부해 구리판이 산소를 얻습니다.',
+    focus: '불꽃에 닿는 부분부터 구리색이 검은색 산화 구리(II)로 바뀌는 순서를 관찰하세요.',
+    legendNote: '겉불꽃은 산소가 풍부하여 구리판이 산소를 얻고 검게 변합니다.',
+    syncText: '구리가 산소를 얻을 때 산소는 구리로 이동하므로 산화와 환원이 동시에 일어난다.',
+    legend: [
+      { color: '#cc6633', text: '구리(Cu)' },
+      { color: '#222222', text: '산화 구리(II)(CuO)' },
+      { color: '#ff3333', text: '산소(O)' },
+      { color: '#ff8844', text: '겉불꽃 · 산소 풍부' }
+    ],
+    build: buildCopperOxidationScenario
+  },
+  copperReduction: {
+    title: '구리 환원 — 속불꽃',
+    experiment: '구리 환원 (속불꽃)',
+    equation: 'CuO + CO → Cu + CO₂',
+    oxidized: '일산화 탄소(CO) (산소를 얻음)',
+    reduced: '산화 구리(II)(CuO) (산소를 잃음)',
+    headline: '속불꽃에서는 산화 구리(II)가 산소를 잃고 다시 구리로 돌아옵니다.',
+    focus: '속불꽃은 일산화 탄소가 많고 산소가 부족합니다. CO가 산소를 가져가며 CuO를 환원합니다.',
+    legendNote: '속불꽃에서 CO가 CuO의 산소를 빼앗아 CO₂가 되고, 남은 구리는 붉은색으로 돌아옵니다.',
+    syncText: 'CO가 산화되어 CO₂가 될 때, CuO는 동시에 환원되어 Cu가 된다.',
+    legend: [
+      { color: '#222222', text: '산화 구리(II)(CuO)' },
+      { color: '#cc6633', text: '환원된 구리(Cu)' },
+      { color: '#444444', text: '탄소(C)' },
+      { color: '#4466ff', text: '속불꽃 · CO 많음, 산소 부족' }
+    ],
+    build: buildCopperReductionScenario
+  },
+  photosynthesis: {
+    title: '광합성',
+    experiment: '광합성',
+    equation: '6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂',
+    oxidized: '물(H₂O) (산소를 잃음)',
+    reduced: '이산화 탄소(CO₂) (산소를 잃고 포도당으로 환원)',
+    headline: '빛에너지를 이용해 CO₂는 환원되고, H₂O는 산화되어 O₂가 만들어집니다.',
+    focus: '잎에 빛이 닿을 때 CO₂와 H₂O가 재배열되어 포도당과 O₂가 만들어지는 흐름을 보세요.',
+    legendNote: '광합성에서는 이산화 탄소가 환원되고 물이 산화되어 산소가 생성됩니다.',
+    syncText: '광합성에서도 CO₂의 환원과 H₂O의 산화가 동시에 진행된다.',
+    legend: [
+      { color: '#444444', text: '탄소(C) · CO₂, 포도당' },
+      { color: '#ff3333', text: '산소(O)' },
+      { color: '#66b7ff', text: '물(H₂O)' },
+      { color: '#41c978', text: '잎과 엽록체' }
+    ],
+    build: () => buildClusterReactionScenario('photosynthesis')
+  },
+  respiration: {
+    title: '세포호흡',
+    experiment: '세포호흡',
+    equation: 'C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O',
+    oxidized: '포도당(C₆H₁₂O₆) (산소를 얻음)',
+    reduced: '산소(O₂) (산소를 잃고 H₂O가 됨)',
+    headline: '포도당은 산소를 얻어 산화되고, 산소는 전자를 받아 물로 환원됩니다.',
+    focus: '세포 안에서 포도당과 산소가 만나 CO₂와 H₂O로 바뀌며 에너지가 방출되는 과정을 비교해 보세요.',
+    legendNote: '세포호흡에서는 포도당의 탄소가 산화되고 산소는 환원됩니다.',
+    syncText: '포도당의 산화와 산소의 환원은 세포호흡에서 동시에 일어난다.',
+    legend: [
+      { color: '#ffcf6b', text: '포도당' },
+      { color: '#ff3333', text: '산소(O) · CO₂ · H₂O' },
+      { color: '#66b7ff', text: '물(H₂O)' },
+      { color: '#6ed9b1', text: '세포와 미토콘드리아' }
+    ],
+    build: () => buildClusterReactionScenario('respiration')
+  },
+  combustion: {
+    title: '연소',
+    experiment: '연소',
+    equation: '2C₄H₁₀ + 13O₂ → 8CO₂ + 10H₂O',
+    oxidized: '뷰테인(C₄H₁₀) (산소를 얻음)',
+    reduced: '산소(O₂) (산소를 잃음)',
+    headline: '연료는 산소를 얻어 산화되고, 산소는 연료에 산소를 주며 환원됩니다.',
+    focus: '뷰테인과 산소가 불꽃에서 만나 CO₂와 H₂O로 바뀌는 흐름을 관찰하세요.',
+    legendNote: '연소는 대표적인 산화 반응이며, 산소는 동시에 환원됩니다.',
+    syncText: '연료가 산화될 때 산소는 동시에 환원된다.',
+    legend: [
+      { color: '#444444', text: '탄소(C) · 뷰테인' },
+      { color: '#ff3333', text: '산소(O)' },
+      { color: '#66b7ff', text: '물(H₂O)' },
+      { color: '#ff8844', text: '불꽃과 열에너지' }
+    ],
+    build: () => buildClusterReactionScenario('combustion')
+  },
+  smelting: {
+    title: '철의 제련',
+    experiment: '제련',
+    equation: 'Fe₂O₃ + 3CO → 2Fe + 3CO₂',
+    oxidized: '일산화 탄소(CO) (산소를 얻음)',
+    reduced: '산화 철(III)(Fe₂O₃) (산소를 잃음)',
+    headline: '산화 철에서 산소가 떨어져 나와 CO로 이동하면 순수한 철이 남습니다.',
+    focus: '산화 철(III)의 산소가 CO로 이동해 CO₂가 되고, 철(Fe)이 남는 장면을 확인해 보세요.',
+    legendNote: '제련에서는 CO가 산화되고 산화 철(III)이 환원되어 철이 얻어집니다.',
+    syncText: '제련에서도 CO의 산화와 Fe₂O₃의 환원이 동시에 일어난다.',
+    legend: [
+      { color: '#b4b7c9', text: '철(Fe)' },
+      { color: '#ff3333', text: '산소(O)' },
+      { color: '#444444', text: '탄소(C) · CO, CO₂' },
+      { color: '#ffae63', text: '가열된 용광로' }
+    ],
+    build: () => buildClusterReactionScenario('smelting')
+  }
+};
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = clamp((value - edge0) / Math.max(0.0001, edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function easeInOut(value) {
+  return value < 0.5
+    ? 4 * value * value * value
+    : 1 - Math.pow(-2 * value + 2, 3) / 2;
+}
+
+function mixColor(colorA, colorB, t) {
+  TEMP_A.setHex(colorA);
+  TEMP_B.setHex(colorB);
+  return TEMP_A.clone().lerp(TEMP_B, clamp(t, 0, 1));
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    fontSize = 32,
+    paddingX = 18,
+    paddingY = 12,
+    bgColor = 'rgba(8, 12, 28, 0.78)',
+    borderColor = 'rgba(255, 255, 255, 0.18)',
+    textColor = '#ffffff',
+    scale = 1.2
+  } = options;
+
+  const lines = String(text).split('\n');
+  const ratio = 2;
+  const measureCanvas = document.createElement('canvas');
+  const measureCtx = measureCanvas.getContext('2d');
+  measureCtx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  const width = Math.max(...lines.map((line) => measureCtx.measureText(line).width)) + paddingX * 2;
+  const height = lines.length * fontSize * 1.26 + paddingY * 2;
+
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = Math.ceil(width * ratio);
+  canvasEl.height = Math.ceil(height * ratio);
+  const ctx = canvasEl.getContext('2d');
+  ctx.scale(ratio, ratio);
+  roundedRect(ctx, 0.5, 0.5, width - 1, height - 1, 16);
+  ctx.fillStyle = bgColor;
+  ctx.fill();
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = textColor;
+
+  lines.forEach((line, index) => {
+    const lineY = paddingY + fontSize * 0.62 + index * fontSize * 1.26;
+    ctx.fillText(line, width / 2, lineY);
+  });
+
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const aspect = width / height;
+  sprite.scale.set(scale * aspect, scale, 1);
+  return sprite;
+}
+
+function createAtom(radius, color, options = {}) {
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: options.roughness ?? 0.28,
+    metalness: options.metalness ?? 0.1,
+    emissive: options.emissive ?? 0x000000,
+    emissiveIntensity: options.emissiveIntensity ?? 0,
+    transparent: options.opacity !== undefined,
+    opacity: options.opacity ?? 1
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 24), material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createBond(radius, color, opacity = 1) {
+  return new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 1, 20, 1),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.3,
+      metalness: 0.05,
+      transparent: opacity < 1,
+      opacity
+    })
+  );
+}
+
+function setBondBetween(mesh, start, end) {
+  const direction = TEMP_C.copy(end).sub(start);
+  const length = direction.length();
+  if (length < 0.0001) {
+    mesh.visible = false;
+    return;
+  }
+  mesh.visible = true;
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(UP, direction.normalize());
+  mesh.scale.set(1, length, 1);
+}
+
+function collectMaterials(object) {
+  const materials = [];
+  object.traverse((child) => {
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((mat) => materials.push(mat));
+      } else {
+        materials.push(child.material);
+      }
+    }
+  });
+  return [...new Set(materials)];
+}
+
+function setObjectFade(object, opacity, scaleValue) {
+  const materials = object.userData.fadeMaterials;
+  if (materials) {
+    materials.forEach((material) => {
+      material.transparent = opacity < 0.999;
+      material.opacity = opacity;
+    });
+  }
+  object.visible = opacity > 0.01;
+  object.scale.setScalar(scaleValue);
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (material.map) material.map.dispose();
+  material.dispose();
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(child.material);
+      }
+    }
+  });
+  if (object.parent) object.parent.remove(object);
+}
+
+function createPedestal(radius, color) {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 1.06, radius * 1.12, 0.28, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x202535,
+      roughness: 0.72,
+      metalness: 0.1
+    })
+  );
+  base.position.y = -2.55;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius * 1.04, 0.1, 48),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.45,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.9
+    })
+  );
+  top.position.y = -2.36;
+  top.receiveShadow = true;
+  group.add(top);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.94, 0.035, 12, 72),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: color,
+      emissiveIntensity: 0.3,
+      roughness: 0.2,
+      metalness: 0.2
+    })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = -2.28;
+  group.add(ring);
+
+  return { group, ring, top };
+}
+
+function createBackgroundStars() {
+  const geometry = new THREE.BufferGeometry();
+  const count = 260;
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  for (let i = 0; i < count; i += 1) {
+    const radius = 14 + Math.random() * 20;
+    const theta = Math.random() * Math.PI * 2;
+    const y = (Math.random() - 0.5) * 12 + 1.5;
+    positions[i * 3] = Math.cos(theta) * radius;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = Math.sin(theta) * radius - 4;
+    sizes[i] = 1 + Math.random() * 2;
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+  const material = new THREE.PointsMaterial({
+    color: 0xf7f1ff,
+    size: 0.06,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
+  });
+
+  const points = new THREE.Points(geometry, material);
+  return points;
+}
+
+function createArrowWithLabel(from, to, color, text, labelOptions = {}) {
+  const group = new THREE.Group();
+  const direction = new THREE.Vector3().subVectors(to, from);
+  const length = direction.length();
+  const arrow = new THREE.ArrowHelper(direction.clone().normalize(), from, length, color, 0.38, 0.2);
+  group.add(arrow);
+  const label = createTextSprite(text, {
+    fontSize: 28,
+    scale: 0.95,
+    bgColor: labelOptions.bgColor ?? 'rgba(8, 12, 28, 0.82)',
+    textColor: labelOptions.textColor ?? '#ffffff',
+    borderColor: labelOptions.borderColor ?? 'rgba(255, 255, 255, 0.16)'
+  });
+  label.position.copy(from).lerp(to, 0.55);
+  label.position.add(labelOptions.offset ?? new THREE.Vector3(0, 0.5, 0));
+  group.add(label);
+  return group;
+}
+
+function createScenarioBase() {
+  const root = new THREE.Group();
+  const leftRoot = new THREE.Group();
+  const rightRoot = new THREE.Group();
+  const particleRoot = new THREE.Group();
+  const leftLabels = new THREE.Group();
+  const rightLabels = new THREE.Group();
+  rightRoot.add(particleRoot, rightLabels);
+  leftRoot.add(leftLabels);
+  root.add(leftRoot, rightRoot);
+
+  const controller = {
+    root,
+    leftRoot,
+    rightRoot,
+    particleRoot,
+    leftLabels,
+    rightLabels,
+    duration: 4.8,
+    progress: 0,
+    time: 0,
+    playing: true,
+    lightProfile: {
+      color: 0xffaa66,
+      intensity: 1.5,
+      localOffset: new THREE.Vector3(0, -0.8, 2.2)
+    },
+    applyLayout() {
+      const narrow = window.innerWidth < 980;
+      if (narrow) {
+        leftRoot.position.set(0, 3.25, 0);
+        rightRoot.position.set(0, -2.6, 0);
+        camera.position.set(0, 0.3, 18.8);
+      } else {
+        leftRoot.position.set(-5.6, 0.35, 0);
+        rightRoot.position.set(5.6, 0.2, 0);
+        camera.position.set(0, 1.7, 16.2);
+      }
+      controls.target.set(0, 0.2, 0);
+      controls.update();
+    },
+    setParticleScale(value) {
+      particleRoot.scale.setScalar(value);
+    },
+    setLabelsVisible(visible) {
+      leftLabels.visible = visible;
+      rightLabels.visible = visible;
+    },
+    play() {
+      this.time = 0;
+      this.progress = 0;
+      this.playing = true;
+    },
+    reset() {
+      this.time = 0;
+      this.progress = 0;
+      this.playing = false;
+      if (this.customUpdate) this.customUpdate(0, clock.elapsedTime, 0);
+    },
+    update(dt, elapsed) {
+      if (this.playing) {
+        this.time = Math.min(this.time + dt, this.duration);
+        this.progress = this.time / this.duration;
+        if (this.progress >= 1) this.playing = false;
+      }
+      if (this.customUpdate) this.customUpdate(this.progress, elapsed, dt);
+    },
+    dispose() {
+      disposeObject(root);
+    },
+    customUpdate: null
+  };
+
+  controller.applyLayout();
+  controller.setParticleScale(params.particleScale);
+  controller.setLabelsVisible(params.labels);
+  return controller;
+}
+
+function buildAlcoholLamp() {
+  const group = new THREE.Group();
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.8, 0.92, 0.96, 36),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x9dc1ff,
+      roughness: 0.18,
+      transmission: 0.35,
+      transparent: true,
+      opacity: 0.6
+    })
+  );
+  base.position.y = -1.82;
+  group.add(base);
+
+  const liquid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.68, 0.72, 0.42, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x5f98ff,
+      emissive: 0x203a66,
+      emissiveIntensity: 0.35,
+      transparent: true,
+      opacity: 0.85
+    })
+  );
+  liquid.position.y = -1.95;
+  group.add(liquid);
+
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.24, 0.36, 18),
+    new THREE.MeshStandardMaterial({ color: 0xceb797, roughness: 0.7 })
+  );
+  neck.position.y = -1.15;
+  group.add(neck);
+
+  const wick = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.3, 12),
+    new THREE.MeshStandardMaterial({ color: 0xd7d0c2, roughness: 0.88 })
+  );
+  wick.position.y = -0.92;
+  group.add(wick);
+
+  const outerFlame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.46, 1.58, 28),
+    new THREE.MeshStandardMaterial({
+      color: COLORS.flameOuter,
+      emissive: COLORS.flameOuter,
+      emissiveIntensity: 1,
+      transparent: true,
+      opacity: 0.8
+    })
+  );
+  outerFlame.position.y = -0.15;
+  group.add(outerFlame);
+
+  const innerFlame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 0.84, 20),
+    new THREE.MeshStandardMaterial({
+      color: COLORS.flameInner,
+      emissive: COLORS.flameInner,
+      emissiveIntensity: 1,
+      transparent: true,
+      opacity: 0.88
+    })
+  );
+  innerFlame.position.y = -0.28;
+  group.add(innerFlame);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.48, 22, 18),
+    new THREE.MeshBasicMaterial({
+      color: COLORS.flameOuter,
+      transparent: true,
+      opacity: 0.16
+    })
+  );
+  glow.position.y = -0.08;
+  glow.scale.set(1, 1.8, 1);
+  group.add(glow);
+
+  const sparks = [];
+  for (let i = 0; i < 12; i += 1) {
+    const spark = createAtom(0.04 + Math.random() * 0.02, COLORS.flameOuter, {
+      emissive: COLORS.flameOuter,
+      emissiveIntensity: 1.1,
+      roughness: 0.1
+    });
+    spark.position.set((Math.random() - 0.5) * 0.4, Math.random() * 1.1, (Math.random() - 0.5) * 0.25);
+    spark.userData.baseX = spark.position.x;
+    spark.userData.baseY = spark.position.y;
+    spark.userData.baseZ = spark.position.z;
+    spark.userData.phase = Math.random() * Math.PI * 2;
+    spark.scale.setScalar(0.65 + Math.random() * 0.7);
+    sparks.push(spark);
+    group.add(spark);
+  }
+
+  return { group, outerFlame, innerFlame, glow, sparks };
+}
+
+function buildPlateSegments(initialColor) {
+  const group = new THREE.Group();
+  const segments = [];
+  const count = 14;
+
+  for (let i = 0; i < count; i += 1) {
+    const segment = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.05, 0.65),
+      new THREE.MeshStandardMaterial({
+        color: initialColor,
+        emissive: initialColor,
+        emissiveIntensity: 0.08,
+        roughness: 0.34,
+        metalness: 0.22
+      })
+    );
+    segment.position.x = (i - (count - 1) / 2) * 0.165;
+    segment.castShadow = true;
+    segment.receiveShadow = true;
+    segments.push(segment);
+    group.add(segment);
+  }
+
+  return { group, segments };
+}
+
+function buildCopperOxidationScenario() {
+  const controller = createScenarioBase();
+  const leftPedestal = createPedestal(2.75, 0x271e26);
+  controller.leftRoot.add(leftPedestal.group);
+  const rightPedestal = createPedestal(2.95, 0x20273c);
+  controller.rightRoot.add(rightPedestal.group);
+
+  const lamp = buildAlcoholLamp();
+  controller.leftRoot.add(lamp.group);
+
+  const plate = buildPlateSegments(COLORS.copper);
+  plate.group.position.set(0.1, 0.72, 0);
+  plate.group.rotation.z = 0.04;
+  controller.leftRoot.add(plate.group);
+
+  const clampRod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 2.4, 12),
+    new THREE.MeshStandardMaterial({ color: 0xb3b8c6, roughness: 0.48, metalness: 0.35 })
+  );
+  clampRod.position.set(1.4, 0.1, 0);
+  controller.leftRoot.add(clampRod);
+
+  const clampArm = new THREE.Mesh(
+    new THREE.BoxGeometry(1.55, 0.06, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xb3b8c6, roughness: 0.46, metalness: 0.32 })
+  );
+  clampArm.position.set(0.78, 1.16, 0);
+  controller.leftRoot.add(clampArm);
+
+  const flameLabel = createTextSprite('겉불꽃\n산소 풍부', {
+    fontSize: 27,
+    scale: 1.1,
+    bgColor: 'rgba(255, 136, 68, 0.14)',
+    borderColor: 'rgba(255, 176, 106, 0.22)',
+    textColor: '#ffe2c5'
+  });
+  flameLabel.position.set(1.1, 0.1, 0);
+  controller.leftLabels.add(flameLabel);
+
+  const oxidationArrow = createArrowWithLabel(
+    new THREE.Vector3(-1.2, 1.55, 0),
+    new THREE.Vector3(-0.25, 0.4, 0),
+    COLORS.softRed,
+    '산화',
+    {
+      bgColor: 'rgba(255, 123, 109, 0.16)',
+      borderColor: 'rgba(255, 123, 109, 0.24)',
+      textColor: '#ffd8d3',
+      offset: new THREE.Vector3(0, 0.45, 0)
+    }
+  );
+  controller.rightLabels.add(oxidationArrow);
+
+  const particlePedestal = new THREE.Mesh(
+    new THREE.CircleGeometry(2.45, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x7aa8ff,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.DoubleSide
+    })
+  );
+  particlePedestal.rotation.x = -Math.PI / 2;
+  particlePedestal.position.y = -1.55;
+  controller.particleRoot.add(particlePedestal);
+
+  const cuAtoms = [];
+  const cuTargets = [
+    new THREE.Vector3(-1.55, -0.9, 0.22),
+    new THREE.Vector3(-0.45, -1.02, -0.18),
+    new THREE.Vector3(0.45, -0.9, 0.12),
+    new THREE.Vector3(1.55, -1.02, -0.14)
+  ];
+
+  cuTargets.forEach((target) => {
+    const atom = createAtom(0.29, COLORS.copper, {
+      roughness: 0.26,
+      metalness: 0.28,
+      emissive: COLORS.copper,
+      emissiveIntensity: 0.12
+    });
+    atom.position.copy(target);
+    controller.particleRoot.add(atom);
+    cuAtoms.push(atom);
+  });
+
+  const oPairs = [];
+  [-1.0, 1.0].forEach((centerX, index) => {
+    const group = new THREE.Group();
+    group.position.set(centerX, 1.75, 0);
+
+    const o1 = createAtom(0.18, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.28 });
+    const o2 = createAtom(0.18, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.28 });
+    const oBond = createBond(0.035, 0xff9f97, 0.9);
+    group.add(o1, o2, oBond);
+    controller.particleRoot.add(group);
+
+    const bond1 = createBond(0.03, 0xffd0c8, 0.4);
+    const bond2 = createBond(0.03, 0xffd0c8, 0.4);
+    controller.particleRoot.add(bond1, bond2);
+
+    oPairs.push({ group, o1, o2, oBond, bond1, bond2, indices: [index * 2, index * 2 + 1] });
+  });
+
+  const oxygenNote = createTextSprite('O₂가 접근 → 분리 → CuO 형성', {
+    fontSize: 26,
+    scale: 1.45,
+    bgColor: 'rgba(10, 14, 28, 0.74)',
+    borderColor: 'rgba(122, 168, 255, 0.24)',
+    textColor: '#dbe8ff'
+  });
+  oxygenNote.position.set(0, 2.35, 0);
+  controller.rightLabels.add(oxygenNote);
+
+  controller.lightProfile = {
+    color: 0xffaa66,
+    intensity: 1.5,
+    localOffset: new THREE.Vector3(0, -0.9, 2.4)
+  };
+
+  controller.customUpdate = (progress, elapsed) => {
+    const approach = smoothstep(0, 0.32, progress);
+    const split = smoothstep(0.22, 0.58, progress);
+    const bind = smoothstep(0.48, 0.96, progress);
+
+    const flamePulse = 0.96 + Math.sin(elapsed * 8.6) * 0.05;
+    lamp.outerFlame.scale.set(flamePulse, 0.96 + Math.sin(elapsed * 9.3 + 0.2) * 0.08, flamePulse);
+    lamp.innerFlame.scale.set(0.95 + Math.sin(elapsed * 7.8) * 0.05, 0.96 + Math.sin(elapsed * 8.7) * 0.08, 0.95);
+    lamp.glow.scale.set(1.1 + Math.sin(elapsed * 5.8) * 0.06, 1.7 + Math.sin(elapsed * 5.8) * 0.1, 1.1);
+    lamp.sparks.forEach((spark) => {
+      const rise = ((elapsed * 0.75 + spark.userData.phase / Math.PI) % 1);
+      spark.position.y = -0.5 + rise * 1.7;
+      spark.position.x = spark.userData.baseX + Math.sin(elapsed * 2 + spark.userData.phase) * 0.07;
+      spark.position.z = spark.userData.baseZ + Math.cos(elapsed * 2.5 + spark.userData.phase) * 0.05;
+      spark.material.opacity = 0.75 * (1 - rise);
+    });
+
+    plate.segments.forEach((segment, index) => {
+      const centerDist = Math.abs(index - (plate.segments.length - 1) / 2) / ((plate.segments.length - 1) / 2);
+      const heated = clamp(bind * 1.2 - centerDist * 0.58, 0, 1);
+      segment.material.color.copy(mixColor(COLORS.copper, COLORS.copperOxide, heated));
+      segment.material.emissive.copy(mixColor(COLORS.copper, 0x160f0c, heated));
+      segment.material.emissiveIntensity = 0.16 + heated * 0.16;
+      segment.position.y = Math.sin(elapsed * 5 + index * 0.35) * 0.006;
+    });
+
+    cuAtoms.forEach((atom, index) => {
+      atom.material.color.copy(mixColor(COLORS.copper, COLORS.copperOxide, bind * 0.95));
+      atom.material.emissive.copy(mixColor(COLORS.copper, 0x120f0f, bind * 0.95));
+      atom.position.y = cuTargets[index].y + Math.sin(elapsed * 2.6 + index) * 0.02 * (1 - bind);
+    });
+
+    oPairs.forEach((pair, pairIndex) => {
+      pair.group.position.y = lerp(1.82, 0.22, approach) + Math.sin(elapsed * 2.6 + pairIndex) * 0.06 * (1 - bind);
+      const spread = lerp(0.2, 0.56, split);
+      const rise = lerp(0, 0.6, split);
+      pair.o1.position.set(-spread, rise, 0);
+      pair.o2.position.set(spread, rise, 0);
+      setBondBetween(pair.oBond, pair.o1.position, pair.o2.position);
+      pair.oBond.material.opacity = 0.9 * (1 - split);
+      pair.oBond.visible = split < 0.92;
+
+      const leftTarget = cuAtoms[pair.indices[0]].position.clone();
+      const rightTarget = cuAtoms[pair.indices[1]].position.clone();
+      const leftWorld = pair.group.position.clone().add(pair.o1.position);
+      const rightWorld = pair.group.position.clone().add(pair.o2.position);
+      setBondBetween(pair.bond1, leftTarget, leftWorld);
+      setBondBetween(pair.bond2, rightTarget, rightWorld);
+      pair.bond1.material.opacity = bind * 0.75;
+      pair.bond2.material.opacity = bind * 0.75;
+      pair.bond1.visible = bind > 0.04;
+      pair.bond2.visible = bind > 0.04;
+    });
+  };
+
+  return controller;
+}
+
+function buildCopperReductionScenario() {
+  const controller = createScenarioBase();
+  const leftPedestal = createPedestal(2.75, 0x1c2035);
+  controller.leftRoot.add(leftPedestal.group);
+  const rightPedestal = createPedestal(2.95, 0x20273c);
+  controller.rightRoot.add(rightPedestal.group);
+
+  const lamp = buildAlcoholLamp();
+  controller.leftRoot.add(lamp.group);
+
+  const plate = buildPlateSegments(COLORS.copperOxide);
+  plate.group.position.set(0.08, 0.08, 0);
+  plate.group.rotation.z = -0.03;
+  controller.leftRoot.add(plate.group);
+
+  const clampRod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 2.4, 12),
+    new THREE.MeshStandardMaterial({ color: 0xb3b8c6, roughness: 0.48, metalness: 0.35 })
+  );
+  clampRod.position.set(1.4, 0.1, 0);
+  controller.leftRoot.add(clampRod);
+
+  const clampArm = new THREE.Mesh(
+    new THREE.BoxGeometry(1.55, 0.06, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xb3b8c6, roughness: 0.46, metalness: 0.32 })
+  );
+  clampArm.position.set(0.78, 0.5, 0);
+  controller.leftRoot.add(clampArm);
+
+  const innerLabel = createTextSprite('속불꽃\nCO 많음\n산소 부족', {
+    fontSize: 27,
+    scale: 1.2,
+    bgColor: 'rgba(68, 102, 255, 0.18)',
+    borderColor: 'rgba(121, 168, 255, 0.22)',
+    textColor: '#dbe7ff'
+  });
+  innerLabel.position.set(1.18, -0.42, 0);
+  controller.leftLabels.add(innerLabel);
+
+  const particlePedestal = new THREE.Mesh(
+    new THREE.CircleGeometry(2.45, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x7aa8ff,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.DoubleSide
+    })
+  );
+  particlePedestal.rotation.x = -Math.PI / 2;
+  particlePedestal.position.y = -1.55;
+  controller.particleRoot.add(particlePedestal);
+
+  const units = [];
+  [-1.2, 1.2].forEach((centerX, index) => {
+    const unit = new THREE.Group();
+    unit.position.set(centerX, 0, index === 0 ? 0.12 : -0.12);
+    controller.particleRoot.add(unit);
+
+    const cu = createAtom(0.3, COLORS.copperOxide, {
+      emissive: COLORS.copperOxide,
+      emissiveIntensity: 0.12,
+      roughness: 0.42
+    });
+    cu.position.set(-0.38, -0.95, 0);
+    unit.add(cu);
+
+    const ox = createAtom(0.18, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.3 });
+    ox.position.set(-0.38, -0.22, 0);
+    unit.add(ox);
+
+    const cuBond = createBond(0.03, 0xffd2c8, 0.85);
+    unit.add(cuBond);
+
+    const carbon = createAtom(0.22, COLORS.carbon, { emissive: 0x202020, emissiveIntensity: 0.18 });
+    const coO = createAtom(0.18, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.3 });
+    const coGroup = new THREE.Group();
+    coGroup.position.set(0.8, 1.25, 0);
+    coGroup.add(carbon, coO);
+    unit.add(coGroup);
+    carbon.position.set(0, 0, 0);
+    coO.position.set(0.34, 0, 0);
+
+    const coBond = createBond(0.03, 0xffd2c8, 0.8);
+    coGroup.add(coBond);
+
+    const co2LeftBond = createBond(0.03, 0xffd2c8, 0.0);
+    unit.add(co2LeftBond);
+
+    units.push({ unit, cu, ox, cuBond, coGroup, carbon, coO, coBond, co2LeftBond });
+  });
+
+  const oxidationLabel = createArrowWithLabel(
+    new THREE.Vector3(0.2, 2.1, 0),
+    new THREE.Vector3(0.7, 0.9, 0),
+    COLORS.softRed,
+    'ⓐ 산화',
+    {
+      bgColor: 'rgba(255, 123, 109, 0.16)',
+      borderColor: 'rgba(255, 123, 109, 0.24)',
+      textColor: '#ffd8d3',
+      offset: new THREE.Vector3(0.1, 0.36, 0)
+    }
+  );
+  controller.rightLabels.add(oxidationLabel);
+
+  const reductionLabel = createArrowWithLabel(
+    new THREE.Vector3(-2.0, 0.35, 0),
+    new THREE.Vector3(-1.4, -0.6, 0),
+    COLORS.softBlue,
+    'ⓑ 환원',
+    {
+      bgColor: 'rgba(122, 168, 255, 0.16)',
+      borderColor: 'rgba(122, 168, 255, 0.24)',
+      textColor: '#d9e6ff',
+      offset: new THREE.Vector3(-0.12, 0.28, 0)
+    }
+  );
+  controller.rightLabels.add(reductionLabel);
+
+  const syncNote = createTextSprite('CO가 O를 가져가면\nCuO는 Cu로 복원', {
+    fontSize: 26,
+    scale: 1.42,
+    bgColor: 'rgba(10, 14, 28, 0.74)',
+    borderColor: 'rgba(122, 168, 255, 0.24)',
+    textColor: '#dbe8ff'
+  });
+  syncNote.position.set(0, 2.35, 0);
+  controller.rightLabels.add(syncNote);
+
+  controller.lightProfile = {
+    color: 0x6a8fff,
+    intensity: 1.35,
+    localOffset: new THREE.Vector3(0, -1.2, 2.4)
+  };
+
+  controller.customUpdate = (progress, elapsed) => {
+    const approach = smoothstep(0, 0.36, progress);
+    const transfer = smoothstep(0.34, 0.74, progress);
+    const recover = smoothstep(0.56, 0.96, progress);
+
+    lamp.outerFlame.scale.set(0.9 + Math.sin(elapsed * 8.2) * 0.04, 0.9 + Math.sin(elapsed * 7.6) * 0.06, 0.9);
+    lamp.innerFlame.scale.set(1.02 + Math.sin(elapsed * 9.1) * 0.07, 1.08 + Math.sin(elapsed * 8.5) * 0.08, 1.02);
+    lamp.innerFlame.material.opacity = 0.84 + Math.sin(elapsed * 5.5) * 0.05;
+    lamp.glow.material.color.setHex(COLORS.flameInner);
+    lamp.glow.material.opacity = 0.14 + Math.sin(elapsed * 4.3) * 0.02;
+    lamp.sparks.forEach((spark) => {
+      const rise = ((elapsed * 0.62 + spark.userData.phase / Math.PI) % 1);
+      spark.position.y = -0.78 + rise * 1.35;
+      spark.position.x = spark.userData.baseX + Math.sin(elapsed * 1.9 + spark.userData.phase) * 0.04;
+      spark.position.z = spark.userData.baseZ + Math.cos(elapsed * 2.2 + spark.userData.phase) * 0.04;
+      spark.material.color.setHex(COLORS.flameInner);
+      spark.material.emissive.setHex(COLORS.flameInner);
+      spark.material.opacity = 0.52 * (1 - rise);
+    });
+
+    plate.segments.forEach((segment, index) => {
+      const centerDist = Math.abs(index - (plate.segments.length - 1) / 2) / ((plate.segments.length - 1) / 2);
+      const recovered = clamp(recover * 1.18 - centerDist * 0.58, 0, 1);
+      segment.material.color.copy(mixColor(COLORS.copperOxide, COLORS.copper, recovered));
+      segment.material.emissive.copy(mixColor(0x0b0b0b, COLORS.copper, recovered));
+      segment.material.emissiveIntensity = 0.1 + recovered * 0.18;
+      segment.position.y = Math.sin(elapsed * 5 + index * 0.35) * 0.006;
+    });
+
+    units.forEach((item, index) => {
+      item.coGroup.position.set(
+        lerp(0.86, 0.28, approach),
+        lerp(1.25, 0.12, approach) + Math.sin(elapsed * 2.2 + index) * 0.05 * (1 - recover),
+        0
+      );
+
+      const transferredX = item.coGroup.position.x - 0.34;
+      const transferredY = item.coGroup.position.y;
+      item.ox.position.set(
+        lerp(-0.38, transferredX, transfer),
+        lerp(-0.22, transferredY, transfer),
+        0
+      );
+
+      item.coO.position.set(0.34, 0, 0);
+      setBondBetween(item.coBond, item.carbon.position, item.coO.position);
+      item.coBond.material.opacity = 0.85;
+
+      const carbonWorld = item.unit.position.clone().add(item.coGroup.position).add(item.carbon.position);
+      const leftOxygenWorld = item.unit.position.clone().add(item.ox.position);
+      setBondBetween(item.co2LeftBond, carbonWorld.sub(item.unit.position), item.ox.position);
+      item.co2LeftBond.material.opacity = transfer * 0.85;
+      item.co2LeftBond.visible = transfer > 0.02;
+
+      setBondBetween(item.cuBond, item.cu.position, item.ox.position);
+      item.cuBond.material.opacity = 0.85 * (1 - transfer);
+      item.cuBond.visible = transfer < 0.98;
+
+      item.cu.material.color.copy(mixColor(COLORS.copperOxide, COLORS.copper, recover));
+      item.cu.material.emissive.copy(mixColor(0x0b0b0b, COLORS.copper, recover));
+      item.cu.material.emissiveIntensity = 0.12 + recover * 0.16;
+    });
+  };
+
+  return controller;
+}
+
+function createMoleculeModel(key) {
+  const group = new THREE.Group();
+
+  if (key === 'O2') {
+    const a = createAtom(0.24, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.26 });
+    const b = createAtom(0.24, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.26 });
+    a.position.x = -0.28;
+    b.position.x = 0.28;
+    const bond = createBond(0.04, 0xffcac1, 0.9);
+    group.add(a, b, bond);
+    setBondBetween(bond, a.position, b.position);
+    return group;
+  }
+
+  if (key === 'CO2') {
+    const c = createAtom(0.24, COLORS.carbon, { emissive: 0x202020, emissiveIntensity: 0.16 });
+    const o1 = createAtom(0.21, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.24 });
+    const o2 = createAtom(0.21, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.24 });
+    o1.position.x = -0.54;
+    o2.position.x = 0.54;
+    const b1 = createBond(0.035, 0xffd6cf, 0.9);
+    const b2 = createBond(0.035, 0xffd6cf, 0.9);
+    group.add(c, o1, o2, b1, b2);
+    setBondBetween(b1, c.position, o1.position);
+    setBondBetween(b2, c.position, o2.position);
+    return group;
+  }
+
+  if (key === 'H2O') {
+    const o = createAtom(0.24, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.25 });
+    const h1 = createAtom(0.12, COLORS.hydrogen, { emissive: 0xffffff, emissiveIntensity: 0.12, roughness: 0.18 });
+    const h2 = createAtom(0.12, COLORS.hydrogen, { emissive: 0xffffff, emissiveIntensity: 0.12, roughness: 0.18 });
+    h1.position.set(-0.32, 0.22, 0);
+    h2.position.set(0.32, 0.22, 0);
+    const b1 = createBond(0.025, 0xd6ebff, 0.86);
+    const b2 = createBond(0.025, 0xd6ebff, 0.86);
+    group.add(o, h1, h2, b1, b2);
+    setBondBetween(b1, o.position, h1.position);
+    setBondBetween(b2, o.position, h2.position);
+    return group;
+  }
+
+  if (key === 'CO') {
+    const c = createAtom(0.24, COLORS.carbon, { emissive: 0x202020, emissiveIntensity: 0.16 });
+    const o = createAtom(0.21, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.24 });
+    o.position.x = 0.5;
+    const bond = createBond(0.035, 0xffd6cf, 0.9);
+    group.add(c, o, bond);
+    setBondBetween(bond, c.position, o.position);
+    return group;
+  }
+
+  if (key === 'Glucose') {
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (i / 6) * Math.PI * 2;
+      const carbon = createAtom(0.16, COLORS.glucose, { emissive: 0xffc96b, emissiveIntensity: 0.2 });
+      carbon.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.38, 0);
+      group.add(carbon);
+      const oxygen = createAtom(0.1, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.18 });
+      oxygen.position.set(Math.cos(angle) * 0.85, Math.sin(angle) * 0.65, 0);
+      group.add(oxygen);
+      const bond = createBond(0.02, 0xffd59c, 0.8);
+      group.add(bond);
+      setBondBetween(bond, carbon.position, oxygen.position);
+    }
+    return group;
+  }
+
+  if (key === 'Butane') {
+    const carbons = [];
+    for (let i = 0; i < 4; i += 1) {
+      const carbon = createAtom(0.18, COLORS.carbon, { emissive: 0x202020, emissiveIntensity: 0.18 });
+      carbon.position.set(-0.54 + i * 0.36, (i % 2 === 0 ? -0.08 : 0.08), 0);
+      carbons.push(carbon);
+      group.add(carbon);
+      if (i > 0) {
+        const bond = createBond(0.025, 0xe9e1d8, 0.85);
+        group.add(bond);
+        setBondBetween(bond, carbons[i - 1].position, carbon.position);
+      }
+    }
+    for (let i = 0; i < 8; i += 1) {
+      const parent = carbons[i % 4];
+      const hydrogen = createAtom(0.1, COLORS.hydrogen, { roughness: 0.18 });
+      const angle = (i / 8) * Math.PI * 2;
+      hydrogen.position.copy(parent.position).add(new THREE.Vector3(Math.cos(angle) * 0.26, Math.sin(angle) * 0.22, (i % 2 === 0 ? 0.14 : -0.14)));
+      group.add(hydrogen);
+      const bond = createBond(0.016, 0xe9e1d8, 0.72);
+      group.add(bond);
+      setBondBetween(bond, parent.position, hydrogen.position);
+    }
+    return group;
+  }
+
+  if (key === 'Fe2O3') {
+    const fe1 = createAtom(0.22, COLORS.iron, { emissive: 0x394056, emissiveIntensity: 0.16 });
+    const fe2 = createAtom(0.22, COLORS.iron, { emissive: 0x394056, emissiveIntensity: 0.16 });
+    fe1.position.set(-0.3, -0.18, 0);
+    fe2.position.set(0.3, -0.18, 0);
+    group.add(fe1, fe2);
+    const oxygenPositions = [
+      new THREE.Vector3(-0.52, 0.34, 0),
+      new THREE.Vector3(0, 0.56, 0),
+      new THREE.Vector3(0.52, 0.34, 0)
+    ];
+    oxygenPositions.forEach((position) => {
+      const oxygen = createAtom(0.16, COLORS.oxygen, { emissive: COLORS.oxygen, emissiveIntensity: 0.24 });
+      oxygen.position.copy(position);
+      group.add(oxygen);
+      const b1 = createBond(0.02, 0xffd5cb, 0.82);
+      const b2 = createBond(0.02, 0xffd5cb, 0.82);
+      group.add(b1, b2);
+      setBondBetween(b1, fe1.position, oxygen.position);
+      setBondBetween(b2, fe2.position, oxygen.position);
+    });
+    return group;
+  }
+
+  if (key === 'Fe') {
+    const fe1 = createAtom(0.24, COLORS.iron, { emissive: 0x394056, emissiveIntensity: 0.18 });
+    const fe2 = createAtom(0.24, COLORS.iron, { emissive: 0x394056, emissiveIntensity: 0.18 });
+    fe1.position.x = -0.28;
+    fe2.position.x = 0.28;
+    const bond = createBond(0.03, 0xdfe5f7, 0.84);
+    group.add(fe1, fe2, bond);
+    setBondBetween(bond, fe1.position, fe2.position);
+    return group;
+  }
+
+  return group;
+}
+
+function createReactionCluster({ title, formula, modelKey, color, position, scale = 1 }) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+
+  const pedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.78, 0.88, 0.18, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x1f2434,
+      roughness: 0.52,
+      metalness: 0.1
+    })
+  );
+  pedestal.position.y = -0.92;
+  group.add(pedestal);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.74, 0.03, 10, 40),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.3,
+      roughness: 0.2
+    })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = -0.82;
+  group.add(ring);
+
+  const model = createMoleculeModel(modelKey);
+  model.position.y = -0.05;
+  model.scale.setScalar(scale);
+  group.add(model);
+
+  const titleSprite = createTextSprite(title, {
+    fontSize: 26,
+    scale: 0.88,
+    bgColor: 'rgba(8, 12, 28, 0.8)',
+    borderColor: 'rgba(255, 255, 255, 0.14)'
+  });
+  titleSprite.position.set(0, 1.08, 0);
+  group.add(titleSprite);
+
+  const formulaSprite = createTextSprite(formula, {
+    fontSize: 24,
+    scale: 0.74,
+    bgColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    textColor: '#fbe6d1'
+  });
+  formulaSprite.position.set(0, -1.5, 0);
+  group.add(formulaSprite);
+
+  group.userData.basePos = position.clone();
+  group.userData.fadeMaterials = collectMaterials(group);
+  return group;
+}
+
+function buildLeftVisual(kind, root) {
+  const pedestal = createPedestal(2.7, kind === 'photosynthesis' ? 0x193228 : kind === 'respiration' ? 0x193035 : kind === 'combustion' ? 0x2c231d : 0x2b221c);
+  root.add(pedestal.group);
+
+  if (kind === 'photosynthesis') {
+    const sun = createAtom(0.4, COLORS.gold, { emissive: COLORS.gold, emissiveIntensity: 0.55, roughness: 0.18 });
+    sun.position.set(-1.35, 1.4, 0.25);
+    root.add(sun);
+
+    const rays = [];
+    for (let i = 0; i < 8; i += 1) {
+      const ray = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.48, 0.04),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.gold,
+          emissive: COLORS.gold,
+          emissiveIntensity: 0.35
+        })
+      );
+      const angle = (i / 8) * Math.PI * 2;
+      ray.position.set(
+        sun.position.x + Math.cos(angle) * 0.78,
+        sun.position.y + Math.sin(angle) * 0.78,
+        0
+      );
+      ray.rotation.z = angle;
+      root.add(ray);
+      rays.push(ray);
+    }
+
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, 1.9, 18),
+      new THREE.MeshStandardMaterial({ color: 0x2d8b55, roughness: 0.62 })
+    );
+    stem.position.set(0, -0.9, 0);
+    root.add(stem);
+
+    const leafA = new THREE.Mesh(
+      new THREE.SphereGeometry(0.72, 28, 24),
+      new THREE.MeshStandardMaterial({
+        color: COLORS.leaf,
+        roughness: 0.52,
+        emissive: 0x17381f,
+        emissiveIntensity: 0.18
+      })
+    );
+    leafA.scale.set(0.8, 1.25, 0.22);
+    leafA.position.set(-0.42, 0.15, 0);
+    leafA.rotation.z = 0.7;
+    root.add(leafA);
+
+    const leafB = leafA.clone();
+    leafB.position.set(0.42, -0.02, 0);
+    leafB.rotation.z = -0.8;
+    root.add(leafB);
+
+    const bubbles = [];
+    for (let i = 0; i < 6; i += 1) {
+      const bubble = createAtom(0.08 + Math.random() * 0.03, COLORS.oxygen, {
+        emissive: COLORS.oxygen,
+        emissiveIntensity: 0.2,
+        opacity: 0.8
+      });
+      bubble.userData.phase = Math.random() * Math.PI * 2;
+      bubble.position.set((Math.random() - 0.5) * 1.3, -0.2 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3);
+      root.add(bubble);
+      bubbles.push(bubble);
+    }
+
+    return {
+      update(elapsed, progress) {
+        sun.scale.setScalar(1.02 + Math.sin(elapsed * 2.2) * 0.05);
+        rays.forEach((ray, index) => {
+          ray.scale.y = 0.85 + Math.sin(elapsed * 4 + index * 0.8) * 0.1;
+        });
+        bubbles.forEach((bubble, index) => {
+          const release = smoothstep(0.38, 1, progress);
+          bubble.position.y = -0.15 + ((elapsed * 0.38 + bubble.userData.phase / (Math.PI * 2) + release * 0.8 + index * 0.04) % 1.2) * 1.7;
+          bubble.material.opacity = 0.12 + release * 0.68;
+        });
+      }
+    };
+  }
+
+  if (kind === 'respiration') {
+    const membrane = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 32, 28),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x85c6bd,
+        roughness: 0.16,
+        transmission: 0.34,
+        transparent: true,
+        opacity: 0.68
+      })
+    );
+    membrane.scale.set(1.12, 0.88, 1);
+    membrane.position.y = -0.2;
+    root.add(membrane);
+
+    const mitochondrion = new THREE.Mesh(
+      new THREE.TorusGeometry(0.52, 0.17, 18, 80),
+      new THREE.MeshStandardMaterial({
+        color: 0xff9f76,
+        emissive: 0x7a2e10,
+        emissiveIntensity: 0.3,
+        roughness: 0.36
+      })
+    );
+    mitochondrion.rotation.x = 1.1;
+    mitochondrion.rotation.z = 0.5;
+    mitochondrion.scale.set(1.2, 0.68, 1);
+    mitochondrion.position.set(0.1, -0.15, 0.05);
+    root.add(mitochondrion);
+
+    const sparks = [];
+    for (let i = 0; i < 8; i += 1) {
+      const spark = createAtom(0.06, COLORS.gold, {
+        emissive: COLORS.gold,
+        emissiveIntensity: 0.8,
+        opacity: 0.7
+      });
+      spark.userData.phase = Math.random() * Math.PI * 2;
+      spark.position.set((Math.random() - 0.5) * 0.9, -0.15 + (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5);
+      root.add(spark);
+      sparks.push(spark);
+    }
+
+    return {
+      update(elapsed, progress) {
+        membrane.scale.y = 0.88 + Math.sin(elapsed * 2.3) * 0.02;
+        mitochondrion.rotation.y += 0.01;
+        const release = smoothstep(0.35, 1, progress);
+        sparks.forEach((spark, index) => {
+          spark.position.y = -0.4 + Math.sin(elapsed * 3.2 + spark.userData.phase + index) * 0.36;
+          spark.material.opacity = 0.18 + release * 0.58;
+        });
+      }
+    };
+  }
+
+  if (kind === 'combustion') {
+    const burner = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.34, 0.44, 1.5, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xaab1c0,
+        roughness: 0.36,
+        metalness: 0.42
+      })
+    );
+    burner.position.set(0, -1.35, 0);
+    root.add(burner);
+
+    const nozzle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.16, 0.38, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0xc8d1e6,
+        roughness: 0.28,
+        metalness: 0.38
+      })
+    );
+    nozzle.position.set(0, -0.42, 0);
+    root.add(nozzle);
+
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.48, 1.86, 28),
+      new THREE.MeshStandardMaterial({
+        color: COLORS.flameOuter,
+        emissive: COLORS.flameOuter,
+        emissiveIntensity: 1.05,
+        transparent: true,
+        opacity: 0.82
+      })
+    );
+    flame.position.set(0, 0.48, 0);
+    root.add(flame);
+
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.52, 18, 16),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.flameOuter,
+        transparent: true,
+        opacity: 0.15
+      })
+    );
+    glow.position.set(0, 0.55, 0);
+    glow.scale.set(1.1, 2, 1.1);
+    root.add(glow);
+
+    return {
+      update(elapsed) {
+        flame.scale.set(1 + Math.sin(elapsed * 7.2) * 0.06, 0.98 + Math.sin(elapsed * 8.4) * 0.08, 1);
+        glow.material.opacity = 0.11 + Math.sin(elapsed * 4.5) * 0.02;
+      }
+    };
+  }
+
+  const furnace = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.96, 1.08, 2.2, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x5a4037,
+      roughness: 0.82,
+      metalness: 0.05
+    })
+  );
+  furnace.position.set(0, -0.8, 0);
+  root.add(furnace);
+
+  const opening = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.65, 0.08),
+    new THREE.MeshStandardMaterial({
+      color: 0xff9c55,
+      emissive: 0xff9c55,
+      emissiveIntensity: 1.1,
+      transparent: true,
+      opacity: 0.9
+    })
+  );
+  opening.position.set(0, -0.55, 1.02);
+  root.add(opening);
+
+  const ore = [];
+  for (let i = 0; i < 4; i += 1) {
+    const piece = createAtom(0.18 + Math.random() * 0.06, 0x8e6f68, {
+      roughness: 0.74,
+      emissive: 0x301812,
+      emissiveIntensity: 0.08
+    });
+    piece.position.set(-0.7 + i * 0.36, 0.75 + Math.random() * 0.2, (Math.random() - 0.5) * 0.24);
+    root.add(piece);
+    ore.push(piece);
+  }
+
+  return {
+    update(elapsed) {
+      opening.material.opacity = 0.78 + Math.sin(elapsed * 5.2) * 0.08;
+      ore.forEach((piece, index) => {
+        piece.position.y = 0.78 + Math.sin(elapsed * 2.4 + index) * 0.06;
+      });
+    }
+  };
+}
+
+function buildClusterReactionScenario(kind) {
+  const controller = createScenarioBase();
+  const leftVisual = buildLeftVisual(kind, controller.leftRoot);
+  const rightPedestal = createPedestal(3.1, 0x20273c);
+  controller.rightRoot.add(rightPedestal.group);
+
+  const configs = {
+    photosynthesis: {
+      lightProfile: { color: 0xffd77a, intensity: 1.4, localOffset: new THREE.Vector3(-0.15, 1.3, 2.6) },
+      reactants: [
+        { title: '이산화 탄소', formula: '6CO₂', modelKey: 'CO2', color: 0xff8371, position: new THREE.Vector3(-2.05, 0.82, 0), scale: 1 },
+        { title: '물', formula: '6H₂O', modelKey: 'H2O', color: 0x79a8ff, position: new THREE.Vector3(-0.55, -0.72, 0), scale: 1 }
+      ],
+      products: [
+        { title: '포도당', formula: 'C₆H₁₂O₆', modelKey: 'Glucose', color: 0xffcf6b, position: new THREE.Vector3(1.0, 0.82, 0), scale: 0.85 },
+        { title: '산소', formula: '6O₂', modelKey: 'O2', color: 0xff8371, position: new THREE.Vector3(2.45, -0.65, 0), scale: 1 }
+      ],
+      flow: { mode: 'burst-up', from: new THREE.Vector3(-0.55, -0.72, 0), to: new THREE.Vector3(2.45, -0.65, 0) },
+      arrows: [
+        { from: new THREE.Vector3(-2.0, 1.45, 0), to: new THREE.Vector3(0.65, 1.0, 0), color: COLORS.softBlue, label: '환원' },
+        { from: new THREE.Vector3(-0.45, 0.08, 0), to: new THREE.Vector3(2.1, -0.25, 0), color: COLORS.softRed, label: '산화' }
+      ],
+      note: '빛을 받으면 CO₂는 환원되어 포도당이 되고, H₂O는 산화되어 O₂가 됩니다.'
+    },
+    respiration: {
+      lightProfile: { color: 0x6ed9b1, intensity: 1.2, localOffset: new THREE.Vector3(0.1, 0.25, 2.2) },
+      reactants: [
+        { title: '포도당', formula: 'C₆H₁₂O₆', modelKey: 'Glucose', color: 0xffcf6b, position: new THREE.Vector3(-2.05, 0.82, 0), scale: 0.85 },
+        { title: '산소', formula: '6O₂', modelKey: 'O2', color: 0xff8371, position: new THREE.Vector3(-0.55, -0.72, 0), scale: 1 }
+      ],
+      products: [
+        { title: '이산화 탄소', formula: '6CO₂', modelKey: 'CO2', color: 0xff8371, position: new THREE.Vector3(1.0, 0.82, 0), scale: 1 },
+        { title: '물', formula: '6H₂O', modelKey: 'H2O', color: 0x79a8ff, position: new THREE.Vector3(2.45, -0.65, 0), scale: 1 }
+      ],
+      flow: { mode: 'line', from: new THREE.Vector3(-0.55, -0.72, 0), to: new THREE.Vector3(1.0, 0.82, 0) },
+      arrows: [
+        { from: new THREE.Vector3(-2.05, 1.35, 0), to: new THREE.Vector3(0.55, 1.0, 0), color: COLORS.softRed, label: '산화' },
+        { from: new THREE.Vector3(-0.45, 0.02, 0), to: new THREE.Vector3(2.08, -0.25, 0), color: COLORS.softBlue, label: '환원' }
+      ],
+      note: '포도당은 산소를 얻어 산화되고, 산소는 H₂O가 되며 환원됩니다.'
+    },
+    combustion: {
+      lightProfile: { color: 0xffaa66, intensity: 1.45, localOffset: new THREE.Vector3(0, 0.25, 2.4) },
+      reactants: [
+        { title: '뷰테인', formula: '2C₄H₁₀', modelKey: 'Butane', color: 0xffcf6b, position: new THREE.Vector3(-2.05, 0.82, 0), scale: 0.95 },
+        { title: '산소', formula: '13O₂', modelKey: 'O2', color: 0xff8371, position: new THREE.Vector3(-0.55, -0.72, 0), scale: 1 }
+      ],
+      products: [
+        { title: '이산화 탄소', formula: '8CO₂', modelKey: 'CO2', color: 0xff8371, position: new THREE.Vector3(1.0, 0.82, 0), scale: 1 },
+        { title: '물', formula: '10H₂O', modelKey: 'H2O', color: 0x79a8ff, position: new THREE.Vector3(2.45, -0.65, 0), scale: 1 }
+      ],
+      flow: { mode: 'line', from: new THREE.Vector3(-0.55, -0.72, 0), to: new THREE.Vector3(1.0, 0.82, 0) },
+      arrows: [
+        { from: new THREE.Vector3(-2.05, 1.35, 0), to: new THREE.Vector3(0.55, 1.0, 0), color: COLORS.softRed, label: '산화' },
+        { from: new THREE.Vector3(-0.45, 0.02, 0), to: new THREE.Vector3(2.08, -0.25, 0), color: COLORS.softBlue, label: '환원' }
+      ],
+      note: '연료는 산소를 얻어 산화되고, 산소는 동시에 연료에 산소를 주며 환원됩니다.'
+    },
+    smelting: {
+      lightProfile: { color: 0xffaa66, intensity: 1.35, localOffset: new THREE.Vector3(0, -0.15, 2.4) },
+      reactants: [
+        { title: '산화 철(III)', formula: 'Fe₂O₃', modelKey: 'Fe2O3', color: 0xff8371, position: new THREE.Vector3(-2.05, 0.82, 0), scale: 0.9 },
+        { title: '일산화 탄소', formula: '3CO', modelKey: 'CO', color: 0xffcf6b, position: new THREE.Vector3(-0.55, -0.72, 0), scale: 1 }
+      ],
+      products: [
+        { title: '철', formula: '2Fe', modelKey: 'Fe', color: 0xd2d8eb, position: new THREE.Vector3(1.0, 0.82, 0), scale: 1 },
+        { title: '이산화 탄소', formula: '3CO₂', modelKey: 'CO2', color: 0xff8371, position: new THREE.Vector3(2.45, -0.65, 0), scale: 1 }
+      ],
+      flow: { mode: 'line', from: new THREE.Vector3(-2.05, 0.82, 0), to: new THREE.Vector3(2.45, -0.65, 0) },
+      arrows: [
+        { from: new THREE.Vector3(-0.48, 0.02, 0), to: new THREE.Vector3(2.08, -0.25, 0), color: COLORS.softRed, label: '산화' },
+        { from: new THREE.Vector3(-2.05, 1.35, 0), to: new THREE.Vector3(0.55, 1.0, 0), color: COLORS.softBlue, label: '환원' }
+      ],
+      note: 'Fe₂O₃의 산소가 CO로 이동해 CO₂가 되고, Fe가 남습니다.'
+    }
+  };
+
+  const config = configs[kind];
+  controller.lightProfile = config.lightProfile;
+
+  const reactants = config.reactants.map((def) => createReactionCluster(def));
+  const products = config.products.map((def) => createReactionCluster(def));
+  reactants.forEach((cluster) => controller.particleRoot.add(cluster));
+  products.forEach((cluster) => controller.particleRoot.add(cluster));
+  products.forEach((cluster) => {
+    cluster.userData.baseScale = 1;
+    setObjectFade(cluster, 0.06, 0.72);
+  });
+  reactants.forEach((cluster) => {
+    cluster.userData.baseScale = 1;
+    setObjectFade(cluster, 1, 1);
+  });
+
+  const flash = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.06, 14, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd17a,
+      transparent: true,
+      opacity: 0
+    })
+  );
+  flash.rotation.x = Math.PI / 2;
+  flash.position.set(0.25, -0.02, 0);
+  controller.particleRoot.add(flash);
+
+  const flowParticles = [];
+  for (let i = 0; i < 8; i += 1) {
+    const particle = createAtom(0.06 + Math.random() * 0.02, COLORS.oxygen, {
+      emissive: COLORS.oxygen,
+      emissiveIntensity: 0.4,
+      opacity: 0.0
+    });
+    controller.particleRoot.add(particle);
+    flowParticles.push(particle);
+  }
+
+  config.arrows.forEach((arrowDef) => {
+    const arrow = createArrowWithLabel(arrowDef.from, arrowDef.to, arrowDef.color, arrowDef.label, {
+      bgColor: arrowDef.color === COLORS.softRed ? 'rgba(255, 123, 109, 0.16)' : 'rgba(122, 168, 255, 0.16)',
+      borderColor: arrowDef.color === COLORS.softRed ? 'rgba(255, 123, 109, 0.24)' : 'rgba(122, 168, 255, 0.24)',
+      textColor: arrowDef.color === COLORS.softRed ? '#ffd8d3' : '#d9e6ff',
+      offset: new THREE.Vector3(0, 0.34, 0)
+    });
+    controller.rightLabels.add(arrow);
+  });
+
+  const note = createTextSprite(config.note, {
+    fontSize: 24,
+    scale: 1.52,
+    bgColor: 'rgba(10, 14, 28, 0.74)',
+    borderColor: 'rgba(122, 168, 255, 0.2)',
+    textColor: '#dbe8ff'
+  });
+  note.position.set(0.25, 2.35, 0);
+  controller.rightLabels.add(note);
+
+  controller.customUpdate = (progress, elapsed) => {
+    leftVisual.update(elapsed, progress);
+
+    const mix = smoothstep(0, 0.34, progress);
+    const reveal = smoothstep(0.4, 0.86, progress);
+    const settle = smoothstep(0.65, 1, progress);
+
+    reactants.forEach((cluster, index) => {
+      const basePos = cluster.userData.basePos;
+      const target = basePos.clone().lerp(new THREE.Vector3(-0.25 + index * 0.32, 0.02 - index * 0.18, 0), 0.68);
+      cluster.position.lerpVectors(basePos, target, mix);
+      setObjectFade(cluster, 1 - reveal * 0.72, 1 - reveal * 0.16);
+      cluster.rotation.y = Math.sin(elapsed * 0.7 + index) * 0.18;
+    });
+
+    products.forEach((cluster, index) => {
+      const basePos = cluster.userData.basePos;
+      const start = new THREE.Vector3(0.35 + index * 0.28, -0.1 + index * 0.16, 0);
+      cluster.position.lerpVectors(start, basePos, easeInOut(reveal));
+      setObjectFade(cluster, 0.06 + reveal * 0.94, 0.7 + reveal * 0.3);
+      cluster.rotation.y = Math.sin(elapsed * 0.62 + index + 1.5) * 0.14;
+    });
+
+    const flashAlpha = Math.sin(Math.PI * smoothstep(0.22, 0.66, progress));
+    flash.material.opacity = flashAlpha * 0.42;
+    flash.scale.setScalar(0.85 + flashAlpha * 1.9);
+
+    flowParticles.forEach((particle, index) => {
+      const localPhase = ((elapsed * 0.26 + index / flowParticles.length) % 1);
+      const active = smoothstep(0.26, 0.96, progress);
+      if (active < 0.02) {
+        particle.material.opacity = 0;
+        return;
+      }
+
+      let x = 0;
+      let y = 0;
+      if (config.flow.mode === 'line') {
+        const from = config.flow.from;
+        const to = config.flow.to;
+        x = lerp(from.x, to.x, localPhase);
+        y = lerp(from.y, to.y, localPhase) + Math.sin(localPhase * Math.PI) * 0.55;
+      } else {
+        const from = config.flow.from;
+        const to = config.flow.to;
+        x = lerp(from.x, to.x, localPhase);
+        y = lerp(from.y, to.y, localPhase) + Math.sin(localPhase * Math.PI) * 0.92 + localPhase * 0.5;
+      }
+      particle.position.set(x, y, Math.sin(index + elapsed * 2) * 0.18);
+      particle.material.opacity = active * (0.35 + 0.5 * (1 - localPhase));
+    });
+  };
+
+  return controller;
+}
+
+function updatePanels(meta) {
+  headlineTitle.textContent = meta.title;
+  headlineDesc.textContent = meta.headline;
+  focusNote.textContent = meta.focus;
+  syncBanner.textContent = meta.syncText;
+  fpExperiment.textContent = meta.experiment;
+  fpOxidized.textContent = meta.oxidized;
+  fpReduced.textContent = meta.reduced;
+  equationText.textContent = meta.equation;
+  legendNote.textContent = meta.legendNote;
+  legendItems.innerHTML = meta.legend.map((item) => `
+    <div class="legend-item">
+      <span class="swatch" style="background:${item.color}"></span>
+      <span>${item.text}</span>
+    </div>
+  `).join('');
+}
+
+function loadScenario(key) {
+  if (currentScenario) currentScenario.dispose();
+  const meta = SCENARIOS[key];
+  updatePanels(meta);
+  currentScenario = meta.build();
+  currentScenario.applyLayout();
+  currentScenario.setLabelsVisible(params.labels);
+  currentScenario.setParticleScale(params.particleScale);
+  scene.add(currentScenario.root);
+
+  lampPointLight.color.setHex(currentScenario.lightProfile.color);
+  lampPointLight.intensity = currentScenario.lightProfile.intensity;
+  lampPointLight.position.copy(currentScenario.leftRoot.position).add(currentScenario.lightProfile.localOffset);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.033);
+  const elapsed = clock.elapsedTime;
+
+  if (backgroundStars) {
+    backgroundStars.rotation.y += 0.0004;
+  }
+
+  if (currentScenario) {
+    currentScenario.update(dt, elapsed);
+  }
+
+  if (currentScenario) {
+    lampPointLight.position.lerp(
+      currentScenario.leftRoot.position.clone().add(currentScenario.lightProfile.localOffset),
+      0.08
+    );
+    lampPointLight.intensity += (currentScenario.lightProfile.intensity - lampPointLight.intensity) * 0.08;
+  }
+  particleLight.intensity = 0.62 + Math.sin(elapsed * 2.4) * 0.06;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function handleResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (currentScenario) currentScenario.applyLayout();
+  if (window.innerWidth < 768) gui.close();
+}
+
+window.addEventListener('resize', handleResize);
+
+loadScenario('copperOxidation');
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수평 방향 투사체 운동 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --panel-bg: rgba(7, 18, 34, 0.9);
+    --panel-strong: rgba(4, 13, 24, 0.94);
+    --panel-border: rgba(255, 255, 255, 0.11);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --accent-blue: #63b9ff;
+    --accent-red: #ff7e7e;
+    --accent-green: #7bffab;
+    --accent-gold: #ffd76f;
+    --accent-cyan: #7cefff;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 235, 153, 0.16), transparent 20%),
+      linear-gradient(180deg, #94c9f0 0%, #bfe0f8 22%, #e1eef8 48%, #081628 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.85fr) minmax(340px, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 230, 151, 0.28), transparent 18%),
+      linear-gradient(180deg, rgba(152, 206, 244, 0.96) 0%, rgba(189, 224, 249, 0.94) 28%, rgba(230, 240, 250, 0.82) 56%, rgba(210, 224, 237, 0.72) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 10% 8%, rgba(97, 185, 255, 0.14), transparent 20%),
+      linear-gradient(180deg, rgba(9, 21, 38, 0.98) 0%, rgba(4, 12, 24, 1) 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: fixed;
+    top: 14px;
+    left: calc(32.5% - 6px);
+    transform: translateX(-50%);
+    z-index: 14;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(14, 38, 71, 0.72);
+  }
+
+  #scene-title h1 {
+    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 700;
+    color: rgba(10, 30, 52, 0.94);
+    text-shadow: 0 6px 14px rgba(255, 255, 255, 0.34);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(16, 41, 74, 0.66);
+  }
+
+  #scene-caption {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    z-index: 12;
+    max-width: 290px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.46);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    box-shadow: 0 12px 30px rgba(71, 101, 131, 0.16);
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(9, 27, 49, 0.8);
+    pointer-events: none;
+  }
+
+  #scene-caption strong {
+    color: rgba(11, 33, 58, 0.94);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 24px;
+    right: 24px;
+    z-index: 12;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    pointer-events: none;
+  }
+
+  #graph-head h2 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  #graph-head p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #legend {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    max-width: 280px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  .legend-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-tabs {
+    position: absolute;
+    top: 104px;
+    left: 24px;
+    right: 24px;
+    z-index: 13;
+    display: flex;
+    gap: 8px;
+  }
+
+  .graph-tab {
+    flex: 1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.72);
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .graph-tab:hover {
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .graph-tab.active {
+    background: linear-gradient(135deg, rgba(96, 185, 255, 0.22), rgba(123, 255, 171, 0.12));
+    border-color: rgba(124, 222, 255, 0.28);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  #metrics {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 18px;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    min-height: 84px;
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: 348px;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: rgba(6, 19, 36, 0.88);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+    z-index: 30;
+    font-size: 11px;
+    line-height: 1.75;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #d8f3ff;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .formula-row .label {
+    width: 94px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: #fff0af;
+  }
+
+  #status-banner {
+    position: fixed;
+    top: 82px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 22px;
+    border-radius: 999px;
+    background: rgba(16, 53, 39, 0.9);
+    border: 1px solid rgba(123, 255, 171, 0.34);
+    color: #f4fff7;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 12px 30px rgba(18, 62, 45, 0.22);
+    z-index: 28;
+    opacity: 0;
+    transition: opacity 0.24s ease, transform 0.24s ease;
+    pointer-events: none;
+  }
+
+  #status-banner.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 40;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(5, 18, 34, 0.84);
+    color: #ffffff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    right: 14px;
+    width: 410px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: rgba(5, 18, 34, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    line-height: 1.8;
+    z-index: 39;
+    display: none;
+    backdrop-filter: blur(14px);
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #d8f3ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #fff0af;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .guide-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  @media (max-width: 1100px) {
+    #scene-title {
+      left: 35%;
+    }
+
+    #formula-panel {
+      width: 312px;
+    }
+
+    #metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 920px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #scene-title {
+      left: 50%;
+    }
+
+    #graph-tabs {
+      top: 90px;
+    }
+
+    #formula-panel {
+      width: calc(100% - 28px);
+      max-width: 520px;
+      bottom: 10px;
+    }
+
+    #guide-panel {
+      width: min(92vw, 410px);
+    }
+  }
+
+  @media (max-width: 640px) {
+    #scene-caption {
+      left: 10px;
+      right: 10px;
+      max-width: none;
+      padding: 10px 12px;
+    }
+
+    #scene-title {
+      top: 72px;
+    }
+
+    #scene-title h1 {
+      font-size: 19px;
+    }
+
+    #graph-head,
+    #graph-tabs,
+    #metrics {
+      left: 12px;
+      right: 12px;
+    }
+
+    #graph-head {
+      top: 14px;
+      flex-direction: column;
+      pointer-events: none;
+    }
+
+    #legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+
+    #graph-tabs {
+      top: 126px;
+      flex-wrap: wrap;
+    }
+
+    .graph-tab {
+      min-width: 0;
+      flex: 1 1 32%;
+    }
+
+    #formula-panel {
+      font-size: 10px;
+      padding: 14px 14px 12px;
+    }
+
+    #status-banner {
+      top: 132px;
+      font-size: 14px;
+      padding: 10px 16px;
+      max-width: calc(100vw - 28px);
+      text-align: center;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+      <div id="scene-caption">
+        <strong>핵심 시각화</strong><br>
+        수평으로 던진 공과 자유 낙하 공은 <strong>연직 방향 운동이 동일</strong>하므로 같은 높이에서 시작하면 동시에 바닥에 도달합니다.
+      </div>
+    </section>
+    <section id="graph-panel">
+      <div id="graph-head">
+        <div>
+          <h2>운동 분석 그래프</h2>
+          <p id="graph-subtitle">수평 운동은 등속, 연직 운동은 자유 낙하입니다. 그래프를 바꾸며 두 운동의 독립성을 비교해 보세요.</p>
+        </div>
+        <div id="legend"></div>
+      </div>
+      <div id="graph-tabs">
+        <button class="graph-tab active" data-graph="수평 거리-시간">수평 거리-시간</button>
+        <button class="graph-tab" data-graph="높이-시간">높이-시간</button>
+        <button class="graph-tab" data-graph="속력-시간">속력-시간</button>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+      <div id="metrics">
+        <div class="metric-card">
+          <span class="label">경과 시간</span>
+          <strong id="metric-time">0.00 s</strong>
+          <p id="metric-time-desc">발사 전입니다. 버튼을 눌러 두 운동을 동시에 시작해 보세요.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">예상 도달 시간</span>
+          <strong id="metric-flight">0.55 s</strong>
+          <p id="metric-flight-desc">같은 높이에서 시작하면 수평 속력과 관계없이 도달 시간은 같습니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">수평 이동 거리</span>
+          <strong id="metric-range">0.00 m</strong>
+          <p id="metric-range-desc">수평 속력이 클수록 같은 시간 동안 더 멀리 이동합니다.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="scene-title">
+    <div class="eyebrow">Integrated Science I</div>
+    <h1>수평 방향 투사체 운동</h1>
+    <p>포물선 궤적은 수평 등속 운동과 연직 자유 낙하 운동의 합성입니다.</p>
+  </div>
+
+  <div id="status-banner">동시에 도달!</div>
+
+  <button id="guide-toggle">학습 가이드</button>
+  <div id="guide-panel">
+    <h3>핵심 원리</h3>
+    <p>수평으로 던진 물체는 수평 방향으로는 일정한 속력으로 이동하고, 연직 방향으로는 자유 낙하와 똑같이 가속됩니다. 두 운동은 서로 독립이므로 같은 높이에서 시작한 자유 낙하 공과 수평 투사 공은 동시에 바닥에 도달합니다.</p>
+
+    <div class="guide-card">
+      <h4>교과서 연결</h4>
+      <p>미래엔 통합과학1 III편 p126~129의 자유 낙하와 수평 투사 비교 탐구를 3D 장면과 그래프로 재구성했습니다.</p>
+    </div>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>공 A와 공 B가 동시에 바닥에 도달하는 까닭은 무엇일까요?</li>
+      <li>수평 속력을 2배로 하면 수평 이동 거리는 어떻게 변할까요?</li>
+      <li>중력이 더 큰 곳에서는 도달 시간과 수평 이동 거리가 어떻게 달라질까요?</li>
+    </ul>
+
+    <h4>관찰 포인트</h4>
+    <ul>
+      <li>회색 점선은 두 공의 현재 높이가 항상 같음을 보여 줍니다.</li>
+      <li>빨간 공 A의 궤적은 수직선, 파란 공 B의 궤적은 포물선입니다.</li>
+      <li>속도 분해 화살표에서 파란 화살표는 일정하지만, 빨간 화살표는 시간이 지날수록 길어집니다.</li>
+      <li>다중 발사 모드에서는 2, 4, 6 m/s 공이 모두 같은 순간에 바닥에 닿습니다.</li>
+    </ul>
+  </div>
+
+  <div id="formula-panel">
+    <h3>수평 방향 투사체 운동</h3>
+    <div class="formula-row"><span class="label">수평 속력</span><span class="value" id="formula-vx">v₀ₓ = 3.0 m/s</span></div>
+    <div class="formula-row"><span class="label">높이</span><span class="value" id="formula-h">h = 1.50 m</span></div>
+    <div class="formula-row"><span class="label">경과 시간</span><span class="value" id="formula-t">t = 0.00 s</span></div>
+    <div class="formula-block">
+      <div class="formula-row"><span class="label">수평 방향</span><span class="value" id="formula-x">x = v₀ₓ × t = 0.00 m</span></div>
+      <div class="formula-row"><span class="label">연직 방향</span><span class="value" id="formula-y">y = h - 1/2gt² = 1.50 m</span></div>
+      <div class="formula-row"><span class="label">연직 속력</span><span class="value" id="formula-vy">vᵧ = gt = 0.00 m/s</span></div>
+      <div class="formula-row"><span class="label">합성 속력</span><span class="value" id="formula-v">|v| = 3.00 m/s</span></div>
+    </div>
+    <div class="formula-block">
+      <strong>핵심:</strong> 연직 방향 운동은 자유 낙하와 동일합니다.<br>
+      <span id="formula-note">그래서 수평으로 던진 물체와 자유 낙하 물체는 동시에 도달합니다.</span>
+    </div>
+  </div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const G = 9.8;
+const BALL_RADIUS = 0.1;
+const GRAPH_TYPES = ['수평 거리-시간', '높이-시간', '속력-시간'];
+const MULTI_SPEEDS = [2, 4, 6];
+const LAUNCH_X = 0;
+const BOARD_Z = -1.05;
+const GHOST_INTERVAL = 0.05;
+const MAX_GHOSTS = 30;
+const MAX_TRAIL_POINTS = 240;
+
+const COLORS = {
+  A: 0xff5555,
+  B: 0x4f9cff,
+  B1: 0x59b3ff,
+  B2: 0x59e0ff,
+  B3: 0x8ef2d2,
+  line: 0x8e96a6,
+  green: 0x7bffab
+};
+
+const dom = {
+  scenePanel: document.getElementById('scene-panel'),
+  sceneCanvas: document.getElementById('scene-canvas'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  legend: document.getElementById('legend'),
+  graphSubtitle: document.getElementById('graph-subtitle'),
+  graphTabs: Array.from(document.querySelectorAll('.graph-tab')),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusBanner: document.getElementById('status-banner'),
+  metricTime: document.getElementById('metric-time'),
+  metricTimeDesc: document.getElementById('metric-time-desc'),
+  metricFlight: document.getElementById('metric-flight'),
+  metricFlightDesc: document.getElementById('metric-flight-desc'),
+  metricRange: document.getElementById('metric-range'),
+  metricRangeDesc: document.getElementById('metric-range-desc'),
+  formulaVx: document.getElementById('formula-vx'),
+  formulaH: document.getElementById('formula-h'),
+  formulaT: document.getElementById('formula-t'),
+  formulaX: document.getElementById('formula-x'),
+  formulaY: document.getElementById('formula-y'),
+  formulaVy: document.getElementById('formula-vy'),
+  formulaV: document.getElementById('formula-v'),
+  formulaNote: document.getElementById('formula-note')
+};
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xd9e7f1, 14, 24);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(3, 1.5, 5);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+  alpha: true
+});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(1.5, 0.6, 0);
+controls.minDistance = 3.8;
+controls.maxDistance = 11;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+const clock = new THREE.Clock();
+
+const params = {
+  horizontalSpeed: 3,
+  height: 1.5,
+  multiShot: false,
+  showVelocityComponents: true,
+  showHeightLine: true,
+  slowMotion: 1,
+  graphType: GRAPH_TYPES[0],
+  launch: () => launchSimulation(),
+  reset: () => resetSimulation()
+};
+
+const state = {
+  elapsed: 0,
+  launched: false,
+  completed: false,
+  flashTime: 0,
+  statusTimer: 0,
+  activeKeys: ['A', 'B'],
+  gui: null,
+  graphController: null
+};
+
+const sharedSphereGeometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+const dynamicGroup = new THREE.Group();
+const staticGroup = new THREE.Group();
+const labelSprites = [];
+const impactRings = [];
+
+const groundFlash = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 9),
+  new THREE.MeshBasicMaterial({
+    color: COLORS.green,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  })
+);
+groundFlash.rotation.x = -Math.PI * 0.5;
+groundFlash.position.set(4.3, 0.011, 0);
+
+scene.add(staticGroup, dynamicGroup, groundFlash);
+
+const ballMap = new Map();
+
+initScene();
+createBalls();
+createGUI();
+bindEvents();
+configureActiveBalls();
+resetSimulation();
+animate();
+
+function initScene() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const sunLight = new THREE.DirectionalLight(0xffffff, 0.64);
+  sunLight.position.set(5, 8, 5);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(1024, 1024);
+  sunLight.shadow.camera.left = -8;
+  sunLight.shadow.camera.right = 12;
+  sunLight.shadow.camera.top = 8;
+  sunLight.shadow.camera.bottom = -6;
+  staticGroup.add(sunLight);
+
+  const backLight = new THREE.HemisphereLight(0xdaf2ff, 0xcbd9eb, 0.4);
+  staticGroup.add(backLight);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 10),
+    new THREE.MeshStandardMaterial({ color: 0xf4f7fb, roughness: 0.94, metalness: 0.02 })
+  );
+  ground.rotation.x = -Math.PI * 0.5;
+  ground.position.set(4.3, 0, 0);
+  ground.receiveShadow = true;
+  staticGroup.add(ground);
+
+  const grid = new THREE.GridHelper(15, 30, 0x9aabbc, 0xcad4de);
+  grid.position.set(4.3, 0.001, 0);
+  grid.material.opacity = 0.5;
+  grid.material.transparent = true;
+  staticGroup.add(grid);
+
+  const platformGroup = new THREE.Group();
+  platformGroup.name = 'platform-group';
+
+  const shelf = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.1, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6, metalness: 0.22 })
+  );
+  shelf.position.set(-0.55, 0, 0);
+  shelf.castShadow = true;
+  shelf.receiveShadow = true;
+  platformGroup.add(shelf);
+
+  const support = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 1.5, 0.28),
+    new THREE.MeshStandardMaterial({ color: 0x737373, roughness: 0.72, metalness: 0.18 })
+  );
+  support.position.set(-1.02, -0.78, 0);
+  support.castShadow = true;
+  support.receiveShadow = true;
+  platformGroup.add(support);
+
+  const foot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 0.08, 0.45),
+    new THREE.MeshStandardMaterial({ color: 0x707b88, roughness: 0.9, metalness: 0.05 })
+  );
+  foot.position.set(-1.02, -1.56, 0);
+  foot.castShadow = true;
+  foot.receiveShadow = true;
+  platformGroup.add(foot);
+
+  staticGroup.add(platformGroup);
+
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(8.2, 5.4),
+    new THREE.MeshBasicMaterial({
+      map: createBoardTexture(),
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide
+    })
+  );
+  board.position.set(4.05, 2.7, BOARD_Z);
+  staticGroup.add(board);
+
+  createHeightRuler();
+  createDistanceRuler();
+  createReferenceLabels();
+  createHeightConnector();
+}
+
+function createBoardTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 820;
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = 'rgba(255,255,255,0.68)';
+  ctx.fillRect(0, 0, width, height);
+
+  const padding = 86;
+  const usableHeight = height - padding * 2;
+  const usableWidth = width - padding * 2;
+
+  for (let i = 0; i <= 50; i += 1) {
+    const ratio = i / 50;
+    const y = height - padding - usableHeight * ratio;
+    const isMajor = i % 5 === 0;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(padding + usableWidth, y);
+    ctx.strokeStyle = isMajor ? 'rgba(74, 89, 110, 0.55)' : 'rgba(114, 129, 145, 0.24)';
+    ctx.lineWidth = isMajor ? 3 : 1.5;
+    ctx.stroke();
+    if (isMajor) {
+      ctx.fillStyle = 'rgba(38, 51, 69, 0.8)';
+      ctx.font = '600 30px Pretendard';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${(i * 0.1).toFixed(1)}m`, padding - 18, y + 10);
+    }
+  }
+
+  for (let i = 0; i <= 16; i += 1) {
+    const x = padding + (usableWidth * i) / 16;
+    const isMajor = i % 2 === 0;
+    ctx.beginPath();
+    ctx.moveTo(x, padding);
+    ctx.lineTo(x, height - padding);
+    ctx.strokeStyle = isMajor ? 'rgba(126, 142, 156, 0.18)' : 'rgba(126, 142, 156, 0.09)';
+    ctx.lineWidth = isMajor ? 2 : 1;
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(28, 42, 60, 0.26)';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(padding, padding, usableWidth, usableHeight);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createHeightRuler() {
+  const group = new THREE.Group();
+  group.position.set(-0.45, 0, 0.92);
+
+  const bar = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 5.2, 0.04),
+    new THREE.MeshStandardMaterial({ color: 0x7c8896, roughness: 0.86, metalness: 0.14 })
+  );
+  bar.position.y = 2.6;
+  bar.castShadow = true;
+  bar.receiveShadow = true;
+  group.add(bar);
+
+  for (let i = 0; i <= 25; i += 1) {
+    const y = i * 0.2;
+    const major = i % 5 === 0;
+    const mark = new THREE.Mesh(
+      new THREE.BoxGeometry(major ? 0.28 : 0.17, 0.02, 0.02),
+      new THREE.MeshBasicMaterial({ color: major ? 0x516273 : 0x8b9bad })
+    );
+    mark.position.set(0.12, y, 0);
+    group.add(mark);
+
+    if (major) {
+      const label = createTextSprite(`${y.toFixed(1)}m`, {
+        width: 180,
+        height: 60,
+        color: '#203347',
+        font: '700 24px Pretendard'
+      });
+      label.position.set(-0.32, y, 0);
+      label.scale.set(0.62, 0.22, 1);
+      group.add(label);
+      labelSprites.push(label);
+    }
+  }
+
+  staticGroup.add(group);
+}
+
+function createDistanceRuler() {
+  const group = new THREE.Group();
+  group.position.set(0, 0.02, 1.35);
+
+  for (let i = 0; i <= 16; i += 1) {
+    const x = i * 0.5;
+    const major = i % 2 === 0;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.02, major ? 0.25 : 0.14),
+      new THREE.MeshBasicMaterial({ color: major ? 0x506478 : 0x8d9eaf })
+    );
+    tick.position.set(x, 0, 0);
+    group.add(tick);
+
+    if (major) {
+      const label = createTextSprite(`${x.toFixed(1)}m`, {
+        width: 180,
+        height: 64,
+        color: '#1f3248',
+        font: '700 24px Pretendard'
+      });
+      label.position.set(x, 0.08, 0.34);
+      label.scale.set(0.62, 0.22, 1);
+      group.add(label);
+      labelSprites.push(label);
+    }
+  }
+
+  staticGroup.add(group);
+}
+
+function createReferenceLabels() {
+  const platformLabel = createTextSprite('동시 낙하 장치', {
+    width: 280,
+    height: 72,
+    color: '#1d324b',
+    font: '700 26px Pretendard',
+    background: 'rgba(255,255,255,0.55)'
+  });
+  platformLabel.name = 'platform-label';
+  platformLabel.position.set(-0.75, 2.1, 0.54);
+  platformLabel.scale.set(1.35, 0.34, 1);
+  staticGroup.add(platformLabel);
+  labelSprites.push(platformLabel);
+
+  const boardLabel = createTextSprite('눈금판', {
+    width: 200,
+    height: 64,
+    color: '#203347',
+    font: '700 24px Pretendard',
+    background: 'rgba(255,255,255,0.52)'
+  });
+  boardLabel.position.set(0.4, 5.55, BOARD_Z + 0.01);
+  boardLabel.scale.set(1.0, 0.32, 1);
+  staticGroup.add(boardLabel);
+  labelSprites.push(boardLabel);
+}
+
+function createHeightConnector() {
+  const connectorGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, 0)
+  ]);
+  const connectorLine = new THREE.Line(
+    connectorGeometry,
+    new THREE.LineDashedMaterial({
+      color: COLORS.line,
+      dashSize: 0.08,
+      gapSize: 0.06,
+      transparent: true,
+      opacity: 0.95
+    })
+  );
+  connectorLine.computeLineDistances();
+  connectorLine.visible = true;
+  connectorLine.name = 'height-connector';
+  dynamicGroup.add(connectorLine);
+
+  const label = createTextSprite('같은 시간에 같은 높이!', {
+    width: 360,
+    height: 78,
+    color: '#f7fbff',
+    font: '700 26px Pretendard',
+    background: 'rgba(18, 32, 48, 0.78)',
+    border: 'rgba(255,255,255,0.18)'
+  });
+  label.scale.set(1.42, 0.32, 1);
+  label.name = 'height-connector-label';
+  dynamicGroup.add(label);
+}
+
+function createBalls() {
+  const configs = [
+    { key: 'A', display: 'A', color: COLORS.A, type: 'drop', z: -0.28, label: 'A' },
+    { key: 'B', display: 'B', color: COLORS.B, type: 'projectile', z: 0.28, label: 'B' },
+    { key: 'B1', display: 'B1', color: COLORS.B1, type: 'projectile', z: -0.52, label: 'B1' },
+    { key: 'B2', display: 'B2', color: COLORS.B2, type: 'projectile', z: 0.02, label: 'B2' },
+    { key: 'B3', display: 'B3', color: COLORS.B3, type: 'projectile', z: 0.56, label: 'B3' }
+  ];
+
+  configs.forEach((config) => {
+    const material = new THREE.MeshStandardMaterial({
+      color: config.color,
+      roughness: 0.4,
+      metalness: 0.2
+    });
+    const mesh = new THREE.Mesh(sharedSphereGeometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    dynamicGroup.add(mesh);
+
+    const label = createTextSprite(config.label, {
+      width: 150,
+      height: 64,
+      color: '#ffffff',
+      font: '700 28px Pretendard',
+      background: `rgba(${colorHexToRgbString(config.color)},0.78)`
+    });
+    label.scale.set(0.6, 0.24, 1);
+    dynamicGroup.add(label);
+
+    const gravityArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(0, -1, 0),
+      new THREE.Vector3(),
+      0.32,
+      0xff3333,
+      0.12,
+      0.07
+    );
+    dynamicGroup.add(gravityArrow);
+
+    const gravityLabel = createTextSprite('g', {
+      width: 84,
+      height: 58,
+      color: '#ffeff1',
+      font: '700 26px Pretendard',
+      background: 'rgba(169, 32, 32, 0.78)'
+    });
+    gravityLabel.scale.set(0.34, 0.22, 1);
+    dynamicGroup.add(gravityLabel);
+
+    const trail = createTrailLine(config.color);
+    dynamicGroup.add(trail.line);
+
+    const velocityGroup = config.type === 'projectile' ? createVelocityGroup(config.color) : null;
+    if (velocityGroup) dynamicGroup.add(velocityGroup.group);
+
+    const ball = {
+      ...config,
+      mesh,
+      label,
+      gravityArrow,
+      gravityLabel,
+      trail,
+      velocityGroup,
+      speed: 0,
+      x: 0,
+      y: params.height,
+      vx: 0,
+      vy: 0,
+      speedMag: 0,
+      landed: false,
+      landingTime: 0,
+      ghostTimer: 0,
+      ghosts: [],
+      visible: true
+    };
+
+    ballMap.set(config.key, ball);
+  });
+}
+
+function createTrailLine(color) {
+  const geometry = new THREE.BufferGeometry();
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.12,
+    gapSize: 0.08,
+    transparent: true,
+    opacity: 0.9
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return { geometry, material, line, points: [] };
+}
+
+function createVelocityGroup(color) {
+  const group = new THREE.Group();
+  const vxArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.7, 0x4f9cff, 0.16, 0.08);
+  const vyArrow = new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), new THREE.Vector3(), 0.18, 0xff5555, 0.16, 0.08);
+  const vArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.7, 0x6dff9c, 0.16, 0.08);
+  group.add(vxArrow, vyArrow, vArrow);
+
+  const vxLabel = createTextSprite('vₓ = 0.0 m/s', {
+    width: 220,
+    height: 66,
+    color: '#ebf6ff',
+    font: '700 24px Pretendard',
+    background: 'rgba(44, 108, 173, 0.78)'
+  });
+  vxLabel.scale.set(0.88, 0.28, 1);
+
+  const vyLabel = createTextSprite('vᵧ = 0.0 m/s', {
+    width: 220,
+    height: 66,
+    color: '#fff4f4',
+    font: '700 24px Pretendard',
+    background: 'rgba(173, 57, 57, 0.78)'
+  });
+  vyLabel.scale.set(0.88, 0.28, 1);
+
+  const vLabel = createTextSprite('|v| = 0.0 m/s', {
+    width: 220,
+    height: 66,
+    color: '#f2fff8',
+    font: '700 24px Pretendard',
+    background: 'rgba(42, 121, 72, 0.82)'
+  });
+  vLabel.scale.set(0.88, 0.28, 1);
+
+  group.add(vxLabel, vyLabel, vLabel);
+
+  return {
+    group,
+    color,
+    vxArrow,
+    vyArrow,
+    vArrow,
+    vxLabel,
+    vyLabel,
+    vLabel
+  };
+}
+
+function createGUI() {
+  const gui = new GUI({ title: '수평 투사 제어', width: 304 });
+  state.gui = gui;
+
+  gui.add(params, 'horizontalSpeed', 0, 10, 0.5).name('수평 속력 (m/s)').onChange(() => {
+    if (!params.multiShot) resetSimulation();
+  });
+  gui.add(params, 'height', 0.5, 5, 0.1).name('높이 (m)').onChange(() => {
+    updatePlatformHeight();
+    resetSimulation();
+  });
+  gui.add(params, 'launch').name('발사');
+  gui.add(params, 'multiShot').name('다중 발사 모드').onChange(() => {
+    configureActiveBalls();
+    resetSimulation();
+  });
+  gui.add(params, 'showVelocityComponents').name('속도 분해 표시').onChange(() => {
+    updateComponentVisibility();
+  });
+  gui.add(params, 'showHeightLine').name('높이 연결선').onChange(() => {
+    updateHeightConnectorLine();
+  });
+  gui.add(params, 'slowMotion', 0.1, 2, 0.1).name('슬로모션 배율');
+  state.graphController = gui.add(params, 'graphType', GRAPH_TYPES).name('그래프 유형').onChange((value) => {
+    setGraphType(value);
+  });
+  gui.add(params, 'reset').name('초기화');
+
+  if (window.innerWidth < 920) gui.close();
+}
+
+function bindEvents() {
+  dom.graphTabs.forEach((button) => {
+    button.addEventListener('click', () => {
+      setGraphType(button.dataset.graph);
+      if (state.graphController) state.graphController.setValue(button.dataset.graph);
+    });
+  });
+
+  dom.guideToggle.addEventListener('click', () => {
+    const isOpen = dom.guidePanel.style.display === 'block';
+    dom.guidePanel.style.display = isOpen ? 'none' : 'block';
+  });
+
+  window.addEventListener('resize', handleResize);
+}
+
+function configureActiveBalls() {
+  const activeKeys = params.multiShot ? ['A', 'B1', 'B2', 'B3'] : ['A', 'B'];
+  state.activeKeys = activeKeys;
+
+  ballMap.forEach((ball) => {
+    const active = activeKeys.includes(ball.key);
+    ball.visible = active;
+    ball.mesh.visible = active;
+    ball.label.visible = active;
+    ball.gravityArrow.visible = active;
+    ball.gravityLabel.visible = active;
+    ball.trail.line.visible = active;
+    if (ball.velocityGroup) ball.velocityGroup.group.visible = active && params.showVelocityComponents;
+  });
+
+  if (params.multiShot) {
+    ballMap.get('B1').speed = MULTI_SPEEDS[0];
+    ballMap.get('B2').speed = MULTI_SPEEDS[1];
+    ballMap.get('B3').speed = MULTI_SPEEDS[2];
+    updateTextSprite(ballMap.get('B1').label, 'B1');
+    updateTextSprite(ballMap.get('B2').label, 'B2');
+    updateTextSprite(ballMap.get('B3').label, 'B3');
+  } else {
+    ballMap.get('B').speed = params.horizontalSpeed;
+    updateTextSprite(ballMap.get('B').label, 'B');
+  }
+
+  ballMap.get('A').speed = 0;
+  updateLegend();
+}
+
+function updateLegend() {
+  dom.legend.innerHTML = '';
+  const entries = state.activeKeys.map((key) => {
+    const ball = ballMap.get(key);
+    if (ball.type === 'drop') {
+      return { color: `#${ball.color.toString(16).padStart(6, '0')}`, label: 'A 자유 낙하' };
+    }
+    if (params.multiShot) {
+      return { color: `#${ball.color.toString(16).padStart(6, '0')}`, label: `${ball.display} ${ball.speed.toFixed(0)} m/s` };
+    }
+    return { color: `#${ball.color.toString(16).padStart(6, '0')}`, label: `B ${ball.speed.toFixed(1)} m/s` };
+  });
+
+  entries.forEach((entry) => {
+    const chip = document.createElement('div');
+    chip.className = 'legend-chip';
+    chip.innerHTML = `<span class="dot" style="background:${entry.color}"></span><span>${entry.label}</span>`;
+    dom.legend.appendChild(chip);
+  });
+}
+
+function updatePlatformHeight() {
+  const platformGroup = staticGroup.getObjectByName('platform-group');
+  platformGroup.position.set(0, params.height, 0);
+  const platformLabel = staticGroup.getObjectByName('platform-label');
+  if (platformLabel) platformLabel.position.y = params.height + 0.6;
+  controls.target.y = Math.max(0.6, Math.min(1.9, params.height * 0.42 + 0.25));
+}
+
+function resetSimulation() {
+  state.elapsed = 0;
+  state.launched = false;
+  state.completed = false;
+  state.flashTime = 0;
+  hideStatus();
+  updatePlatformHeight();
+  clearImpacts();
+
+  groundFlash.material.opacity = 0;
+  configureActiveBalls();
+
+  ballMap.forEach((ball) => {
+    ball.landed = false;
+    ball.landingTime = theoreticalFlightTime();
+    ball.ghostTimer = 0;
+    ball.vx = ball.visible && ball.type === 'projectile' ? ball.speed : 0;
+    ball.vy = 0;
+    ball.speedMag = Math.abs(ball.vx);
+    ball.x = 0;
+    ball.y = params.height;
+    clearTrail(ball);
+    clearGhosts(ball);
+    if (ball.visible) {
+      ball.mesh.position.set(LAUNCH_X, BALL_RADIUS + params.height, ball.z);
+      ball.label.position.set(LAUNCH_X, BALL_RADIUS + params.height + 0.32, ball.z);
+      updateGravityIndicator(ball);
+      if (ball.velocityGroup) updateVelocityGroup(ball);
+    }
+  });
+
+  updateHeightConnectorLine();
+  updateFormulaPanel();
+  updateMetrics();
+  drawGraph();
+  if (state.gui) state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function launchSimulation() {
+  resetSimulation();
+  state.launched = true;
+  showStatus(params.multiShot ? '다중 발사 시작!' : '동시 발사 시작!', false);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  controls.update();
+  updateSimulation(dt * params.slowMotion);
+  updateImpacts(dt);
+  updateStatus(dt);
+  drawGraph();
+  renderer.render(scene, camera);
+}
+
+function updateSimulation(dt) {
+  if (state.flashTime > 0) {
+    state.flashTime = Math.max(0, state.flashTime - dt);
+    groundFlash.material.opacity = 0.28 * (state.flashTime / 0.65);
+  }
+
+  if (!state.launched) return;
+
+  state.elapsed += dt;
+  let allLanded = true;
+
+  state.activeKeys.forEach((key) => {
+    const ball = ballMap.get(key);
+    if (ball.landed) return;
+
+    const t = state.elapsed;
+    const nextHeight = params.height - 0.5 * G * t * t;
+    const clampedHeight = Math.max(0, nextHeight);
+    const x = ball.type === 'projectile' ? ball.speed * t : 0;
+
+    ball.x = nextHeight <= 0 ? ball.speed * theoreticalFlightTime() : x;
+    ball.y = clampedHeight;
+    ball.vx = ball.type === 'projectile' ? ball.speed : 0;
+    ball.vy = G * t;
+    ball.speedMag = Math.hypot(ball.vx, ball.vy);
+
+    ball.mesh.position.set(LAUNCH_X + ball.x, BALL_RADIUS + ball.y, ball.z);
+    ball.label.position.set(ball.mesh.position.x, ball.mesh.position.y + 0.32, ball.z);
+
+    if (nextHeight <= 0) {
+      ball.landed = true;
+      ball.landingTime = theoreticalFlightTime();
+      ball.mesh.position.y = BALL_RADIUS;
+      ball.label.position.y = BALL_RADIUS + 0.32;
+      createImpact(ball);
+    } else {
+      allLanded = false;
+      recordTrail(ball, dt);
+    }
+
+    updateGhosts(ball, dt);
+    updateGravityIndicator(ball);
+    if (ball.velocityGroup) updateVelocityGroup(ball);
+  });
+
+  updateHeightConnectorLine();
+  updateFormulaPanel();
+  updateMetrics();
+
+  if (allLanded && !state.completed) {
+    state.completed = true;
+    state.launched = false;
+    state.flashTime = 0.65;
+    groundFlash.material.opacity = 0.28;
+    showStatus('동시에 도달!', true);
+  }
+
+}
+
+function recordTrail(ball, dt) {
+  ball.trail.points.push(ball.mesh.position.clone());
+  if (ball.trail.points.length > MAX_TRAIL_POINTS) ball.trail.points.shift();
+  ball.trail.geometry.setFromPoints(ball.trail.points);
+  ball.trail.line.computeLineDistances();
+
+  ball.ghostTimer += dt;
+  if (ball.ghostTimer >= GHOST_INTERVAL) {
+    ball.ghostTimer = 0;
+    const ghost = new THREE.Mesh(
+      sharedSphereGeometry,
+      new THREE.MeshBasicMaterial({
+        color: ball.color,
+        transparent: true,
+        opacity: 0.14,
+        depthWrite: false
+      })
+    );
+    ghost.position.copy(ball.mesh.position);
+    dynamicGroup.add(ghost);
+    ball.ghosts.push(ghost);
+    const ghostLimit = params.multiShot ? 18 : MAX_GHOSTS;
+    while (ball.ghosts.length > ghostLimit) {
+      const oldGhost = ball.ghosts.shift();
+      dynamicGroup.remove(oldGhost);
+      oldGhost.material.dispose();
+    }
+  }
+}
+
+function updateGhosts(ball) {
+  ball.ghosts.forEach((ghost, index) => {
+    const fade = 1 - index / Math.max(1, ball.ghosts.length);
+    ghost.material.opacity = 0.04 + fade * 0.11;
+  });
+}
+
+function clearTrail(ball) {
+  ball.trail.points = [];
+  ball.trail.geometry.setFromPoints([]);
+  ball.trail.line.computeLineDistances();
+}
+
+function clearGhosts(ball) {
+  ball.ghosts.forEach((ghost) => {
+    dynamicGroup.remove(ghost);
+    ghost.material.dispose();
+  });
+  ball.ghosts = [];
+}
+
+function clearImpacts() {
+  while (impactRings.length > 0) {
+    const ring = impactRings.pop();
+    dynamicGroup.remove(ring.mesh);
+    ring.mesh.material.dispose();
+    ring.mesh.geometry.dispose();
+  }
+}
+
+function createImpact(ball) {
+  const mesh = new THREE.Mesh(
+    new THREE.RingGeometry(0.08, 0.12, 32),
+    new THREE.MeshBasicMaterial({
+      color: ball.color,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    })
+  );
+  mesh.rotation.x = -Math.PI * 0.5;
+  mesh.position.set(ball.mesh.position.x, 0.012, ball.z);
+  mesh.scale.setScalar(1);
+  dynamicGroup.add(mesh);
+  impactRings.push({ mesh, age: 0 });
+}
+
+function updateImpacts(dt) {
+  for (let index = impactRings.length - 1; index >= 0; index -= 1) {
+    const ring = impactRings[index];
+    ring.age += dt;
+    const life = ring.age / 0.45;
+    ring.mesh.scale.setScalar(1 + life * 6);
+    ring.mesh.material.opacity = Math.max(0, 0.55 * (1 - life));
+    if (life >= 1) {
+      dynamicGroup.remove(ring.mesh);
+      ring.mesh.material.dispose();
+      ring.mesh.geometry.dispose();
+      impactRings.splice(index, 1);
+    }
+  }
+}
+
+function updateGravityIndicator(ball) {
+  ball.gravityArrow.position.copy(ball.mesh.position);
+  ball.gravityLabel.position.set(ball.mesh.position.x, ball.mesh.position.y - 0.4, ball.z);
+}
+
+function updateVelocityGroup(ball) {
+  if (!ball.velocityGroup) return;
+  const visible = params.showVelocityComponents && ball.visible;
+  ball.velocityGroup.group.visible = visible;
+  if (!visible) return;
+
+  const origin = ball.mesh.position.clone().add(new THREE.Vector3(0, 0.18, 0.15));
+  const vxLength = Math.max(0.18, Math.min(1.7, ball.vx * 0.18));
+  const vyLength = Math.max(0.08, Math.min(1.55, ball.vy * 0.08));
+  const vLength = Math.max(0.18, Math.min(1.9, ball.speedMag * 0.12));
+  const direction = new THREE.Vector3(ball.vx, -ball.vy, 0).normalize();
+
+  ball.velocityGroup.vxArrow.position.copy(origin);
+  ball.velocityGroup.vxArrow.setDirection(new THREE.Vector3(1, 0, 0));
+  ball.velocityGroup.vxArrow.setLength(vxLength, 0.18, 0.08);
+
+  ball.velocityGroup.vyArrow.position.copy(origin);
+  ball.velocityGroup.vyArrow.setDirection(new THREE.Vector3(0, -1, 0));
+  ball.velocityGroup.vyArrow.setLength(vyLength, 0.18, 0.08);
+
+  ball.velocityGroup.vArrow.position.copy(origin);
+  ball.velocityGroup.vArrow.setDirection(direction.lengthSq() > 0 ? direction : new THREE.Vector3(1, 0, 0));
+  ball.velocityGroup.vArrow.setLength(vLength, 0.18, 0.08);
+
+  updateTextSprite(ball.velocityGroup.vxLabel, `vₓ = ${ball.vx.toFixed(1)} m/s`);
+  updateTextSprite(ball.velocityGroup.vyLabel, `vᵧ = ${ball.vy.toFixed(1)} m/s`);
+  updateTextSprite(ball.velocityGroup.vLabel, `|v| = ${ball.speedMag.toFixed(1)} m/s`);
+
+  ball.velocityGroup.vxLabel.position.copy(origin).add(new THREE.Vector3(vxLength * 0.5, 0.2, 0));
+  ball.velocityGroup.vyLabel.position.copy(origin).add(new THREE.Vector3(0.22, -vyLength * 0.55 - 0.06, 0));
+  ball.velocityGroup.vLabel.position.copy(origin).add(new THREE.Vector3(direction.x * (vLength * 0.62), direction.y * (vLength * 0.62) + 0.28, 0));
+}
+
+function updateComponentVisibility() {
+  state.activeKeys.forEach((key) => {
+    const ball = ballMap.get(key);
+    if (ball.velocityGroup) {
+      ball.velocityGroup.group.visible = params.showVelocityComponents && ball.visible;
+    }
+  });
+}
+
+function updateHeightConnectorLine() {
+  const connector = dynamicGroup.getObjectByName('height-connector');
+  const label = dynamicGroup.getObjectByName('height-connector-label');
+  const freeBall = ballMap.get('A');
+  const referenceBall = getReferenceProjectile();
+  if (!connector || !label || !referenceBall) return;
+
+  const visible = params.showHeightLine && freeBall.visible && referenceBall.visible;
+  connector.visible = visible;
+  label.visible = visible;
+  if (!visible) return;
+
+  const start = freeBall.mesh.position.clone();
+  const end = referenceBall.mesh.position.clone();
+  connector.geometry.setFromPoints([start, end]);
+  connector.computeLineDistances();
+
+  const midpoint = start.clone().lerp(end, 0.5);
+  midpoint.y += 0.22;
+  midpoint.z += 0.08;
+  label.position.copy(midpoint);
+}
+
+function updateFormulaPanel() {
+  const referenceBall = getReferenceProjectile();
+  const t = Math.min(state.elapsed, theoreticalFlightTime());
+  const vx = referenceBall ? referenceBall.speed : params.horizontalSpeed;
+  const x = referenceBall ? referenceBall.x : 0;
+  const y = referenceBall ? referenceBall.y : params.height;
+  const vy = referenceBall ? referenceBall.vy : 0;
+  const speed = referenceBall ? referenceBall.speedMag : vx;
+
+  dom.formulaVx.textContent = params.multiShot
+    ? `v₀ₓ = 2 / 4 / 6 m/s`
+    : `v₀ₓ = ${vx.toFixed(1)} m/s`;
+  dom.formulaH.textContent = `h = ${params.height.toFixed(2)} m`;
+  dom.formulaT.textContent = `t = ${t.toFixed(2)} s`;
+  dom.formulaX.textContent = params.multiShot
+    ? `x = v₀ₓ × t = ${MULTI_SPEEDS.map((speedValue) => (speedValue * t).toFixed(2)).join(' / ')} m`
+    : `x = v₀ₓ × t = ${x.toFixed(2)} m`;
+  dom.formulaY.textContent = `y = h - 1/2gt² = ${y.toFixed(2)} m`;
+  dom.formulaVy.textContent = `vᵧ = gt = ${vy.toFixed(2)} m/s`;
+  dom.formulaV.textContent = params.multiShot
+    ? `|v| = ${MULTI_SPEEDS.map((speedValue) => Math.hypot(speedValue, vy).toFixed(2)).join(' / ')} m/s`
+    : `|v| = ${speed.toFixed(2)} m/s`;
+  dom.formulaNote.textContent = params.multiShot
+    ? '세 공은 수평 속력만 다르고 연직 운동은 같아서 동시에 도달합니다.'
+    : '그래서 수평으로 던진 물체와 자유 낙하 물체는 동시에 도달합니다.';
+}
+
+function updateMetrics() {
+  const t = Math.min(state.elapsed, theoreticalFlightTime());
+  const flight = theoreticalFlightTime();
+  const referenceBall = getReferenceProjectile();
+
+  dom.metricTime.textContent = `${t.toFixed(2)} s`;
+  dom.metricTimeDesc.textContent = state.completed
+    ? '모든 공이 같은 순간에 바닥에 도달했습니다.'
+    : state.launched
+      ? '두 운동은 같은 시간 축 위에서 동시에 진행됩니다.'
+      : '발사 전에는 두 공이 같은 높이에서 출발을 기다립니다.';
+
+  dom.metricFlight.textContent = `${flight.toFixed(2)} s`;
+  dom.metricFlightDesc.textContent = params.multiShot
+    ? '모든 투사체가 같은 높이에서 시작하므로 도달 시간은 동일합니다.'
+    : '수평 속력을 바꿔도 연직 운동이 같아서 도달 시간은 변하지 않습니다.';
+
+  if (params.multiShot) {
+    const distances = MULTI_SPEEDS.map((speedValue) => `${(speedValue * flight).toFixed(2)}m`);
+    dom.metricRange.textContent = distances.join(' / ');
+    dom.metricRangeDesc.textContent = '수평 속력 2, 4, 6 m/s에 대응하는 이론적 이동 거리입니다.';
+  } else {
+    dom.metricRange.textContent = `${((referenceBall ? referenceBall.x : 0)).toFixed(2)} m`;
+    dom.metricRangeDesc.textContent = `예상 최대 이동 거리는 ${(params.horizontalSpeed * flight).toFixed(2)} m입니다.`;
+  }
+}
+
+function setGraphType(type) {
+  params.graphType = type;
+  dom.graphTabs.forEach((button) => {
+    button.classList.toggle('active', button.dataset.graph === type);
+  });
+
+  if (type === '수평 거리-시간') {
+    dom.graphSubtitle.textContent = '공 A는 수평으로 움직이지 않고, 공 B는 일정한 기울기의 직선을 그립니다.';
+  } else if (type === '높이-시간') {
+    dom.graphSubtitle.textContent = '자유 낙하 공과 수평 투사 공의 높이-시간 그래프는 완전히 겹칩니다.';
+  } else {
+    dom.graphSubtitle.textContent = '자유 낙하 공은 직선, 투사 공은 합성 속력 때문에 곡선으로 나타납니다.';
+  }
+}
+
+function drawGraph() {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  if (width <= 0 || height <= 0) return;
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const topOffset = window.innerWidth <= 640 ? 170 : 152;
+  const bottomOffset = window.innerWidth <= 1100 ? 118 : 124;
+
+  dom.graphCanvas.width = Math.max(1, Math.round(width * dpr));
+  dom.graphCanvas.height = Math.max(1, Math.round(height * dpr));
+  graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphCtx.clearRect(0, 0, width, height);
+
+  const margin = { left: 62, right: 26, top: topOffset, bottom: bottomOffset };
+  const plotWidth = Math.max(120, width - margin.left - margin.right);
+  const plotHeight = Math.max(120, height - margin.top - margin.bottom);
+  const flight = theoreticalFlightTime();
+  const currentTime = Math.min(state.elapsed, flight);
+  const projectileBalls = getActiveProjectiles();
+
+  let yMax = 1;
+  let yLabel = '';
+  let note = '';
+
+  if (params.graphType === '수평 거리-시간') {
+    const maxSpeed = params.multiShot ? MULTI_SPEEDS[MULTI_SPEEDS.length - 1] : params.horizontalSpeed;
+    yMax = Math.max(1, maxSpeed * flight * 1.18);
+    yLabel = '수평 거리 x (m)';
+    note = '수평 운동은 등속 운동';
+  } else if (params.graphType === '높이-시간') {
+    yMax = Math.max(1, params.height * 1.12);
+    yLabel = '높이 y (m)';
+    note = 'A와 B의 곡선이 완전히 겹침';
+  } else {
+    const maxSpeed = params.multiShot ? MULTI_SPEEDS[MULTI_SPEEDS.length - 1] : params.horizontalSpeed;
+    yMax = Math.max(1, Math.hypot(maxSpeed, G * flight) * 1.14);
+    yLabel = '속력 |v| (m/s)';
+    note = '연직 속력이 커질수록 합성 속력이 증가';
+  }
+
+  const mapX = (value) => margin.left + (value / flight) * plotWidth;
+  const mapY = (value) => margin.top + plotHeight - (value / yMax) * plotHeight;
+
+  const gradient = graphCtx.createLinearGradient(0, margin.top, 0, margin.top + plotHeight);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0.015)');
+  graphCtx.fillStyle = gradient;
+  graphCtx.fillRect(margin.left, margin.top, plotWidth, plotHeight);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.lineWidth = 1;
+  graphCtx.setLineDash([4, 6]);
+  for (let i = 0; i <= 5; i += 1) {
+    const x = margin.left + (plotWidth * i) / 5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, margin.top);
+    graphCtx.lineTo(x, margin.top + plotHeight);
+    graphCtx.stroke();
+  }
+  for (let i = 0; i <= 5; i += 1) {
+    const y = margin.top + (plotHeight * i) / 5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, y);
+    graphCtx.lineTo(margin.left + plotWidth, y);
+    graphCtx.stroke();
+  }
+  graphCtx.setLineDash([]);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+  graphCtx.lineWidth = 1.5;
+  graphCtx.beginPath();
+  graphCtx.moveTo(margin.left, margin.top);
+  graphCtx.lineTo(margin.left, margin.top + plotHeight);
+  graphCtx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+  graphCtx.font = '12px Pretendard';
+  graphCtx.textAlign = 'center';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = (flight * i) / 5;
+    graphCtx.fillText(value.toFixed(1), mapX(value), margin.top + plotHeight + 22);
+  }
+
+  graphCtx.textAlign = 'right';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = (yMax * i) / 5;
+    graphCtx.fillText(value.toFixed(1), margin.left - 10, mapY(value) + 4);
+  }
+
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.92)';
+  graphCtx.font = '600 12px Pretendard';
+  graphCtx.textAlign = 'center';
+  graphCtx.fillText('시간 t (s)', margin.left + plotWidth * 0.5, height - 26);
+  graphCtx.translate(22, margin.top + plotHeight * 0.5);
+  graphCtx.rotate(-Math.PI * 0.5);
+  graphCtx.fillText(yLabel, 0, 0);
+  graphCtx.restore();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.72)';
+  graphCtx.font = '600 11px Pretendard';
+  graphCtx.textAlign = 'left';
+  graphCtx.fillText(note, margin.left, margin.top - 16);
+
+  const curveSamples = 96;
+
+  if (params.graphType === '수평 거리-시간') {
+    plotCurve((time) => 0, COLORS.A, 2.4, [], 0.92, curveSamples, mapX, mapY, flight);
+    drawCurrentPoint(currentTime, 0, COLORS.A, mapX, mapY);
+    projectileBalls.forEach((ball) => {
+      plotCurve((time) => ball.speed * time, ball.color, ball.key === 'B2' ? 3.2 : 2.4, [], params.multiShot ? 0.86 : 0.96, curveSamples, mapX, mapY, flight);
+      drawCurrentPoint(currentTime, Math.min(ball.x, ball.speed * flight), ball.color, mapX, mapY);
+    });
+  } else if (params.graphType === '높이-시간') {
+    plotCurve((time) => Math.max(0, params.height - 0.5 * G * time * time), 0xffffff, 5.5, [], 0.2, curveSamples, mapX, mapY, flight);
+    plotCurve((time) => Math.max(0, params.height - 0.5 * G * time * time), COLORS.A, 2.6, [7, 5], 0.92, curveSamples, mapX, mapY, flight);
+    projectileBalls.forEach((ball) => {
+      plotCurve((time) => Math.max(0, params.height - 0.5 * G * time * time), ball.color, ball.key === 'B2' ? 3.1 : 2.2, [], params.multiShot ? 0.54 : 0.95, curveSamples, mapX, mapY, flight);
+      drawCurrentPoint(currentTime, Math.max(0, params.height - 0.5 * G * currentTime * currentTime), ball.color, mapX, mapY);
+    });
+    drawCurrentPoint(currentTime, Math.max(0, params.height - 0.5 * G * currentTime * currentTime), COLORS.A, mapX, mapY);
+  } else {
+    plotCurve((time) => G * time, COLORS.A, 2.5, [], 0.94, curveSamples, mapX, mapY, flight);
+    drawCurrentPoint(currentTime, G * currentTime, COLORS.A, mapX, mapY);
+    projectileBalls.forEach((ball) => {
+      plotCurve((time) => Math.hypot(ball.speed, G * time), ball.color, ball.key === 'B2' ? 3.2 : 2.4, [], params.multiShot ? 0.88 : 0.96, curveSamples, mapX, mapY, flight);
+      drawCurrentPoint(currentTime, Math.hypot(ball.speed, G * currentTime), ball.color, mapX, mapY);
+    });
+  }
+}
+
+function plotCurve(fn, color, width, dash, alpha, samples, mapX, mapY, flight) {
+  graphCtx.save();
+  graphCtx.strokeStyle = `rgba(${colorHexToRgbString(color)},${alpha})`;
+  graphCtx.lineWidth = width;
+  graphCtx.setLineDash(dash);
+  graphCtx.beginPath();
+  for (let i = 0; i <= samples; i += 1) {
+    const t = (flight * i) / samples;
+    const x = mapX(t);
+    const y = mapY(fn(t));
+    if (i === 0) graphCtx.moveTo(x, y);
+    else graphCtx.lineTo(x, y);
+  }
+  graphCtx.stroke();
+  graphCtx.restore();
+}
+
+function drawCurrentPoint(time, value, color, mapX, mapY) {
+  graphCtx.beginPath();
+  graphCtx.fillStyle = `rgba(${colorHexToRgbString(color)},0.96)`;
+  graphCtx.arc(mapX(time), mapY(value), 4.8, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.lineWidth = 1.4;
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+  graphCtx.stroke();
+}
+
+function getActiveProjectiles() {
+  return state.activeKeys
+    .map((key) => ballMap.get(key))
+    .filter((ball) => ball.type === 'projectile');
+}
+
+function getReferenceProjectile() {
+  if (params.multiShot) return ballMap.get('B2');
+  return ballMap.get('B');
+}
+
+function theoreticalFlightTime() {
+  return Math.sqrt((2 * params.height) / G);
+}
+
+function updateStatus(dt) {
+  if (state.statusTimer > 0) {
+    state.statusTimer = Math.max(0, state.statusTimer - dt);
+    if (state.statusTimer === 0) hideStatus();
+  }
+}
+
+function showStatus(text, success) {
+  dom.statusBanner.textContent = text;
+  dom.statusBanner.style.background = success ? 'rgba(16, 53, 39, 0.9)' : 'rgba(21, 52, 88, 0.9)';
+  dom.statusBanner.style.borderColor = success ? 'rgba(123, 255, 171, 0.34)' : 'rgba(99, 185, 255, 0.34)';
+  dom.statusBanner.classList.add('show');
+  state.statusTimer = success ? 1.5 : 1.0;
+}
+
+function hideStatus() {
+  dom.statusBanner.classList.remove('show');
+  state.statusTimer = 0;
+}
+
+function handleResize(force = true) {
+  const rect = dom.scenePanel.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  renderer.setSize(rect.width, rect.height, false);
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+  if (force) drawGraph();
+}
+
+function createTextSprite(text, options = {}) {
+  const width = options.width ?? 220;
+  const height = options.height ?? 72;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(width / 180, height / 180, 1);
+  sprite.userData = {
+    canvas,
+    ctx,
+    texture,
+    options: {
+      color: options.color ?? '#ffffff',
+      font: options.font ?? '700 26px Pretendard',
+      background: options.background ?? null,
+      border: options.border ?? null
+    }
+  };
+  updateTextSprite(sprite, text, options);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const data = sprite.userData;
+  const canvas = data.canvas;
+  const ctx = data.ctx;
+  const texture = data.texture;
+  const settings = {
+    color: options.color ?? data.options.color,
+    font: options.font ?? data.options.font,
+    background: options.background ?? data.options.background,
+    border: options.border ?? data.options.border
+  };
+  data.options = settings;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (settings.background) {
+    drawRoundedRect(ctx, 4, 6, canvas.width - 8, canvas.height - 12, 18, settings.background, settings.border);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = settings.color;
+  ctx.font = settings.font;
+  ctx.shadowColor = 'rgba(0,0,0,0.22)';
+  ctx.shadowBlur = 10;
+
+  const lines = String(text).split('\n');
+  const lineHeight = canvas.height / (lines.length + 0.1);
+  const startY = canvas.height * 0.5 - ((lines.length - 1) * lineHeight * 0.5);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width * 0.5, startY + index * lineHeight);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function colorHexToRgbString(color) {
+  const value = typeof color === 'number' ? color : Number(color);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `${r}, ${g}, ${b}`;
+}
+
+handleResize();
+</script>
+</body>
+</html>

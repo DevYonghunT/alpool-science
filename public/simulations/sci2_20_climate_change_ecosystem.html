@@ -1,0 +1,1892 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기후 변화와 생태계 영향 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --panel-bg: rgba(8, 16, 30, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --accent: #9edcff;
+    --accent-2: #9ad36b;
+    --warning: #ff9c69;
+    --danger: #ff6d57;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 15% 14%, rgba(180, 226, 255, 0.18), transparent 24%),
+      radial-gradient(circle at 82% 18%, rgba(138, 205, 255, 0.14), transparent 28%),
+      linear-gradient(180deg, #86b5d9 0%, #4e7da3 22%, #193454 48%, #091423 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    transition: background 0.45s ease;
+  }
+
+  body[data-case="amazon"] {
+    background:
+      radial-gradient(circle at 14% 16%, rgba(175, 255, 147, 0.14), transparent 24%),
+      radial-gradient(circle at 84% 14%, rgba(255, 164, 93, 0.11), transparent 26%),
+      linear-gradient(180deg, #3e6540 0%, #23412a 24%, #132819 52%, #09140d 100%);
+  }
+
+  canvas { display: block; }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 15%, rgba(255, 255, 255, 0.16), transparent 22%),
+      linear-gradient(180deg, rgba(195, 228, 255, 0.82) 0%, rgba(111, 165, 205, 0.55) 24%, rgba(38, 72, 109, 0.22) 52%, rgba(8, 18, 33, 0.25) 100%);
+    transition: background 0.45s ease;
+  }
+
+  body[data-case="amazon"] #scene-panel {
+    background:
+      radial-gradient(circle at 18% 12%, rgba(245, 255, 188, 0.12), transparent 18%),
+      linear-gradient(180deg, rgba(126, 181, 105, 0.42) 0%, rgba(61, 112, 62, 0.3) 20%, rgba(28, 58, 35, 0.18) 52%, rgba(10, 18, 12, 0.18) 100%);
+  }
+
+  #graph-panel {
+    background:
+      linear-gradient(180deg, rgba(8, 18, 34, 0.96) 0%, rgba(5, 13, 26, 0.98) 100%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  body[data-case="amazon"] #graph-panel {
+    background:
+      linear-gradient(180deg, rgba(11, 19, 13, 0.96) 0%, rgba(7, 13, 9, 0.98) 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 700;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.24);
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #case-tabs {
+    position: fixed;
+    top: 78px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 36;
+    display: inline-flex;
+    gap: 8px;
+    padding: 7px;
+    border-radius: 999px;
+    background: rgba(7, 14, 26, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(14px);
+  }
+
+  .case-tab {
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.74);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.25s ease, color 0.25s ease, transform 0.25s ease;
+  }
+
+  .case-tab.active {
+    background: rgba(149, 220, 255, 0.18);
+    color: #effbff;
+    transform: translateY(-1px);
+  }
+
+  body[data-case="amazon"] .case-tab.active {
+    background: rgba(146, 214, 110, 0.22);
+  }
+
+  #compare-strip {
+    position: fixed;
+    top: 126px;
+    left: 24px;
+    z-index: 31;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: stretch;
+    width: min(760px, calc(100vw - 470px));
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .compare-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .compare-card.accent {
+    background: rgba(157, 220, 255, 0.1);
+    border-color: rgba(157, 220, 255, 0.2);
+  }
+
+  body[data-case="amazon"] .compare-card.accent {
+    background: rgba(154, 211, 107, 0.11);
+    border-color: rgba(154, 211, 107, 0.24);
+  }
+
+  .compare-card .label {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .compare-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.97);
+  }
+
+  .compare-card span:last-child {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  .compare-vs {
+    align-self: center;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  #scene-caption {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(calc(-50% - 180px));
+    z-index: 30;
+    min-width: 300px;
+    max-width: min(620px, calc(100vw - 480px));
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(7, 14, 26, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    font-size: 11px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #graph-head h2 {
+    font-size: 19px;
+  }
+
+  #graph-head p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-callout {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+    z-index: 10;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #graph-callout strong {
+    color: #ffe5af;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 40;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: #c6f4b1;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.02));
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .row .label {
+    width: 86px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .mini-section {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .mini-section strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: #b8e8ff;
+  }
+
+  body[data-case="amazon"] .mini-section strong { color: #d1f0a9; }
+
+  .highlight {
+    color: #ffd8a6;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 50;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 16, 30, 0.84);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    right: 14px;
+    z-index: 48;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(68vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 18px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #b9ecff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #ffd39b;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 10px;
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(9, 18, 34, 0.85);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(157, 220, 255, 0.22);
+    --text-color: #f4fbff;
+    --number-color: #9edcff;
+    --string-color: #d1f0a9;
+    z-index: 55 !important;
+    margin-top: 62px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 1100px) {
+    #layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) 300px;
+    }
+
+    #graph-panel {
+      border-left: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #compare-strip {
+      width: min(760px, calc(100vw - 32px));
+      left: 16px;
+      transform: none;
+    }
+
+    #scene-caption {
+      transform: translateX(-50%);
+      max-width: min(620px, calc(100vw - 36px));
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      top: 12px;
+      width: calc(100vw - 140px);
+    }
+
+    #title-card h1 { font-size: 19px; }
+    #title-card p { display: none; }
+
+    #case-tabs {
+      top: 66px;
+      width: calc(100vw - 24px);
+      justify-content: center;
+    }
+
+    .case-tab { flex: 1; }
+
+    #compare-strip {
+      top: 116px;
+      grid-template-columns: 1fr;
+      width: calc(100vw - 24px);
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .compare-vs { display: none; }
+
+    #scene-caption {
+      bottom: 312px;
+      min-width: 0;
+      width: calc(100vw - 26px);
+      max-width: calc(100vw - 26px);
+      font-size: 10px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      bottom: 314px;
+      font-size: 10px;
+    }
+
+    #graph-panel {
+      min-height: 300px;
+    }
+
+    #graph-callout { font-size: 10px; }
+    #guide-panel { top: 48px; }
+    .lil-gui.root {
+      margin-top: 100px;
+      margin-right: 4px;
+      transform: scale(0.95);
+      transform-origin: top right;
+    }
+  }
+</style>
+</head>
+<body data-case="alps">
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+    </section>
+    <aside id="graph-panel">
+      <div id="graph-head">
+        <h2 id="graph-title">빙하 면적 vs 생물종 수</h2>
+        <p id="graph-subtitle">알프스에서는 빙하가 줄어들수록 노출된 땅에 새로운 생물종이 정착하며 생태계 천이가 진행됩니다.</p>
+        <div id="graph-legend"></div>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-callout"></div>
+    </aside>
+  </div>
+
+  <div id="title-card">
+    <div class="eyebrow">통합과학2 · II. 환경과 에너지</div>
+    <h1>기후 변화와 생태계 영향</h1>
+    <p>알프스 빙하 후퇴와 아마존 열대우림 파괴가 생태계 평형에 미치는 영향을 비교합니다.</p>
+  </div>
+
+  <div id="case-tabs">
+    <button class="case-tab active" data-case="alps">사례 A · 알프스 빙하</button>
+    <button class="case-tab" data-case="amazon">사례 B · 아마존 열대우림</button>
+  </div>
+
+  <section id="compare-strip" class="glass">
+    <div class="compare-card">
+      <span class="label" id="left-label">과거</span>
+      <strong id="left-title">1900년 알프스 빙하</strong>
+      <span id="left-desc">산 정상부를 두껍게 덮은 빙하와 황량한 암석 지형이 유지됩니다.</span>
+    </div>
+    <div class="compare-vs">VS</div>
+    <div class="compare-card accent">
+      <span class="label" id="right-label">현재/미래</span>
+      <strong id="right-title">2024년 변화</strong>
+      <span id="right-desc">빙하가 물러난 자리에서 이끼, 풀, 어린 나무가 정착하는 천이 단계가 나타납니다.</span>
+    </div>
+  </section>
+
+  <div id="scene-caption">빙하가 녹은 지역에서 새로운 생태계가 형성됨</div>
+
+  <section id="formula-panel" class="glass">
+    <h3>🌿 기후 변화와 생태계 영향</h3>
+    <div class="divider"></div>
+    <div class="row"><span class="label">현재 사례</span><span class="value" id="current-case">알프스 빙하</span></div>
+    <div class="row"><span class="label">현재 상태</span><span class="value" id="current-status">빙하 후퇴가 진행되며 선구종과 초본 식물이 늘어나는 단계</span></div>
+
+    <div class="mini-section">
+      <strong>사례 A (알프스)</strong>
+      <div class="row"><span class="label">빙하 면적</span><span class="value" id="alps-area">62 km² (1900년 대비 47% 감소)</span></div>
+      <div class="row"><span class="label">새로운 종 수</span><span class="value" id="alps-species">26종</span></div>
+    </div>
+
+    <div class="mini-section">
+      <strong>사례 B (아마존)</strong>
+      <div class="row"><span class="label">삼림 면적</span><span class="value" id="amazon-forest">70% 남음</span></div>
+      <div class="row"><span class="label">CO₂ 흡수량</span><span class="value" id="amazon-co2">연간 10.2억 톤</span></div>
+    </div>
+
+    <div class="mini-section">
+      <strong>핵심</strong>
+      <div class="highlight">급격한 환경 변화 → 생태계평형 깨짐</div>
+      <div>→ 새로운 생태계 형성 또는 생태계 파괴</div>
+    </div>
+  </section>
+
+  <button id="guide-toggle" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+  <section id="guide-panel" class="glass">
+    <h3>핵심 원리</h3>
+    <p>생태계는 크고 급격한 환경 변화를 겪으면 평형이 깨질 수 있으며, 오랜 시간이 지나면 새로운 생태계로 변할 수도 있습니다. 인간의 활동에 의한 환경 변화는 전 지구적 규모로 생태계에 영향을 미칩니다.</p>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>알프스 빙하가 녹은 지역에 새로운 생태계가 형성되는 과정을 설명해 보세요.</li>
+      <li>아마존 열대우림의 파괴가 전 지구적 기후에 미치는 영향은 무엇인가요?</li>
+      <li>인간의 활동에 의해 생태계가 파괴된 사례를 찾아보고, 이를 막기 위한 방법을 토의해 보세요.</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>극지방 빙하 감소로 북극곰 서식지가 줄어드는 현상</li>
+      <li>해수 온도 상승으로 인한 산호초 백화 현상</li>
+      <li>과도한 벌목과 가뭄이 함께 일으키는 사막화</li>
+    </ul>
+
+    <div class="textbook-ref">미래엔 통합과학2 II편 p80~81 — 환경 변화와 생태계, 알프스 빙하 후퇴와 아마존 열대우림 사례</div>
+  </section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  // 기본 DOM 참조
+  const dom = {
+    body: document.body,
+    sceneCanvas: document.getElementById('scene-canvas'),
+    graphCanvas: document.getElementById('graph-canvas'),
+    graphTitle: document.getElementById('graph-title'),
+    graphSubtitle: document.getElementById('graph-subtitle'),
+    graphLegend: document.getElementById('graph-legend'),
+    graphCallout: document.getElementById('graph-callout'),
+    caseTabs: Array.from(document.querySelectorAll('.case-tab')),
+    leftLabel: document.getElementById('left-label'),
+    leftTitle: document.getElementById('left-title'),
+    leftDesc: document.getElementById('left-desc'),
+    rightLabel: document.getElementById('right-label'),
+    rightTitle: document.getElementById('right-title'),
+    rightDesc: document.getElementById('right-desc'),
+    sceneCaption: document.getElementById('scene-caption'),
+    currentCase: document.getElementById('current-case'),
+    currentStatus: document.getElementById('current-status'),
+    alpsArea: document.getElementById('alps-area'),
+    alpsSpecies: document.getElementById('alps-species'),
+    amazonForest: document.getElementById('amazon-forest'),
+    amazonCo2: document.getElementById('amazon-co2'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel')
+  };
+
+  const graphCtx = dom.graphCanvas.getContext('2d');
+  const clock = new THREE.Clock();
+
+  // 3D 기본 세팅
+  const scene = new THREE.Scene();
+  const renderer = new THREE.WebGLRenderer({
+    canvas: dom.sceneCanvas,
+    antialias: true,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+  camera.position.set(0, 6.8, 15.2);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 2.2, 0);
+  controls.minDistance = 10;
+  controls.maxDistance = 25;
+  controls.maxPolarAngle = Math.PI * 0.49;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  directionalLight.position.set(7, 12, 8);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(1024, 1024);
+  directionalLight.shadow.camera.left = -24;
+  directionalLight.shadow.camera.right = 24;
+  directionalLight.shadow.camera.top = 18;
+  directionalLight.shadow.camera.bottom = -18;
+  scene.add(ambientLight, directionalLight);
+
+  // 상태
+  const state = {
+    activeCase: 'alps',
+    year: 2024,
+    destruction: 30,
+    showCO2Flow: true,
+    showLife: true,
+    autoPlay: false
+  };
+
+  const params = {
+    사례: '알프스 빙하',
+    시간: 2024,
+    '파괴 비율': 30,
+    'CO₂ 흐름 표시': true,
+    '생물 표시': true,
+    '자동 재생': () => {
+      state.autoPlay = !state.autoPlay;
+      updateGuiVisibility();
+    },
+    '초기화': () => {
+      state.autoPlay = false;
+      state.showCO2Flow = true;
+      state.showLife = true;
+      if (state.activeCase === 'alps') {
+        state.year = 2024;
+      } else {
+        state.destruction = 30;
+      }
+      syncParamsFromState();
+    }
+  };
+
+  const CASE_NAMES = {
+    alps: '알프스 빙하',
+    amazon: '아마존 열대우림'
+  };
+
+  let activeCaseInstance = null;
+
+  const gui = new GUI({ title: '컨트롤 패널' });
+  const controllers = {
+    case: gui.add(params, '사례', Object.values(CASE_NAMES)).name('사례').onChange((value) => {
+      const nextCase = value === CASE_NAMES.amazon ? 'amazon' : 'alps';
+      setActiveCase(nextCase);
+    }),
+    year: gui.add(params, '시간', 1900, 2100, 1).name('시간').onChange((value) => {
+      state.year = value;
+    }),
+    destruction: gui.add(params, '파괴 비율', 0, 100, 1).name('파괴 비율').onChange((value) => {
+      state.destruction = value;
+    }),
+    flow: gui.add(params, 'CO₂ 흐름 표시').name('CO₂ 흐름 표시').onChange((value) => {
+      state.showCO2Flow = value;
+    }),
+    life: gui.add(params, '생물 표시').name('생물 표시').onChange((value) => {
+      state.showLife = value;
+    }),
+    autoplay: gui.add(params, '자동 재생').name('자동 재생'),
+    reset: gui.add(params, '초기화').name('초기화')
+  };
+
+  // 수치 모델
+  function alpsMetrics(year) {
+    let area;
+    let species;
+    if (year <= 2024) {
+      const t = (year - 1900) / (2024 - 1900);
+      area = lerp(118, 62, t);
+      species = lerp(2, 26, t);
+    } else {
+      const t = (year - 2024) / (2100 - 2024);
+      area = lerp(62, 24, t);
+      species = lerp(26, 43, t);
+    }
+
+    const declinePct = (1 - area / 118) * 100;
+    const colonization = clamp((species - 2) / (43 - 2), 0, 1);
+    const meltLevel = clamp((118 - area) / (118 - 24), 0, 1);
+    const streamStrength = clamp(meltLevel * 1.08, 0.06, 1);
+
+    let status = '빙하가 두껍게 유지되어 암석과 눈이 대부분인 상태';
+    if (year >= 1940 && year < 1990) status = '빙하 전면이 서서히 후퇴하며 이끼와 지의류가 먼저 자리잡는 단계';
+    if (year >= 1990 && year < 2060) status = '녹은 물이 흐르며 풀과 곤충, 어린 나무가 늘어나는 천이 단계';
+    if (year >= 2060) status = '빙하가 크게 줄고 다양한 종이 정착한 새로운 산지 생태계로 전환되는 단계';
+
+    return {
+      year,
+      area,
+      species,
+      declinePct,
+      colonization,
+      meltLevel,
+      streamStrength,
+      status
+    };
+  }
+
+  function amazonMetrics(destruction) {
+    const remaining = 100 - destruction;
+    const ratio = remaining / 100;
+    const co2 = 18 * Math.pow(ratio, 1.15) - destruction * 0.035;
+    let status = '울창한 숲이 강수 순환을 유지하며 CO₂를 흡수하는 상태';
+    if (destruction >= 15 && destruction < 45) status = '벌채와 조각화로 생물 서식지가 줄고 CO₂ 흡수 능력이 약해지는 상태';
+    if (destruction >= 45 && destruction < 75) status = '대규모 훼손으로 동물과 비가 줄고 산불 위험이 커지는 상태';
+    if (destruction >= 75) status = '삼림이 거의 붕괴되어 CO₂를 순배출하는 임계 상태';
+
+    return {
+      destruction,
+      remaining,
+      co2,
+      dryness: clamp(destruction / 100, 0, 1),
+      status
+    };
+  }
+
+  // 유틸
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function smooth(current, target, delta, speed = 4.2) {
+    return current + (target - current) * (1 - Math.exp(-speed * delta));
+  }
+
+  function seeded(index) {
+    const x = Math.sin(index * 91.7) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  function colorToRgba(color, alpha) {
+    const c = new THREE.Color(color);
+    return `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${alpha})`;
+  }
+
+  function resizeScene() {
+    const sceneRect = dom.sceneCanvas.getBoundingClientRect();
+    renderer.setSize(sceneRect.width, sceneRect.height, false);
+    camera.aspect = sceneRect.width / Math.max(1, sceneRect.height);
+    camera.updateProjectionMatrix();
+  }
+
+  function disposeObject(root) {
+    const disposed = new Set();
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+          if (!material || disposed.has(material)) return;
+          disposed.add(material);
+          material.dispose();
+        });
+      }
+    });
+  }
+
+  function makeFlowArrow({ color, direction = 'up', length = 2.2 }) {
+    const group = new THREE.Group();
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, length * 0.72, 12),
+      new THREE.MeshStandardMaterial({
+        color,
+        transparent: true,
+        opacity: 0.86,
+        emissive: color,
+        emissiveIntensity: 0.15
+      })
+    );
+    const head = new THREE.Mesh(
+      new THREE.ConeGeometry(0.18, length * 0.28, 12),
+      new THREE.MeshStandardMaterial({
+        color,
+        transparent: true,
+        opacity: 0.92,
+        emissive: color,
+        emissiveIntensity: 0.2
+      })
+    );
+
+    shaft.position.y = direction === 'up' ? length * 0.36 : -length * 0.36;
+    head.position.y = direction === 'up' ? length * 0.78 : -length * 0.78;
+    if (direction === 'down') head.rotation.z = Math.PI;
+    group.add(shaft, head);
+    group.userData = { shaftMaterial: shaft.material, headMaterial: head.material };
+    return group;
+  }
+
+  function setArrowOpacity(arrow, opacity) {
+    arrow.traverse((child) => {
+      if (child.material) {
+        child.material.opacity = opacity;
+        child.visible = opacity > 0.03;
+      }
+    });
+  }
+
+  function createTree(height = 1.6, crownScale = 1, leafColor = 0x2f7f2f) {
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.16, height, 10),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c31, roughness: 0.85 })
+    );
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
+    tree.add(trunk);
+
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.62 * crownScale, 14, 12),
+      new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.82 })
+    );
+    crown.position.y = height * 0.5 + 0.48;
+    crown.scale.y = 0.88;
+    crown.castShadow = true;
+    tree.add(crown);
+
+    tree.userData = { crown };
+    return tree;
+  }
+
+  function createAmazonAnimal(type) {
+    const group = new THREE.Group();
+    if (type === 'bird') {
+      const body = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0xe6f3ff, roughness: 0.4 })
+      );
+      const leftWing = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.03, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0xd2e8ff, roughness: 0.45 })
+      );
+      const rightWing = leftWing.clone();
+      leftWing.position.x = -0.18;
+      rightWing.position.x = 0.18;
+      group.add(body, leftWing, rightWing);
+      group.userData = { leftWing, rightWing, phase: Math.random() * Math.PI * 2 };
+      return group;
+    }
+
+    if (type === 'monkey') {
+      const body = new THREE.Mesh(
+        new THREE.SphereGeometry(0.16, 12, 12),
+        new THREE.MeshStandardMaterial({ color: 0x7b563b, roughness: 0.78 })
+      );
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0x8d6542, roughness: 0.78 })
+      );
+      head.position.set(0.12, 0.08, 0);
+      group.add(body, head);
+      return group;
+    }
+
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 14, 12),
+      new THREE.MeshStandardMaterial({ color: 0xd18a3d, roughness: 0.78 })
+    );
+    body.scale.set(1.45, 0.8, 0.7);
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xe0a04d, roughness: 0.78 })
+    );
+    head.position.set(0.3, 0.02, 0);
+    group.add(body, head);
+    return group;
+  }
+
+  function createParticleSystem(count, color, size, area, yRange, drift = 0.25) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) {
+      positions[i * 3] = (seeded(i + 1) - 0.5) * area.x;
+      positions[i * 3 + 1] = seeded(i + 11) * yRange + area.y;
+      positions[i * 3 + 2] = (seeded(i + 21) - 0.5) * area.z;
+      seeds[i] = seeded(i + 37);
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color,
+      size,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false
+    });
+    const points = new THREE.Points(geometry, material);
+    points.userData = { seeds, baseY: area.y, yRange, drift };
+    return points;
+  }
+
+  function updateRain(points, delta, wind = 0.08) {
+    const positions = points.geometry.attributes.position.array;
+    const { seeds, baseY, yRange } = points.userData;
+    for (let i = 0; i < seeds.length; i += 1) {
+      positions[i * 3 + 1] -= delta * (3.8 + seeds[i] * 2.2);
+      positions[i * 3] += wind * delta * (seeds[i] - 0.5);
+      if (positions[i * 3 + 1] < baseY - 0.2) {
+        positions[i * 3 + 1] = baseY + yRange;
+      }
+    }
+    points.geometry.attributes.position.needsUpdate = true;
+  }
+
+  function updateFire(points, elapsed, intensity) {
+    const positions = points.geometry.attributes.position.array;
+    const { seeds, baseY, yRange, drift } = points.userData;
+    for (let i = 0; i < seeds.length; i += 1) {
+      positions[i * 3 + 1] += 0.02 + intensity * 0.05 + seeds[i] * 0.008;
+      positions[i * 3] += Math.sin(elapsed * 2.4 + i) * 0.002 * drift;
+      positions[i * 3 + 2] += Math.cos(elapsed * 2 + i) * 0.002 * drift;
+      if (positions[i * 3 + 1] > baseY + yRange) {
+        positions[i * 3 + 1] = baseY;
+      }
+    }
+    points.geometry.attributes.position.needsUpdate = true;
+  }
+
+  function updateInsects(points, elapsed, intensity) {
+    const positions = points.geometry.attributes.position.array;
+    const { seeds } = points.userData;
+    for (let i = 0; i < seeds.length; i += 1) {
+      positions[i * 3] += Math.sin(elapsed * (1.8 + seeds[i]) + i) * 0.0014 * intensity;
+      positions[i * 3 + 1] += Math.cos(elapsed * (2.1 + seeds[i]) + i * 0.7) * 0.001 * intensity;
+      positions[i * 3 + 2] += Math.sin(elapsed * (1.6 + seeds[i]) + i * 0.5) * 0.0011 * intensity;
+    }
+    points.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // 사례 A: 알프스
+  function createAlpsBlock(isPast = false) {
+    const group = new THREE.Group();
+
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.4, 4.9, 0.9, 40),
+      new THREE.MeshStandardMaterial({ color: 0x8d8d93, roughness: 0.92 })
+    );
+    platform.receiveShadow = true;
+    group.add(platform);
+
+    const mainMountain = new THREE.Mesh(
+      new THREE.ConeGeometry(2.7, 5.8, 7),
+      new THREE.MeshStandardMaterial({ color: 0x887766, roughness: 0.94 })
+    );
+    mainMountain.position.set(0, 3.05, 0);
+    mainMountain.castShadow = true;
+    group.add(mainMountain);
+
+    const sideMountain = new THREE.Mesh(
+      new THREE.ConeGeometry(1.7, 3.6, 6),
+      new THREE.MeshStandardMaterial({ color: 0x7c6b5d, roughness: 0.94 })
+    );
+    sideMountain.position.set(-1.8, 2.05, 1.1);
+    sideMountain.rotation.y = 0.4;
+    sideMountain.castShadow = true;
+    group.add(sideMountain);
+
+    const glacier = new THREE.Mesh(
+      new THREE.SphereGeometry(1.9, 26, 18, 0, Math.PI * 2, 0, Math.PI * 0.6),
+      new THREE.MeshStandardMaterial({
+        color: 0xddeeff,
+        roughness: 0.28,
+        transparent: true,
+        opacity: 0.95
+      })
+    );
+    glacier.position.set(0.08, 5.2, 0.1);
+    glacier.scale.set(1.06, 1, 1.04);
+    glacier.castShadow = true;
+    group.add(glacier);
+
+    const stream = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.22, 3.25, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x4488cc,
+        transparent: true,
+        opacity: isPast ? 0.18 : 0.72,
+        emissive: 0x224c88,
+        emissiveIntensity: 0.1
+      })
+    );
+    stream.position.set(0.6, 2.35, 1.22);
+    stream.rotation.z = 0.54;
+    stream.rotation.x = 0.08;
+    group.add(stream);
+
+    const mossPatches = [];
+    const grasses = [];
+    const trees = [];
+    const lifeColors = [0x55aa44, 0x66bb33, 0x5fa038];
+    const treeColors = [0x407d35, 0x4a863b, 0x5b9444];
+    const positions = [
+      [-1.7, 0.45, -1.0], [-0.9, 0.46, -1.6], [0.3, 0.45, -1.7], [1.4, 0.44, -1.1],
+      [1.8, 0.45, 0.4], [0.9, 0.46, 1.2], [-0.2, 0.45, 1.45], [-1.5, 0.45, 1.0]
+    ];
+
+    positions.forEach((position, index) => {
+      const patch = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.65, 0.5),
+        new THREE.MeshStandardMaterial({
+          color: lifeColors[index % lifeColors.length],
+          transparent: true,
+          opacity: isPast ? 0 : 0.85,
+          side: THREE.DoubleSide
+        })
+      );
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(position[0], position[1], position[2]);
+      group.add(patch);
+      mossPatches.push(patch);
+    });
+
+    const grassPositions = [
+      [-1.2, 0.67, -0.8], [-0.4, 0.67, -1.1], [0.4, 0.67, -1.25], [1.05, 0.67, -0.65],
+      [1.35, 0.67, 0.2], [0.9, 0.67, 0.95], [0.15, 0.67, 1.1], [-0.8, 0.67, 0.95],
+      [-1.45, 0.67, 0.25], [1.7, 0.67, -1.25], [-1.75, 0.67, -1.4], [1.5, 0.67, 1.1]
+    ];
+
+    grassPositions.forEach((position, index) => {
+      const grass = new THREE.Mesh(
+        new THREE.ConeGeometry(0.11 + (index % 3) * 0.02, 0.36 + (index % 2) * 0.08, 6),
+        new THREE.MeshStandardMaterial({ color: 0x66bb33, roughness: 0.88 })
+      );
+      grass.position.set(position[0], position[1], position[2]);
+      grass.castShadow = true;
+      group.add(grass);
+      grasses.push(grass);
+    });
+
+    const treePositions = [
+      [-0.8, 0.78, -0.25], [0.1, 0.78, -0.35], [0.95, 0.8, 0.15],
+      [-1.1, 0.78, 0.75], [0.5, 0.8, 0.95], [1.45, 0.8, -0.85]
+    ];
+
+    treePositions.forEach((position, index) => {
+      const tree = createTree(0.7 + (index % 3) * 0.12, 0.78, treeColors[index % treeColors.length]);
+      tree.position.set(position[0], position[1], position[2]);
+      tree.visible = !isPast;
+      group.add(tree);
+      trees.push(tree);
+    });
+
+    const insects = createParticleSystem(28, 0xffd66b, 0.08, { x: 3.2, y: 1.0, z: 2.8 }, 0.9, 0.2);
+    insects.position.set(0.2, 1.05, 0);
+    insects.visible = !isPast;
+    group.add(insects);
+
+    if (isPast) {
+      mossPatches.forEach((mesh) => { mesh.visible = false; });
+      grasses.forEach((mesh) => { mesh.visible = false; });
+      trees.forEach((mesh) => { mesh.visible = false; });
+      insects.visible = false;
+    }
+
+    return { group, glacier, stream, mossPatches, grasses, trees, insects };
+  }
+
+  function buildAlpsCase() {
+    const root = new THREE.Group();
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(16, 64),
+      new THREE.MeshStandardMaterial({ color: 0x8c97a8, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.01;
+    floor.receiveShadow = true;
+    root.add(floor);
+
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.01, 7.4),
+      new THREE.MeshStandardMaterial({ color: 0xb7c8d8, transparent: true, opacity: 0.26 })
+    );
+    divider.position.set(0, 0.01, 0);
+    divider.rotation.y = Math.PI * 0.5;
+    root.add(divider);
+
+    const left = createAlpsBlock(true);
+    left.group.position.set(-6.2, 0, 0);
+    root.add(left.group);
+
+    const right = createAlpsBlock(false);
+    right.group.position.set(6.2, 0, 0);
+    root.add(right.group);
+
+    const cloudGroup = new THREE.Group();
+    for (let i = 0; i < 6; i += 1) {
+      const puff = new THREE.Mesh(
+        new THREE.SphereGeometry(0.6 + seeded(i + 70) * 0.5, 16, 12),
+        new THREE.MeshStandardMaterial({
+          color: 0xf1f8ff,
+          transparent: true,
+          opacity: 0.42,
+          roughness: 0.6
+        })
+      );
+      puff.position.set(-7 + i * 2.8, 8 + seeded(i + 80) * 1.3, -6 + seeded(i + 90) * 2.5);
+      puff.scale.y = 0.68;
+      cloudGroup.add(puff);
+    }
+    root.add(cloudGroup);
+
+    let smoothYear = state.year;
+
+    function update(delta, elapsed) {
+      smoothYear = smooth(smoothYear, state.year, delta, 3.6);
+      const metrics = alpsMetrics(smoothYear);
+      const glacierScale = lerp(1.04, 0.28, metrics.meltLevel);
+      right.glacier.scale.set(1.06 * glacierScale, 0.94 * glacierScale + 0.06, 1.04 * glacierScale);
+      right.glacier.position.y = 5.15 - metrics.meltLevel * 0.72;
+      right.glacier.material.opacity = lerp(0.96, 0.46, metrics.meltLevel);
+
+      right.stream.visible = metrics.meltLevel > 0.06;
+      right.stream.scale.set(1, lerp(0.36, 1.18, metrics.streamStrength), 1);
+      right.stream.material.opacity = lerp(0.18, 0.86, metrics.streamStrength);
+
+      const mossCount = Math.round(lerp(0, right.mossPatches.length, metrics.colonization));
+      const grassCount = Math.round(lerp(0, right.grasses.length, metrics.colonization));
+      const treeCount = Math.round(lerp(0, right.trees.length, metrics.colonization * 0.95));
+
+      right.mossPatches.forEach((mesh, index) => {
+        mesh.visible = state.showLife && index < mossCount;
+        mesh.material.opacity = lerp(0.2, 0.9, metrics.colonization);
+      });
+      right.grasses.forEach((mesh, index) => {
+        mesh.visible = state.showLife && index < grassCount;
+        mesh.scale.y = 0.7 + metrics.colonization * 0.9;
+      });
+      right.trees.forEach((tree, index) => {
+        tree.visible = state.showLife && index < treeCount;
+        tree.scale.setScalar(0.72 + metrics.colonization * 0.46);
+      });
+
+      right.insects.visible = state.showLife && metrics.colonization > 0.28;
+      if (right.insects.visible) updateInsects(right.insects, elapsed, metrics.colonization);
+
+      cloudGroup.children.forEach((cloud, index) => {
+        cloud.position.x += Math.sin(elapsed * 0.08 + index * 0.4) * 0.003;
+      });
+    }
+
+    function dispose() {
+      disposeObject(root);
+    }
+
+    scene.fog = new THREE.FogExp2(0xa7c8e4, 0.027);
+    renderer.setClearColor(0x88bbee, 1);
+    return { root, update, dispose };
+  }
+
+  // 사례 B: 아마존
+  function createForestPlot(isHealthy = true) {
+    const group = new THREE.Group();
+
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: isHealthy ? 0x553322 : 0x886644, roughness: 0.96 });
+    const ground = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.5, 4.9, 0.8, 36),
+      groundMaterial
+    );
+    ground.receiveShadow = true;
+    group.add(ground);
+
+    const humidLayer = new THREE.Mesh(
+      new THREE.CircleGeometry(4.2, 40),
+      new THREE.MeshStandardMaterial({
+        color: isHealthy ? 0x305b2f : 0x6b5636,
+        transparent: true,
+        opacity: 0.78,
+        roughness: 0.98
+      })
+    );
+    humidLayer.rotation.x = -Math.PI / 2;
+    humidLayer.position.y = 0.42;
+    group.add(humidLayer);
+
+    const trees = [];
+    const stumps = [];
+    const leafPalette = [0x228b22, 0x338822, 0x447733];
+    const treeCount = 42;
+    for (let i = 0; i < treeCount; i += 1) {
+      const radius = 0.7 + seeded(i + 1) * 2.8;
+      const angle = seeded(i + 11) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius * 0.9;
+      const scale = 0.8 + seeded(i + 21) * 0.9;
+      const tree = createTree(1.2 + scale * 0.9, 1 + scale * 0.18, leafPalette[i % leafPalette.length]);
+      tree.position.set(x, 0.78, z);
+      tree.scale.setScalar(0.75 + scale * 0.22);
+      tree.userData.baseScale = tree.scale.x;
+      tree.castShadow = true;
+      group.add(tree);
+      trees.push(tree);
+
+      const stump = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.22, 0.24, 10),
+        new THREE.MeshStandardMaterial({ color: 0x6d4c31, roughness: 0.94 })
+      );
+      stump.position.set(x, 0.54, z);
+      stump.visible = false;
+      group.add(stump);
+      stumps.push(stump);
+    }
+
+    const birds = [];
+    for (let i = 0; i < 4; i += 1) {
+      const bird = createAmazonAnimal('bird');
+      bird.position.set(-1.8 + i * 1.15, 4.9 + (i % 2) * 0.3, -1.3 + (i % 3) * 0.55);
+      group.add(bird);
+      birds.push(bird);
+    }
+
+    const monkeys = [];
+    for (let i = 0; i < 2; i += 1) {
+      const monkey = createAmazonAnimal('monkey');
+      monkey.position.set(-1.2 + i * 2.1, 2.05, 0.6 - i * 1.1);
+      group.add(monkey);
+      monkeys.push(monkey);
+    }
+
+    const jaguar = createAmazonAnimal('jaguar');
+    jaguar.position.set(0.8, 0.74, 1.4);
+    group.add(jaguar);
+
+    const rain = createParticleSystem(200, 0x8fd2ff, 0.07, { x: 6.4, y: 1.2, z: 6.1 }, 6.2, 0.15);
+    rain.position.y = 1.4;
+    group.add(rain);
+
+    const fire = createParticleSystem(140, 0xff7e42, 0.14, { x: 3.8, y: 0.7, z: 3.6 }, 2.6, 0.32);
+    fire.position.set(0, 0.3, 0);
+    fire.visible = false;
+    group.add(fire);
+
+    const downArrows = [];
+    const upArrows = [];
+    const arrowPositions = [[-1.2, 4.6, 0.4], [0.2, 4.2, -0.7], [1.4, 4.5, 1.0]];
+    arrowPositions.forEach((position) => {
+      const down = makeFlowArrow({ color: 0x48b8ff, direction: 'down', length: 2.5 });
+      down.position.set(position[0], position[1], position[2]);
+      group.add(down);
+      downArrows.push(down);
+
+      const up = makeFlowArrow({ color: 0xff644c, direction: 'up', length: 2.4 });
+      up.position.set(position[0], 0.9, position[2]);
+      up.visible = false;
+      group.add(up);
+      upArrows.push(up);
+    });
+
+    return {
+      group,
+      groundMaterial,
+      humidLayer,
+      trees,
+      stumps,
+      birds,
+      monkeys,
+      jaguar,
+      rain,
+      fire,
+      downArrows,
+      upArrows
+    };
+  }
+
+  function buildAmazonCase() {
+    const root = new THREE.Group();
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(16, 64),
+      new THREE.MeshStandardMaterial({ color: 0x233728, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    root.add(floor);
+
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.01, 8),
+      new THREE.MeshStandardMaterial({ color: 0xd5ffbc, transparent: true, opacity: 0.18 })
+    );
+    divider.position.y = 0.01;
+    divider.rotation.y = Math.PI * 0.5;
+    root.add(divider);
+
+    const left = createForestPlot(true);
+    left.group.position.set(-6.3, 0, 0);
+    root.add(left.group);
+
+    const right = createForestPlot(false);
+    right.group.position.set(6.3, 0, 0);
+    root.add(right.group);
+
+    const haze = new THREE.Mesh(
+      new THREE.PlaneGeometry(22, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0x7db16f,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.DoubleSide
+      })
+    );
+    haze.position.set(0, 4.6, -6);
+    root.add(haze);
+
+    let smoothDestruction = state.destruction;
+
+    function animateBirds(birds, elapsed, visible) {
+      birds.forEach((bird, index) => {
+        bird.visible = visible;
+        if (!visible) return;
+        bird.position.y += Math.sin(elapsed * 1.7 + index) * 0.003;
+        bird.position.x += Math.cos(elapsed * 0.8 + index * 0.4) * 0.002;
+        bird.userData.leftWing.rotation.z = Math.sin(elapsed * 8 + bird.userData.phase) * 0.6;
+        bird.userData.rightWing.rotation.z = -Math.sin(elapsed * 8 + bird.userData.phase) * 0.6;
+      });
+    }
+
+    function update(delta, elapsed) {
+      smoothDestruction = smooth(smoothDestruction, state.destruction, delta, 3.4);
+      const metrics = amazonMetrics(smoothDestruction);
+      const remainingTrees = Math.round(right.trees.length * (metrics.remaining / 100));
+      const removedTrees = right.trees.length - remainingTrees;
+
+      const lushColor = new THREE.Color(0x553322);
+      const dryColor = new THREE.Color(0x886644);
+      right.groundMaterial.color.copy(lushColor.lerp(dryColor, metrics.dryness));
+      right.humidLayer.material.color.set(metrics.dryness > 0.55 ? 0x7c633d : 0x345d31);
+      right.humidLayer.material.opacity = lerp(0.8, 0.45, metrics.dryness);
+      left.trees.forEach((tree) => {
+        tree.visible = state.showLife;
+      });
+
+      right.trees.forEach((tree, index) => {
+        const keep = index < remainingTrees;
+        tree.visible = state.showLife && keep;
+        if (keep) {
+          const vitality = clamp(1 - metrics.dryness * 0.7, 0.45, 1);
+          tree.scale.setScalar((tree.userData.baseScale || 1) * vitality);
+        }
+      });
+      right.stumps.forEach((stump, index) => {
+        stump.visible = index < removedTrees;
+      });
+
+      const birdVisible = state.showLife && metrics.remaining > 18;
+      const monkeyVisible = state.showLife && metrics.remaining > 35;
+      const jaguarVisible = state.showLife && metrics.remaining > 55;
+
+      animateBirds(left.birds, elapsed, state.showLife);
+      animateBirds(right.birds, elapsed, birdVisible);
+      left.monkeys.forEach((monkey, index) => {
+        monkey.visible = state.showLife;
+        monkey.rotation.y = Math.sin(elapsed * 1.2 + index) * 0.2;
+      });
+      right.monkeys.forEach((monkey, index) => {
+        monkey.visible = monkeyVisible;
+        monkey.rotation.y = Math.sin(elapsed * 1.2 + index) * 0.2;
+      });
+      left.jaguar.visible = state.showLife;
+      right.jaguar.visible = jaguarVisible;
+
+      updateRain(left.rain, delta, 0.04);
+      left.rain.visible = true;
+      right.rain.visible = metrics.remaining > 12;
+      right.rain.material.opacity = lerp(0.78, 0.18, metrics.dryness);
+      updateRain(right.rain, delta, 0.03 + metrics.dryness * 0.03);
+
+      const downStrength = state.showCO2Flow ? clamp((metrics.remaining - 20) / 80, 0, 1) : 0;
+      const upStrength = state.showCO2Flow ? clamp((smoothDestruction - 35) / 65, 0, 1) : 0;
+      left.downArrows.forEach((arrow) => setArrowOpacity(arrow, state.showCO2Flow ? 0.82 : 0));
+      left.upArrows.forEach((arrow) => setArrowOpacity(arrow, 0));
+      right.downArrows.forEach((arrow) => setArrowOpacity(arrow, downStrength * 0.8));
+      right.upArrows.forEach((arrow) => setArrowOpacity(arrow, upStrength * 0.9));
+
+      left.fire.visible = false;
+      right.fire.visible = smoothDestruction > 30;
+      right.fire.material.opacity = clamp((smoothDestruction - 18) / 82, 0, 0.95);
+      if (right.fire.visible) updateFire(right.fire, elapsed, clamp((smoothDestruction - 20) / 80, 0, 1));
+    }
+
+    function dispose() {
+      disposeObject(root);
+    }
+
+    scene.fog = new THREE.FogExp2(0x203722, 0.03);
+    renderer.setClearColor(0x27442b, 1);
+    return { root, update, dispose };
+  }
+
+  // UI/그래프
+  function updateCaseCopy() {
+    const alps = alpsMetrics(state.year);
+    const amazon = amazonMetrics(state.destruction);
+
+    dom.currentCase.textContent = CASE_NAMES[state.activeCase];
+    dom.currentStatus.textContent = state.activeCase === 'alps' ? alps.status : amazon.status;
+    dom.alpsArea.textContent = `${alps.area.toFixed(1)} km² (1900년 대비 ${alps.declinePct.toFixed(0)}% 감소)`;
+    dom.alpsSpecies.textContent = `${Math.round(alps.species)}종`;
+    dom.amazonForest.textContent = `${amazon.remaining.toFixed(0)}% 남음`;
+    dom.amazonCo2.textContent = amazon.co2 >= 0
+      ? `연간 ${amazon.co2.toFixed(1)}억 톤`
+      : `연간 ${Math.abs(amazon.co2).toFixed(1)}억 톤 순배출`;
+
+    if (state.activeCase === 'alps') {
+      dom.leftLabel.textContent = '과거';
+      dom.leftTitle.textContent = '1900년 알프스 빙하';
+      dom.leftDesc.textContent = '산 정상부를 두껍게 덮은 빙하와 황량한 암석 지형이 유지됩니다.';
+      dom.rightLabel.textContent = '현재/미래';
+      dom.rightTitle.textContent = `${Math.round(state.year)}년 변화`;
+      dom.rightDesc.textContent = alps.status;
+      dom.sceneCaption.textContent = '빙하가 녹은 지역에서 새로운 생태계가 형성됨';
+    } else {
+      dom.leftLabel.textContent = '건강한 숲';
+      dom.leftTitle.textContent = 'CO₂를 흡수하는 열대우림';
+      dom.leftDesc.textContent = '울창한 나무와 다양한 동물이 강수 순환과 탄소 순환을 유지합니다.';
+      dom.rightLabel.textContent = '훼손 진행';
+      dom.rightTitle.textContent = `파괴 비율 ${Math.round(state.destruction)}%`;
+      dom.rightDesc.textContent = amazon.status;
+      dom.sceneCaption.textContent = '열대우림 파괴 → CO₂ 흡수 능력 감소 → 기후 변화 가속';
+    }
+
+    dom.caseTabs.forEach((button) => {
+      button.classList.toggle('active', button.dataset.case === state.activeCase);
+    });
+    dom.body.dataset.case = state.activeCase;
+  }
+
+  function renderLegend(items) {
+    dom.graphLegend.innerHTML = items.map((item) => `
+      <span class="legend-chip">
+        <span class="legend-dot" style="background:${item.color}"></span>${item.label}
+      </span>
+    `).join('');
+  }
+
+  function drawGraphBackdrop(ctx, width, height, margin) {
+    ctx.clearRect(0, 0, width, height);
+    const gradient = ctx.createLinearGradient(0, margin.top, 0, height - margin.bottom);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.04)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0.015)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(margin.left, margin.top, width - margin.left - margin.right, height - margin.top - margin.bottom);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    for (let i = 0; i <= 5; i += 1) {
+      const y = margin.top + ((height - margin.top - margin.bottom) / 5) * i;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(width - margin.right, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 4; i += 1) {
+      const x = margin.left + ((width - margin.left - margin.right) / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(x, margin.top);
+      ctx.lineTo(x, height - margin.bottom);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+
+  function drawAlpsGraph(width, height) {
+    const margin = { top: 110, right: 58, bottom: 68, left: 58 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const years = [1900, 1950, 2000, 2024, 2060, 2100];
+    const areaMax = 130;
+    const speciesMax = 45;
+    const markerYear = state.year;
+    const markerMetrics = alpsMetrics(markerYear);
+
+    drawGraphBackdrop(graphCtx, width, height, margin);
+
+    const mapX = (year) => margin.left + ((year - 1900) / 200) * plotWidth;
+    const mapAreaY = (value) => margin.top + plotHeight - (value / areaMax) * plotHeight;
+    const mapSpeciesY = (value) => margin.top + plotHeight - (value / speciesMax) * plotHeight;
+
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+    graphCtx.lineWidth = 1.4;
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, margin.top);
+    graphCtx.lineTo(margin.left, margin.top + plotHeight);
+    graphCtx.lineTo(width - margin.right, margin.top + plotHeight);
+    graphCtx.stroke();
+
+    graphCtx.beginPath();
+    graphCtx.moveTo(width - margin.right, margin.top);
+    graphCtx.lineTo(width - margin.right, margin.top + plotHeight);
+    graphCtx.stroke();
+
+    graphCtx.font = '12px Pretendard';
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+    years.forEach((year) => {
+      graphCtx.fillText(String(year), mapX(year), height - margin.bottom + 24);
+    });
+
+    graphCtx.textAlign = 'right';
+    graphCtx.fillStyle = '#9edcff';
+    for (let value = 0; value <= areaMax; value += 25) {
+      graphCtx.fillText(`${value}`, margin.left - 10, mapAreaY(value) + 4);
+    }
+    graphCtx.textAlign = 'left';
+    graphCtx.fillStyle = '#9ad36b';
+    for (let value = 0; value <= speciesMax; value += 9) {
+      graphCtx.fillText(`${value}`, width - margin.right + 10, mapSpeciesY(value) + 4);
+    }
+
+    graphCtx.save();
+    graphCtx.translate(18, margin.top + plotHeight * 0.5);
+    graphCtx.rotate(-Math.PI * 0.5);
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = '#9edcff';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('빙하 면적 (km²)', 0, 0);
+    graphCtx.restore();
+
+    graphCtx.save();
+    graphCtx.translate(width - 16, margin.top + plotHeight * 0.5);
+    graphCtx.rotate(Math.PI * 0.5);
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = '#9ad36b';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('생물종 수 (종)', 0, 0);
+    graphCtx.restore();
+
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.88)';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('연도', margin.left + plotWidth * 0.5, height - 18);
+
+    graphCtx.strokeStyle = '#8ed9ff';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let year = 1900; year <= 2100; year += 4) {
+      const metrics = alpsMetrics(year);
+      const x = mapX(year);
+      const y = mapAreaY(metrics.area);
+      if (year === 1900) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+
+    graphCtx.strokeStyle = '#9ad36b';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let year = 1900; year <= 2100; year += 4) {
+      const metrics = alpsMetrics(year);
+      const x = mapX(year);
+      const y = mapSpeciesY(metrics.species);
+      if (year === 1900) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+
+    const markerX = mapX(markerYear);
+    graphCtx.setLineDash([7, 6]);
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+    graphCtx.lineWidth = 1.5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(markerX, margin.top);
+    graphCtx.lineTo(markerX, margin.top + plotHeight);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    graphCtx.fillStyle = '#8ed9ff';
+    graphCtx.beginPath();
+    graphCtx.arc(markerX, mapAreaY(markerMetrics.area), 5, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.fillStyle = '#9ad36b';
+    graphCtx.beginPath();
+    graphCtx.arc(markerX, mapSpeciesY(markerMetrics.species), 5, 0, Math.PI * 2);
+    graphCtx.fill();
+
+    graphCtx.font = '11px Pretendard';
+    graphCtx.textAlign = 'left';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+    graphCtx.fillText(`${markerMetrics.area.toFixed(1)} km²`, markerX + 10, mapAreaY(markerMetrics.area) - 10);
+    graphCtx.fillText(`${Math.round(markerMetrics.species)}종`, markerX + 10, mapSpeciesY(markerMetrics.species) + 18);
+
+    dom.graphTitle.textContent = '빙하 면적 vs 생물종 수';
+    dom.graphSubtitle.textContent = '빙하가 줄어들수록 노출된 땅에서 천이가 진행되어 선구종, 초본, 어린 나무 순으로 생물이 늘어납니다.';
+    dom.graphCallout.innerHTML = `<strong>반비례 관계</strong> 빙하가 후퇴하며 암석 지표가 드러나면, 이끼와 지의류가 먼저 정착하고 시간이 지날수록 생물종 수가 증가합니다. 현재 ${Math.round(markerYear)}년은 빙하 ${markerMetrics.area.toFixed(1)} km², 새로운 종 수 ${Math.round(markerMetrics.species)}종 수준입니다.`;
+    renderLegend([
+      { color: '#8ed9ff', label: '빙하 면적' },
+      { color: '#9ad36b', label: '생물종 수' }
+    ]);
+  }
+
+  function drawAmazonGraph(width, height) {
+    const margin = { top: 110, right: 34, bottom: 68, left: 58 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const marker = amazonMetrics(state.destruction);
+    const yMin = -4;
+    const yMax = 20;
+
+    drawGraphBackdrop(graphCtx, width, height, margin);
+
+    const mapX = (remaining) => margin.left + (remaining / 100) * plotWidth;
+    const mapY = (value) => margin.top + plotHeight - ((value - yMin) / (yMax - yMin)) * plotHeight;
+
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+    graphCtx.lineWidth = 1.4;
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, margin.top);
+    graphCtx.lineTo(margin.left, margin.top + plotHeight);
+    graphCtx.lineTo(width - margin.right, margin.top + plotHeight);
+    graphCtx.stroke();
+
+    graphCtx.font = '12px Pretendard';
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+    for (let remaining = 0; remaining <= 100; remaining += 20) {
+      graphCtx.fillText(String(remaining), mapX(remaining), height - margin.bottom + 24);
+    }
+
+    graphCtx.textAlign = 'right';
+    for (let value = -4; value <= 20; value += 4) {
+      graphCtx.fillText(String(value), margin.left - 10, mapY(value) + 4);
+    }
+
+    graphCtx.save();
+    graphCtx.translate(18, margin.top + plotHeight * 0.5);
+    graphCtx.rotate(-Math.PI * 0.5);
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = '#ffc089';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('CO₂ 흡수량 (억 톤/년)', 0, 0);
+    graphCtx.restore();
+
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.88)';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('남은 삼림 면적 (%)', margin.left + plotWidth * 0.5, height - 18);
+
+    graphCtx.strokeStyle = '#ffb067';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let remaining = 0; remaining <= 100; remaining += 2) {
+      const metrics = amazonMetrics(100 - remaining);
+      const x = mapX(remaining);
+      const y = mapY(metrics.co2);
+      if (remaining === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+
+    const markerX = mapX(marker.remaining);
+    const markerY = mapY(marker.co2);
+    graphCtx.setLineDash([7, 6]);
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+    graphCtx.lineWidth = 1.5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(markerX, margin.top);
+    graphCtx.lineTo(markerX, margin.top + plotHeight);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    graphCtx.fillStyle = marker.co2 >= 0 ? '#ffb067' : '#ff6d57';
+    graphCtx.beginPath();
+    graphCtx.arc(markerX, markerY, 5.4, 0, Math.PI * 2);
+    graphCtx.fill();
+
+    graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+    graphCtx.font = '11px Pretendard';
+    graphCtx.textAlign = 'left';
+    graphCtx.fillText(`${marker.remaining.toFixed(0)}% 남음`, markerX + 10, markerY - 12);
+    graphCtx.fillText(`${marker.co2.toFixed(1)}억 톤/년`, markerX + 10, markerY + 16);
+
+    dom.graphTitle.textContent = '삼림 면적 vs CO₂ 흡수량';
+    dom.graphSubtitle.textContent = '아마존 열대우림은 넓은 면적을 유지할수록 더 많은 CO₂를 흡수합니다. 벌채가 커질수록 탄소 흡수원이 약해집니다.';
+    dom.graphCallout.innerHTML = marker.co2 >= 0
+      ? `<strong>정비례 관계</strong> 숲이 남아 있을수록 광합성과 증산 작용이 유지되어 CO₂ 흡수량이 큽니다. 현재는 삼림 ${marker.remaining.toFixed(0)}%가 남아 연간 ${marker.co2.toFixed(1)}억 톤을 흡수하는 수준입니다.`
+      : `<strong>임계점 경고</strong> 숲이 지나치게 파괴되면 흡수량이 0 아래로 내려가 순배출원이 됩니다. 현재는 삼림 ${marker.remaining.toFixed(0)}%만 남아 연간 ${Math.abs(marker.co2).toFixed(1)}억 톤을 순배출하는 상태입니다.`;
+    renderLegend([
+      { color: '#ffb067', label: 'CO₂ 흡수량' },
+      { color: '#ff6d57', label: '순배출 위험 구간' }
+    ]);
+  }
+
+  function resizeGraphCanvas() {
+    const rect = dom.graphCanvas.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width * Math.min(window.devicePixelRatio, 2)));
+    const height = Math.max(1, Math.round(rect.height * Math.min(window.devicePixelRatio, 2)));
+    if (dom.graphCanvas.width !== width || dom.graphCanvas.height !== height) {
+      dom.graphCanvas.width = width;
+      dom.graphCanvas.height = height;
+    }
+    graphCtx.setTransform(Math.min(window.devicePixelRatio, 2), 0, 0, Math.min(window.devicePixelRatio, 2), 0, 0);
+  }
+
+  function drawGraph() {
+    resizeGraphCanvas();
+    const width = dom.graphCanvas.clientWidth;
+    const height = dom.graphCanvas.clientHeight;
+    if (state.activeCase === 'alps') drawAlpsGraph(width, height);
+    else drawAmazonGraph(width, height);
+  }
+
+  // 상호작용
+  function syncParamsFromState() {
+    params.사례 = CASE_NAMES[state.activeCase];
+    params.시간 = Math.round(state.year);
+    params['파괴 비율'] = Math.round(state.destruction);
+    params['CO₂ 흐름 표시'] = state.showCO2Flow;
+    params['생물 표시'] = state.showLife;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    updateGuiVisibility();
+    updateCaseCopy();
+  }
+
+  function updateGuiVisibility() {
+    controllers.year.domElement.style.display = state.activeCase === 'alps' ? '' : 'none';
+    controllers.destruction.domElement.style.display = state.activeCase === 'amazon' ? '' : 'none';
+    controllers.autoplay.name(state.autoPlay ? '자동 재생 중지' : '자동 재생');
+  }
+
+  function setActiveCase(nextCase) {
+    if (state.activeCase === nextCase) {
+      syncParamsFromState();
+      return;
+    }
+    state.activeCase = nextCase;
+    state.autoPlay = false;
+    mountCase();
+    syncParamsFromState();
+  }
+
+  function mountCase() {
+    if (activeCaseInstance) {
+      scene.remove(activeCaseInstance.root);
+      activeCaseInstance.dispose();
+    }
+
+    activeCaseInstance = state.activeCase === 'alps' ? buildAlpsCase() : buildAmazonCase();
+    scene.add(activeCaseInstance.root);
+
+    if (state.activeCase === 'alps') {
+      camera.position.set(0, 6.8, 15.2);
+      controls.target.set(0, 2.15, 0);
+    } else {
+      camera.position.set(0, 6.1, 15.8);
+      controls.target.set(0, 2.2, 0);
+    }
+    controls.update();
+  }
+
+  dom.caseTabs.forEach((button) => {
+    button.addEventListener('click', () => {
+      setActiveCase(button.dataset.case);
+    });
+  });
+
+  dom.guideToggle.addEventListener('click', () => {
+    const open = dom.guidePanel.classList.toggle('open');
+    dom.guideToggle.setAttribute('aria-expanded', String(open));
+  });
+
+  window.addEventListener('resize', () => {
+    resizeScene();
+    drawGraph();
+  });
+
+  // 초기화
+  mountCase();
+  resizeScene();
+  syncParamsFromState();
+
+  // 애니메이션 루프
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.033);
+    const elapsed = clock.elapsedTime;
+
+    if (state.autoPlay) {
+      if (state.activeCase === 'alps') {
+        state.year += delta * 26;
+        if (state.year > 2100) state.year = 1900;
+      } else {
+        state.destruction += delta * 18;
+        if (state.destruction > 100) state.destruction = 0;
+      }
+    }
+
+    if (activeCaseInstance) activeCaseInstance.update(delta, elapsed);
+    controls.update();
+    renderer.render(scene, camera);
+    syncParamsFromState();
+    drawGraph();
+  }
+
+  animate();
+</script>
+</body>
+</html>

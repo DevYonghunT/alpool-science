@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지질 시대 타임라인과 생물 변화 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --panel-bg: rgba(10, 16, 28, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --panel-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+    --text-dim: rgba(255, 255, 255, 0.72);
+    --text-faint: rgba(255, 255, 255, 0.52);
+    --accent: #ffd37a;
+    --danger: #ff7666;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #131920;
+    color: #fff;
+  }
+
+  canvas { display: block; }
+
+  .panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    border-radius: 16px;
+  }
+
+  #stage-info {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 32px));
+    padding: 14px 18px 12px;
+    text-align: center;
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  #era-name {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.36);
+  }
+
+  #era-range {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  #era-caption {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #ffefc2;
+    font-weight: 600;
+  }
+
+  #era-alert {
+    position: fixed;
+    top: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 31;
+    border: 1px solid rgba(255, 120, 102, 0.45);
+    background: rgba(110, 22, 18, 0.78);
+    color: #ffd1cb;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: none;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 40;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(12, 18, 30, 0.74);
+    color: #fff;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 18px;
+    width: min(420px, calc(100vw - 36px));
+    max-height: min(66vh, 560px);
+    overflow-y: auto;
+    z-index: 39;
+    padding: 16px 18px;
+    display: none;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #cde5ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd37a;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  #guide-panel ul {
+    margin-left: 18px;
+  }
+
+  .guide-ref {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 32px));
+    z-index: 30;
+    padding: 16px 18px;
+  }
+
+  #formula-panel h3 {
+    font-size: 14px;
+    color: #bfe1ff;
+    margin-bottom: 10px;
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+    line-height: 1.55;
+    font-size: 12px;
+  }
+
+  .info-label {
+    width: 88px;
+    flex-shrink: 0;
+    color: var(--text-faint);
+  }
+
+  .info-value {
+    flex: 1;
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    white-space: pre-line;
+  }
+
+  #graph-panel {
+    position: fixed;
+    top: 150px;
+    right: 16px;
+    width: min(360px, calc(100vw - 32px));
+    z-index: 30;
+    padding: 14px 14px 12px;
+  }
+
+  #graph-panel h3 {
+    font-size: 13px;
+    color: #d4ebff;
+    margin-bottom: 4px;
+  }
+
+  #graph-subtitle {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+
+  #marine-graph {
+    width: 100%;
+    height: 220px;
+    display: block;
+  }
+
+  .graph-footnote {
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-faint);
+    line-height: 1.5;
+  }
+
+  #timeline-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    width: min(980px, calc(100vw - 24px));
+    z-index: 32;
+    padding: 14px 16px 16px;
+  }
+
+  .timeline-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .timeline-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d4ebff;
+  }
+
+  .timeline-current {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #era-chip-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .era-chip {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 9px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .era-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .era-chip.active {
+    border-color: rgba(255, 234, 178, 0.48);
+    background: rgba(255, 244, 215, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 235, 188, 0.15);
+  }
+
+  .era-chip-name {
+    display: block;
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+
+  .era-chip-meta {
+    display: block;
+    color: var(--text-faint);
+    font-size: 10px;
+  }
+
+  #timeline-wrap {
+    position: relative;
+    padding-top: 20px;
+    padding-bottom: 22px;
+  }
+
+  #timeline-bar {
+    display: flex;
+    width: 100%;
+    height: 24px;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .era-segment {
+    position: relative;
+    border: none;
+    font: inherit;
+    color: #fff;
+    cursor: pointer;
+    min-width: 0;
+    transition: filter 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .era-segment:hover {
+    filter: brightness(1.08);
+  }
+
+  .era-segment.active::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 2px solid rgba(255, 247, 214, 0.9);
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  #timeline-events,
+  #timeline-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .timeline-event {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    border: none;
+    pointer-events: auto;
+    font: inherit;
+    cursor: pointer;
+    background: transparent;
+    color: #ffd6d1;
+  }
+
+  .timeline-event.hidden {
+    display: none;
+  }
+
+  .timeline-event .event-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(144, 21, 11, 0.92);
+    border: 1px solid rgba(255, 141, 123, 0.5);
+    box-shadow: 0 0 14px rgba(255, 92, 63, 0.28);
+    font-size: 12px;
+  }
+
+  .timeline-event .event-text {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    color: #ffd6d1;
+    white-space: nowrap;
+    transform: translateX(-25%);
+  }
+
+  .timeline-label {
+    position: absolute;
+    bottom: 0;
+    font-size: 10px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+
+  .timeline-label.start {
+    left: 0;
+    transform: none;
+  }
+
+  .timeline-label.end {
+    right: 0;
+    left: auto;
+    transform: none;
+  }
+
+  #popup-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 12, 0.55);
+    backdrop-filter: blur(6px);
+    z-index: 80;
+    display: none;
+  }
+
+  #extinction-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(460px, calc(100vw - 28px));
+    z-index: 81;
+    padding: 18px;
+    display: none;
+  }
+
+  .popup-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .popup-head h3 {
+    font-size: 16px;
+    color: #ffd7a4;
+  }
+
+  #popup-close {
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font: inherit;
+    font-size: 16px;
+  }
+
+  #popup-period {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .popup-body {
+    margin-top: 12px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .popup-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 900px) {
+    #graph-panel {
+      top: auto;
+      bottom: 210px;
+      width: min(320px, calc(100vw - 24px));
+    }
+
+    #era-chip-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #era-name {
+      font-size: 20px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #stage-info {
+      top: 12px;
+      width: calc(100vw - 24px);
+      padding: 12px 14px 10px;
+    }
+
+    #era-caption {
+      font-size: 12px;
+    }
+
+    #era-alert {
+      top: 98px;
+      font-size: 11px;
+      padding: 7px 12px;
+    }
+
+    #formula-panel {
+      width: min(320px, calc(100vw - 24px));
+      padding: 14px;
+    }
+
+    #graph-panel {
+      position: fixed;
+      right: 12px;
+      left: 12px;
+      width: auto;
+      bottom: 208px;
+      padding: 12px;
+    }
+
+    #marine-graph {
+      height: 180px;
+    }
+
+    #timeline-panel {
+      width: calc(100vw - 16px);
+      padding: 12px;
+      bottom: 8px;
+    }
+
+    .timeline-topline {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .timeline-event .event-text {
+      display: none;
+    }
+
+    .timeline-label {
+      font-size: 9px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage-info" class="panel">
+  <div id="era-name">선캄브리아시대</div>
+  <div id="era-range">46억~5.39억 년 전</div>
+  <div id="era-caption">최초의 생물 출현, 남세균의 광합성으로 산소 증가</div>
+</div>
+<button id="era-alert" type="button">⚠️ 대멸종 보기</button>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<div id="guide-panel" class="panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 원리</h4>
+  <p>지구가 탄생한 약 46억 년 전부터 현재까지를 지질 시대라고 합니다. 지질 시대는 생물계의 큰 변화를 기준으로 선캄브리아시대, 고생대, 중생대, 신생대로 구분합니다.</p>
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>선캄브리아시대가 지질 시대의 대부분을 차지하는데, 이 시기의 생물 화석이 드문 까닭은 무엇일까요?</li>
+    <li>고생대 말과 중생대 말에 일어난 생물 대멸종의 원인은 각각 무엇이었나요?</li>
+    <li>지질 시대마다 대표적인 생물이 다른 까닭을 환경 변화와 관련지어 설명해 보세요.</li>
+  </ul>
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li>화석 연구: 지층의 나이와 환경을 추정하는 단서</li>
+    <li>공룡 박물관: 경남 고성의 공룡 발자국과 중생대 환경 탐구</li>
+    <li>삼엽충 화석: 강원 태백 지역의 고생대 해양 환경 이해</li>
+  </ul>
+  <div class="guide-ref">📚 교과서 연계: 미래엔 통합과학2 I편 p14~19 — 지질 시대의 환경과 생물 변화, 화석, 대멸종</div>
+</div>
+
+<div id="formula-panel" class="panel">
+  <h3>🌍 지질 시대의 환경과 생물 변화</h3>
+  <div class="info-row"><span class="info-label">현재 시대:</span><span class="info-value" id="fp-name">선캄브리아시대</span></div>
+  <div class="info-row"><span class="info-label">기간:</span><span class="info-value" id="fp-period">46억~5.39억 년 전</span></div>
+  <div class="info-row"><span class="info-label">상대적 길이:</span><span class="info-value" id="fp-share">88.2%</span></div>
+  <div class="info-row"><span class="info-label">대표 생물:</span><span class="info-value" id="fp-organisms">남세균, 에디아카라 생물군</span></div>
+  <div class="info-row"><span class="info-label">환경 특징:</span><span class="info-value" id="fp-environment">황량한 바위 지형, 얕은 바다, 산소가 적은 대기</span></div>
+  <div class="formula-note" id="fp-note">지질 시대 구분:
+선캄브리아시대 (88.2%) → 고생대 (6.3%) →
+중생대 (4.1%) → 신생대 (1.4%)</div>
+</div>
+
+<div id="graph-panel" class="panel">
+  <h3>🐚 해양 생물 과의 수 변화</h3>
+  <div id="graph-subtitle">교과서 그림 I-11 스타일로 대멸종 시기를 함께 표시</div>
+  <svg id="marine-graph" viewBox="0 0 340 220" role="img" aria-label="해양 생물 과의 수 변화 그래프"></svg>
+  <div class="graph-footnote">그래프는 5.39억 년 전 이후 해양 생물 과의 수 변화를 단순화해 표현한 학습용 도식입니다.</div>
+</div>
+
+<div id="timeline-panel" class="panel">
+  <div class="timeline-topline">
+    <div class="timeline-title">지질 시대 타임라인</div>
+    <div class="timeline-current" id="timeline-current">현재 선택: 선캄브리아시대</div>
+  </div>
+  <div id="era-chip-row"></div>
+  <div id="timeline-wrap">
+    <div id="timeline-bar"></div>
+    <div id="timeline-events"></div>
+    <div id="timeline-labels"></div>
+  </div>
+</div>
+
+<div id="popup-backdrop"></div>
+<div id="extinction-popup" class="panel">
+  <div class="popup-head">
+    <div>
+      <h3 id="popup-title">고생대 말 대멸종</h3>
+      <div id="popup-period">약 2.52억 년 전</div>
+    </div>
+    <button id="popup-close" type="button" aria-label="닫기">×</button>
+  </div>
+  <div class="popup-body" id="popup-body"></div>
+  <div class="popup-note" id="popup-note"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const ERAS = [
+  {
+    key: 'precambrian',
+    name: '선캄브리아시대',
+    shortName: '선캄브리아',
+    period: '46억~5.39억 년 전',
+    share: 88.2,
+    sky: 0xaa7744,
+    fog: 0x8a5d33,
+    ground: 0x887766,
+    water: 0x335577,
+    light: 0xffc48a,
+    organisms: ['남세균', '에디아카라 생물군'],
+    environment: '황량한 바위 지형, 얕은 바다, 산소가 적은 대기',
+    caption: '최초의 생물 출현, 남세균의 광합성으로 산소 증가',
+    note: '교과서: 최초의 생물이 출현한 이후 광합성을 하는 남세균의 등장으로 바다와 대기 중에 산소가 많아졌습니다.'
+  },
+  {
+    key: 'paleozoic',
+    name: '고생대',
+    shortName: '고생대',
+    period: '5.39억~2.52억 년 전',
+    share: 6.3,
+    sky: 0x88bbdd,
+    fog: 0x5b93a8,
+    ground: 0x557744,
+    water: 0x2e6386,
+    light: 0xe6f4ff,
+    organisms: ['삼엽충', '완족류', '어류', '양서류'],
+    environment: '얕은 바다와 초기 육지, 오존층 형성, 양치식물 확산',
+    caption: '삼엽충, 어류, 양서류 번성. 오존층 형성으로 육상 진출',
+    note: '교과서: 단단한 껍데기와 뼈를 가진 해양 생물이 많아지고, 오존층이 형성되어 생물의 서식지가 바다에서 육지로 확장되었습니다.'
+  },
+  {
+    key: 'mesozoic',
+    name: '중생대',
+    shortName: '중생대',
+    period: '2.52억~0.66억 년 전',
+    share: 4.1,
+    sky: 0x99ccee,
+    fog: 0x5f9bb7,
+    ground: 0x448833,
+    water: 0x2f7492,
+    light: 0xf7e2b4,
+    organisms: ['공룡', '암모나이트', '해양 파충류'],
+    environment: '따뜻한 숲, 겉씨식물 우세, 판게아 분리와 다양한 서식지',
+    caption: '공룡, 암모나이트 번성. 화산 활동으로 온난한 기후',
+    note: '교과서: 판게아가 분리되며 생물 서식 환경이 다양해졌고, 육지에서는 공룡이, 바다에서는 암모나이트가 번성했습니다.'
+  },
+  {
+    key: 'cenozoic',
+    name: '신생대',
+    shortName: '신생대',
+    period: '0.66억 년 전~현재',
+    share: 1.4,
+    sky: 0x87CEEB,
+    fog: 0x7fbbe0,
+    ground: 0x66aa44,
+    water: 0x3d83a8,
+    light: 0xffffff,
+    organisms: ['매머드', '포유류', '인류', '화폐석'],
+    environment: '현대적 초원과 숲, 빙하기와 간빙기 반복, 속씨식물 번성',
+    caption: '포유류, 속씨식물 번성. 빙하기와 간빙기 반복. 인류 출현',
+    note: '교과서: 신생대 중기까지는 대체로 온난했으나, 이후 기온이 점차 낮아져 빙하기와 간빙기가 여러 차례 반복되었습니다.'
+  }
+];
+
+const EXTINCTIONS = {
+  permian: {
+    title: '고생대 말 대멸종',
+    period: '약 2.52억 년 전',
+    short: '고생대 말',
+    popup: '판게아 형성과 기후 급변으로 삼엽충 등 많은 생물 종류가 크게 감소했습니다.',
+    note: '교과서 p18: 생물 대멸종을 설명하는 가설에는 수륙 분포 변화설, 기후 변화, 화산 활동 등이 포함됩니다.'
+  },
+  cretaceous: {
+    title: '중생대 말 대멸종',
+    period: '약 0.66억 년 전',
+    short: '중생대 말',
+    popup: '운석 충돌설과 화산 폭발설이 대표적인 가설이며, 공룡과 암모나이트 등이 멸종했습니다.',
+    note: '교과서 p18: 운석(소행성) 충돌설, 화산 폭발설은 중생대 말 대멸종을 설명하는 대표 가설입니다.'
+  }
+};
+
+const MARINE_SERIES = [
+  { year: 539, families: 120 },
+  { year: 500, families: 230 },
+  { year: 450, families: 320 },
+  { year: 400, families: 370 },
+  { year: 350, families: 430 },
+  { year: 300, families: 400 },
+  { year: 252, families: 180 },
+  { year: 220, families: 310 },
+  { year: 180, families: 390 },
+  { year: 145, families: 470 },
+  { year: 100, families: 520 },
+  { year: 66, families: 410 },
+  { year: 30, families: 620 },
+  { year: 0, families: 780 }
+];
+
+const state = {
+  eraIndex: 0,
+  showExtinction: true,
+  showNames: true,
+  autoPlaying: false,
+  autoElapsed: 0,
+  stageElapsed: 0,
+  globalTime: 0,
+  sceneObjects: [],
+  labelSprites: [],
+  animCallbacks: [],
+  clock: new THREE.Clock()
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(ERAS[0].sky);
+scene.fog = new THREE.Fog(ERAS[0].fog, 18, 58);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 250);
+camera.position.set(0, 7.5, 18);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.dampingFactor = 0.08;
+controls.minDistance = 11;
+controls.maxDistance = 34;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.8, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+sunLight.position.set(10, 18, 8);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -28;
+sunLight.shadow.camera.right = 28;
+sunLight.shadow.camera.top = 28;
+sunLight.shadow.camera.bottom = -18;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 80;
+scene.add(sunLight);
+
+const hemisphereSky = new THREE.Mesh(
+  new THREE.SphereGeometry(90, 40, 24, 0, Math.PI * 2, 0, Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: ERAS[0].sky, side: THREE.BackSide, transparent: true, opacity: 0.9 })
+);
+hemisphereSky.position.y = -5;
+scene.add(hemisphereSky);
+
+const stageNameEl = document.getElementById('era-name');
+const stageRangeEl = document.getElementById('era-range');
+const stageCaptionEl = document.getElementById('era-caption');
+const eraAlertEl = document.getElementById('era-alert');
+const fpNameEl = document.getElementById('fp-name');
+const fpPeriodEl = document.getElementById('fp-period');
+const fpShareEl = document.getElementById('fp-share');
+const fpOrganismsEl = document.getElementById('fp-organisms');
+const fpEnvironmentEl = document.getElementById('fp-environment');
+const fpNoteEl = document.getElementById('fp-note');
+const graphSvg = document.getElementById('marine-graph');
+const timelineCurrentEl = document.getElementById('timeline-current');
+const chipRowEl = document.getElementById('era-chip-row');
+const timelineBarEl = document.getElementById('timeline-bar');
+const timelineEventsEl = document.getElementById('timeline-events');
+const timelineLabelsEl = document.getElementById('timeline-labels');
+const popupBackdrop = document.getElementById('popup-backdrop');
+const popupEl = document.getElementById('extinction-popup');
+const popupTitleEl = document.getElementById('popup-title');
+const popupPeriodEl = document.getElementById('popup-period');
+const popupBodyEl = document.getElementById('popup-body');
+const popupNoteEl = document.getElementById('popup-note');
+const guidePanelEl = document.getElementById('guide-panel');
+
+let guideOpen = false;
+document.getElementById('guide-toggle').addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanelEl.style.display = guideOpen ? 'block' : 'none';
+});
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function createLabel(text, scale = 0.85, color = '#ffffff') {
+  const lines = text.split('\n');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 128;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(7, 10, 18, 0.72)';
+  roundRect(ctx, 14, 14, canvas.width - 28, canvas.height - 28, 18);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = '700 28px Pretendard, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+
+  const baseY = lines.length === 1 ? 64 : 48;
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width / 2, baseY + index * 32);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale * 4.6, scale * 1.2, 1);
+  sprite.visible = state.showNames;
+  state.labelSprites.push(sprite);
+  return sprite;
+}
+
+function attachLabel(parent, text, scale, color, x, y, z) {
+  const label = createLabel(text, scale, color);
+  label.position.set(x, y, z);
+  parent.add(label);
+  return label;
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (material.map) material.map.dispose();
+  material.dispose();
+}
+
+function disposeSceneObjects() {
+  state.animCallbacks = [];
+  state.labelSprites = [];
+  state.sceneObjects.forEach((object) => {
+    object.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+        else disposeMaterial(child.material);
+      }
+    });
+    scene.remove(object);
+  });
+  state.sceneObjects = [];
+}
+
+function makeTerrain(width, depth, segmentsX, segmentsZ, color, heightFn) {
+  const geometry = new THREE.PlaneGeometry(width, depth, segmentsX, segmentsZ);
+  geometry.rotateX(-Math.PI / 2);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const z = position.getZ(i);
+    position.setY(i, heightFn(x, z));
+  }
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0.05 })
+  );
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function makeWavePlane(width, depth, color, opacity, amplitude = 0.18, speed = 0.7) {
+  const geometry = new THREE.PlaneGeometry(width, depth, 28, 24);
+  geometry.rotateX(-Math.PI / 2);
+  const basePositions = geometry.attributes.position.array.slice();
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity,
+      roughness: 0.18,
+      metalness: 0.1
+    })
+  );
+  mesh.receiveShadow = true;
+
+  state.animCallbacks.push((dt, elapsed, time) => {
+    const pos = geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      const baseX = basePositions[i * 3];
+      const baseY = basePositions[i * 3 + 1];
+      const baseZ = basePositions[i * 3 + 2];
+      const wave = Math.sin(baseX * 0.32 + time * speed) * amplitude + Math.cos(baseZ * 0.28 + time * speed * 0.9) * amplitude * 0.7;
+      pos.setXYZ(i, baseX, baseY + wave, baseZ);
+    }
+    pos.needsUpdate = true;
+    geometry.computeVertexNormals();
+  });
+
+  return mesh;
+}
+
+function createSkyGlow(color, scale, opacity) {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(scale, 24, 16),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.BackSide })
+  );
+}
+
+function addRock(group, x, z, scale = 1, color = 0x7a6658) {
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(0.8 * scale, 0),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95 })
+  );
+  rock.position.set(x, 0.5 * scale, z);
+  rock.rotation.set(Math.random() * 0.4, Math.random() * Math.PI, Math.random() * 0.2);
+  rock.scale.set(1.2, 0.8, 1.4);
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  group.add(rock);
+  return rock;
+}
+
+function createStromatolite(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x667755, roughness: 0.9 });
+  const layers = [
+    [0.72, 0.18],
+    [0.62, 0.16],
+    [0.52, 0.14],
+    [0.42, 0.12]
+  ];
+  let y = 0;
+  layers.forEach(([radius, height]) => {
+    const layer = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.92, height, 20), material);
+    layer.position.y = y + height / 2;
+    layer.castShadow = true;
+    layer.receiveShadow = true;
+    group.add(layer);
+    y += height * 0.82;
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '남세균', 0.62, '#d8f0b0', 0, 1.4, 0);
+  return group;
+}
+
+function createEdiacaran(scale = 1) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.7, 18, 12),
+    new THREE.MeshStandardMaterial({ color: 0x998877, roughness: 1 })
+  );
+  body.scale.set(1.2, 0.16, 1.5);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+  for (let i = 0; i < 8; i += 1) {
+    const rib = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.03, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xb7a394, roughness: 1 })
+    );
+    rib.position.y = 0.04;
+    rib.rotation.y = (Math.PI / 8) * i;
+    group.add(rib);
+  }
+  group.scale.setScalar(scale);
+  attachLabel(group, '에디아카라', 0.66, '#efe4d8', 0, 0.9, 0);
+  return group;
+}
+
+function createFern(scale = 1) {
+  const group = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 0.9, 12),
+    new THREE.MeshStandardMaterial({ color: 0x5d472e, roughness: 0.95 })
+  );
+  trunk.position.y = 0.45;
+  trunk.castShadow = true;
+  group.add(trunk);
+  for (let i = 0; i < 6; i += 1) {
+    const leaf = new THREE.Mesh(
+      new THREE.ConeGeometry(0.28, 0.8, 5),
+      new THREE.MeshStandardMaterial({ color: 0x336622, roughness: 0.95 })
+    );
+    leaf.position.y = 0.95;
+    leaf.rotation.z = Math.PI * 0.35;
+    leaf.rotation.y = (Math.PI * 2 * i) / 6;
+    group.add(leaf);
+  }
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createTrilobite(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x887766, roughness: 0.92 });
+  for (let i = 0; i < 7; i += 1) {
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.34 + i * 0.03, 0.12, 0.24), material);
+    seg.position.z = (i - 3) * 0.18;
+    seg.position.y = 0.08;
+    seg.castShadow = true;
+    group.add(seg);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), material);
+  head.scale.set(1.1, 0.55, 1.25);
+  head.position.set(0, 0.12, -0.7);
+  head.castShadow = true;
+  group.add(head);
+  group.scale.setScalar(scale);
+  attachLabel(group, '삼엽충', 0.62, '#f0e1cf', 0, 0.88, 0);
+  return group;
+}
+
+function createBrachiopod(scale = 1) {
+  const group = new THREE.Group();
+  const shellMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.85 });
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 16), shellMaterial);
+  top.scale.set(1.1, 0.5, 1);
+  top.position.y = 0.18;
+  const bottom = top.clone();
+  bottom.position.y = 0.06;
+  bottom.rotation.x = Math.PI;
+  group.add(top, bottom);
+  group.scale.setScalar(scale);
+  attachLabel(group, '완족류', 0.6, '#ffffff', 0, 0.85, 0);
+  return group;
+}
+
+function createFish(scale = 1, color = 0x6688aa) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.1 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 12), material);
+  body.scale.set(1.5, 0.78, 0.8);
+  body.castShadow = true;
+  group.add(body);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.46, 4), material);
+  tail.rotation.z = Math.PI / 2;
+  tail.position.set(0.72, 0, 0);
+  group.add(tail);
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.24, 4), material);
+  fin.position.set(-0.05, 0.26, 0);
+  fin.rotation.z = Math.PI;
+  group.add(fin);
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createAmphibian(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x668844, roughness: 0.85 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.32, 0.42), material);
+  body.castShadow = true;
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.28), material);
+  head.position.set(-0.62, 0.06, 0);
+  head.castShadow = true;
+  group.add(head);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.16), material);
+  tail.position.set(0.72, 0.05, 0);
+  tail.rotation.y = -0.26;
+  group.add(tail);
+  [-0.3, 0.3].forEach((z) => {
+    [-0.2, 0.22].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.12), material);
+      leg.position.set(x, -0.22, z * 0.6);
+      group.add(leg);
+    });
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '양서류', 0.62, '#eaf7b1', 0, 0.75, 0);
+  return group;
+}
+
+function createConifer(scale = 1) {
+  const group = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.14, 1.3, 12),
+    new THREE.MeshStandardMaterial({ color: 0x6a4d31, roughness: 0.95 })
+  );
+  trunk.position.y = 0.65;
+  group.add(trunk);
+  [0.95, 1.35, 1.7].forEach((y, index) => {
+    const crown = new THREE.Mesh(
+      new THREE.ConeGeometry(0.58 - index * 0.1, 0.8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x557733, roughness: 0.95 })
+    );
+    crown.position.y = y;
+    crown.castShadow = true;
+    group.add(crown);
+  });
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createDinosaur(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x668855, roughness: 0.8 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 0.75), material);
+  body.castShadow = true;
+  group.add(body);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.95, 0.28), material);
+  neck.position.set(-0.88, 0.65, 0);
+  neck.rotation.z = 0.55;
+  group.add(neck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.28), material);
+  head.position.set(-1.35, 1.15, 0);
+  group.add(head);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.2), material);
+  tail.position.set(1.28, 0.18, 0);
+  tail.rotation.z = -0.4;
+  group.add(tail);
+  [-0.45, 0.45].forEach((z) => {
+    [-0.55, 0.35].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.9, 0.22), material);
+      leg.position.set(x, -0.84, z * 0.65);
+      leg.castShadow = true;
+      group.add(leg);
+    });
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '공룡', 0.64, '#f2f8d8', 0, 1.8, 0);
+  return group;
+}
+
+function createAmmonite(scale = 1) {
+  const group = new THREE.Group();
+  const shell = new THREE.Mesh(
+    new THREE.TorusGeometry(0.45, 0.18, 10, 24, Math.PI * 1.9),
+    new THREE.MeshStandardMaterial({ color: 0x887766, roughness: 0.85 })
+  );
+  shell.rotation.y = Math.PI / 2;
+  group.add(shell);
+  for (let i = 0; i < 6; i += 1) {
+    const tentacle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.03, 0.46, 6),
+      new THREE.MeshStandardMaterial({ color: 0xd7c2a8, roughness: 0.95 })
+    );
+    tentacle.position.set(-0.28, -0.08 - i * 0.03, (i - 2.5) * 0.06);
+    tentacle.rotation.z = -1.05;
+    group.add(tentacle);
+  }
+  group.scale.setScalar(scale);
+  attachLabel(group, '암모나이트', 0.68, '#efe0d2', 0, 0.92, 0);
+  return group;
+}
+
+function createMarineReptile(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x607d7e, roughness: 0.78 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 18, 12), material);
+  body.scale.set(2.1, 0.7, 0.85);
+  group.add(body);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.18, 0.16), material);
+  neck.position.set(-0.9, 0.1, 0);
+  neck.rotation.z = 0.2;
+  group.add(neck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.18, 0.18), material);
+  head.position.set(-1.28, 0.2, 0);
+  group.add(head);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.52, 6), material);
+  tail.position.set(1.16, 0, 0);
+  tail.rotation.z = -Math.PI / 2;
+  group.add(tail);
+  [-0.45, 0.45].forEach((z) => {
+    [-0.15, 0.35].forEach((x) => {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.18), material);
+      fin.position.set(x, -0.18, z * 0.7);
+      fin.rotation.z = z < 0 ? -0.5 : 0.5;
+      group.add(fin);
+    });
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '해양 파충류', 0.7, '#e5fbff', 0, 0.95, 0);
+  return group;
+}
+
+function createBroadleafTree(scale = 1) {
+  const group = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.18, 1.6, 12),
+    new THREE.MeshStandardMaterial({ color: 0x6a4b31, roughness: 0.95 })
+  );
+  trunk.position.y = 0.8;
+  trunk.castShadow = true;
+  group.add(trunk);
+  [
+    [0, 1.9, 0],
+    [-0.36, 1.55, 0.18],
+    [0.38, 1.55, -0.12]
+  ].forEach(([x, y, z]) => {
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.62, 16, 14),
+      new THREE.MeshStandardMaterial({ color: 0x338822, roughness: 0.95 })
+    );
+    crown.position.set(x, y, z);
+    crown.castShadow = true;
+    group.add(crown);
+  });
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createMammoth(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.95 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.9), material);
+  body.castShadow = true;
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.7, 0.62), material);
+  head.position.set(-1.1, 0.22, 0);
+  head.castShadow = true;
+  group.add(head);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.9, 10), material);
+  trunk.position.set(-1.52, -0.25, 0);
+  trunk.rotation.z = 0.16;
+  group.add(trunk);
+  [-0.35, 0.35].forEach((z) => {
+    [-0.55, 0.1].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.9, 0.24), material);
+      leg.position.set(x, -1, z);
+      group.add(leg);
+    });
+  });
+  [-0.18, 0.18].forEach((z) => {
+    const tusk = new THREE.Mesh(
+      new THREE.TorusGeometry(0.26, 0.03, 8, 20, Math.PI * 0.7),
+      new THREE.MeshStandardMaterial({ color: 0xf3ebdc, roughness: 0.7 })
+    );
+    tusk.position.set(-1.36, -0.06, z);
+    tusk.rotation.set(Math.PI / 2, 0, z < 0 ? 0.4 : -0.4);
+    group.add(tusk);
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '매머드', 0.68, '#fff0da', 0, 1.7, 0);
+  return group;
+}
+
+function createSmallMammal(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x926d4d, roughness: 0.92 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 12), material);
+  body.scale.set(1.5, 0.9, 1);
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), material);
+  head.position.set(-0.4, 0.08, 0);
+  group.add(head);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.05, 0.05), material);
+  tail.position.set(0.44, 0.02, 0);
+  tail.rotation.z = -0.25;
+  group.add(tail);
+  group.scale.setScalar(scale);
+  attachLabel(group, '포유류', 0.62, '#ffe5cc', 0, 0.7, 0);
+  return group;
+}
+
+function createHuman(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0xddccbb, roughness: 0.92 });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), material);
+  head.position.y = 1.2;
+  group.add(head);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.62, 0.16), material);
+  body.position.y = 0.75;
+  group.add(body);
+  [-0.16, 0.16].forEach((x) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.1), material);
+    arm.position.set(x, 0.78, 0);
+    group.add(arm);
+  });
+  [-0.08, 0.08].forEach((x) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.56, 0.1), material);
+    leg.position.set(x, 0.22, 0);
+    group.add(leg);
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '인류', 0.58, '#fffaf1', 0, 1.7, 0);
+  return group;
+}
+
+function createNummulite(scale = 1) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0xccbb99, roughness: 0.92 });
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 26), material);
+  disc.rotation.x = Math.PI / 2;
+  group.add(disc);
+  [0.14, 0.24, 0.32].forEach((r) => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(r, 0.014, 6, 20),
+      new THREE.MeshStandardMaterial({ color: 0xe6d8be, roughness: 0.9 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+  });
+  group.scale.setScalar(scale);
+  attachLabel(group, '화폐석', 0.6, '#fff3d8', 0, 0.72, 0);
+  return group;
+}
+
+function applyEraLighting(era) {
+  scene.background.setHex(era.sky);
+  scene.fog.color.setHex(era.fog);
+  scene.fog.near = 18;
+  scene.fog.far = 58;
+  hemisphereSky.material.color.setHex(era.sky);
+  ambientLight.color.setHex(0xffffff);
+  sunLight.color.setHex(era.light);
+}
+
+function setupPrecambrian() {
+  const group = new THREE.Group();
+  applyEraLighting(ERAS[0]);
+
+  const skyGlow = createSkyGlow(0xc7894e, 72, 0.18);
+  skyGlow.position.y = 8;
+  group.add(skyGlow);
+
+  const terrain = makeTerrain(32, 32, 42, 42, 0x887766, (x, z) => {
+    return Math.sin(x * 0.22) * 0.18 + Math.cos(z * 0.18) * 0.15 + (z > 1 ? -0.22 : 0.06) + (x < -4 ? 0.18 : 0);
+  });
+  group.add(terrain);
+
+  const water = makeWavePlane(24, 14, ERAS[0].water, 0.52, 0.08, 0.9);
+  water.position.set(3, 0.24, 4);
+  group.add(water);
+
+  [
+    [-10, -8, 1.6],
+    [-6.5, -10.5, 1.2],
+    [8.5, -9, 1.4],
+    [11, -4, 1.1],
+    [7, 8, 1.6]
+  ].forEach(([x, z, s]) => addRock(group, x, z, s, 0x736557));
+
+  [
+    [-4, 3.2, 1],
+    [0.5, 5.2, 1.1],
+    [4.5, 3.8, 0.9],
+    [7.4, 6.1, 1.15]
+  ].forEach(([x, z, s]) => {
+    const strom = createStromatolite(s);
+    strom.position.set(x, 0.15, z);
+    group.add(strom);
+  });
+
+  [
+    [-7, 1, 1],
+    [6, -0.5, 0.85],
+    [2.2, -3.1, 0.95]
+  ].forEach(([x, z, s]) => {
+    const ediacaran = createEdiacaran(s);
+    ediacaran.position.set(x, 0.06, z);
+    group.add(ediacaran);
+  });
+
+  state.animCallbacks.push((dt, elapsed, time) => {
+    group.rotation.y = Math.sin(time * 0.08) * 0.02;
+  });
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+function setupPaleozoic() {
+  const group = new THREE.Group();
+  applyEraLighting(ERAS[1]);
+
+  const terrain = makeTerrain(32, 32, 42, 42, 0x557744, (x, z) => {
+    const shore = z > 2 ? -0.12 : 0.28;
+    return Math.sin(x * 0.18) * 0.16 + Math.cos(z * 0.14) * 0.14 + shore + (x > 7 ? 0.22 : 0);
+  });
+  group.add(terrain);
+
+  const water = makeWavePlane(18, 14, ERAS[1].water, 0.56, 0.09, 0.82);
+  water.position.set(6, 0.32, 6);
+  group.add(water);
+
+  const shoreline = new THREE.Mesh(
+    new THREE.CylinderGeometry(4.8, 5.5, 0.12, 32),
+    new THREE.MeshStandardMaterial({ color: 0x7b8f5a, roughness: 0.96 })
+  );
+  shoreline.position.set(-6.5, 0.32, -1.4);
+  shoreline.scale.set(1.25, 1, 0.8);
+  shoreline.castShadow = true;
+  shoreline.receiveShadow = true;
+  group.add(shoreline);
+
+  [
+    [-11, -5, 1],
+    [-8, -1.5, 0.9],
+    [-5, 1.5, 1.2],
+    [0, -3, 1],
+    [3.5, -1.5, 0.88]
+  ].forEach(([x, z, s]) => {
+    const fern = createFern(s);
+    fern.position.set(x, 0.15, z);
+    group.add(fern);
+  });
+
+  [
+    [-7.5, 0.5, 1.1],
+    [-2.8, 1.2, 0.95],
+    [1.5, 0.4, 1]
+  ].forEach(([x, z, s]) => {
+    const trilobite = createTrilobite(s);
+    trilobite.position.set(x, 0.12, z);
+    group.add(trilobite);
+  });
+
+  [
+    [4.8, 4.5, 0.95],
+    [8.4, 5.8, 0.85]
+  ].forEach(([x, z, s]) => {
+    const brachiopod = createBrachiopod(s);
+    brachiopod.position.set(x, 0.18, z);
+    group.add(brachiopod);
+  });
+
+  const fishSchool = [];
+  [
+    [5, 1.3, 5],
+    [8.5, 1.8, 6.8],
+    [10, 1.6, 3.5]
+  ].forEach(([x, y, z], index) => {
+    const fish = createFish(1 - index * 0.1);
+    fish.position.set(x, y, z);
+    fish.userData.baseX = x;
+    fish.userData.baseY = y;
+    fish.userData.baseZ = z;
+    fish.userData.phase = index * 1.6;
+    group.add(fish);
+    fishSchool.push(fish);
+    if (index === 0) {
+      attachLabel(fish, '어류', 0.58, '#e3f7ff', 0, 1.05, 0);
+    }
+  });
+
+  const amphibian = createAmphibian(1.05);
+  amphibian.position.set(-1.2, 0.54, 3.2);
+  group.add(amphibian);
+
+  state.animCallbacks.push((dt, elapsed, time) => {
+    fishSchool.forEach((fish, index) => {
+      const t = time * 0.8 + fish.userData.phase;
+      fish.position.x = fish.userData.baseX + Math.sin(t) * 1.8;
+      fish.position.y = fish.userData.baseY + Math.sin(t * 1.8) * 0.22;
+      fish.position.z = fish.userData.baseZ + Math.cos(t * 0.7) * 1.2;
+      fish.rotation.y = Math.sin(t) > 0 ? Math.PI : 0;
+      fish.rotation.z = Math.sin(t * 2.2) * 0.12;
+    });
+    amphibian.position.y = 0.54 + Math.sin(time * 1.5) * 0.05;
+  });
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+function setupMesozoic() {
+  const group = new THREE.Group();
+  applyEraLighting(ERAS[2]);
+
+  const terrain = makeTerrain(34, 34, 44, 44, 0x448833, (x, z) => {
+    const coast = z > 3 ? -0.06 : 0.34;
+    return Math.sin(x * 0.17) * 0.18 + Math.cos(z * 0.2) * 0.14 + coast + (Math.abs(x) < 2 ? 0.18 : 0);
+  });
+  group.add(terrain);
+
+  const water = makeWavePlane(20, 12, ERAS[2].water, 0.54, 0.11, 0.95);
+  water.position.set(6, 0.34, 7);
+  group.add(water);
+
+  [
+    [-10, -6, 1.1],
+    [-6.5, -1, 1.25],
+    [-1.5, -5, 1.05],
+    [4.5, -2.2, 1.2],
+    [8.8, -5.2, 0.95]
+  ].forEach(([x, z, s]) => {
+    const tree = createConifer(s);
+    tree.position.set(x, 0.18, z);
+    group.add(tree);
+  });
+
+  const continentA = new THREE.Mesh(
+    new THREE.SphereGeometry(3.5, 20, 16),
+    new THREE.MeshStandardMaterial({ color: 0x5b8f45, roughness: 0.96 })
+  );
+  continentA.position.set(-7.5, 0.95, 6.8);
+  continentA.scale.set(1.35, 0.18, 0.95);
+  continentA.castShadow = true;
+  continentA.receiveShadow = true;
+  group.add(continentA);
+
+  const continentB = continentA.clone();
+  continentB.position.set(6.8, 1.05, 5.2);
+  continentB.scale.set(1.18, 0.16, 0.75);
+  group.add(continentB);
+
+  const dinosaur = createDinosaur(1.15);
+  dinosaur.position.set(-0.5, 1.2, -1.8);
+  group.add(dinosaur);
+
+  const ammonites = [];
+  [
+    [8.5, 1.5, 6.2],
+    [6.2, 1.2, 8.1]
+  ].forEach(([x, y, z], index) => {
+    const ammonite = createAmmonite(0.9 - index * 0.08);
+    ammonite.position.set(x, y, z);
+    ammonite.userData.baseX = x;
+    ammonite.userData.baseY = y;
+    ammonite.userData.baseZ = z;
+    ammonite.userData.phase = index * 1.2;
+    group.add(ammonite);
+    ammonites.push(ammonite);
+  });
+
+  const reptile = createMarineReptile(1);
+  reptile.position.set(4.6, 1.5, 4.6);
+  reptile.userData.baseX = 4.6;
+  reptile.userData.baseY = 1.5;
+  reptile.userData.baseZ = 4.6;
+  group.add(reptile);
+
+  state.animCallbacks.push((dt, elapsed, time) => {
+    dinosaur.position.y = 1.2 + Math.sin(time * 1.1) * 0.08;
+    dinosaur.rotation.y = Math.sin(time * 0.4) * 0.25 - 0.35;
+    ammonites.forEach((ammonite, index) => {
+      const t = time * 0.7 + ammonite.userData.phase;
+      ammonite.position.x = ammonite.userData.baseX + Math.sin(t) * 1.2;
+      ammonite.position.y = ammonite.userData.baseY + Math.cos(t * 1.6) * 0.18;
+      ammonite.position.z = ammonite.userData.baseZ + Math.cos(t) * 0.8;
+      ammonite.rotation.y += dt * 0.8;
+    });
+    reptile.position.x = reptile.userData.baseX + Math.sin(time * 0.85) * 2.1;
+    reptile.position.y = reptile.userData.baseY + Math.cos(time * 1.4) * 0.16;
+    reptile.position.z = reptile.userData.baseZ + Math.cos(time * 0.85) * 1.4;
+    reptile.rotation.y = Math.sin(time * 0.85) > 0 ? Math.PI : 0;
+    reptile.rotation.z = Math.sin(time * 1.7) * 0.12;
+  });
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+function setupCenozoic() {
+  const group = new THREE.Group();
+  applyEraLighting(ERAS[3]);
+
+  const terrain = makeTerrain(34, 34, 44, 44, 0x66aa44, (x, z) => {
+    const lowland = z > 5 ? -0.05 : 0.35;
+    return Math.sin(x * 0.15) * 0.16 + Math.cos(z * 0.17) * 0.12 + lowland + (x < -6 ? 0.2 : 0);
+  });
+  group.add(terrain);
+
+  const water = makeWavePlane(14, 10, ERAS[3].water, 0.46, 0.07, 0.74);
+  water.position.set(8, 0.36, 7.4);
+  group.add(water);
+
+  [
+    [-10, -5.5, 1.1],
+    [-6.4, -2.2, 0.95],
+    [-2.5, -5.8, 1.05],
+    [1.8, -2.8, 0.9]
+  ].forEach(([x, z, s]) => {
+    const tree = createBroadleafTree(s);
+    tree.position.set(x, 0.22, z);
+    group.add(tree);
+  });
+
+  [
+    [-12, 4, 1.7],
+    [-8.6, 6.5, 1.4]
+  ].forEach(([x, z, s]) => {
+    const mountain = new THREE.Mesh(
+      new THREE.ConeGeometry(1.2 * s, 3.8 * s, 8),
+      new THREE.MeshStandardMaterial({ color: 0x7d8677, roughness: 0.96 })
+    );
+    mountain.position.set(x, 1.7 * s, z);
+    mountain.castShadow = true;
+    mountain.receiveShadow = true;
+    group.add(mountain);
+
+    const snow = new THREE.Mesh(
+      new THREE.ConeGeometry(0.52 * s, 1.2 * s, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: 0.7 })
+    );
+    snow.position.set(x, 3.2 * s, z);
+    group.add(snow);
+  });
+
+  const mammoth = createMammoth(1.05);
+  mammoth.position.set(-0.4, 1.25, -0.6);
+  group.add(mammoth);
+
+  const smallMammal = createSmallMammal(1.1);
+  smallMammal.position.set(3.5, 0.7, 0.8);
+  group.add(smallMammal);
+
+  const human = createHuman(1);
+  human.position.set(6, 0.35, -1.8);
+  group.add(human);
+
+  const nummulite = createNummulite(1.1);
+  nummulite.position.set(8.5, 0.85, 7.4);
+  group.add(nummulite);
+
+  state.animCallbacks.push((dt, elapsed, time) => {
+    mammoth.position.y = 1.25 + Math.sin(time * 0.9) * 0.05;
+    smallMammal.position.x = 3.5 + Math.sin(time * 1.8) * 1.2;
+    smallMammal.position.y = 0.7 + Math.abs(Math.sin(time * 1.8)) * 0.08;
+    smallMammal.rotation.y = Math.sin(time * 1.8) > 0 ? Math.PI : 0;
+    human.position.y = 0.35 + Math.sin(time * 1.4) * 0.03;
+    nummulite.rotation.y += dt * 0.8;
+  });
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+}
+
+const ERA_SETUPS = [setupPrecambrian, setupPaleozoic, setupMesozoic, setupCenozoic];
+
+function updateLabelVisibility() {
+  state.labelSprites.forEach((sprite) => {
+    sprite.visible = state.showNames;
+  });
+}
+
+function renderEraChips() {
+  chipRowEl.innerHTML = ERAS.map((era, index) => `
+    <button class="era-chip ${index === state.eraIndex ? 'active' : ''}" type="button" data-era="${index}">
+      <span class="era-chip-name">${era.shortName}</span>
+      <span class="era-chip-meta">${era.share}% · ${era.period}</span>
+    </button>
+  `).join('');
+
+  chipRowEl.querySelectorAll('.era-chip').forEach((button) => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.era);
+      switchEra(index);
+      params['지질 시대'] = ERAS[index].name;
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    });
+  });
+}
+
+function renderTimeline() {
+  timelineBarEl.innerHTML = ERAS.map((era, index) => `
+    <button
+      class="era-segment ${index === state.eraIndex ? 'active' : ''}"
+      type="button"
+      data-era="${index}"
+      title="${era.name} (${era.period})"
+      style="width:${era.share}%; background:${era.key === 'precambrian' ? '#665544' : era.key === 'paleozoic' ? '#558855' : era.key === 'mesozoic' ? '#885544' : '#5577aa'}"
+    ></button>
+  `).join('');
+
+  timelineBarEl.querySelectorAll('.era-segment').forEach((button) => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.era);
+      switchEra(index);
+      params['지질 시대'] = ERAS[index].name;
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    });
+  });
+
+  const events = [
+    { key: 'permian', left: 94.5 },
+    { key: 'cretaceous', left: 98.6 }
+  ];
+  timelineEventsEl.innerHTML = events.map((event) => `
+    <button class="timeline-event ${state.showExtinction ? '' : 'hidden'}" type="button" data-event="${event.key}" style="left:${event.left}%;">
+      <span class="event-icon">⚠</span>
+      <span class="event-text">${EXTINCTIONS[event.key].short}</span>
+    </button>
+  `).join('');
+
+  timelineEventsEl.querySelectorAll('.timeline-event').forEach((button) => {
+    button.addEventListener('click', () => openExtinctionPopup(button.dataset.event));
+  });
+
+  timelineLabelsEl.innerHTML = `
+    <span class="timeline-label start">46억 년 전</span>
+    <span class="timeline-label" style="left:88.2%;">5.39억 년 전</span>
+    <span class="timeline-label" style="left:94.5%;">2.52억 년 전</span>
+    <span class="timeline-label" style="left:98.6%;">0.66억 년 전</span>
+    <span class="timeline-label end">현재</span>
+  `;
+}
+
+function renderGraph() {
+  const width = 340;
+  const height = 220;
+  const left = 42;
+  const top = 18;
+  const plotHeight = 148;
+  const plotWidth = 270;
+  const precambrianBand = 28;
+  const mainStart = left + precambrianBand;
+  const mainWidth = plotWidth - precambrianBand;
+
+  const xForYear = (year) => mainStart + ((539 - year) / 539) * mainWidth;
+  const yForFamilies = (families) => top + plotHeight - (families / 900) * plotHeight;
+
+  let highlightX = left;
+  let highlightWidth = precambrianBand;
+  if (state.eraIndex === 1) {
+    highlightX = mainStart;
+    highlightWidth = xForYear(252) - mainStart;
+  } else if (state.eraIndex === 2) {
+    highlightX = xForYear(252);
+    highlightWidth = xForYear(66) - xForYear(252);
+  } else if (state.eraIndex === 3) {
+    highlightX = xForYear(66);
+    highlightWidth = xForYear(0) - xForYear(66);
+  }
+
+  const polyline = MARINE_SERIES.map((point) => `${xForYear(point.year)},${yForFamilies(point.families)}`).join(' ');
+  const gridLines = [0, 300, 600, 900].map((value) => {
+    const y = yForFamilies(value);
+    return `
+      <line x1="${left}" y1="${y}" x2="${left + plotWidth}" y2="${y}" stroke="rgba(255,255,255,0.1)" stroke-width="1" />
+      <text x="${left - 8}" y="${y + 4}" fill="rgba(255,255,255,0.58)" font-size="10" text-anchor="end">${value}</text>
+    `;
+  }).join('');
+
+  const eraLabel = ERAS[state.eraIndex].name;
+
+  graphSvg.innerHTML = `
+    <rect x="0" y="0" width="${width}" height="${height}" rx="12" fill="rgba(255,255,255,0.01)"></rect>
+    <rect x="${highlightX}" y="${top}" width="${highlightWidth}" height="${plotHeight}" rx="8" fill="rgba(255, 214, 122, 0.16)"></rect>
+    <rect x="${left}" y="${top}" width="${precambrianBand}" height="${plotHeight}" fill="rgba(153,119,88,0.14)" rx="6"></rect>
+    <text x="${left + precambrianBand / 2}" y="${top + 12}" fill="rgba(255,255,255,0.6)" font-size="10" text-anchor="middle">선캄브리아</text>
+    ${gridLines}
+    <line x1="${left}" y1="${top + plotHeight}" x2="${left + plotWidth}" y2="${top + plotHeight}" stroke="rgba(255,255,255,0.34)" stroke-width="1.4"></line>
+    <line x1="${left}" y1="${top}" x2="${left}" y2="${top + plotHeight}" stroke="rgba(255,255,255,0.34)" stroke-width="1.4"></line>
+    <polyline points="${polyline}" fill="none" stroke="#8fd9ff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></polyline>
+    <circle cx="${xForYear(0)}" cy="${yForFamilies(780)}" r="4.5" fill="#ffe39a"></circle>
+    <g class="graph-event" data-event="permian" style="display:${state.showExtinction ? 'block' : 'none'}; cursor:pointer;">
+      <line x1="${xForYear(252)}" y1="${top}" x2="${xForYear(252)}" y2="${top + plotHeight}" stroke="rgba(255,118,102,0.5)" stroke-dasharray="5 4" />
+      <path d="M ${xForYear(252) - 7} ${top + 20} L ${xForYear(252) + 7} ${top + 20} L ${xForYear(252)} ${top + 34} Z" fill="#ff7666"></path>
+      <text x="${xForYear(252)}" y="${top + 12}" fill="#ffd4ce" font-size="10" text-anchor="middle">고생대 말</text>
+    </g>
+    <g class="graph-event" data-event="cretaceous" style="display:${state.showExtinction ? 'block' : 'none'}; cursor:pointer;">
+      <line x1="${xForYear(66)}" y1="${top}" x2="${xForYear(66)}" y2="${top + plotHeight}" stroke="rgba(255,118,102,0.5)" stroke-dasharray="5 4" />
+      <path d="M ${xForYear(66) - 7} ${top + 20} L ${xForYear(66) + 7} ${top + 20} L ${xForYear(66)} ${top + 34} Z" fill="#ff7666"></path>
+      <text x="${xForYear(66)}" y="${top + 12}" fill="#ffd4ce" font-size="10" text-anchor="middle">중생대 말</text>
+    </g>
+    <text x="${left + plotWidth / 2}" y="${height - 10}" fill="rgba(255,255,255,0.62)" font-size="10" text-anchor="middle">시간 (5.39억 년 전 → 현재)</text>
+    <text x="${left + plotWidth - 6}" y="${top + 15}" fill="#ffe3ab" font-size="11" text-anchor="end">현재 강조: ${eraLabel}</text>
+    <text x="${left}" y="${height - 26}" fill="rgba(255,255,255,0.55)" font-size="10">5.39억 년 전</text>
+    <text x="${xForYear(252)}" y="${height - 26}" fill="rgba(255,255,255,0.55)" font-size="10" text-anchor="middle">2.52억 년 전</text>
+    <text x="${xForYear(66)}" y="${height - 26}" fill="rgba(255,255,255,0.55)" font-size="10" text-anchor="middle">0.66억 년 전</text>
+    <text x="${left + plotWidth}" y="${height - 26}" fill="rgba(255,255,255,0.55)" font-size="10" text-anchor="end">현재</text>
+  `;
+
+  graphSvg.querySelectorAll('.graph-event').forEach((eventNode) => {
+    eventNode.addEventListener('click', () => openExtinctionPopup(eventNode.dataset.event));
+  });
+}
+
+function openExtinctionPopup(eventKey) {
+  const data = EXTINCTIONS[eventKey];
+  if (!data) return;
+  popupTitleEl.textContent = data.title;
+  popupPeriodEl.textContent = data.period;
+  popupBodyEl.textContent = data.popup;
+  popupNoteEl.textContent = data.note;
+  popupBackdrop.style.display = 'block';
+  popupEl.style.display = 'block';
+}
+
+function closePopup() {
+  popupBackdrop.style.display = 'none';
+  popupEl.style.display = 'none';
+}
+
+popupBackdrop.addEventListener('click', closePopup);
+document.getElementById('popup-close').addEventListener('click', closePopup);
+
+function updateOverlay() {
+  const era = ERAS[state.eraIndex];
+  stageNameEl.textContent = era.name;
+  stageRangeEl.textContent = era.period;
+  stageCaptionEl.textContent = era.caption;
+  fpNameEl.textContent = era.name;
+  fpPeriodEl.textContent = era.period;
+  fpShareEl.textContent = `${era.share}%`;
+  fpOrganismsEl.textContent = era.organisms.join(', ');
+  fpEnvironmentEl.textContent = era.environment;
+  fpNoteEl.textContent = `지질 시대 구분:\n선캄브리아시대 (88.2%) → 고생대 (6.3%) →\n중생대 (4.1%) → 신생대 (1.4%)\n\n${era.note}`;
+  timelineCurrentEl.textContent = `현재 선택: ${era.name}`;
+}
+
+function updateEraAlert() {
+  if (!state.showExtinction) {
+    eraAlertEl.style.display = 'none';
+    return;
+  }
+  if (state.eraIndex === 1) {
+    eraAlertEl.textContent = '⚠️ 고생대 말 대멸종';
+    eraAlertEl.style.display = 'inline-flex';
+  } else if (state.eraIndex === 2) {
+    eraAlertEl.textContent = '⚠️ 중생대 말 대멸종';
+    eraAlertEl.style.display = 'inline-flex';
+  } else {
+    eraAlertEl.style.display = 'none';
+  }
+}
+
+eraAlertEl.addEventListener('click', () => {
+  if (state.eraIndex === 1) openExtinctionPopup('permian');
+  if (state.eraIndex === 2) openExtinctionPopup('cretaceous');
+});
+
+function switchEra(index) {
+  state.eraIndex = index;
+  state.stageElapsed = 0;
+  state.autoElapsed = 0;
+  disposeSceneObjects();
+  ERA_SETUPS[index]();
+  updateOverlay();
+  updateEraAlert();
+  updateLabelVisibility();
+  renderEraChips();
+  renderTimeline();
+  renderGraph();
+}
+
+function resetSimulation() {
+  state.autoPlaying = false;
+  state.showExtinction = true;
+  state.showNames = true;
+  controls.target.set(0, 1.8, 0);
+  camera.position.set(0, 7.5, 18);
+  switchEra(0);
+  params['지질 시대'] = ERAS[0].name;
+  params['대멸종 표시'] = true;
+  params['생물 이름 표시'] = true;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  closePopup();
+}
+
+const params = {
+  '지질 시대': ERAS[0].name,
+  '자동 재생': () => {
+    state.autoPlaying = !state.autoPlaying;
+    state.autoElapsed = 0;
+  },
+  '대멸종 표시': true,
+  '생물 이름 표시': true,
+  '초기화': () => resetSimulation()
+};
+
+const gui = new GUI({ title: '지질 시대 컨트롤' });
+gui.domElement.style.zIndex = '60';
+gui.add(params, '지질 시대', ERAS.map((era) => era.name)).onChange((name) => {
+  const index = ERAS.findIndex((era) => era.name === name);
+  if (index >= 0) switchEra(index);
+});
+gui.add(params, '자동 재생');
+gui.add(params, '대멸종 표시').onChange((value) => {
+  state.showExtinction = value;
+  updateEraAlert();
+  renderTimeline();
+  renderGraph();
+  if (!value) closePopup();
+});
+gui.add(params, '생물 이름 표시').onChange((value) => {
+  state.showNames = value;
+  updateLabelVisibility();
+});
+gui.add(params, '초기화');
+if (window.innerWidth < 768) gui.close();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 768) gui.close();
+});
+
+switchEra(0);
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = state.clock.getDelta();
+  state.globalTime += dt;
+  state.stageElapsed += dt;
+  if (state.autoPlaying) {
+    state.autoElapsed += dt;
+    if (state.autoElapsed >= 6) {
+      if (state.eraIndex < ERA_SETUPS.length - 1) {
+        const next = state.eraIndex + 1;
+        switchEra(next);
+        params['지질 시대'] = ERAS[next].name;
+        gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      } else {
+        state.autoPlaying = false;
+        state.autoElapsed = 0;
+      }
+    }
+  }
+
+  state.animCallbacks.forEach((callback) => callback(dt, state.stageElapsed, state.globalTime));
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

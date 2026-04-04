@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>물질대사와 효소 - 인터랙티브 시뮬레이션</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a1828;
+      --panel: rgba(10, 24, 40, 0.82);
+      --panel-strong: rgba(7, 17, 30, 0.92);
+      --stroke: rgba(255, 255, 255, 0.1);
+      --text: #f5fbff;
+      --soft: rgba(245, 251, 255, 0.72);
+      --faint: rgba(245, 251, 255, 0.48);
+      --enzyme: #63aef0;
+      --site: #58f0c2;
+      --substrate: #ff9a57;
+      --warn: #ff8b72;
+      --good: #8ff3a3;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 14% 18%, rgba(76, 175, 255, 0.16), transparent 24%),
+        radial-gradient(circle at 84% 14%, rgba(83, 232, 193, 0.12), transparent 24%),
+        radial-gradient(circle at 50% 92%, rgba(255, 153, 84, 0.08), transparent 28%),
+        linear-gradient(180deg, #0a1828 0%, #07101a 100%);
+      color: var(--text);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    #webgl-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      transition: opacity 0.35s ease, filter 0.35s ease;
+    }
+
+    #webgl-canvas.muted {
+      opacity: 0.34;
+      filter: saturate(0.7) blur(1.2px);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(171, 221, 255, 0.84);
+    }
+
+    #hero-card {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      z-index: 20;
+      width: min(380px, calc(100vw - 32px));
+      padding: 18px 20px;
+      border-radius: 24px;
+    }
+
+    #hero-card h1 {
+      margin-top: 7px;
+      font-size: clamp(27px, 3vw, 38px);
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+    }
+
+    #hero-detail {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.68;
+      color: var(--soft);
+    }
+
+    #status-chip {
+      position: fixed;
+      top: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 24;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(9, 16, 28, 0.84);
+      color: var(--soft);
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+    }
+
+    #status-chip.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #status-chip.success {
+      background: rgba(20, 54, 40, 0.92);
+      border-color: rgba(143, 243, 163, 0.34);
+      color: #e6fff0;
+    }
+
+    #status-chip.warning {
+      background: rgba(61, 24, 22, 0.92);
+      border-color: rgba(255, 139, 114, 0.34);
+      color: #ffe6df;
+    }
+
+    #tab-bar {
+      position: fixed;
+      left: 50%;
+      top: 76px;
+      transform: translateX(-50%);
+      z-index: 21;
+      display: inline-flex;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 999px;
+    }
+
+    .tab-btn {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 11px 16px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.82);
+      cursor: pointer;
+      transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    }
+
+    .tab-btn:hover,
+    .tab-btn:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .tab-btn.active {
+      color: #06192b;
+      background: linear-gradient(135deg, #8edcff, #9dffc9);
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+    }
+
+    #guide-toggle {
+      position: fixed;
+      top: 18px;
+      right: 16px;
+      z-index: 25;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 10px 14px;
+      background: rgba(8, 17, 30, 0.9);
+      color: var(--text);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    #guide-panel {
+      position: fixed;
+      top: 66px;
+      right: 16px;
+      z-index: 24;
+      width: min(420px, calc(100vw - 24px));
+      max-height: min(74vh, 720px);
+      overflow: auto;
+      padding: 18px;
+      border-radius: 22px;
+      background: var(--panel-strong);
+      border: 1px solid var(--stroke);
+      box-shadow: var(--shadow);
+      line-height: 1.72;
+      font-size: 12px;
+      display: none;
+    }
+
+    #guide-panel.open {
+      display: block;
+    }
+
+    #guide-panel h3 {
+      font-size: 16px;
+      color: #d8f1ff;
+      margin-bottom: 8px;
+    }
+
+    #guide-panel h4 {
+      margin-top: 12px;
+      margin-bottom: 5px;
+      color: #ffd88b;
+      font-size: 13px;
+    }
+
+    #guide-panel ul {
+      padding-left: 18px;
+    }
+
+    #guide-panel li {
+      margin-bottom: 4px;
+    }
+
+    .ref-box {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--faint);
+      font-size: 11px;
+    }
+
+    #formula-panel {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 20;
+      width: min(380px, calc(100vw - 32px));
+      padding: 18px 18px 16px;
+      border-radius: 24px;
+    }
+
+    #formula-panel h3 {
+      font-size: 17px;
+      color: #d2efff;
+      margin-bottom: 12px;
+    }
+
+    .info-row {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .info-row .label {
+      width: 98px;
+      flex-shrink: 0;
+      color: var(--faint);
+      font-size: 11px;
+    }
+
+    .info-row .value {
+      flex: 1;
+      font-size: 12px;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.94);
+    }
+
+    .formula-block {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      line-height: 1.76;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .formula-mono {
+      margin-top: 5px;
+      font-family: "SFMono-Regular", "Menlo", monospace;
+      color: #f3f0c7;
+    }
+
+    #graph-panel {
+      position: fixed;
+      left: clamp(420px, 37vw, 480px);
+      right: 332px;
+      top: 120px;
+      bottom: 16px;
+      z-index: 18;
+      border-radius: 28px;
+      padding: 18px 18px 14px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(18px);
+      transition: opacity 0.28s ease, visibility 0.28s ease, transform 0.28s ease;
+    }
+
+    #graph-panel.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    .graph-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .graph-header h2 {
+      margin-top: 6px;
+      font-size: 24px;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .metric-pills {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.84);
+      white-space: nowrap;
+    }
+
+    #graph-canvas {
+      width: 100%;
+      height: calc(100% - 82px);
+      border-radius: 20px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+        rgba(2, 8, 17, 0.54);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #graph-insight {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--soft);
+    }
+
+    #label-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 17;
+      pointer-events: none;
+    }
+
+    .object-label {
+      position: fixed;
+      left: 0;
+      top: 0;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(7, 14, 24, 0.88);
+      color: #f6fbff;
+      font-size: 11px;
+      white-space: nowrap;
+      transform: translate(-50%, -140%);
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    .object-label.show {
+      opacity: 1;
+    }
+
+    .object-label.site {
+      color: #dffff4;
+      border-color: rgba(88, 240, 194, 0.26);
+    }
+
+    .object-label.substrate {
+      color: #fff0e4;
+      border-color: rgba(255, 154, 87, 0.28);
+    }
+
+    .object-label.product {
+      color: #f7ffde;
+    }
+
+    .object-label.message.success {
+      background: rgba(18, 62, 44, 0.92);
+      border-color: rgba(143, 243, 163, 0.36);
+      color: #e9fff1;
+    }
+
+    .object-label.message.warning {
+      background: rgba(67, 25, 23, 0.92);
+      border-color: rgba(255, 139, 114, 0.36);
+      color: #ffe5dd;
+    }
+
+    .legend-note {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      z-index: 16;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(6, 14, 24, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    @media (max-width: 1280px) {
+      #graph-panel {
+        right: 16px;
+      }
+    }
+
+    @media (max-width: 980px) {
+      #hero-card {
+        width: calc(100vw - 32px);
+      }
+
+      #tab-bar {
+        top: 156px;
+      }
+
+      #graph-panel {
+        left: 16px;
+        top: 210px;
+        bottom: 220px;
+      }
+
+      #graph-canvas {
+        height: calc(100% - 112px);
+      }
+    }
+
+    @media (max-width: 720px) {
+      #status-chip {
+        top: 160px;
+      }
+
+      #guide-toggle {
+        top: auto;
+        right: 16px;
+        bottom: 190px;
+      }
+
+      #guide-panel {
+        top: auto;
+        right: 16px;
+        bottom: 240px;
+      }
+
+      #formula-panel {
+        width: calc(100vw - 32px);
+      }
+
+      #graph-panel {
+        top: 214px;
+        bottom: 240px;
+        padding: 14px;
+      }
+
+      .graph-header {
+        flex-direction: column;
+      }
+
+      .metric-pills {
+        justify-content: flex-start;
+      }
+
+      .legend-note {
+        left: 16px;
+        right: 16px;
+        transform: none;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="hero-card" class="panel">
+    <div class="eyebrow">III. 시스템과 상호작용 · 생명 시스템</div>
+    <h1>물질대사와 효소</h1>
+    <p id="hero-detail">효소는 특정 기질과 자물쇠-열쇠처럼 결합해 반응을 빠르게 촉진합니다. 온도와 pH가 최적 조건에서 벗어나면 효소의 입체 구조와 활성이 달라집니다.</p>
+  </div>
+
+  <div id="status-chip" aria-live="polite"></div>
+
+  <div id="tab-bar" class="panel" role="tablist" aria-label="보기 탭">
+    <button class="tab-btn active" id="tab-lock" data-tab="lock" role="tab" aria-selected="true">자물쇠-열쇠 모형</button>
+    <button class="tab-btn" id="tab-graphs" data-tab="graphs" role="tab" aria-selected="false">온도 · pH 그래프</button>
+  </div>
+
+  <button id="guide-toggle" aria-expanded="false" aria-controls="guide-panel">개념 가이드</button>
+  <div id="guide-panel" class="panel" role="dialog" aria-label="개념 가이드">
+    <h3>효소 작용 핵심 정리</h3>
+    <p>효소는 세포 안에서 일어나는 다양한 화학 반응의 속도를 높이는 생체 촉매입니다. 반응 후에도 효소 자체는 변하지 않아 여러 번 재사용될 수 있습니다.</p>
+
+    <h4>자물쇠-열쇠 모형</h4>
+    <ul>
+      <li>효소의 활성 부위는 특정 기질과만 맞는 입체 구조를 가집니다.</li>
+      <li>모양이 맞는 기질만 효소-기질 복합체를 만들고 반응이 진행됩니다.</li>
+      <li>모양이 맞지 않는 다른 기질은 결합하지 못하고 튕겨 나갑니다.</li>
+    </ul>
+
+    <h4>온도와 효소 활성</h4>
+    <ul>
+      <li>낮은 온도에서는 입자 운동이 느려 반응 속도가 낮습니다.</li>
+      <li>인체 효소는 보통 약 37°C에서 가장 활발합니다.</li>
+      <li>40°C를 넘기면 입체 구조가 흔들리고, 60°C 부근에서는 변성으로 활성이 거의 사라집니다.</li>
+    </ul>
+
+    <h4>pH와 효소 활성</h4>
+    <ul>
+      <li>펩신은 강산성인 위에서 작용하므로 pH 2 부근에서 최적입니다.</li>
+      <li>아밀레이스는 침 속에서 작용하므로 pH 7 근처에서 활성이 높습니다.</li>
+      <li>트립신은 소장에서 작용하므로 약염기성인 pH 8 부근에서 잘 작용합니다.</li>
+    </ul>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>효소가 특정 기질에만 작용하는 까닭은 무엇일까요?</li>
+      <li>달걀을 삶으면 흰자가 굳는 현상은 효소와 어떤 공통점을 가질까요?</li>
+      <li>펩신의 최적 pH가 2인 까닭은 생활 환경과 어떻게 연결될까요?</li>
+    </ul>
+
+    <div class="ref-box">교과서 연계: 미래엔 통합과학1 III편 p144~148 — 물질대사, 효소의 작용 원리</div>
+  </div>
+
+  <div id="formula-panel" class="panel">
+    <h3>🧫 물질대사와 효소</h3>
+    <div class="info-row"><div class="label">선택 효소</div><div class="value" id="value-enzyme">아밀레이스</div></div>
+    <div class="info-row"><div class="label">온도</div><div class="value" id="value-temperature">37°C</div></div>
+    <div class="info-row"><div class="label">pH</div><div class="value" id="value-ph">7.0</div></div>
+    <div class="info-row"><div class="label">현재 활성</div><div class="value" id="value-activity">100%</div></div>
+    <div class="info-row"><div class="label">현재 상태</div><div class="value" id="value-condition">활성 부위가 안정적이며 기질과 잘 결합할 수 있습니다.</div></div>
+
+    <div class="formula-block">
+      효소 작용 원리 (자물쇠-열쇠 모형)
+      <div class="formula-mono">기질 + 효소 → [효소-기질 복합체] → 생성물 + 효소</div>
+      <div>• 기질 특이성: 특정 기질에만 작용</div>
+      <div>• 효소 재사용: 반응 후 효소는 변하지 않음</div>
+      <div>• 생체 촉매: 활성화 에너지 감소 → 반응 속도 증가</div>
+      <div style="margin-top:8px;">최적 조건: 온도 약 37°C, pH는 효소마다 다름</div>
+      <div>고온 또는 극단적인 pH에서는 입체 구조가 무너져 활성이 감소합니다.</div>
+    </div>
+  </div>
+
+  <div id="graph-panel" class="panel" aria-hidden="true">
+    <div class="graph-header">
+      <div>
+        <div class="eyebrow">Temperature · pH Activity</div>
+        <h2>효소 활성 그래프</h2>
+      </div>
+      <div class="metric-pills">
+        <div class="pill" id="pill-temp">온도 37°C</div>
+        <div class="pill" id="pill-ph">pH 7.0</div>
+        <div class="pill" id="pill-activity">활성 100%</div>
+      </div>
+    </div>
+    <canvas id="graph-canvas"></canvas>
+    <p id="graph-insight">아밀레이스는 중성 부근에서 활성이 높고, 40°C를 넘어서면 효소 입체 구조가 흔들리며 반응 속도가 떨어집니다.</p>
+  </div>
+
+  <div id="label-layer" aria-hidden="true">
+    <div class="object-label" id="label-enzyme">효소</div>
+    <div class="object-label site" id="label-site">활성 부위</div>
+    <div class="object-label substrate" id="label-substrate">기질</div>
+    <div class="object-label product" id="label-product-a">생성물 A</div>
+    <div class="object-label product" id="label-product-b">생성물 B</div>
+    <div class="object-label message" id="label-message"></div>
+  </div>
+
+  <div class="legend-note">드래그로 회전, 휠로 확대 · GUI에서 반응 재생과 조건 변화를 실험해 보세요.</div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+    const heroDetail = document.getElementById('hero-detail');
+    const guideToggle = document.getElementById('guide-toggle');
+    const guidePanel = document.getElementById('guide-panel');
+    const graphPanel = document.getElementById('graph-panel');
+    const statusChip = document.getElementById('status-chip');
+    const graphCanvas = document.getElementById('graph-canvas');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    const formulaRefs = {
+      enzyme: document.getElementById('value-enzyme'),
+      temperature: document.getElementById('value-temperature'),
+      ph: document.getElementById('value-ph'),
+      activity: document.getElementById('value-activity'),
+      condition: document.getElementById('value-condition'),
+    };
+
+    const graphPills = {
+      temp: document.getElementById('pill-temp'),
+      ph: document.getElementById('pill-ph'),
+      activity: document.getElementById('pill-activity'),
+      insight: document.getElementById('graph-insight'),
+    };
+
+    const labelRefs = {
+      enzyme: document.getElementById('label-enzyme'),
+      site: document.getElementById('label-site'),
+      substrate: document.getElementById('label-substrate'),
+      productA: document.getElementById('label-product-a'),
+      productB: document.getElementById('label-product-b'),
+      message: document.getElementById('label-message'),
+    };
+
+    const enzymeProfiles = {
+      펩신: { optimumPh: 2, sigma: 1.15, color: '#ff9a82' },
+      아밀레이스: { optimumPh: 7, sigma: 1.75, color: '#8ce0ff' },
+      트립신: { optimumPh: 8, sigma: 1.45, color: '#a6f48c' },
+    };
+
+    const defaultParams = {
+      viewMode: '효소-기질 결합 (3D)',
+      reactionSpeed: 1,
+      enzymeOpacity: 0.7,
+      temperature: 37,
+      pH: 7,
+      enzyme: '아밀레이스',
+      denaturationVisual: true,
+    };
+
+    const params = {
+      ...defaultParams,
+      playReaction: () => startReaction('correct'),
+      tryOtherSubstrate: () => startReaction('wrong'),
+      resetExperience: () => resetExperience(),
+    };
+
+    let currentTab = 'lock';
+    let statusExpireAt = 0;
+    let messageExpireAt = 0;
+
+    function fract(value) {
+      return value - Math.floor(value);
+    }
+
+    function hashNoise(x, y, z) {
+      return fract(Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453) * 2 - 1;
+    }
+
+    function smoothstep(edge0, edge1, value) {
+      const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function gaussian(x, mu, sigma) {
+      return Math.exp(-Math.pow((x - mu) / sigma, 2));
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function formatPercent(value) {
+      return `${Math.round(value)}%`;
+    }
+
+    function formatPh(value) {
+      return Number(value).toFixed(1).replace('.0', '.0');
+    }
+
+    function getTemperatureActivity(temp) {
+      if (temp <= 37) {
+        return 0.1 + 0.9 * Math.exp(-Math.pow((temp - 37) / 17.5, 2));
+      }
+      if (temp <= 60) {
+        return Math.exp(-Math.pow((temp - 37) / 9.2, 2));
+      }
+      return 0.02 * Math.exp(-Math.pow((temp - 60) / 6, 2));
+    }
+
+    function getPhActivity(enzymeName, ph) {
+      const profile = enzymeProfiles[enzymeName];
+      return gaussian(ph, profile.optimumPh, profile.sigma);
+    }
+
+    function getCurrentActivity() {
+      return THREE.MathUtils.clamp(getTemperatureActivity(params.temperature) * getPhActivity(params.enzyme, params.pH) * 100, 0, 100);
+    }
+
+    function getDenatureSeverity() {
+      return smoothstep(40, 78, params.temperature);
+    }
+
+    function getConditionSummary() {
+      const profile = enzymeProfiles[params.enzyme];
+      const activity = getCurrentActivity();
+      if (params.temperature >= 60) {
+        return '고온 변성 상태입니다. 활성 부위가 크게 뒤틀려 결합이 거의 일어나지 않습니다.';
+      }
+      if (params.temperature >= 40) {
+        return '온도가 올라가며 효소 입체 구조가 흔들리고 있습니다. 40°C 이상에서는 활성이 급격히 감소합니다.';
+      }
+      if (Math.abs(params.pH - profile.optimumPh) > 4.5) {
+        return `${params.enzyme}의 적정 pH에서 멀어져 활성이 크게 낮아졌습니다.`;
+      }
+      if (activity < 25) {
+        return '반응 속도가 느린 상태입니다. 기질은 결합하더라도 생성물 형성이 더디게 진행됩니다.';
+      }
+      return '활성 부위가 안정적이며 기질과 잘 결합할 수 있습니다.';
+    }
+
+    function canCurrentSubstrateBind() {
+      return params.temperature < 52;
+    }
+
+    function getFailureReason(kind) {
+      if (kind === 'wrong') {
+        return '기질 특이성: 효소는 특정 기질에만 작용합니다.';
+      }
+      return '고온 변성으로 활성 부위가 뒤틀려 기질이 결합하지 못합니다.';
+    }
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.id = 'webgl-canvas';
+    document.body.prepend(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x08131d, 0.028);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(6.8, 4.5, 9.5);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0.4, 0.2, 0);
+    controls.minDistance = 4.2;
+    controls.maxDistance = 18;
+    controls.maxPolarAngle = Math.PI * 0.92;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const directionalLight = new THREE.DirectionalLight(0xd9eeff, 0.62);
+    directionalLight.position.set(6, 9, 7);
+    scene.add(directionalLight);
+
+    const sitePointLight = new THREE.PointLight(0x66ffdd, 1.2, 10, 2);
+    scene.add(sitePointLight);
+
+    const particlesGeometry = new THREE.BufferGeometry();
+    const particleCount = 220;
+    const particlePositions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i += 1) {
+      particlePositions[i * 3] = (Math.random() - 0.5) * 26;
+      particlePositions[i * 3 + 1] = (Math.random() - 0.2) * 18;
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 22;
+    }
+    particlesGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particles = new THREE.Points(
+      particlesGeometry,
+      new THREE.PointsMaterial({
+        color: 0x7ad6ff,
+        size: 0.05,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+      }),
+    );
+    scene.add(particles);
+
+    const activeSiteDir = new THREE.Vector3(0.9, 0.12, 0.4).normalize();
+    const activeSitePosition = activeSiteDir.clone().multiplyScalar(1.48).add(new THREE.Vector3(-0.12, -0.02, 0.02));
+
+    const enzymeGroup = new THREE.Group();
+    scene.add(enzymeGroup);
+
+    const enzymeGeometry = new THREE.SphereGeometry(2, 42, 34);
+    const enzymePositionAttr = enzymeGeometry.attributes.position;
+    const enzymeBasePositions = new Float32Array(enzymePositionAttr.array.length);
+    const enzymeNormals = new Float32Array(enzymePositionAttr.array.length);
+    const grooveMask = new Float32Array(enzymePositionAttr.count);
+    const vertex = new THREE.Vector3();
+
+    for (let i = 0; i < enzymePositionAttr.count; i += 1) {
+      vertex.fromBufferAttribute(enzymePositionAttr, i);
+      const normal = vertex.clone().normalize();
+      const primaryNoise = hashNoise(normal.x * 2.6, normal.y * 2.2, normal.z * 2.8) * 0.14;
+      const secondaryNoise = hashNoise(normal.z * 4.1, normal.x * 3.7, normal.y * 3.2) * 0.05;
+      const siteInfluence = smoothstep(0.76, 0.98, normal.dot(activeSiteDir));
+      const ridge = Math.sin(normal.y * 6.4 + normal.x * 2.7) * 0.08;
+      const radius = 2 + primaryNoise + secondaryNoise + ridge - siteInfluence * (0.62 + 0.08 * Math.cos(normal.x * 7.4));
+      const sculpted = normal.multiplyScalar(radius);
+      enzymePositionAttr.setXYZ(i, sculpted.x, sculpted.y, sculpted.z);
+      enzymeBasePositions[i * 3] = sculpted.x;
+      enzymeBasePositions[i * 3 + 1] = sculpted.y;
+      enzymeBasePositions[i * 3 + 2] = sculpted.z;
+      enzymeNormals[i * 3] = vertex.x / 2;
+      enzymeNormals[i * 3 + 1] = vertex.y / 2;
+      enzymeNormals[i * 3 + 2] = vertex.z / 2;
+      grooveMask[i] = siteInfluence;
+    }
+    enzymeGeometry.computeVertexNormals();
+
+    const enzymeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4488cc,
+      transparent: true,
+      opacity: params.enzymeOpacity,
+      roughness: 0.42,
+      metalness: 0.06,
+      emissive: 0x0a1c2b,
+      emissiveIntensity: 0.4,
+      depthWrite: false,
+    });
+
+    const enzymeMesh = new THREE.Mesh(enzymeGeometry, enzymeMaterial);
+    enzymeGroup.add(enzymeMesh);
+
+    const activeSiteGroup = new THREE.Group();
+    activeSiteGroup.position.copy(activeSitePosition);
+    activeSiteGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), activeSiteDir.clone().normalize());
+
+    const siteRingMaterial = new THREE.MeshStandardMaterial({
+      color: 0x44ccaa,
+      emissive: 0x113333,
+      emissiveIntensity: 0.85,
+      transparent: true,
+      opacity: 0.9,
+      roughness: 0.18,
+      metalness: 0.05,
+    });
+    const siteCoreMaterial = new THREE.MeshStandardMaterial({
+      color: 0x65f0d0,
+      emissive: 0x205a51,
+      emissiveIntensity: 0.7,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.16,
+      metalness: 0.04,
+    });
+    const siteRing = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.08, 14, 36, Math.PI * 1.35), siteRingMaterial);
+    siteRing.rotation.z = Math.PI * 0.15;
+    const siteCore = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 18), siteCoreMaterial);
+    siteCore.scale.set(1.08, 0.78, 0.52);
+    siteCore.position.z = -0.08;
+    activeSiteGroup.add(siteRing, siteCore);
+    enzymeGroup.add(activeSiteGroup);
+
+    const enzymeLabelAnchor = new THREE.Object3D();
+    enzymeLabelAnchor.position.set(0, 2.8, 0);
+    const siteLabelAnchor = new THREE.Object3D();
+    siteLabelAnchor.position.copy(activeSitePosition.clone().add(new THREE.Vector3(0.45, 0.62, 0.2)));
+    const messageAnchor = new THREE.Object3D();
+    messageAnchor.position.copy(activeSitePosition.clone().add(new THREE.Vector3(0.2, 1.2, 0.2)));
+    enzymeGroup.add(enzymeLabelAnchor, siteLabelAnchor, messageAnchor);
+
+    const substrateMaterial = new THREE.MeshStandardMaterial({
+      color: 0xff8844,
+      emissive: 0x532000,
+      emissiveIntensity: 0.36,
+      roughness: 0.26,
+      metalness: 0.08,
+    });
+    const wrongSubstrateMaterial = new THREE.MeshStandardMaterial({
+      color: 0xff6c61,
+      emissive: 0x4b1310,
+      emissiveIntensity: 0.28,
+      roughness: 0.28,
+      metalness: 0.04,
+    });
+
+    function createMatchingSubstrate() {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 22, 22), substrateMaterial);
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.3, 0.34), substrateMaterial);
+      tooth.position.set(-0.38, -0.05, 0);
+      const nub = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 18), substrateMaterial);
+      nub.position.set(0.54, 0.08, 0.06);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.42, 20), substrateMaterial);
+      stem.rotation.z = Math.PI / 2;
+      stem.position.set(0.08, 0.26, 0.04);
+      group.add(body, tooth, nub, stem);
+      group.rotation.set(0.2, -0.62, 0.35);
+      return group;
+    }
+
+    function createWrongSubstrate() {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.TetrahedronGeometry(0.46, 0), wrongSubstrateMaterial);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.44, 18), wrongSubstrateMaterial);
+      cone.position.set(0.38, -0.08, 0);
+      cone.rotation.z = -Math.PI * 0.35;
+      group.add(body, cone);
+      group.rotation.set(-0.2, 0.3, 0.7);
+      return group;
+    }
+
+    const correctSubstrate = createMatchingSubstrate();
+    const wrongSubstrate = createWrongSubstrate();
+    scene.add(correctSubstrate, wrongSubstrate);
+
+    const productAMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffcc44,
+      emissive: 0x6b4f08,
+      emissiveIntensity: 0.4,
+      roughness: 0.24,
+      metalness: 0.08,
+    });
+    const productBMaterial = new THREE.MeshStandardMaterial({
+      color: 0x44ff44,
+      emissive: 0x104814,
+      emissiveIntensity: 0.35,
+      roughness: 0.25,
+      metalness: 0.04,
+    });
+
+    const productA = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 20), productAMaterial);
+    const productB = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), productBMaterial);
+    scene.add(productA, productB);
+
+    const correctStart = new THREE.Vector3(-5.1, 1.0, 1.8);
+    const wrongStart = new THREE.Vector3(-5.1, -1.15, -1.05);
+    const approachTarget = activeSitePosition.clone().add(activeSiteDir.clone().multiplyScalar(0.38));
+    const bindTarget = activeSitePosition.clone().add(activeSiteDir.clone().multiplyScalar(0.1));
+    const productATarget = bindTarget.clone().add(new THREE.Vector3(1.35, 0.82, -0.3));
+    const productBTarget = bindTarget.clone().add(new THREE.Vector3(1.1, -0.95, 0.55));
+    const labelProjectVector = new THREE.Vector3();
+
+    const animationState = {
+      mode: 'idle',
+      kind: 'none',
+      timer: 0,
+      duration: 0,
+      success: false,
+      curve: null,
+      bounceCurve: null,
+      message: '',
+      messageTone: 'success',
+      messageText: '',
+    };
+
+    function showStatus(message, tone = 'success', duration = 1600) {
+      statusChip.textContent = message;
+      statusChip.className = '';
+      statusChip.classList.add('show', tone);
+      statusExpireAt = performance.now() + duration;
+    }
+
+    function showFloatingMessage(text, tone = 'success', duration = 1400) {
+      labelRefs.message.textContent = text;
+      labelRefs.message.className = `object-label message ${tone} show`;
+      messageExpireAt = performance.now() + duration;
+    }
+
+    function hideFloatingMessage() {
+      labelRefs.message.className = 'object-label message';
+      messageExpireAt = 0;
+    }
+
+    function resetMolecules() {
+      correctSubstrate.visible = true;
+      wrongSubstrate.visible = false;
+      productA.visible = false;
+      productB.visible = false;
+      correctSubstrate.position.copy(correctStart);
+      correctSubstrate.rotation.set(0.2, -0.62, 0.35);
+      correctSubstrate.scale.setScalar(1);
+      wrongSubstrate.position.copy(wrongStart);
+      wrongSubstrate.rotation.set(-0.2, 0.3, 0.7);
+      wrongSubstrate.scale.setScalar(1);
+      productA.scale.setScalar(1);
+      productB.scale.setScalar(1);
+    }
+
+    function setAnimationState(mode, duration) {
+      animationState.mode = mode;
+      animationState.duration = duration;
+      animationState.timer = 0;
+    }
+
+    function getEffectiveRate() {
+      const activityFactor = THREE.MathUtils.clamp(getCurrentActivity() / 100, 0, 1);
+      return params.reactionSpeed * THREE.MathUtils.lerp(0.48, 1.15, activityFactor);
+    }
+
+    function startReaction(kind) {
+      resetMolecules();
+      hideFloatingMessage();
+      const success = kind === 'correct' && canCurrentSubstrateBind();
+      animationState.kind = kind;
+      animationState.success = success;
+
+      const substrate = kind === 'correct' ? correctSubstrate : wrongSubstrate;
+      const start = kind === 'correct' ? correctStart : wrongStart;
+      const curve = new THREE.CubicBezierCurve3(
+        start.clone(),
+        start.clone().add(new THREE.Vector3(1.9, 2.1, 1.4)),
+        approachTarget.clone().add(new THREE.Vector3(-1.4, 1.4, 1.5)),
+        approachTarget.clone(),
+      );
+
+      animationState.curve = curve;
+      animationState.bounceCurve = new THREE.CubicBezierCurve3(
+        approachTarget.clone(),
+        approachTarget.clone().add(new THREE.Vector3(1.2, 0.6, success ? 0.2 : -0.4)),
+        (kind === 'wrong' ? wrongStart : correctStart).clone().add(new THREE.Vector3(1.6, 2.4, kind === 'wrong' ? -2.3 : 2.1)),
+        (kind === 'wrong' ? wrongStart : correctStart).clone().add(new THREE.Vector3(0.2, 0.8, kind === 'wrong' ? -1.8 : 1.2)),
+      );
+
+      correctSubstrate.visible = kind === 'correct';
+      wrongSubstrate.visible = kind === 'wrong';
+      productA.visible = false;
+      productB.visible = false;
+
+      setAnimationState('approach', 3 / Math.max(0.55, getEffectiveRate()));
+      if (kind === 'wrong') {
+        showStatus('다른 기질이 활성 부위에 접근합니다.', 'warning', 1300);
+      } else {
+        showStatus('기질이 활성 부위를 향해 이동합니다.', 'success', 1200);
+      }
+
+      substrate.position.copy(start);
+    }
+
+    function resetExperience() {
+      Object.assign(params, defaultParams);
+      currentTab = 'lock';
+      resetMolecules();
+      setAnimationState('idle', 0);
+      hideFloatingMessage();
+      statusChip.className = '';
+      controls.target.set(0.4, 0.2, 0);
+      camera.position.set(6.8, 4.5, 9.5);
+      controls.update();
+      setTab('lock');
+      syncGui();
+      updateUi();
+    }
+
+    resetMolecules();
+
+    function updateEnzymeGeometry(time) {
+      const severity = params.denaturationVisual ? getDenatureSeverity() : 0;
+      const positions = enzymeGeometry.attributes.position.array;
+      const activePulse = animationState.mode === 'react' ? 0.18 * Math.sin(time * 18) : 0;
+      for (let i = 0; i < enzymePositionAttr.count; i += 1) {
+        const index = i * 3;
+        const bx = enzymeBasePositions[index];
+        const by = enzymeBasePositions[index + 1];
+        const bz = enzymeBasePositions[index + 2];
+        const nx = enzymeNormals[index];
+        const ny = enzymeNormals[index + 1];
+        const nz = enzymeNormals[index + 2];
+        const mask = grooveMask[i];
+        const wave = Math.sin(time * 2.6 + bx * 2.4 + by * 1.8 + bz * 2.1);
+        const jitter = hashNoise(bx * 1.9 + time * 0.35, by * 1.8 - time * 0.18, bz * 1.7 + time * 0.21);
+        positions[index] = bx + nx * severity * (0.44 * wave + 0.12 * jitter) + mask * severity * -0.22;
+        positions[index + 1] = by + ny * severity * (0.32 * jitter) + Math.sin(time * 3.2 + bx * 1.6) * severity * 0.12;
+        positions[index + 2] = bz + nz * severity * (0.39 * wave) + mask * severity * 0.16 + nz * activePulse * mask * 0.12;
+      }
+      enzymeGeometry.attributes.position.needsUpdate = true;
+      enzymeGeometry.computeVertexNormals();
+
+      const activity = getCurrentActivity();
+      const severityColor = params.temperature >= 52 ? 0xffb18f : 0x44ccaa;
+      siteRingMaterial.color.setHex(severityColor);
+      siteCoreMaterial.color.setHex(params.temperature >= 52 ? 0xffc18d : 0x65f0d0);
+      enzymeMaterial.opacity = params.enzymeOpacity;
+      enzymeMaterial.emissiveIntensity = 0.28 + (activity / 100) * 0.38;
+      siteRingMaterial.emissiveIntensity = 0.7 + (activity / 100) * 0.4 + Math.max(activePulse, 0);
+      siteCoreMaterial.emissiveIntensity = 0.6 + (activity / 100) * 0.3 + Math.max(activePulse, 0.08);
+      activeSiteGroup.scale.setScalar(1 + severity * 0.16 + Math.max(activePulse, 0) * 0.1);
+      sitePointLight.position.copy(activeSiteGroup.getWorldPosition(new THREE.Vector3()));
+      sitePointLight.intensity = 0.8 + (activity / 100) * 0.6 + (animationState.mode === 'react' ? 1.9 : 0);
+      sitePointLight.color.setHex(params.temperature >= 52 ? 0xffb880 : 0x66ffdd);
+    }
+
+    function updateUi() {
+      const activity = getCurrentActivity();
+      const profile = enzymeProfiles[params.enzyme];
+      formulaRefs.enzyme.textContent = params.enzyme;
+      formulaRefs.temperature.textContent = `${params.temperature}°C`;
+      formulaRefs.ph.textContent = formatPh(params.pH);
+      formulaRefs.activity.textContent = formatPercent(activity);
+      formulaRefs.condition.textContent = getConditionSummary();
+
+      graphPills.temp.textContent = `온도 ${params.temperature}°C`;
+      graphPills.ph.textContent = `pH ${formatPh(params.pH)}`;
+      graphPills.activity.textContent = `활성 ${formatPercent(activity)}`;
+      graphPills.insight.textContent = `${params.enzyme}는 pH ${profile.optimumPh} 부근에서 활성이 가장 높고, ${params.temperature >= 40 ? '고온으로 갈수록 입체 구조가 흔들려 반응 속도가 급감합니다.' : '현재 온도 조건에서는 구조가 비교적 안정적입니다.'}`;
+
+      heroDetail.textContent = currentTab === 'lock'
+        ? '기질이 활성 부위에 정확히 들어맞을 때 효소-기질 복합체가 형성되고, 생성물이 방출된 뒤 효소는 다시 재사용됩니다.'
+        : '온도 그래프에서는 인체 효소의 최적 온도와 고온 변성을, pH 그래프에서는 효소별 최적 pH 차이를 함께 비교할 수 있습니다.';
+
+      drawGraphs();
+    }
+
+    function updateLabelPosition(element, object, forceVisible = true) {
+      if (!forceVisible || currentTab !== 'lock') {
+        element.classList.remove('show');
+        return;
+      }
+      labelProjectVector.copy(object.getWorldPosition(new THREE.Vector3()));
+      labelProjectVector.project(camera);
+      const visible = labelProjectVector.z < 1 && labelProjectVector.z > -1;
+      if (!visible) {
+        element.classList.remove('show');
+        return;
+      }
+      const x = (labelProjectVector.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-labelProjectVector.y * 0.5 + 0.5) * window.innerHeight;
+      element.style.left = `${x}px`;
+      element.style.top = `${y}px`;
+      element.classList.add('show');
+    }
+
+    function drawAxes(ctx, bounds, xTicks, yTicks, xLabel, yLabel) {
+      const { x, y, width, height } = bounds;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, width, height);
+
+      ctx.font = '11px Pretendard';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.44)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      xTicks.forEach((tick) => {
+        const tx = x + (tick.value - xTicks[0].value) / (xTicks[xTicks.length - 1].value - xTicks[0].value) * width;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+        ctx.beginPath();
+        ctx.moveTo(tx, y);
+        ctx.lineTo(tx, y + height);
+        ctx.stroke();
+        ctx.fillText(tick.label, tx, y + height + 8);
+      });
+
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      yTicks.forEach((tick) => {
+        const ty = y + height - (tick.value - yTicks[0].value) / (yTicks[yTicks.length - 1].value - yTicks[0].value) * height;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+        ctx.beginPath();
+        ctx.moveTo(x, ty);
+        ctx.lineTo(x + width, ty);
+        ctx.stroke();
+        ctx.fillText(tick.label, x - 8, ty);
+      });
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(xLabel, x + width, y + height + 32);
+
+      ctx.save();
+      ctx.translate(x - 34, y);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    function chartPoint(bounds, xMin, xMax, yMin, yMax, xValue, yValue) {
+      return {
+        x: bounds.x + (xValue - xMin) / (xMax - xMin) * bounds.width,
+        y: bounds.y + bounds.height - (yValue - yMin) / (yMax - yMin) * bounds.height,
+      };
+    }
+
+    function drawCurve(ctx, bounds, xMin, xMax, sampleStep, valueFn, strokeStyle, lineWidth) {
+      ctx.beginPath();
+      for (let x = xMin; x <= xMax + 0.0001; x += sampleStep) {
+        const point = chartPoint(bounds, xMin, xMax, 0, 100, x, valueFn(x));
+        if (x === xMin) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      }
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    }
+
+    function drawGraphs() {
+      const rect = graphCanvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      graphCanvas.width = Math.round(rect.width * dpr);
+      graphCanvas.height = Math.round(rect.height * dpr);
+      graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      graphCtx.clearRect(0, 0, rect.width, rect.height);
+
+      const chartGap = 44;
+      const padding = { top: 28, right: 28, bottom: 48, left: 54 };
+      const chartHeight = (rect.height - padding.top - padding.bottom - chartGap) / 2;
+
+      const tempBounds = {
+        x: padding.left,
+        y: padding.top + 14,
+        width: rect.width - padding.left - padding.right,
+        height: chartHeight - 12,
+      };
+
+      const phBounds = {
+        x: padding.left,
+        y: padding.top + chartHeight + chartGap + 6,
+        width: rect.width - padding.left - padding.right,
+        height: chartHeight - 12,
+      };
+
+      graphCtx.save();
+      graphCtx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      graphCtx.font = '600 15px Pretendard';
+      graphCtx.fillText('반응 속도-온도 그래프', tempBounds.x, tempBounds.y - 18);
+      graphCtx.fillText('반응 속도-pH 그래프', phBounds.x, phBounds.y - 18);
+      graphCtx.restore();
+
+      drawAxes(
+        graphCtx,
+        tempBounds,
+        [0, 20, 40, 60, 80].map((value) => ({ value, label: `${value}` })),
+        [0, 25, 50, 75, 100].map((value) => ({ value, label: `${value}` })),
+        '온도 (°C)',
+        '반응 속도 (%)',
+      );
+
+      const denatureStartX = chartPoint(tempBounds, 0, 80, 0, 100, 40, 0).x;
+      graphCtx.save();
+      graphCtx.beginPath();
+      graphCtx.rect(denatureStartX, tempBounds.y, tempBounds.width - (denatureStartX - tempBounds.x), tempBounds.height);
+      graphCtx.clip();
+      graphCtx.fillStyle = 'rgba(255, 136, 92, 0.08)';
+      graphCtx.fillRect(denatureStartX, tempBounds.y, tempBounds.width - (denatureStartX - tempBounds.x), tempBounds.height);
+      graphCtx.strokeStyle = 'rgba(255, 152, 104, 0.18)';
+      graphCtx.lineWidth = 1;
+      for (let offset = denatureStartX - tempBounds.height; offset < tempBounds.x + tempBounds.width; offset += 10) {
+        graphCtx.beginPath();
+        graphCtx.moveTo(offset, tempBounds.y + tempBounds.height);
+        graphCtx.lineTo(offset + tempBounds.height, tempBounds.y);
+        graphCtx.stroke();
+      }
+      graphCtx.restore();
+
+      const tempGradient = graphCtx.createLinearGradient(tempBounds.x, tempBounds.y, tempBounds.x + tempBounds.width, tempBounds.y);
+      tempGradient.addColorStop(0, '#7fd4ff');
+      tempGradient.addColorStop(0.55, '#9cf4b5');
+      tempGradient.addColorStop(1, '#ff9868');
+      drawCurve(graphCtx, tempBounds, 0, 80, 0.5, (temp) => getTemperatureActivity(temp) * 100, tempGradient, 3);
+
+      const optimalTempX = chartPoint(tempBounds, 0, 80, 0, 100, 37, 0).x;
+      graphCtx.save();
+      graphCtx.setLineDash([6, 5]);
+      graphCtx.strokeStyle = 'rgba(255, 114, 102, 0.85)';
+      graphCtx.beginPath();
+      graphCtx.moveTo(optimalTempX, tempBounds.y);
+      graphCtx.lineTo(optimalTempX, tempBounds.y + tempBounds.height);
+      graphCtx.stroke();
+      graphCtx.setLineDash([]);
+      graphCtx.fillStyle = '#ffd6cd';
+      graphCtx.font = '11px Pretendard';
+      graphCtx.fillText('최적 온도 ~37°C', optimalTempX + 8, tempBounds.y + 14);
+      graphCtx.fillStyle = 'rgba(255, 192, 161, 0.9)';
+      graphCtx.fillText('효소 변성', denatureStartX + 8, tempBounds.y + 14);
+      graphCtx.restore();
+
+      const currentTempPoint = chartPoint(tempBounds, 0, 80, 0, 100, params.temperature, getTemperatureActivity(params.temperature) * 100);
+      graphCtx.save();
+      graphCtx.strokeStyle = '#ff6f67';
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      graphCtx.moveTo(currentTempPoint.x, tempBounds.y);
+      graphCtx.lineTo(currentTempPoint.x, tempBounds.y + tempBounds.height);
+      graphCtx.stroke();
+      graphCtx.fillStyle = '#ff7b72';
+      graphCtx.beginPath();
+      graphCtx.arc(currentTempPoint.x, currentTempPoint.y, 5, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.restore();
+
+      drawAxes(
+        graphCtx,
+        phBounds,
+        [0, 2, 4, 6, 8, 10, 12, 14].map((value) => ({ value, label: `${value}` })),
+        [0, 25, 50, 75, 100].map((value) => ({ value, label: `${value}` })),
+        'pH',
+        '반응 속도 (%)',
+      );
+
+      Object.entries(enzymeProfiles).forEach(([name, profile]) => {
+        const selected = name === params.enzyme;
+        drawCurve(
+          graphCtx,
+          phBounds,
+          0,
+          14,
+          0.1,
+          (ph) => gaussian(ph, profile.optimumPh, profile.sigma) * 100,
+          profile.color,
+          selected ? 3.4 : 2,
+        );
+
+        const optimalX = chartPoint(phBounds, 0, 14, 0, 100, profile.optimumPh, 0).x;
+        graphCtx.save();
+        graphCtx.setLineDash([5, 4]);
+        graphCtx.strokeStyle = `${profile.color}aa`;
+        graphCtx.beginPath();
+        graphCtx.moveTo(optimalX, phBounds.y);
+        graphCtx.lineTo(optimalX, phBounds.y + phBounds.height);
+        graphCtx.stroke();
+        graphCtx.setLineDash([]);
+        graphCtx.fillStyle = profile.color;
+        graphCtx.font = '11px Pretendard';
+        graphCtx.fillText(name, optimalX + 6, phBounds.y + 16 + Object.keys(enzymeProfiles).indexOf(name) * 14);
+        graphCtx.restore();
+      });
+
+      const currentPhPoint = chartPoint(
+        phBounds,
+        0,
+        14,
+        0,
+        100,
+        params.pH,
+        getPhActivity(params.enzyme, params.pH) * 100,
+      );
+      graphCtx.save();
+      graphCtx.strokeStyle = '#ffd36f';
+      graphCtx.lineWidth = 2;
+      graphCtx.beginPath();
+      graphCtx.moveTo(currentPhPoint.x, phBounds.y);
+      graphCtx.lineTo(currentPhPoint.x, phBounds.y + phBounds.height);
+      graphCtx.stroke();
+      graphCtx.fillStyle = '#ffe294';
+      graphCtx.beginPath();
+      graphCtx.arc(currentPhPoint.x, currentPhPoint.y, 5, 0, Math.PI * 2);
+      graphCtx.fill();
+      graphCtx.restore();
+    }
+
+    function setTab(nextTab) {
+      currentTab = nextTab;
+      params.viewMode = nextTab === 'lock' ? '효소-기질 결합 (3D)' : '온도·pH 그래프';
+      renderer.domElement.classList.toggle('muted', nextTab === 'graphs');
+      graphPanel.classList.toggle('active', nextTab === 'graphs');
+      graphPanel.setAttribute('aria-hidden', nextTab === 'graphs' ? 'false' : 'true');
+      controls.enabled = nextTab === 'lock';
+      tabButtons.forEach((button) => {
+        const active = button.dataset.tab === nextTab;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      updateFolderVisibility();
+      syncGui();
+      updateUi();
+    }
+
+    function syncGui() {
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+
+    function updateFolderVisibility() {
+      lockFolder.domElement.style.display = currentTab === 'lock' ? '' : 'none';
+      graphFolder.domElement.style.display = currentTab === 'graphs' ? '' : 'none';
+    }
+
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => setTab(button.dataset.tab));
+    });
+
+    guideToggle.addEventListener('click', () => {
+      const isOpen = guidePanel.classList.toggle('open');
+      guideToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    const gui = new GUI({ title: '효소 실험 패널', width: 312 });
+    gui.domElement.style.position = 'fixed';
+    gui.domElement.style.top = '118px';
+    gui.domElement.style.right = '16px';
+    gui.domElement.style.zIndex = '26';
+
+    const commonFolder = gui.addFolder('공통');
+    commonFolder.add(params, 'viewMode', ['효소-기질 결합 (3D)', '온도·pH 그래프']).name('보기 모드').onChange((value) => {
+      setTab(value === '온도·pH 그래프' ? 'graphs' : 'lock');
+    });
+    commonFolder.add(params, 'resetExperience').name('초기화');
+    commonFolder.open();
+
+    const lockFolder = gui.addFolder('탭 1 · 자물쇠-열쇠');
+    lockFolder.add(params, 'playReaction').name('반응 재생');
+    lockFolder.add(params, 'tryOtherSubstrate').name('다른 기질 시도');
+    lockFolder.add(params, 'reactionSpeed', 0.5, 3, 0.1).name('반응 속도').onChange(() => updateUi());
+    lockFolder.add(params, 'enzymeOpacity', 0.3, 1, 0.01).name('효소 투명도').onChange(() => updateUi());
+    lockFolder.open();
+
+    const graphFolder = gui.addFolder('탭 2 · 활성 그래프');
+    graphFolder.add(params, 'temperature', 0, 80, 1).name('온도 (°C)').onChange(() => updateUi());
+    graphFolder.add(params, 'pH', 0, 14, 0.1).name('pH').onChange(() => updateUi());
+    graphFolder.add(params, 'enzyme', Object.keys(enzymeProfiles)).name('효소 선택').onChange(() => updateUi());
+    graphFolder.add(params, 'denaturationVisual').name('변성 시각화').onChange(() => updateUi());
+
+    if (window.innerWidth < 980) {
+      gui.close();
+    }
+
+    updateFolderVisibility();
+
+    const clock = new THREE.Clock();
+    const cameraTarget = new THREE.Vector3();
+    const substrateLookTarget = new THREE.Vector3();
+    const tempVector = new THREE.Vector3();
+
+    function updateAnimation(dt, time) {
+      const currentSubstrate = animationState.kind === 'wrong' ? wrongSubstrate : correctSubstrate;
+
+      if (animationState.mode === 'idle') {
+        correctSubstrate.visible = true;
+        wrongSubstrate.visible = false;
+        correctSubstrate.position.copy(correctStart).add(new THREE.Vector3(0, Math.sin(time * 1.4) * 0.18, Math.cos(time * 1.1) * 0.12));
+        correctSubstrate.rotation.y = -0.62 + Math.sin(time * 0.9) * 0.1;
+        correctSubstrate.rotation.z = 0.35 + Math.sin(time * 0.7) * 0.05;
+        return;
+      }
+
+      animationState.timer += dt;
+      const progress = THREE.MathUtils.clamp(animationState.timer / animationState.duration, 0, 1);
+      const eased = easeInOutCubic(progress);
+
+      if (animationState.mode === 'approach') {
+        const point = animationState.curve.getPoint(eased);
+        const nextPoint = animationState.curve.getPoint(Math.min(eased + 0.01, 1));
+        currentSubstrate.position.copy(point);
+        currentSubstrate.lookAt(substrateLookTarget.copy(nextPoint).add(new THREE.Vector3(0.01, 0.01, 0.01)));
+        currentSubstrate.rotation.z += dt * 1.6;
+
+        if (progress >= 1) {
+          if (animationState.success) {
+            setAnimationState('bind', 0.75 / Math.max(getEffectiveRate(), 0.6));
+            showFloatingMessage('결합!', 'success', 1200);
+            showStatus('효소-기질 복합체가 형성되었습니다.', 'success', 1200);
+          } else {
+            setAnimationState('bounce', 1.6 / Math.max(params.reactionSpeed, 0.6));
+            showFloatingMessage(`❌ ${getFailureReason(animationState.kind)}`, 'warning', 1800);
+            showStatus(getFailureReason(animationState.kind), 'warning', 1800);
+          }
+        }
+        return;
+      }
+
+      if (animationState.mode === 'bind') {
+        currentSubstrate.position.lerpVectors(approachTarget, bindTarget, eased);
+        currentSubstrate.quaternion.slerp(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, -0.9, 0.18)), 0.12);
+        currentSubstrate.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.06);
+
+        if (progress >= 1) {
+          setAnimationState('react', 1 / Math.max(getEffectiveRate(), 0.55));
+          currentSubstrate.scale.setScalar(1);
+        }
+        return;
+      }
+
+      if (animationState.mode === 'react') {
+        currentSubstrate.position.copy(bindTarget);
+        const pulse = 1 + Math.sin(progress * Math.PI * 7) * 0.08;
+        currentSubstrate.scale.setScalar(pulse);
+        if (progress >= 1) {
+          currentSubstrate.visible = false;
+          productA.visible = true;
+          productB.visible = true;
+          productA.position.copy(bindTarget);
+          productB.position.copy(bindTarget);
+          setAnimationState('release', 1.5 / Math.max(getEffectiveRate(), 0.55));
+        }
+        return;
+      }
+
+      if (animationState.mode === 'release') {
+        productA.position.lerpVectors(bindTarget, productATarget, eased);
+        productB.position.lerpVectors(bindTarget, productBTarget, eased);
+        productA.scale.setScalar(1 + progress * 0.08);
+        productB.scale.setScalar(1 + progress * 0.08);
+        if (progress >= 1) {
+          setAnimationState('recover', 1);
+          showFloatingMessage('효소는 반응 후 변하지 않아 재사용됩니다!', 'success', 1800);
+          showStatus('생성물 방출 완료. 효소는 다시 사용할 수 있습니다.', 'success', 1700);
+        }
+        return;
+      }
+
+      if (animationState.mode === 'bounce') {
+        const point = animationState.bounceCurve.getPoint(eased);
+        currentSubstrate.position.copy(point);
+        currentSubstrate.rotation.x += dt * 5;
+        currentSubstrate.rotation.y += dt * 4;
+        currentSubstrate.rotation.z += dt * 6;
+        if (progress >= 1) {
+          setAnimationState('recover', 0.7);
+        }
+        return;
+      }
+
+      if (animationState.mode === 'recover' && progress >= 1) {
+        setAnimationState('idle', 0);
+        resetMolecules();
+      }
+    }
+
+    function animate() {
+      const dt = clock.getDelta();
+      const time = clock.elapsedTime;
+
+      updateAnimation(dt, time);
+      updateEnzymeGeometry(time);
+      particles.rotation.y += dt * 0.015;
+      particles.rotation.x = Math.sin(time * 0.08) * 0.05;
+
+      controls.update();
+      renderer.render(scene, camera);
+
+      updateLabelPosition(labelRefs.enzyme, enzymeLabelAnchor);
+      updateLabelPosition(labelRefs.site, siteLabelAnchor);
+      updateLabelPosition(
+        labelRefs.substrate,
+        animationState.kind === 'wrong' && wrongSubstrate.visible ? wrongSubstrate : correctSubstrate,
+        (animationState.kind === 'wrong' ? wrongSubstrate.visible : correctSubstrate.visible) && currentTab === 'lock',
+      );
+      labelRefs.substrate.textContent = animationState.kind === 'wrong' && wrongSubstrate.visible ? '다른 기질' : '기질';
+      updateLabelPosition(labelRefs.productA, productA, productA.visible);
+      updateLabelPosition(labelRefs.productB, productB, productB.visible);
+
+      if (messageExpireAt > performance.now() && currentTab === 'lock') {
+        updateLabelPosition(labelRefs.message, messageAnchor, true);
+      } else {
+        hideFloatingMessage();
+      }
+
+      if (statusExpireAt > 0 && performance.now() > statusExpireAt) {
+        statusChip.className = '';
+        statusExpireAt = 0;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      drawGraphs();
+    }
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('pagehide', () => {
+      gui.destroy();
+      controls.dispose();
+      renderer.dispose();
+      enzymeGeometry.dispose();
+      substrateMaterial.dispose();
+      wrongSubstrateMaterial.dispose();
+      productAMaterial.dispose();
+      productBMaterial.dispose();
+      siteRingMaterial.dispose();
+      siteCoreMaterial.dispose();
+    }, { once: true });
+
+    setTab('lock');
+    updateUi();
+    animate();
+  </script>
+</body>
+</html>

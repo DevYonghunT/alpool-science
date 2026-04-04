@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생물다양성의 세 가지 요소 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --panel-bg: rgba(16, 36, 24, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.16);
+    --text-main: #f6fff7;
+    --text-dim: rgba(246, 255, 247, 0.72);
+    --accent: #f4c95d;
+    --accent-green: #8fd694;
+    --accent-blue: #79c7ff;
+    --accent-sand: #ffd7a3;
+    --chip-bg: rgba(255, 255, 255, 0.09);
+    --shadow: 0 20px 44px rgba(20, 48, 28, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 16%, rgba(255, 245, 190, 0.45), transparent 22%),
+      radial-gradient(circle at 80% 12%, rgba(117, 201, 255, 0.18), transparent 24%),
+      linear-gradient(180deg, #f5fbf4 0%, #eef4ee 42%, #e6efe6 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px;
+    padding: 11px 18px 12px;
+    border-radius: 20px;
+    text-align: center;
+    z-index: 35;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.66);
+  }
+
+  #title-card h1 {
+    margin-top: 3px;
+    font-size: 24px;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 46;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(17, 40, 25, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 45;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(70vh, 720px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #d8ffad;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffdba7;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 11px;
+  }
+
+  #overview-strips {
+    position: fixed;
+    left: 60px;
+    right: 60px;
+    top: 96px;
+    bottom: 134px;
+    z-index: 12;
+    display: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  #overview-strips.visible {
+    display: grid;
+  }
+
+  .strip {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 14px 16px;
+    border-radius: 22px;
+    border: 1px dashed rgba(52, 96, 63, 0.22);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.03));
+  }
+
+  .strip strong {
+    font-size: 13px;
+    color: rgba(28, 58, 39, 0.86);
+  }
+
+  .strip span {
+    margin-top: 6px;
+    max-width: 240px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(33, 66, 46, 0.68);
+  }
+
+  #focus-panel {
+    position: fixed;
+    top: 58px;
+    right: 14px;
+    z-index: 28;
+    width: min(340px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  #focus-panel h2 {
+    font-size: 16px;
+    color: #f5ffe4;
+  }
+
+  #focus-subtitle {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .chip {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--chip-bg);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  #focus-points {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .point-card {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .point-card strong {
+    display: block;
+    font-size: 12px;
+    color: #fff;
+  }
+
+  .point-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 30;
+    width: min(380px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #d8ffad;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .formula-box {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .formula-box strong {
+    color: #fff4b2;
+  }
+
+  .formula-box p + p {
+    margin-top: 6px;
+  }
+
+  #status-hint {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 18;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(21, 46, 29, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+    backdrop-filter: blur(14px);
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    --width: 260px;
+    position: fixed !important;
+    top: 266px !important;
+    right: 14px !important;
+    z-index: 38 !important;
+  }
+
+  @media (max-width: 960px) {
+    #overview-strips {
+      display: none !important;
+    }
+
+    #focus-panel {
+      top: auto;
+      right: 14px;
+      bottom: 176px;
+      width: min(340px, calc(100vw - 28px));
+    }
+
+    .lil-gui {
+      top: auto !important;
+      bottom: 14px !important;
+      right: 14px !important;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      min-width: auto;
+      width: calc(100vw - 130px);
+      top: 14px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #focus-panel {
+      left: 14px;
+      right: 14px;
+      width: auto;
+      bottom: 188px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 28px);
+      bottom: 14px;
+    }
+
+    #status-hint {
+      width: calc(100vw - 28px);
+      text-align: center;
+      bottom: 146px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Integrated Science 2 · Biodiversity</div>
+  <h1>생물다양성의 세 가지 요소</h1>
+  <p>유전적 다양성, 종다양성, 생태계다양성을 한 화면에서 비교하고 전환해 보세요.</p>
+</div>
+
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>생물다양성은 유전적 다양성, 종다양성, 생태계다양성을 모두 포함합니다. 생물다양성이 높을수록 생태계가 안정적으로 유지되고, 인간이 이용할 수 있는 생물자원의 종류도 많아집니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>유전적 다양성이 높은 생물종이 환경이 급격히 변하거나 전염병이 발생했을 때 멸종할 가능성이 낮은 까닭은 무엇인가요?</li>
+    <li>종다양성이 높은 생태계가 낮은 생태계보다 더 안정적인 까닭은 무엇인가요?</li>
+    <li>우리나라에서 생물다양성을 보전하기 위해 어떤 노력을 하고 있나요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>유네스코 생물권보전지역인 완도와 같은 보호 구역</li>
+    <li>국립공원과 습지 보호 지역 조성</li>
+    <li>생물다양성협약, 람사르 협약과 같은 국제 협력</li>
+  </ul>
+
+  <div class="textbook-ref">미래엔 통합과학2 I편 p26~31 · 생물다양성의 요소, 가치, 보전</div>
+</div>
+
+<div id="overview-strips">
+  <div class="strip">
+    <strong>유전적 다양성</strong>
+    <span>같은 종 안에서도 유전정보 차이로 무늬와 형질이 다양합니다.</span>
+  </div>
+  <div class="strip">
+    <strong>종다양성</strong>
+    <span>한 생태계에 여러 종이 함께 살아갈수록 먹이그물이 풍부해집니다.</span>
+  </div>
+  <div class="strip">
+    <strong>생태계다양성</strong>
+    <span>숲, 강, 바다, 초원, 사막처럼 서로 다른 서식지가 공존합니다.</span>
+  </div>
+</div>
+
+<div id="focus-panel" class="glass">
+  <h2 id="focus-title">세 가지 다양성 비교</h2>
+  <p id="focus-subtitle">전체 보기에서는 세 요소를 동시에 살펴보며 서로 어떤 관계를 가지는지 비교할 수 있습니다.</p>
+  <div class="chip-row">
+    <span class="chip" id="chip-view">현재 보기: 전체 보기</span>
+    <span class="chip" id="chip-species">종다양성 수준: 높음</span>
+    <span class="chip" id="chip-resource">생물자원: OFF</span>
+  </div>
+  <div id="focus-points"></div>
+</div>
+
+<div id="formula-panel" class="glass">
+  <h3>🌿 생물다양성의 세 가지 요소</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 보기</span><span class="value" id="formula-view">전체 보기</span></div>
+  <div class="info-row"><span class="label">종다양성</span><span class="value" id="formula-species-level">높음</span></div>
+  <div class="info-row"><span class="label">생물자원</span><span class="value" id="formula-resources">표시 안 함</span></div>
+  <div class="formula-box">
+    <strong>유전적 다양성</strong>
+    <p>한 생물종의 유전정보 다양함</p>
+    <p>→ 높을수록 멸종 가능성 낮음</p>
+  </div>
+  <div class="formula-box">
+    <strong>종다양성</strong>
+    <p>한 생태계의 생물종 다양함</p>
+    <p>→ 높을수록 생태계 안정적 유지</p>
+  </div>
+  <div class="formula-box">
+    <strong>생태계다양성</strong>
+    <p>생태계 종류의 다양함</p>
+    <p>→ 높을수록 종다양성도 높음</p>
+  </div>
+</div>
+
+<div id="status-hint">마우스로 회전, 휠 또는 두 손가락으로 확대/축소할 수 있습니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const canvas = document.getElementById('scene-canvas');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const overviewStrips = document.getElementById('overview-strips');
+const focusTitleEl = document.getElementById('focus-title');
+const focusSubtitleEl = document.getElementById('focus-subtitle');
+const focusPointsEl = document.getElementById('focus-points');
+const chipViewEl = document.getElementById('chip-view');
+const chipSpeciesEl = document.getElementById('chip-species');
+const chipResourceEl = document.getElementById('chip-resource');
+const formulaViewEl = document.getElementById('formula-view');
+const formulaSpeciesLevelEl = document.getElementById('formula-species-level');
+const formulaResourcesEl = document.getElementById('formula-resources');
+
+const VIEW_MODES = {
+  OVERVIEW: '전체 보기',
+  GENETIC: '유전적 다양성',
+  SPECIES: '종다양성',
+  ECOSYSTEM: '생태계다양성'
+};
+
+const AUTO_ORDER = [VIEW_MODES.GENETIC, VIEW_MODES.SPECIES, VIEW_MODES.ECOSYSTEM];
+
+const VIEW_INFO = {
+  [VIEW_MODES.OVERVIEW]: {
+    title: '세 가지 다양성 비교',
+    subtitle: '유전적 다양성, 종다양성, 생태계다양성을 동시에 살펴보며 서로 어떤 관계를 가지는지 비교해 보세요.',
+    points: [
+      ['유전적 다양성', '같은 종 안의 형질 차이는 환경 변화에 대한 적응 가능성을 높입니다.'],
+      ['종다양성', '여러 생물종이 공존할수록 먹이그물과 역할 분담이 풍부해집니다.'],
+      ['생태계다양성', '서식지 종류가 많을수록 다양한 생물이 살아갈 공간도 넓어집니다.']
+    ]
+  },
+  [VIEW_MODES.GENETIC]: {
+    title: '유전적 다양성',
+    subtitle: '헬리코니우스나비 10마리의 날개 무늬를 비교하며 같은 종 안의 변이를 확인하세요.',
+    points: [
+      ['같은 종, 다른 형질', '개체마다 색과 무늬가 조금씩 다르지만 모두 같은 종입니다.'],
+      ['적응의 재료', '환경이 달라질 때 유리한 형질을 가진 개체가 살아남을 가능성이 커집니다.'],
+      ['보전의 의미', '유전적 다양성이 높은 생물종은 멸종 위험이 상대적으로 낮습니다.']
+    ]
+  },
+  [VIEW_MODES.SPECIES]: {
+    title: '종다양성',
+    subtitle: '초원 생태계 안의 생물종 수를 바꾸며 생태계 안정성 차이를 비교해 보세요.',
+    points: [
+      ['높은 종다양성', '생산자와 소비자, 다양한 서식자가 함께 있을수록 먹이그물이 복잡해집니다.'],
+      ['낮은 종다양성', '몇 종만 남아 있으면 환경 변화나 질병에 더 취약해질 수 있습니다.'],
+      ['생태계 안정성', '종이 많을수록 한 종 감소가 전체 생태계에 미치는 충격이 줄어듭니다.']
+    ]
+  },
+  [VIEW_MODES.ECOSYSTEM]: {
+    title: '생태계다양성',
+    subtitle: '숲, 강, 바다, 초원, 사막 미니어처를 비교하며 서식지의 다양함을 이해해 보세요.',
+    points: [
+      ['다양한 서식지', '생태계 종류가 다르면 사는 생물과 환경 조건도 달라집니다.'],
+      ['종다양성과 연결', '서식지 폭이 넓을수록 더 많은 생물종이 살아갈 수 있습니다.'],
+      ['보전 전략', '특정 종뿐 아니라 생태계 전체를 함께 보호해야 생물다양성이 유지됩니다.']
+    ]
+  }
+};
+
+const BUTTERFLY_PALETTES = [
+  { base: '#ff8f3a', band: '#ffd166', accent: '#1c1b1f', spot: '#fff8d6' },
+  { base: '#ff5a5f', band: '#ffc4ad', accent: '#161515', spot: '#ffd36d' },
+  { base: '#ffcf33', band: '#fff0a2', accent: '#111111', spot: '#ff6f00' },
+  { base: '#ffffff', band: '#ffe6a6', accent: '#161616', spot: '#ff955c' },
+  { base: '#c97a44', band: '#f4bf7a', accent: '#2f1d11', spot: '#ffe2bb' },
+  { base: '#f47c91', band: '#ffc5d3', accent: '#1d161a', spot: '#fff2a1' },
+  { base: '#ec6c34', band: '#ffd8ab', accent: '#2b1a14', spot: '#fff6d7' },
+  { base: '#d56cff', band: '#efc4ff', accent: '#1c1223', spot: '#ffd36d' },
+  { base: '#62d26f', band: '#d9f9c5', accent: '#152112', spot: '#ffd85e' },
+  { base: '#5ab6ff', band: '#d3ecff', accent: '#101c27', spot: '#fff2a1' }
+];
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef4ee);
+scene.fog = new THREE.Fog(0xeef4ee, 18, 40);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 7;
+controls.maxDistance = 36;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.6, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
+sunLight.position.set(10, 15, 8);
+scene.add(sunLight);
+
+const state = {
+  view: VIEW_MODES.OVERVIEW,
+  speciesLevel: '높음',
+  showResources: false,
+  autoCycling: false,
+  autoElapsed: 0,
+  autoIndex: 0,
+  clock: new THREE.Clock(),
+  time: 0,
+  activeRoot: null,
+  animators: []
+};
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fillStyle) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    width = 420,
+    height = 120,
+    color = '#ffffff',
+    font = '700 28px Pretendard, "Noto Sans KR", sans-serif',
+    bg = 'rgba(20, 42, 28, 0.62)',
+    padding = 18
+  } = options;
+
+  const spriteCanvas = document.createElement('canvas');
+  spriteCanvas.width = width;
+  spriteCanvas.height = height;
+  const ctx = spriteCanvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(spriteCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.userData = { canvas: spriteCanvas, ctx, texture, color, font, bg, padding };
+  updateTextSprite(sprite, text);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const { canvas: spriteCanvas, ctx, texture } = sprite.userData;
+  const color = options.color || sprite.userData.color;
+  const font = options.font || sprite.userData.font;
+  const bg = options.bg === undefined ? sprite.userData.bg : options.bg;
+  const padding = options.padding || sprite.userData.padding;
+
+  ctx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+  if (bg) {
+    drawRoundedRect(ctx, 8, 8, spriteCanvas.width - 16, spriteCanvas.height - 16, 24, bg);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = 10;
+
+  const lines = String(text).split('\n');
+  const usableHeight = spriteCanvas.height - padding * 2;
+  const lineHeight = usableHeight / Math.max(lines.length, 1);
+  const startY = spriteCanvas.height * 0.5 - ((lines.length - 1) * lineHeight * 0.5);
+
+  lines.forEach((line, index) => {
+    ctx.fillText(line, spriteCanvas.width * 0.5, startY + index * lineHeight);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function createLabel(text, position, scale = [3.8, 1.0], options = {}) {
+  const sprite = createTextSprite(text, options);
+  sprite.position.copy(position);
+  sprite.scale.set(scale[0], scale[1], 1);
+  return sprite;
+}
+
+function disposeHierarchy(root) {
+  const disposedGeometries = new Set();
+  const disposedMaterials = new Set();
+  const disposedTextures = new Set();
+
+  root.traverse((object) => {
+    if (object.geometry && !disposedGeometries.has(object.geometry)) {
+      object.geometry.dispose();
+      disposedGeometries.add(object.geometry);
+    }
+
+    if (object.material) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => {
+        if (disposedMaterials.has(material)) return;
+
+        if (material.map && !disposedTextures.has(material.map)) {
+          material.map.dispose();
+          disposedTextures.add(material.map);
+        }
+
+        material.dispose();
+        disposedMaterials.add(material);
+      });
+    }
+
+    if (object.userData && object.userData.texture && !disposedTextures.has(object.userData.texture)) {
+      object.userData.texture.dispose();
+      disposedTextures.add(object.userData.texture);
+    }
+  });
+}
+
+function clearActiveRoot() {
+  if (!state.activeRoot) return;
+  scene.remove(state.activeRoot);
+  disposeHierarchy(state.activeRoot);
+  state.activeRoot = null;
+  state.animators = [];
+}
+
+function addAnimator(callback) {
+  state.animators.push(callback);
+}
+
+function createPlatform(width, depth, color, edgeColor = 0x7ea66f) {
+  const group = new THREE.Group();
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.32, depth),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0.02 })
+  );
+  base.position.y = -0.16;
+  group.add(base);
+
+  const top = new THREE.Mesh(
+    new THREE.PlaneGeometry(width - 0.08, depth - 0.08),
+    new THREE.MeshStandardMaterial({ color: color + 0x080808, roughness: 0.95, metalness: 0.0 })
+  );
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.005;
+  group.add(top);
+
+  const outline = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(width, 0.32, depth)),
+    new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.45 })
+  );
+  outline.position.y = -0.16;
+  group.add(outline);
+
+  return group;
+}
+
+function createLeafCluster(position, color = 0x7dbb64, scale = 1) {
+  const cluster = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x5e8a46, roughness: 0.95 });
+
+  for (let i = 0; i < 4; i += 1) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.18 * scale, 14, 14), material);
+    leaf.scale.set(1.6, 0.6, 1.0);
+    leaf.position.set((i - 1.5) * 0.11 * scale, 0.17 * scale + (i % 2) * 0.04 * scale, (i % 2 ? 1 : -1) * 0.08 * scale);
+    leaf.rotation.z = (i - 1.5) * 0.22;
+    cluster.add(leaf);
+  }
+
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * scale, 0.06 * scale, 0.32 * scale, 8), stemMat);
+  stem.position.y = 0.1 * scale;
+  cluster.add(stem);
+  cluster.position.copy(position);
+  return cluster;
+}
+
+function createTree(scale = 1, canopyColor = 0x5e9d4d) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14 * scale, 0.18 * scale, 1.3 * scale, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8b6038, roughness: 0.94 })
+  );
+  trunk.position.y = 0.65 * scale;
+  tree.add(trunk);
+
+  const canopyMaterial = new THREE.MeshStandardMaterial({ color: canopyColor, roughness: 0.88 });
+  const canopyA = new THREE.Mesh(new THREE.SphereGeometry(0.7 * scale, 18, 18), canopyMaterial);
+  canopyA.position.set(0, 1.58 * scale, 0);
+  const canopyB = new THREE.Mesh(new THREE.SphereGeometry(0.46 * scale, 16, 16), canopyMaterial);
+  canopyB.position.set(-0.34 * scale, 1.44 * scale, 0.22 * scale);
+  const canopyC = new THREE.Mesh(new THREE.SphereGeometry(0.42 * scale, 16, 16), canopyMaterial);
+  canopyC.position.set(0.3 * scale, 1.38 * scale, -0.18 * scale);
+  tree.add(canopyA, canopyB, canopyC);
+  return tree;
+}
+
+function createGrassClump(scale = 1, color = 0x5eb84f) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 1 });
+  const blades = [];
+
+  for (let i = 0; i < 5; i += 1) {
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06 * scale, 0.44 * scale + i * 0.02 * scale, 6), material);
+    blade.position.set((i - 2) * 0.05 * scale, 0.18 * scale, (i % 2 ? 1 : -1) * 0.03 * scale);
+    blade.rotation.z = (i - 2) * 0.12;
+    blades.push(blade);
+    group.add(blade);
+  }
+
+  const phase = Math.random() * Math.PI * 2;
+  addAnimator((time) => {
+    blades.forEach((blade, index) => {
+      blade.rotation.z = (index - 2) * 0.12 + Math.sin(time * 1.8 + phase + index) * 0.08;
+    });
+  });
+
+  return group;
+}
+
+function createFlower(scale = 1) {
+  const group = new THREE.Group();
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03 * scale, 0.04 * scale, 0.44 * scale, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a8e49, roughness: 1 })
+  );
+  stem.position.y = 0.22 * scale;
+  group.add(stem);
+
+  const petalMat = new THREE.MeshStandardMaterial({ color: 0xff95b6, roughness: 0.85 });
+  for (let i = 0; i < 5; i += 1) {
+    const petal = new THREE.Mesh(new THREE.SphereGeometry(0.08 * scale, 12, 12), petalMat);
+    const angle = (i / 5) * Math.PI * 2;
+    petal.position.set(Math.cos(angle) * 0.09 * scale, 0.46 * scale, Math.sin(angle) * 0.09 * scale);
+    petal.scale.set(1.1, 0.55, 1.1);
+    group.add(petal);
+  }
+
+  const center = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06 * scale, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffd75c, roughness: 0.8 })
+  );
+  center.position.y = 0.46 * scale;
+  group.add(center);
+  return group;
+}
+
+function createZebra(scale = 1) {
+  const zebra = new THREE.Group();
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.88 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x232323, roughness: 0.9 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.62, 0.42), whiteMat);
+  body.position.y = 0.9;
+  zebra.add(body);
+
+  for (let i = -2; i <= 2; i += 1) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.64, 0.45), darkMat);
+    stripe.position.set(i * 0.18, 0.9, 0);
+    zebra.add(stripe);
+  }
+
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.46, 0.2), whiteMat);
+  neck.position.set(0.46, 1.22, 0);
+  neck.rotation.z = -0.35;
+  zebra.add(neck);
+
+  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.46, 0.04), darkMat);
+  mane.position.set(0.43, 1.29, 0);
+  mane.rotation.z = -0.35;
+  zebra.add(mane);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.2), whiteMat);
+  head.position.set(0.7, 1.44, 0);
+  zebra.add(head);
+
+  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.13, 0.18), darkMat);
+  muzzle.position.set(0.85, 1.4, 0);
+  zebra.add(muzzle);
+
+  [-0.38, -0.12, 0.16, 0.4].forEach((x) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.88, 10), darkMat);
+    leg.position.set(x, 0.44, x < 0 ? -0.12 : 0.12);
+    zebra.add(leg);
+  });
+
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.38, 8), darkMat);
+  tail.position.set(-0.63, 1.0, 0);
+  tail.rotation.z = 0.55;
+  zebra.add(tail);
+
+  zebra.scale.setScalar(scale);
+  return zebra;
+}
+
+function createGiraffe(scale = 1) {
+  const giraffe = new THREE.Group();
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0xddbb66, roughness: 0.86 });
+  const spotMat = new THREE.MeshStandardMaterial({ color: 0xb97939, roughness: 0.95 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.66, 0.42), baseMat);
+  body.position.y = 1.05;
+  giraffe.add(body);
+
+  for (let i = 0; i < 6; i += 1) {
+    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), spotMat);
+    spot.scale.set(1.2, 0.55, 0.8);
+    spot.position.set(-0.42 + (i % 3) * 0.42, 1.02 + Math.floor(i / 3) * 0.14, i % 2 ? 0.16 : -0.16);
+    giraffe.add(spot);
+  }
+
+  [-0.38, -0.1, 0.16, 0.42].forEach((x, index) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.12, 10), baseMat);
+    leg.position.set(x, 0.48, index % 2 ? 0.12 : -0.12);
+    giraffe.add(leg);
+  });
+
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.28, 0.22), baseMat);
+  neck.position.set(0.44, 1.82, 0);
+  neck.rotation.z = -0.08;
+  giraffe.add(neck);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.24), baseMat);
+  head.position.set(0.58, 2.46, 0);
+  giraffe.add(head);
+
+  const earA = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 8), spotMat);
+  earA.position.set(0.48, 2.66, 0.1);
+  const earB = earA.clone();
+  earB.position.z = -0.1;
+  giraffe.add(earA, earB);
+
+  giraffe.scale.setScalar(scale);
+  return giraffe;
+}
+
+function createRabbit(scale = 1) {
+  const rabbit = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd8d5cb, roughness: 0.95 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.25, 14, 14), mat);
+  body.scale.set(1.2, 0.9, 1);
+  body.position.y = 0.24;
+  rabbit.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), mat);
+  head.position.set(0.2, 0.34, 0);
+  rabbit.add(head);
+
+  [-0.04, 0.04].forEach((z) => {
+    const ear = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.06), mat);
+    ear.position.set(0.24, 0.56, z);
+    ear.rotation.z = z > 0 ? -0.12 : 0.12;
+    rabbit.add(ear);
+  });
+
+  rabbit.scale.setScalar(scale);
+  return rabbit;
+}
+
+function createShrub(scale = 1) {
+  const shrub = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x4e9444, roughness: 0.92 });
+  const moundA = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 14), mat);
+  moundA.position.set(-0.12, 0.18, 0);
+  const moundB = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 14), mat);
+  moundB.position.set(0.12, 0.2, 0.08);
+  const moundC = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 14), mat);
+  moundC.position.set(0.04, 0.24, -0.12);
+  shrub.add(moundA, moundB, moundC);
+  shrub.scale.setScalar(scale);
+  return shrub;
+}
+
+function createSnake(scale = 1) {
+  const points = [
+    new THREE.Vector3(-0.34, 0.03, 0),
+    new THREE.Vector3(-0.15, 0.08, 0.14),
+    new THREE.Vector3(0.02, 0.06, -0.12),
+    new THREE.Vector3(0.2, 0.08, 0.12),
+    new THREE.Vector3(0.38, 0.05, 0)
+  ];
+  const curve = new THREE.CatmullRomCurve3(points);
+  const body = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 22, 0.035, 10, false),
+    new THREE.MeshStandardMaterial({ color: 0x6d8a39, roughness: 0.95 })
+  );
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 10, 10),
+    new THREE.MeshStandardMaterial({ color: 0x7e9c49, roughness: 0.95 })
+  );
+  head.position.set(0.39, 0.05, 0.01);
+  const group = new THREE.Group();
+  group.add(body, head);
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createInsectSwarm(scale = 1, color = 0x2b230c) {
+  const swarm = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 1 });
+  const dots = [];
+
+  for (let i = 0; i < 6; i += 1) {
+    const insect = new THREE.Mesh(new THREE.SphereGeometry(0.03 * scale, 8, 8), mat);
+    insect.position.set((Math.random() - 0.5) * 0.4, 0.2 + Math.random() * 0.2, (Math.random() - 0.5) * 0.4);
+    dots.push({ mesh: insect, phase: Math.random() * Math.PI * 2 });
+    swarm.add(insect);
+  }
+
+  addAnimator((time) => {
+    dots.forEach((dot, index) => {
+      dot.mesh.position.x = Math.sin(time * 2.6 + dot.phase + index) * 0.18 * scale;
+      dot.mesh.position.y = 0.22 + Math.cos(time * 3.2 + dot.phase) * 0.08 * scale;
+      dot.mesh.position.z = Math.cos(time * 2.1 + dot.phase + index) * 0.18 * scale;
+    });
+  });
+
+  return swarm;
+}
+
+function createBird(scale = 1, color = 0x2f4052) {
+  const bird = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.86 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), mat);
+  body.scale.set(1.2, 0.8, 1);
+  bird.add(body);
+
+  const leftPivot = new THREE.Group();
+  const rightPivot = new THREE.Group();
+  leftPivot.position.set(-0.04, 0, 0);
+  rightPivot.position.set(0.04, 0, 0);
+
+  const wingGeo = new THREE.BoxGeometry(0.28, 0.02, 0.12);
+  const leftWing = new THREE.Mesh(wingGeo, mat);
+  leftWing.position.x = -0.14;
+  const rightWing = new THREE.Mesh(wingGeo, mat);
+  rightWing.position.x = 0.14;
+  leftPivot.add(leftWing);
+  rightPivot.add(rightWing);
+  bird.add(leftPivot, rightPivot);
+
+  const beak = new THREE.Mesh(
+    new THREE.ConeGeometry(0.03, 0.12, 8),
+    new THREE.MeshStandardMaterial({ color: 0xf2b552, roughness: 0.8 })
+  );
+  beak.position.set(0.12, 0, 0);
+  beak.rotation.z = -Math.PI / 2;
+  bird.add(beak);
+
+  bird.scale.setScalar(scale);
+  bird.userData = { leftPivot, rightPivot };
+  return bird;
+}
+
+function createFish(scale = 1, color = 0xff9f50) {
+  const fish = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), mat);
+  body.scale.set(1.5, 0.7, 0.7);
+  fish.add(body);
+
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.18, 3), mat);
+  tail.position.set(-0.24, 0, 0);
+  tail.rotation.z = Math.PI / 2;
+  fish.add(tail);
+
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.12, 3), mat);
+  fin.position.set(0.02, 0.1, 0);
+  fin.rotation.z = Math.PI;
+  fish.add(fin);
+
+  fish.scale.setScalar(scale);
+  return fish;
+}
+
+function createCactus(scale = 1) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x4e9c68, roughness: 0.9 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.0, 10), mat);
+  trunk.position.y = 0.5;
+  group.add(trunk);
+
+  const armA = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.5, 10), mat);
+  armA.position.set(0.18, 0.56, 0);
+  armA.rotation.z = -0.58;
+  const armB = armA.clone();
+  armB.position.x = -0.18;
+  armB.rotation.z = 0.58;
+  group.add(armA, armB);
+  group.scale.setScalar(scale);
+  return group;
+}
+
+function createCoral(scale = 1) {
+  const coral = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xff7f82, roughness: 0.9 });
+
+  for (let i = 0; i < 3; i += 1) {
+    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.5, 8), mat);
+    branch.position.set((i - 1) * 0.12, 0.25, (i % 2 ? 1 : -1) * 0.05);
+    branch.rotation.z = (i - 1) * 0.32;
+    coral.add(branch);
+  }
+
+  coral.scale.setScalar(scale);
+  return coral;
+}
+
+function createButterflyWingTexture(palette, index) {
+  const wingCanvas = document.createElement('canvas');
+  wingCanvas.width = 256;
+  wingCanvas.height = 384;
+  const ctx = wingCanvas.getContext('2d');
+  const { base, band, accent, spot } = palette;
+
+  const fillGradient = ctx.createLinearGradient(36, 36, 222, 324);
+  fillGradient.addColorStop(0, band);
+  fillGradient.addColorStop(0.55, base);
+  fillGradient.addColorStop(1, base);
+
+  ctx.clearRect(0, 0, wingCanvas.width, wingCanvas.height);
+  ctx.beginPath();
+  ctx.moveTo(34, 194);
+  ctx.bezierCurveTo(30, 64, 134, 18, 214, 72);
+  ctx.bezierCurveTo(250, 110, 246, 170, 214, 214);
+  ctx.bezierCurveTo(190, 250, 184, 298, 140, 342);
+  ctx.bezierCurveTo(110, 368, 48, 336, 34, 252);
+  ctx.closePath();
+  ctx.fillStyle = fillGradient;
+  ctx.fill();
+
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = accent;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(42, 180);
+  ctx.quadraticCurveTo(118, 124, 212, 122 + (index % 3) * 12);
+  ctx.lineWidth = 18;
+  ctx.strokeStyle = accent;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(56, 230);
+  ctx.quadraticCurveTo(148, 182 + (index % 2) * 22, 210, 260);
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = spot;
+  ctx.stroke();
+
+  const spotPositions = [
+    [92, 92, 18],
+    [140, 62, 16],
+    [172, 142, 14],
+    [120, 282, 20]
+  ];
+
+  spotPositions.forEach(([x, y, size], i) => {
+    ctx.beginPath();
+    ctx.fillStyle = i % 2 === 0 ? spot : accent;
+    ctx.arc(x + ((index + i) % 3) * 4, y + ((index + i) % 2) * 8, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = accent;
+    ctx.stroke();
+  });
+
+  const texture = new THREE.CanvasTexture(wingCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+function createButterfly(palette, index, scale = 1) {
+  const butterfly = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x2d2319, roughness: 0.9 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.86, 12), bodyMaterial);
+  body.position.y = 0.42;
+  butterfly.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), bodyMaterial);
+  head.position.y = 0.86;
+  butterfly.add(head);
+
+  const wingTexture = createButterflyWingTexture(palette, index);
+  const wingMaterial = new THREE.MeshStandardMaterial({
+    map: wingTexture,
+    transparent: true,
+    alphaTest: 0.15,
+    side: THREE.DoubleSide,
+    roughness: 0.75,
+    metalness: 0.0
+  });
+
+  const wingGeometry = new THREE.PlaneGeometry(0.5, 0.8);
+
+  const leftPivot = new THREE.Group();
+  leftPivot.position.set(-0.04, 0.45, 0);
+  const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+  leftWing.position.x = -0.25;
+  leftPivot.add(leftWing);
+
+  const rightPivot = new THREE.Group();
+  rightPivot.position.set(0.04, 0.45, 0);
+  const rightWing = new THREE.Mesh(wingGeometry, wingMaterial.clone());
+  rightWing.material.map = wingTexture;
+  rightWing.position.x = 0.25;
+  rightWing.scale.x = -1;
+  rightPivot.add(rightWing);
+
+  butterfly.add(leftPivot, rightPivot);
+
+  [-1, 1].forEach((side) => {
+    const antenna = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.01, 0.25, 6),
+      bodyMaterial
+    );
+    antenna.position.set(side * 0.035, 0.99, 0);
+    antenna.rotation.z = side * 0.45;
+    butterfly.add(antenna);
+  });
+
+  butterfly.scale.setScalar(scale);
+  const phase = index * 0.7;
+  addAnimator((time) => {
+    const flap = Math.sin(time * 3.1 + phase) * 0.55 + 0.92;
+    leftPivot.rotation.y = -flap;
+    rightPivot.rotation.y = flap;
+    butterfly.position.y = Math.sin(time * 1.4 + phase) * 0.06;
+    butterfly.rotation.z = Math.sin(time * 1.1 + phase) * 0.05;
+  });
+
+  return butterfly;
+}
+
+function createGeneticSection({ overview = false } = {}) {
+  const group = new THREE.Group();
+  const platform = createPlatform(9.8, 4.6, 0x96bf79, 0x6a9a59);
+  group.add(platform);
+
+  const title = createLabel(
+    '유전적 다양성\n같은 종 안의 다양한 형질',
+    new THREE.Vector3(0, 3.85, 0),
+    overview ? [3.9, 1.15] : [4.8, 1.36],
+    { bg: 'rgba(31, 66, 33, 0.72)', color: '#fff6d6', width: 520, height: 138 }
+  );
+  group.add(title);
+
+  const subtitle = createLabel(
+    '헬리코니우스나비 10개체',
+    new THREE.Vector3(0, 3.0, 0),
+    overview ? [2.6, 0.62] : [3.1, 0.72],
+    { bg: 'rgba(255, 255, 255, 0.22)', color: '#214129', width: 340, height: 72 }
+  );
+  group.add(subtitle);
+
+  for (let row = 0; row < 2; row += 1) {
+    for (let col = 0; col < 5; col += 1) {
+      const index = row * 5 + col;
+      const butterfly = createButterfly(BUTTERFLY_PALETTES[index], index, overview ? 1.15 : 1.42);
+      butterfly.position.set(-3.8 + col * 1.9, 0.3, row === 0 ? 0.95 : -1.05);
+      butterfly.rotation.y = row === 0 ? 0.1 : -0.14;
+      group.add(butterfly);
+
+      const pad = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.5, 0.56, 0.05, 24),
+        new THREE.MeshStandardMaterial({ color: 0xe5f0dc, roughness: 0.98 })
+      );
+      pad.position.set(butterfly.position.x, 0.03, butterfly.position.z);
+      group.add(pad);
+    }
+  }
+
+  const note = createLabel(
+    '유전적 다양성이 높을수록 환경 변화에 적응할 수 있는 개체가 남을 가능성이 커집니다.',
+    new THREE.Vector3(0, 0.98, -2.12),
+    overview ? [5.1, 0.72] : [6.0, 0.84],
+    { bg: 'rgba(255, 250, 236, 0.62)', color: '#3a3a24', width: 680, height: 88, font: '700 22px Pretendard, "Noto Sans KR", sans-serif' }
+  );
+  group.add(note);
+
+  return group;
+}
+
+function createSpeciesSection({ overview = false, level = '높음' } = {}) {
+  const group = new THREE.Group();
+  const platform = createPlatform(10.6, 6.2, level === '높음' ? 0x8cc16d : 0xa7c29a, 0x679055);
+  group.add(platform);
+
+  const meadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(10.2, 5.8),
+    new THREE.MeshStandardMaterial({ color: level === '높음' ? 0x63a845 : 0x86a96f, roughness: 0.98 })
+  );
+  meadow.rotation.x = -Math.PI / 2;
+  meadow.position.y = 0.01;
+  group.add(meadow);
+
+  const title = createLabel(
+    `종다양성\n${level === '높음' ? '풍부한 먹이그물' : '단순한 먹이그물'}`,
+    new THREE.Vector3(0, 4.35, 0),
+    overview ? [3.7, 1.1] : [4.7, 1.32],
+    { bg: 'rgba(36, 74, 34, 0.72)', color: '#ffffff', width: 500, height: 140 }
+  );
+  group.add(title);
+
+  const badge = createLabel(
+    level === '높음' ? '10종 이상' : '2~3종',
+    new THREE.Vector3(0, 3.5, 0),
+    overview ? [2.0, 0.56] : [2.4, 0.64],
+    { bg: level === '높음' ? 'rgba(218, 255, 171, 0.82)' : 'rgba(255, 240, 197, 0.86)', color: '#214129', width: 260, height: 72 }
+  );
+  group.add(badge);
+
+  for (let i = 0; i < 18; i += 1) {
+    const grass = createGrassClump(0.85 + (i % 3) * 0.22, i % 2 ? 0x59b34b : 0x6ac45c);
+    grass.position.set(-4.4 + (i % 6) * 1.6, 0.03, -2.1 + Math.floor(i / 6) * 1.7);
+    group.add(grass);
+  }
+
+  const backTrees = [
+    { x: -3.8, z: -2.0, scale: 0.95 },
+    { x: 3.8, z: -2.0, scale: 1.05 },
+    { x: -2.1, z: -2.4, scale: 0.74 }
+  ];
+
+  backTrees.forEach((treeInfo) => {
+    const tree = createTree(treeInfo.scale, treeInfo.scale > 1 ? 0x5b9d4b : 0x70ac59);
+    tree.position.set(treeInfo.x, 0.02, treeInfo.z);
+    group.add(tree);
+  });
+
+  const zebra = createZebra(overview ? 0.78 : 0.92);
+  zebra.position.set(-1.7, 0.04, 0.45);
+  zebra.rotation.y = 0.24;
+  group.add(zebra);
+
+  const giraffe = createGiraffe(overview ? 0.62 : 0.72);
+  giraffe.position.set(2.2, 0.04, 0.25);
+  giraffe.rotation.y = -0.28;
+
+  const rabbit = createRabbit(overview ? 0.82 : 0.95);
+  rabbit.position.set(0.6, 0.03, 1.6);
+  rabbit.rotation.y = -0.5;
+
+  const shrub = createShrub(overview ? 0.95 : 1.08);
+  shrub.position.set(-3.0, 0.03, 1.1);
+
+  const flower = createFlower(overview ? 0.95 : 1.1);
+  flower.position.set(3.1, 0.03, 1.55);
+
+  const snake = createSnake(overview ? 1.0 : 1.18);
+  snake.position.set(-0.2, 0.03, -1.05);
+
+  const insects = createInsectSwarm(overview ? 0.9 : 1.05);
+  insects.position.set(1.6, 0.36, -0.9);
+
+  const birds = [];
+  for (let i = 0; i < 3; i += 1) {
+    const bird = createBird(overview ? 0.88 : 1.0, i === 1 ? 0x3e5668 : 0x2f4052);
+    bird.position.set(-0.8 + i * 1.1, 2.2 + i * 0.18, -1.0 + i * 0.25);
+    bird.userData.orbitRadius = 0.6 + i * 0.18;
+    bird.userData.orbitSpeed = 0.7 + i * 0.12;
+    bird.userData.baseY = bird.position.y;
+    bird.userData.baseX = bird.position.x;
+    bird.userData.baseZ = bird.position.z;
+    birds.push(bird);
+    group.add(bird);
+  }
+
+  birds.forEach((bird, index) => {
+    addAnimator((time) => {
+      const flap = Math.sin(time * 9 + index * 0.8) * 0.65;
+      bird.userData.leftPivot.rotation.z = flap;
+      bird.userData.rightPivot.rotation.z = -flap;
+      bird.position.x = bird.userData.baseX + Math.cos(time * bird.userData.orbitSpeed + index) * bird.userData.orbitRadius;
+      bird.position.y = bird.userData.baseY + Math.sin(time * 1.8 + index) * 0.18;
+      bird.position.z = bird.userData.baseZ + Math.sin(time * bird.userData.orbitSpeed + index) * 0.3;
+      bird.rotation.y = -0.2 + Math.sin(time * bird.userData.orbitSpeed + index) * 0.6;
+    });
+  });
+
+  if (level === '높음') {
+    group.add(giraffe, rabbit, shrub, flower, snake, insects);
+
+    const extraTree = createTree(0.66, 0x6fad58);
+    extraTree.position.set(2.9, 0.02, -1.9);
+    group.add(extraTree);
+  } else {
+    const lowNote = createLabel(
+      '생물종 수가 적으면\n먹이그물과 역할 분담이 단순해집니다.',
+      new THREE.Vector3(0, 1.18, -2.54),
+      overview ? [3.8, 0.82] : [4.6, 0.96],
+      { bg: 'rgba(255, 247, 231, 0.76)', color: '#51412d', width: 420, height: 110 }
+    );
+    group.add(lowNote);
+  }
+
+  const summary = createLabel(
+    level === '높음'
+      ? '종다양성이 높은 생태계는 더 복잡한 먹이그물로 안정적으로 유지될 수 있습니다.'
+      : '종다양성이 낮은 생태계는 특정 종의 감소가 전체 생태계에 큰 영향을 줄 수 있습니다.',
+    new THREE.Vector3(0, 0.95, -2.74),
+    overview ? [5.4, 0.74] : [6.4, 0.86],
+    { bg: 'rgba(255, 250, 236, 0.62)', color: '#3a3a24', width: 720, height: 90, font: '700 22px Pretendard, "Noto Sans KR", sans-serif' }
+  );
+  group.add(summary);
+
+  return group;
+}
+
+function createEcosystemMini(type) {
+  const group = new THREE.Group();
+  const pedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.1, 1.22, 0.34, 32),
+    new THREE.MeshStandardMaterial({ color: 0xdfd8c8, roughness: 0.98 })
+  );
+  pedestal.position.y = 0.17;
+  group.add(pedestal);
+
+  let topColor = 0x7abf67;
+  if (type === '강') topColor = 0x95c96f;
+  if (type === '바다') topColor = 0x6db7d8;
+  if (type === '사막') topColor = 0xe1c287;
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.06, 1.06, 0.08, 32),
+    new THREE.MeshStandardMaterial({ color: topColor, roughness: 0.96 })
+  );
+  top.position.y = 0.36;
+  group.add(top);
+
+  if (type === '숲') {
+    const treeA = createTree(0.55, 0x4a8c42);
+    treeA.position.set(-0.3, 0.36, 0.05);
+    const treeB = createTree(0.42, 0x5a9b4c);
+    treeB.position.set(0.26, 0.36, -0.18);
+    const treeC = createTree(0.38, 0x6da95a);
+    treeC.position.set(0.08, 0.36, 0.26);
+    group.add(treeA, treeB, treeC);
+  }
+
+  if (type === '강') {
+    const ribbon = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.55, 0.42),
+      new THREE.MeshStandardMaterial({ color: 0x4da8ff, transparent: true, opacity: 0.9 })
+    );
+    ribbon.rotation.x = -Math.PI / 2;
+    ribbon.rotation.z = 0.55;
+    ribbon.position.y = 0.41;
+    group.add(ribbon);
+    [-0.45, 0.48].forEach((x) => {
+      const reed = createGrassClump(0.45, 0x7ca04a);
+      reed.position.set(x, 0.39, x > 0 ? -0.18 : 0.2);
+      group.add(reed);
+    });
+  }
+
+  if (type === '바다') {
+    const water = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.04, 1.04, 0.1, 32),
+      new THREE.MeshStandardMaterial({ color: 0x4fa7db, roughness: 0.6, transparent: true, opacity: 0.92 })
+    );
+    water.position.y = 0.41;
+    group.add(water);
+
+    const coral = createCoral(0.62);
+    coral.position.set(-0.26, 0.43, 0.22);
+    group.add(coral);
+
+    for (let i = 0; i < 2; i += 1) {
+      const fish = createFish(0.58, i === 0 ? 0xffba5a : 0xff7f68);
+      fish.position.set(-0.1 + i * 0.34, 0.7 + i * 0.08, -0.05 + i * 0.1);
+      fish.userData = {
+        baseX: fish.position.x,
+        baseY: fish.position.y,
+        baseZ: fish.position.z,
+        phase: i * 1.2
+      };
+      addAnimator((time) => {
+        fish.position.x = fish.userData.baseX + Math.sin(time * 2.1 + fish.userData.phase) * 0.16;
+        fish.position.y = fish.userData.baseY + Math.cos(time * 2.6 + fish.userData.phase) * 0.08;
+        fish.rotation.y = Math.sin(time * 2.1 + fish.userData.phase) * 0.7;
+      });
+      group.add(fish);
+    }
+  }
+
+  if (type === '초원') {
+    const zebra = createZebra(0.24);
+    zebra.position.set(0, 0.38, 0.02);
+    zebra.rotation.y = -0.3;
+    group.add(zebra);
+    for (let i = 0; i < 3; i += 1) {
+      const grass = createGrassClump(0.35, i % 2 ? 0x5fb24b : 0x74c65f);
+      grass.position.set(-0.45 + i * 0.42, 0.38, i % 2 ? -0.22 : 0.18);
+      group.add(grass);
+    }
+  }
+
+  if (type === '사막') {
+    const cactus = createCactus(0.6);
+    cactus.position.set(0, 0.38, 0);
+    group.add(cactus);
+
+    const dune = new THREE.Mesh(
+      new THREE.SphereGeometry(0.44, 14, 14),
+      new THREE.MeshStandardMaterial({ color: 0xecc98f, roughness: 0.96 })
+    );
+    dune.scale.set(1.3, 0.35, 1);
+    dune.position.set(-0.22, 0.44, 0.24);
+    group.add(dune);
+  }
+
+  return group;
+}
+
+function createEcosystemSection({ overview = false } = {}) {
+  const group = new THREE.Group();
+  const platform = createPlatform(11.8, 4.8, 0x90b9b2, 0x73968e);
+  group.add(platform);
+
+  const title = createLabel(
+    '생태계다양성\n다양한 서식지의 공존',
+    new THREE.Vector3(0, 3.95, 0),
+    overview ? [4.0, 1.12] : [5.0, 1.34],
+    { bg: 'rgba(24, 69, 74, 0.7)', color: '#ffffff', width: 520, height: 140 }
+  );
+  group.add(title);
+
+  const ecosystems = ['숲', '강', '바다', '초원', '사막'];
+  ecosystems.forEach((name, index) => {
+    const mini = createEcosystemMini(name);
+    mini.position.set(-4.6 + index * 2.3, 0.02, 0);
+    group.add(mini);
+
+    const label = createLabel(
+      name,
+      new THREE.Vector3(mini.position.x, 2.0, 0),
+      overview ? [1.55, 0.46] : [1.8, 0.52],
+      { bg: 'rgba(255, 255, 255, 0.78)', color: '#24424a', width: 220, height: 68 }
+    );
+    group.add(label);
+  });
+
+  const summary = createLabel(
+    '생태계다양성이 높을수록 종다양성도 높게 나타납니다.',
+    new THREE.Vector3(0, 0.92, -1.95),
+    overview ? [4.8, 0.72] : [5.8, 0.82],
+    { bg: 'rgba(255, 250, 236, 0.62)', color: '#314049', width: 560, height: 88, font: '700 22px Pretendard, "Noto Sans KR", sans-serif' }
+  );
+  group.add(summary);
+
+  return group;
+}
+
+function createRiceIcon() {
+  const group = new THREE.Group();
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x719a43, roughness: 0.98 });
+  const grainMat = new THREE.MeshStandardMaterial({ color: 0xeecb74, roughness: 0.88 });
+
+  for (let i = 0; i < 2; i += 1) {
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.78, 8), stemMat);
+    stem.position.set((i - 0.5) * 0.14, 0.39, 0);
+    stem.rotation.z = (i - 0.5) * -0.18;
+    group.add(stem);
+
+    for (let j = 0; j < 4; j += 1) {
+      const grain = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), grainMat);
+      grain.scale.set(1.2, 0.68, 0.75);
+      grain.position.set((i - 0.5) * 0.12 + 0.07, 0.58 - j * 0.1, (j % 2 ? 1 : -1) * 0.05);
+      group.add(grain);
+    }
+  }
+
+  const bean = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), new THREE.MeshStandardMaterial({ color: 0x9a5f2f, roughness: 0.9 }));
+  bean.scale.set(1.2, 0.75, 0.8);
+  bean.position.set(-0.26, 0.14, 0.08);
+  group.add(bean);
+  return group;
+}
+
+function createCottonIcon() {
+  const group = new THREE.Group();
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0x6a9348, roughness: 1 }));
+  stem.position.y = 0.3;
+  group.add(stem);
+
+  const cottonMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f7, roughness: 0.92 });
+  [[-0.1, 0.56, 0], [0.08, 0.52, 0.06], [0.04, 0.62, -0.08]].forEach(([x, y, z]) => {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), cottonMat);
+    puff.position.set(x, y, z);
+    group.add(puff);
+  });
+
+  const silkworm = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), new THREE.MeshStandardMaterial({ color: 0xf4e3b2, roughness: 0.95 }));
+  silkworm.scale.set(1.8, 0.9, 1.0);
+  silkworm.position.set(-0.12, 0.12, 0);
+  group.add(silkworm);
+  return group;
+}
+
+function createMedicineIcon() {
+  const group = new THREE.Group();
+  group.add(createLeafCluster(new THREE.Vector3(-0.16, 0.24, 0), 0x6dbf78, 1.1));
+
+  const bottle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.14, 0.48, 12),
+    new THREE.MeshStandardMaterial({ color: 0x73c6d1, transparent: true, opacity: 0.9, roughness: 0.15 })
+  );
+  bottle.position.set(0.18, 0.24, 0);
+  group.add(bottle);
+
+  const cap = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.08, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0xe7f3f7, roughness: 0.82 })
+  );
+  cap.position.set(0.18, 0.5, 0);
+  group.add(cap);
+  return group;
+}
+
+function createEnergyIcon() {
+  const group = new THREE.Group();
+  const droplet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0x5dc7ff, roughness: 0.2, transparent: true, opacity: 0.9 })
+  );
+  droplet.scale.set(1, 1.45, 1);
+  droplet.position.set(0.05, 0.3, 0);
+  group.add(droplet);
+
+  const leaf = createLeafCluster(new THREE.Vector3(-0.2, 0.08, 0), 0x73bb5b, 0.9);
+  leaf.rotation.z = -0.24;
+  group.add(leaf);
+  return group;
+}
+
+function createRestIcon() {
+  const group = new THREE.Group();
+  const tree = createTree(0.36, 0x67a653);
+  tree.position.set(-0.18, 0, 0.04);
+  group.add(tree);
+
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x98673f, roughness: 0.96 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.12), benchMat);
+  seat.position.set(0.2, 0.18, 0);
+  const legA = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.04), benchMat);
+  legA.position.set(0.1, 0.09, 0);
+  const legB = legA.clone();
+  legB.position.x = 0.3;
+  group.add(seat, legA, legB);
+  return group;
+}
+
+function createIndustryIcon() {
+  const group = new THREE.Group();
+  const flask = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.18, 0.44, 14),
+    new THREE.MeshStandardMaterial({ color: 0x95d6a4, transparent: true, opacity: 0.86, roughness: 0.18 })
+  );
+  flask.position.set(0, 0.22, 0);
+  group.add(flask);
+
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.06, 0.18, 12),
+    new THREE.MeshStandardMaterial({ color: 0xe4f7e5, roughness: 0.3 })
+  );
+  neck.position.set(0, 0.54, 0);
+  group.add(neck);
+
+  const bubbleMat = new THREE.MeshStandardMaterial({ color: 0xf9fff0, roughness: 0.3 });
+  [[-0.08, 0.3], [0.03, 0.22], [0.1, 0.35]].forEach(([x, y]) => {
+    const bubble = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), bubbleMat);
+    bubble.position.set(x, y, 0);
+    group.add(bubble);
+  });
+  return group;
+}
+
+function createBioResourceDisplay({ overview = false } = {}) {
+  const group = new THREE.Group();
+
+  const backPanel = new THREE.Mesh(
+    new THREE.BoxGeometry(6.8, 3.2, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0xeff7ea, transparent: true, opacity: 0.8, roughness: 0.98 })
+  );
+  backPanel.position.set(0, 1.42, -0.08);
+  group.add(backPanel);
+
+  const title = createLabel(
+    '생물자원',
+    new THREE.Vector3(0, 2.82, 0.05),
+    [2.0, 0.54],
+    { bg: 'rgba(25, 74, 33, 0.72)', color: '#fff6d6', width: 260, height: 72 }
+  );
+  group.add(title);
+
+  const items = [
+    { name: '식량 제공', make: createRiceIcon },
+    { name: '의복 재료', make: createCottonIcon },
+    { name: '의약품', make: createMedicineIcon },
+    { name: '에너지', make: createEnergyIcon },
+    { name: '휴식처', make: createRestIcon },
+    { name: '산업용 재료', make: createIndustryIcon }
+  ];
+
+  items.forEach((item, index) => {
+    const cell = new THREE.Group();
+    const x = -2.0 + (index % 3) * 2.0;
+    const y = 0.72 - Math.floor(index / 3) * 1.24;
+    cell.position.set(x, y, 0.08);
+    cell.userData.baseY = y;
+
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.44, 0.5, 0.12, 24),
+      new THREE.MeshStandardMaterial({ color: 0xdfead8, roughness: 0.98 })
+    );
+    pedestal.position.y = 0.06;
+    cell.add(pedestal);
+
+    const icon = item.make();
+    icon.position.y = 0.2;
+    icon.scale.setScalar(overview ? 0.88 : 0.95);
+    cell.add(icon);
+
+    const label = createLabel(
+      item.name,
+      new THREE.Vector3(0, -0.24, 0),
+      [1.55, 0.38],
+      { bg: 'rgba(255, 255, 255, 0.78)', color: '#284231', width: 230, height: 60 }
+    );
+    cell.add(label);
+    group.add(cell);
+  });
+
+  addAnimator((time) => {
+    group.children.forEach((child, index) => {
+      if (index < 2) return;
+      child.position.y = child.userData.baseY + Math.sin(time * 0.8 + index * 0.45) * 0.06;
+    });
+  });
+
+  return group;
+}
+
+function applyCameraForView(view) {
+  if (view === VIEW_MODES.OVERVIEW) {
+    camera.position.set(0, 11.8, 26.4);
+    controls.target.set(0, 1.7, 0);
+  }
+
+  if (view === VIEW_MODES.GENETIC) {
+    camera.position.set(0, 5.8, 13.2);
+    controls.target.set(0, 1.5, 0);
+  }
+
+  if (view === VIEW_MODES.SPECIES) {
+    camera.position.set(0, 6.8, 15.6);
+    controls.target.set(0, 1.7, 0);
+  }
+
+  if (view === VIEW_MODES.ECOSYSTEM) {
+    camera.position.set(0, 6.2, 14.4);
+    controls.target.set(0, 1.6, 0);
+  }
+
+  controls.update();
+}
+
+function buildScene() {
+  clearActiveRoot();
+
+  const root = new THREE.Group();
+  state.activeRoot = root;
+  scene.add(root);
+
+  if (state.view === VIEW_MODES.OVERVIEW) {
+    const genetic = createGeneticSection({ overview: true });
+    genetic.position.set(-13.2, 0, 0);
+    const species = createSpeciesSection({ overview: true, level: state.speciesLevel });
+    species.position.set(0, 0, 0);
+    const ecosystem = createEcosystemSection({ overview: true });
+    ecosystem.position.set(13.2, 0, 0);
+    root.add(genetic, species, ecosystem);
+  } else if (state.view === VIEW_MODES.GENETIC) {
+    root.add(createGeneticSection({ overview: false }));
+  } else if (state.view === VIEW_MODES.SPECIES) {
+    root.add(createSpeciesSection({ overview: false, level: state.speciesLevel }));
+  } else if (state.view === VIEW_MODES.ECOSYSTEM) {
+    root.add(createEcosystemSection({ overview: false }));
+  }
+
+  if (state.showResources) {
+    const resources = createBioResourceDisplay({ overview: state.view === VIEW_MODES.OVERVIEW });
+    if (state.view === VIEW_MODES.OVERVIEW) {
+      resources.position.set(0, 0.15, 8.4);
+      resources.scale.setScalar(0.72);
+    } else {
+      resources.position.set(5.9, 0.6, 1.8);
+      resources.rotation.y = -0.28;
+      resources.scale.setScalar(0.84);
+    }
+    root.add(resources);
+  }
+
+  applyCameraForView(state.view);
+}
+
+function syncSpeciesControllerState() {
+  const enabled = state.view === VIEW_MODES.SPECIES;
+  speciesController.domElement.style.opacity = enabled ? '1' : '0.42';
+  speciesController.domElement.style.pointerEvents = enabled ? 'auto' : 'none';
+}
+
+function updatePanels() {
+  const viewInfo = VIEW_INFO[state.view];
+  focusTitleEl.textContent = viewInfo.title;
+  focusSubtitleEl.textContent = viewInfo.subtitle;
+  focusPointsEl.innerHTML = '';
+  viewInfo.points.forEach(([title, body]) => {
+    const card = document.createElement('div');
+    card.className = 'point-card';
+    card.innerHTML = `<strong>${title}</strong><span>${body}</span>`;
+    focusPointsEl.appendChild(card);
+  });
+
+  chipViewEl.textContent = `현재 보기: ${state.view}`;
+  chipSpeciesEl.textContent = `종다양성 수준: ${state.speciesLevel}`;
+  chipResourceEl.textContent = `생물자원: ${state.showResources ? 'ON' : 'OFF'}`;
+
+  formulaViewEl.textContent = state.view;
+  formulaSpeciesLevelEl.textContent = state.speciesLevel;
+  formulaResourcesEl.textContent = state.showResources ? '표시 중' : '표시 안 함';
+
+  overviewStrips.classList.toggle('visible', state.view === VIEW_MODES.OVERVIEW);
+  syncSpeciesControllerState();
+}
+
+function syncGuiDisplay() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function stopAutoCycle() {
+  state.autoCycling = false;
+}
+
+function setView(nextView, { fromAuto = false } = {}) {
+  state.view = nextView;
+  if (!fromAuto) stopAutoCycle();
+  params['다양성 종류'] = nextView;
+  buildScene();
+  updatePanels();
+  syncGuiDisplay();
+}
+
+function setSpeciesLevel(level) {
+  state.speciesLevel = level;
+  params['종다양성 수준'] = level;
+  if (state.view === VIEW_MODES.OVERVIEW || state.view === VIEW_MODES.SPECIES) {
+    buildScene();
+  }
+  updatePanels();
+  syncGuiDisplay();
+}
+
+function setResourceVisibility(visible) {
+  state.showResources = visible;
+  params['생물자원 표시'] = visible;
+  buildScene();
+  updatePanels();
+  syncGuiDisplay();
+}
+
+function startAutoCycle() {
+  state.autoCycling = true;
+  state.autoElapsed = 0;
+  state.autoIndex = 0;
+  setView(AUTO_ORDER[0], { fromAuto: true });
+}
+
+function updateAutoCycle(dt) {
+  if (!state.autoCycling) return;
+  state.autoElapsed += dt;
+  const index = Math.floor(state.autoElapsed / 6);
+  const nextIndex = index % AUTO_ORDER.length;
+  if (nextIndex !== state.autoIndex) {
+    state.autoIndex = nextIndex;
+    setView(AUTO_ORDER[nextIndex], { fromAuto: true });
+  }
+}
+
+function resetAll() {
+  state.autoCycling = false;
+  state.view = VIEW_MODES.OVERVIEW;
+  state.speciesLevel = '높음';
+  state.showResources = false;
+  params['다양성 종류'] = VIEW_MODES.OVERVIEW;
+  params['종다양성 수준'] = '높음';
+  params['생물자원 표시'] = false;
+  buildScene();
+  updatePanels();
+  syncGuiDisplay();
+}
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+const gui = new GUI({ title: '생물다양성 탐구' });
+const params = {
+  '다양성 종류': VIEW_MODES.OVERVIEW,
+  '종다양성 수준': '높음',
+  '생물자원 표시': false,
+  '자동 전환': () => startAutoCycle(),
+  '초기화': () => resetAll()
+};
+
+gui.add(params, '다양성 종류', [VIEW_MODES.OVERVIEW, VIEW_MODES.GENETIC, VIEW_MODES.SPECIES, VIEW_MODES.ECOSYSTEM])
+  .name('다양성 종류')
+  .onChange((value) => setView(value));
+
+const speciesController = gui.add(params, '종다양성 수준', ['높음', '낮음'])
+  .name('종다양성 수준')
+  .onChange((value) => setSpeciesLevel(value));
+
+gui.add(params, '생물자원 표시')
+  .name('생물자원 표시')
+  .onChange((value) => setResourceVisibility(value));
+
+gui.add(params, '자동 전환').name('자동 전환');
+gui.add(params, '초기화').name('초기화');
+
+if (window.innerWidth < 960) gui.close();
+
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 960) gui.close();
+}
+
+window.addEventListener('resize', resize);
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(state.clock.getDelta(), 0.05);
+  state.time += dt;
+  updateAutoCycle(dt);
+  state.animators.forEach((animator) => animator(state.time, dt));
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+buildScene();
+updatePanels();
+animate();
+
+window.addEventListener('beforeunload', () => {
+  clearActiveRoot();
+  controls.dispose();
+  gui.destroy();
+  renderer.dispose();
+}, { once: true });
+</script>
+</body>
+</html>

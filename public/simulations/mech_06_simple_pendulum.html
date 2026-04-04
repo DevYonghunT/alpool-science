@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단진자 운동 - 3D 시뮬레이션</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --scene-bg: #eef0f5;
+    --panel-bg: rgba(8, 17, 30, 0.76);
+    --panel-strong: rgba(6, 14, 24, 0.9);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.7);
+    --scene-text: #18314f;
+    --scene-text-dim: rgba(24, 49, 79, 0.72);
+    --accent-main: #ff6f61;
+    --accent-compare: #70a8ff;
+    --accent-green: #44d48c;
+    --accent-red: #ff5d66;
+    --accent-blue: #4a8bff;
+    --accent-gold: #ffd86a;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard Variable", "Pretendard", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--scene-bg);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 14%, rgba(255, 234, 183, 0.35), transparent 18%),
+      radial-gradient(circle at 82% 18%, rgba(125, 171, 255, 0.18), transparent 22%),
+      linear-gradient(180deg, #f5f7fb 0%, #eef0f5 56%, #e5ebf4 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 12% 12%, rgba(116, 173, 255, 0.14), transparent 22%),
+      linear-gradient(180deg, #0d1a2f 0%, #09111d 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas,
+  #label-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #label-layer {
+    pointer-events: none;
+    z-index: 8;
+  }
+
+  #scene-title {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(24, 49, 79, 0.64);
+  }
+
+  #scene-title h1 {
+    margin-top: 6px;
+    font-size: 25px;
+    font-weight: 800;
+    color: var(--scene-text);
+    text-shadow: 0 8px 18px rgba(255, 255, 255, 0.6);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--scene-text-dim);
+  }
+
+  .overlay-card {
+    position: absolute;
+    border-radius: 20px;
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 34px rgba(13, 23, 39, 0.14);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 14;
+    border: none;
+    border-radius: 999px;
+    padding: 11px 16px;
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--scene-text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(17, 30, 52, 0.15);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  #guide-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 32px rgba(17, 30, 52, 0.2);
+  }
+
+  #guide-panel {
+    top: 68px;
+    left: 18px;
+    width: min(370px, calc(100% - 36px));
+    max-height: min(72vh, 620px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    background: rgba(250, 252, 255, 0.76);
+    color: var(--scene-text);
+    z-index: 13;
+    display: none;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    font-size: 14px;
+    font-weight: 800;
+    margin-top: 14px;
+    margin-bottom: 7px;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+
+  #guide-panel p,
+  #guide-panel li {
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(24, 49, 79, 0.86);
+  }
+
+  #guide-panel ul {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+
+  #guide-panel .ref {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(24, 49, 79, 0.1);
+    font-size: 11px;
+    color: rgba(24, 49, 79, 0.64);
+  }
+
+  #formula-panel {
+    left: 18px;
+    bottom: 18px;
+    width: min(390px, calc(100% - 36px));
+    padding: 18px 18px 16px;
+    background: rgba(12, 24, 40, 0.76);
+    z-index: 12;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+
+  #formula-panel .eyebrow {
+    font-size: 11px;
+    color: rgba(247, 251, 255, 0.56);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .formula-kv {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .formula-cell {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .formula-cell .label {
+    font-size: 10px;
+    color: rgba(247, 251, 255, 0.54);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .formula-cell strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  .formula-block strong {
+    color: #ffffff;
+  }
+
+  .formula-note {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(74, 139, 255, 0.12), rgba(255, 111, 97, 0.1));
+    border: 1px solid rgba(152, 194, 255, 0.16);
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(247, 251, 255, 0.88);
+  }
+
+  #energy-panel {
+    right: 18px;
+    bottom: 18px;
+    width: min(280px, calc(100% - 36px));
+    padding: 16px 16px 14px;
+    background: rgba(252, 253, 255, 0.74);
+    color: var(--scene-text);
+    z-index: 11;
+  }
+
+  #energy-panel.hidden { display: none; }
+
+  #energy-panel h3 {
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+
+  .energy-row {
+    margin-top: 10px;
+  }
+
+  .energy-row:first-of-type { margin-top: 0; }
+
+  .energy-row .energy-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(24, 49, 79, 0.82);
+  }
+
+  .energy-track {
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(24, 49, 79, 0.08);
+    overflow: hidden;
+  }
+
+  .energy-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.16s linear;
+  }
+
+  #energy-kinetic { background: linear-gradient(90deg, #ffd86a, #ff9a4b); }
+  #energy-potential { background: linear-gradient(90deg, #4a8bff, #75b7ff); }
+  #energy-total { background: linear-gradient(90deg, #50d890, #9cf7c8); }
+
+  #compare-banner {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 12;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(14, 28, 46, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 12px;
+    font-weight: 700;
+    display: none;
+  }
+
+  #compare-banner.show { display: block; }
+
+  .floating-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(11, 24, 38, 0.18);
+    backdrop-filter: blur(8px);
+    display: none;
+  }
+
+  .floating-label.main {
+    background: rgba(255, 95, 82, 0.9);
+  }
+
+  .floating-label.compare {
+    background: rgba(96, 150, 255, 0.9);
+  }
+
+  #vector-legend {
+    position: absolute;
+    top: 86px;
+    right: 18px;
+    z-index: 11;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--scene-text);
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 10px 24px rgba(11, 24, 38, 0.08);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 5;
+    display: grid;
+    gap: 14px;
+  }
+
+  #graph-head .title h2 {
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  #graph-head .title p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #graph-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(247, 251, 255, 0.54);
+  }
+
+  #metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    color: rgba(247, 251, 255, 0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(247, 251, 255, 0.68);
+  }
+
+  #graph-canvas {
+    top: 180px;
+    left: 18px;
+    right: 18px;
+    bottom: 112px;
+    width: calc(100% - 36px);
+    height: calc(100% - 292px);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 22px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  #graph-footer {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 5;
+    display: grid;
+    gap: 10px;
+  }
+
+  #insight-panel,
+  #compare-summary {
+    padding: 13px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(247, 251, 255, 0.82);
+  }
+
+  #compare-summary { display: none; }
+  #compare-summary.show { display: block; }
+
+  .lil-gui {
+    z-index: 30 !important;
+    --background-color: rgba(6, 14, 24, 0.92);
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #f6fbff;
+    --focus-color: rgba(112, 168, 255, 0.42);
+  }
+
+  @media (max-width: 1120px) {
+    #metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 860px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    #graph-canvas {
+      top: 192px;
+      bottom: 124px;
+      height: auto;
+    }
+
+    #formula-panel {
+      width: min(380px, calc(100% - 20px));
+      left: 10px;
+      bottom: 10px;
+    }
+
+    #energy-panel {
+      right: 10px;
+      bottom: 10px;
+      width: min(250px, calc(100% - 20px));
+    }
+
+    #guide-toggle,
+    #compare-banner,
+    #vector-legend {
+      right: 10px;
+      left: auto;
+    }
+
+    #guide-toggle {
+      left: 10px;
+      right: auto;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #scene-title h1 { font-size: 22px; }
+    #scene-title p { font-size: 10px; }
+
+    #guide-panel {
+      left: 10px;
+      top: 62px;
+      width: calc(100% - 20px);
+      max-height: 56vh;
+    }
+
+    #formula-panel {
+      width: calc(100% - 20px);
+      max-height: 34vh;
+      overflow-y: auto;
+    }
+
+    #energy-panel {
+      display: none;
+    }
+
+    #metrics {
+      grid-template-columns: 1fr;
+    }
+
+    #graph-head {
+      left: 14px;
+      right: 14px;
+    }
+
+    #graph-canvas {
+      left: 12px;
+      right: 12px;
+      width: calc(100% - 24px);
+      top: 252px;
+      bottom: 112px;
+    }
+
+    #graph-footer {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #vector-legend {
+      top: 76px;
+      left: 10px;
+      right: 10px;
+      justify-content: flex-start;
+    }
+
+    .legend-chip {
+      padding: 6px 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div id="label-layer">
+      <div id="label-main" class="floating-label main"></div>
+      <div id="label-compare" class="floating-label compare"></div>
+    </div>
+
+    <div id="scene-title">
+      <div class="eyebrow">Mechanics &amp; Energy</div>
+      <h1>단진자 운동</h1>
+      <p>길이, 질량, 진폭, 중력 가속도가 주기에 어떤 영향을 주는지 한 화면에서 확인합니다.</p>
+    </div>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+    <div id="guide-panel" class="overlay-card">
+      <h3>🔬 핵심 원리</h3>
+      <p>단진자의 주기 <strong>T = 2π√(L/g)</strong>는 실의 길이 <strong>L</strong>과 중력 가속도 <strong>g</strong>에만 의존합니다. 추의 질량 <strong>m</strong>에는 무관하며, 초기 각도가 충분히 작을 때는 진폭에도 거의 무관합니다. 이 성질이 바로 등시성입니다.</p>
+
+      <h3>❓ 탐구 질문</h3>
+      <ul>
+        <li>실의 길이를 4배로 늘리면 주기는 몇 배가 될까요?</li>
+        <li>같은 진자를 달에서 흔들면 지구보다 주기가 길어질까요, 짧아질까요?</li>
+        <li>진자 시계가 여름에 느려질 수 있는 까닭을 열팽창과 연결해 설명할 수 있을까요?</li>
+      </ul>
+
+      <h3>🌍 실생활 예시</h3>
+      <ul>
+        <li>갈릴레이와 하위헌스의 진자 시계</li>
+        <li>박자 기준을 잡는 메트로놈</li>
+        <li>지진을 기록하는 지진계의 진동 원리</li>
+        <li>지구 자전을 보여 주는 푸코 진자</li>
+      </ul>
+
+      <div class="ref">교과서 연계: 역학과 에너지 I편 p26~31 - 여러 가지 운동, 단진자</div>
+    </div>
+
+    <div id="compare-banner"></div>
+
+    <div id="vector-legend">
+      <span class="legend-chip"><span class="legend-dot" style="background:#44d48c"></span>속도 벡터</span>
+      <span class="legend-chip"><span class="legend-dot" style="background:#ff5d66"></span>가속도 벡터</span>
+      <span class="legend-chip"><span class="legend-dot" style="background:#4a8bff"></span>복원력</span>
+    </div>
+
+    <div id="formula-panel" class="overlay-card"></div>
+
+    <div id="energy-panel" class="overlay-card">
+      <h3>⚡ 에너지 막대그래프</h3>
+      <div class="energy-row">
+        <div class="energy-label"><span>운동 에너지 Ek</span><strong id="kinetic-value">0.00 J</strong></div>
+        <div class="energy-track"><div id="energy-kinetic" class="energy-fill"></div></div>
+      </div>
+      <div class="energy-row">
+        <div class="energy-label"><span>위치 에너지 Ep</span><strong id="potential-value">0.00 J</strong></div>
+        <div class="energy-track"><div id="energy-potential" class="energy-fill"></div></div>
+      </div>
+      <div class="energy-row">
+        <div class="energy-label"><span>전체 에너지 E</span><strong id="total-value">0.00 J</strong></div>
+        <div class="energy-track"><div id="energy-total" class="energy-fill"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="graph-panel">
+    <div id="graph-head">
+      <div class="title">
+        <div class="eyebrow">Canvas 2D Graph</div>
+        <h2>θ-t / ω-t 그래프</h2>
+        <p>코사인과 사인 곡선의 위상차를 확인하고, 이론 주기와 실제 측정 주기를 비교합니다.</p>
+      </div>
+      <div id="metrics">
+        <div class="metric-card">
+          <div class="label">Theory Period</div>
+          <strong id="metric-theory">0.00 s</strong>
+          <p>T = 2π√(L/g)</p>
+        </div>
+        <div class="metric-card">
+          <div class="label">Measured Period</div>
+          <strong id="metric-measured">측정 중...</strong>
+          <p>같은 최대 변위 사이 시간</p>
+        </div>
+        <div class="metric-card">
+          <div class="label">Angular Frequency</div>
+          <strong id="metric-omega">0.00 rad/s</strong>
+          <p>ω = √(g/L)</p>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="graph-footer">
+      <div id="insight-panel">실 길이가 길어질수록 주기는 √L에 비례해 증가합니다.</div>
+      <div id="compare-summary"></div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DEG = Math.PI / 180;
+const BASE_AXIS = new THREE.Vector3(0, 1, 0);
+const TEMP_VEC_2 = new THREE.Vector3();
+
+const GRAVITY_PRESETS = {
+  지구: { icon: '🌍', name: '지구', g: 9.8, accent: '#70a8ff' },
+  달: { icon: '🌙', name: '달', g: 1.6, accent: '#ffe38c' },
+  화성: { icon: '🔴', name: '화성', g: 3.7, accent: '#ffae84' },
+  목성: { icon: '🪐', name: '목성', g: 24.8, accent: '#ffc794' },
+  '사용자 지정': { icon: '🧪', name: '사용자 지정', g: 9.8, accent: '#9cf7c8' }
+};
+
+const overlay = {
+  scenePanel: document.getElementById('scene-panel'),
+  sceneCanvas: document.getElementById('scene-canvas'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  formulaPanel: document.getElementById('formula-panel'),
+  compareBanner: document.getElementById('compare-banner'),
+  labelMain: document.getElementById('label-main'),
+  labelCompare: document.getElementById('label-compare'),
+  energyPanel: document.getElementById('energy-panel'),
+  kineticFill: document.getElementById('energy-kinetic'),
+  potentialFill: document.getElementById('energy-potential'),
+  totalFill: document.getElementById('energy-total'),
+  kineticValue: document.getElementById('kinetic-value'),
+  potentialValue: document.getElementById('potential-value'),
+  totalValue: document.getElementById('total-value'),
+  metricTheory: document.getElementById('metric-theory'),
+  metricMeasured: document.getElementById('metric-measured'),
+  metricOmega: document.getElementById('metric-omega'),
+  insightPanel: document.getElementById('insight-panel'),
+  compareSummary: document.getElementById('compare-summary')
+};
+
+const params = {
+  length: 1,
+  mass: 1,
+  angleDeg: 15,
+  gravityPreset: '지구',
+  customGravity: 9.8,
+  compareMode: false,
+  compareLength: 1.8,
+  showVectors: true,
+  showEnergy: true,
+  startSimulation: () => restartSimulation(true),
+  resetSimulation: () => resetParameters()
+};
+
+const state = {
+  elapsed: 0,
+  lastSampleAt: 0,
+  measuredPeriod: null,
+  compareMeasuredPeriod: null,
+  lastPositivePeakTime: 0,
+  compareLastPositivePeakTime: 0,
+  previousOmega: 0,
+  comparePreviousOmega: 0,
+  history: [],
+  compareHistory: [],
+  guideOpen: false
+};
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: overlay.sceneCanvas,
+  antialias: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(overlay.scenePanel.clientWidth, overlay.scenePanel.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 8, 18);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 1.2, 6.3);
+camera.lookAt(0, 0.95, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 4.3;
+controls.maxDistance = 10.5;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 0.95, 0);
+controls.update();
+
+const graphCtx = overlay.graphCanvas.getContext('2d');
+const clock = new THREE.Clock();
+
+const supportBeam = new THREE.Mesh(
+  new THREE.BoxGeometry(4.6, 0.16, 0.28),
+  new THREE.MeshStandardMaterial({ color: 0x8f99aa, roughness: 0.55, metalness: 0.12 })
+);
+supportBeam.position.set(0, 1.86, 0);
+supportBeam.castShadow = true;
+scene.add(supportBeam);
+
+const ceilingBrace = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.06, 0.06, 1.3, 24),
+  new THREE.MeshStandardMaterial({ color: 0x788395, roughness: 0.5, metalness: 0.14 })
+);
+ceilingBrace.position.set(0, 2.4, -0.16);
+ceilingBrace.rotation.x = Math.PI * 0.5;
+scene.add(ceilingBrace);
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(4.4, 80),
+  new THREE.MeshStandardMaterial({
+    color: 0xe0e7f0,
+    roughness: 0.95,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.92
+  })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -1.85;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const halo = new THREE.Mesh(
+  new THREE.RingGeometry(2.4, 3.8, 80),
+  new THREE.MeshBasicMaterial({
+    color: 0xdbe3f2,
+    transparent: true,
+    opacity: 0.32,
+    side: THREE.DoubleSide
+  })
+);
+halo.rotation.x = -Math.PI / 2;
+halo.position.y = -1.83;
+scene.add(halo);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.66);
+dirLight.position.set(3.2, 5.2, 4.8);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -6;
+dirLight.shadow.camera.right = 6;
+dirLight.shadow.camera.top = 6;
+dirLight.shadow.camera.bottom = -6;
+dirLight.shadow.bias = -0.00008;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xcfe2ff, 0.28);
+fillLight.position.set(-4, 3, -2);
+scene.add(fillLight);
+
+const pendulumRigs = {
+  main: createPendulumRig({
+    color: 0xff5f52,
+    accent: '#ff8378',
+    labelEl: overlay.labelMain
+  }),
+  compare: createPendulumRig({
+    color: 0x6496ff,
+    accent: '#9bc0ff',
+    labelEl: overlay.labelCompare
+  })
+};
+
+pendulumRigs.compare.group.visible = false;
+const gui = createGui();
+handleResize();
+applyParameterState(true);
+restartSimulation(false);
+animate();
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('beforeunload', disposeAll);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clock.getDelta();
+});
+
+overlay.guideToggle.addEventListener('click', () => {
+  state.guideOpen = !state.guideOpen;
+  overlay.guidePanel.classList.toggle('open', state.guideOpen);
+});
+
+function createPendulumRig({ color, accent, labelEl }) {
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const support = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.3, 18),
+    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.55, metalness: 0.12 })
+  );
+  support.position.y = 0.15;
+  support.castShadow = true;
+  group.add(support);
+
+  const pivot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.32, metalness: 0.18 })
+  );
+  pivot.castShadow = true;
+  group.add(pivot);
+
+  const string = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.015, 1, 18),
+    new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.32, metalness: 0.08 })
+  );
+  string.castShadow = true;
+  group.add(string);
+
+  const bobMaterial = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.28,
+    metalness: 0.1,
+    emissive: color,
+    emissiveIntensity: 0.15
+  });
+
+  const bob = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 32, 32),
+    bobMaterial
+  );
+  bob.castShadow = true;
+  bob.receiveShadow = true;
+  group.add(bob);
+
+  const arc = new THREE.Line(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 })
+  );
+  group.add(arc);
+
+  const sweepMarkers = new THREE.Points(
+    new THREE.BufferGeometry(),
+    new THREE.PointsMaterial({ color, size: 0.07, transparent: true, opacity: 0.55 })
+  );
+  group.add(sweepMarkers);
+
+  const velocityArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.001, 0x44d48c, 0.12, 0.08);
+  const accelerationArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.001, 0xff5d66, 0.12, 0.08);
+  const restoringArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.001, 0x4a8bff, 0.12, 0.08);
+  group.add(velocityArrow, accelerationArrow, restoringArrow);
+
+  const maxGlow = new THREE.Mesh(
+    new THREE.RingGeometry(0.25, 0.33, 40),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide
+    })
+  );
+  maxGlow.rotation.x = Math.PI * 0.5;
+  group.add(maxGlow);
+
+  return {
+    group,
+    support,
+    pivot,
+    string,
+    bob,
+    arc,
+    sweepMarkers,
+    velocityArrow,
+    accelerationArrow,
+    restoringArrow,
+    maxGlow,
+    labelEl,
+    accent
+  };
+}
+
+function createGui() {
+  const guiInstance = new GUI({ title: '실험 제어' });
+  guiInstance.domElement.style.marginTop = '14px';
+  guiInstance.domElement.style.marginRight = '14px';
+
+  guiInstance
+    .add(params, 'length', 0.5, 3, 0.1)
+    .name('실 길이 L')
+    .onChange(() => {
+      params.compareLength = Math.max(0.5, Math.min(3, Number((params.length + 0.8).toFixed(1))));
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  guiInstance
+    .add(params, 'mass', 0.5, 5, 0.1)
+    .name('질량 m')
+    .onChange(() => {
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  guiInstance
+    .add(params, 'angleDeg', 5, 45, 1)
+    .name('초기 각도 θ₀')
+    .onChange(() => {
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  guiInstance
+    .add(params, 'gravityPreset', ['지구', '달', '화성', '목성', '사용자 지정'])
+    .name('중력')
+    .onChange(() => {
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  const customGravityController = guiInstance
+    .add(params, 'customGravity', 0.5, 30, 0.1)
+    .name('사용자 지정 g')
+    .onChange(() => {
+      if (params.gravityPreset === '사용자 지정') {
+        applyParameterState();
+        restartSimulation(true);
+      }
+    });
+
+  guiInstance
+    .add(params, 'compareMode')
+    .name('비교 모드')
+    .onChange(() => {
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  const compareLengthController = guiInstance
+    .add(params, 'compareLength', 0.5, 3, 0.1)
+    .name('비교 길이 L₂')
+    .onChange(() => {
+      applyParameterState();
+      restartSimulation(true);
+    });
+
+  guiInstance
+    .add(params, 'showVectors')
+    .name('속도/가속도 벡터')
+    .onChange(() => applyParameterState());
+
+  guiInstance
+    .add(params, 'showEnergy')
+    .name('에너지 막대그래프')
+    .onChange(() => applyParameterState());
+
+  guiInstance.add(params, 'startSimulation').name('시뮬레이션 시작');
+  guiInstance.add(params, 'resetSimulation').name('초기화');
+
+  params.compareLength = Number(Math.max(0.5, Math.min(3, params.length + 0.8)).toFixed(1));
+
+  function setControllerVisible(controller, visible) {
+    const row = controller.domElement.closest('.controller') || controller.domElement.parentElement;
+    if (row) row.style.display = visible ? '' : 'none';
+  }
+
+  guiInstance.controllersRecursive().forEach((controller) => controller.updateDisplay());
+
+  customGravityController._setVisible = (visible) => setControllerVisible(customGravityController, visible);
+  compareLengthController._setVisible = (visible) => setControllerVisible(compareLengthController, visible);
+
+  guiInstance._customGravityController = customGravityController;
+  guiInstance._compareLengthController = compareLengthController;
+  return guiInstance;
+}
+
+function currentGravityPreset() {
+  if (params.gravityPreset === '사용자 지정') {
+    return {
+      ...GRAVITY_PRESETS['사용자 지정'],
+      g: params.customGravity
+    };
+  }
+  return GRAVITY_PRESETS[params.gravityPreset];
+}
+
+function periodCorrection(theta0) {
+  if (Math.abs(theta0) <= 30 * DEG) return 1;
+  const squared = theta0 * theta0;
+  return 1 + squared / 16 + (11 * squared * squared) / 3072;
+}
+
+function calculatePendulumState(length, mass, angleDeg, g, elapsed) {
+  const theta0 = angleDeg * DEG;
+  const correction = periodCorrection(theta0);
+  const omegaSmall = Math.sqrt(g / length);
+  const period = ((Math.PI * 2) / omegaSmall) * correction;
+  const angularFrequency = (Math.PI * 2) / period;
+  const theta = theta0 * Math.cos(angularFrequency * elapsed);
+  const angularVelocity = -theta0 * angularFrequency * Math.sin(angularFrequency * elapsed);
+  const angularAcceleration = -(g / length) * Math.sin(theta);
+  const speed = Math.abs(length * angularVelocity);
+  const tangentialAcceleration = Math.abs(length * angularAcceleration);
+  const restoringForce = mass * tangentialAcceleration;
+  const bobPosition = new THREE.Vector3(length * Math.sin(theta), -length * Math.cos(theta), 0);
+  const kinetic = 0.5 * mass * speed * speed;
+  const potential = mass * g * length * (1 - Math.cos(theta));
+  const total = mass * g * length * (1 - Math.cos(theta0));
+
+  return {
+    length,
+    mass,
+    g,
+    theta0,
+    theta,
+    thetaDeg: theta / DEG,
+    period,
+    angularFrequency,
+    angularVelocity,
+    angularAcceleration,
+    speed,
+    tangentialAcceleration,
+    restoringForce,
+    bobPosition,
+    kinetic,
+    potential,
+    total
+  };
+}
+
+function restartSimulation(forceResetElapsed) {
+  if (forceResetElapsed) {
+    state.elapsed = 0;
+  }
+  state.lastSampleAt = 0;
+  state.history = [];
+  state.compareHistory = [];
+  state.measuredPeriod = null;
+  state.compareMeasuredPeriod = null;
+  state.lastPositivePeakTime = 0;
+  state.compareLastPositivePeakTime = 0;
+  state.previousOmega = 0;
+  state.comparePreviousOmega = 0;
+  clock.getDelta();
+  applyParameterState();
+}
+
+function resetParameters() {
+  params.length = 1;
+  params.mass = 1;
+  params.angleDeg = 15;
+  params.gravityPreset = '지구';
+  params.customGravity = 9.8;
+  params.compareMode = false;
+  params.compareLength = 1.8;
+  params.showVectors = true;
+  params.showEnergy = true;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  applyParameterState();
+  restartSimulation(true);
+}
+
+function applyParameterState(initial = false) {
+  const gravityInfo = currentGravityPreset();
+  const customController = gui._customGravityController;
+  const compareLengthController = gui._compareLengthController;
+  if (customController && customController._setVisible) {
+    customController._setVisible(params.gravityPreset === '사용자 지정');
+  }
+  if (compareLengthController && compareLengthController._setVisible) {
+    compareLengthController._setVisible(params.compareMode);
+  }
+
+  pendulumRigs.main.group.position.set(params.compareMode ? -1.05 : 0, 1.66, 0);
+  pendulumRigs.compare.group.position.set(1.05, 1.66, 0);
+  pendulumRigs.compare.group.visible = params.compareMode;
+
+  supportBeam.scale.x = params.compareMode ? 1.04 : 0.78;
+  overlay.compareBanner.classList.toggle('show', params.compareMode);
+  overlay.compareSummary.classList.toggle('show', params.compareMode);
+  overlay.energyPanel.classList.toggle('hidden', !params.showEnergy);
+
+  updateArcGeometry(pendulumRigs.main, params.length, params.angleDeg);
+  updateArcGeometry(pendulumRigs.compare, params.compareLength, params.angleDeg);
+  updateBobScale(pendulumRigs.main, params.mass);
+  updateBobScale(pendulumRigs.compare, params.mass);
+
+  scene.background = new THREE.Color(0xeef0f5);
+  dirLight.color.set(params.gravityPreset === '달' ? 0xf7f1cf : params.gravityPreset === '목성' ? 0xffefd0 : 0xffffff);
+  fillLight.color.set(gravityInfo.accent);
+
+  if (!initial) {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function updateBobScale(rig, mass) {
+  const scale = THREE.MathUtils.clamp(0.92 + Math.sqrt(mass) * 0.14, 0.94, 1.28);
+  rig.bob.scale.setScalar(scale);
+}
+
+function updateArcGeometry(rig, length, angleDeg) {
+  const angle = angleDeg * DEG;
+  const points = [];
+  const markerPoints = [];
+  const steps = 72;
+
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const current = -angle + (angle * 2 * t);
+    points.push(length * Math.sin(current), -length * Math.cos(current), 0);
+  }
+
+  markerPoints.push(
+    length * Math.sin(-angle), -length * Math.cos(-angle), 0,
+    length * Math.sin(angle), -length * Math.cos(angle), 0
+  );
+
+  rig.arc.geometry.dispose();
+  rig.arc.geometry = new THREE.BufferGeometry();
+  rig.arc.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+
+  rig.sweepMarkers.geometry.dispose();
+  rig.sweepMarkers.geometry = new THREE.BufferGeometry();
+  rig.sweepMarkers.geometry.setAttribute('position', new THREE.Float32BufferAttribute(markerPoints, 3));
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.04);
+  state.elapsed += delta;
+
+  const gravityInfo = currentGravityPreset();
+  const mainMetrics = calculatePendulumState(params.length, params.mass, params.angleDeg, gravityInfo.g, state.elapsed);
+  const compareMetrics = params.compareMode
+    ? calculatePendulumState(params.compareLength, params.mass, params.angleDeg, gravityInfo.g, state.elapsed)
+    : null;
+
+  updatePeriodMeasurement(mainMetrics, compareMetrics);
+  sampleHistory(mainMetrics, compareMetrics);
+  updatePendulumRig(pendulumRigs.main, mainMetrics, false);
+  if (compareMetrics) {
+    updatePendulumRig(pendulumRigs.compare, compareMetrics, true);
+  }
+  updateLabels(mainMetrics, compareMetrics);
+  updatePanels(mainMetrics, compareMetrics, gravityInfo);
+  renderGraph(mainMetrics, compareMetrics);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function updatePeriodMeasurement(mainMetrics, compareMetrics) {
+  if (state.previousOmega > 0 && mainMetrics.angularVelocity <= 0) {
+    state.measuredPeriod = state.elapsed - state.lastPositivePeakTime;
+    state.lastPositivePeakTime = state.elapsed;
+  }
+  state.previousOmega = mainMetrics.angularVelocity;
+
+  if (!compareMetrics) return;
+
+  if (state.comparePreviousOmega > 0 && compareMetrics.angularVelocity <= 0) {
+    state.compareMeasuredPeriod = state.elapsed - state.compareLastPositivePeakTime;
+    state.compareLastPositivePeakTime = state.elapsed;
+  }
+  state.comparePreviousOmega = compareMetrics.angularVelocity;
+}
+
+function sampleHistory(mainMetrics, compareMetrics) {
+  if (state.elapsed - state.lastSampleAt < 1 / 30) return;
+  state.lastSampleAt = state.elapsed;
+
+  state.history.push({
+    time: state.elapsed,
+    thetaDeg: mainMetrics.thetaDeg,
+    angularVelocity: mainMetrics.angularVelocity
+  });
+
+  if (compareMetrics) {
+    state.compareHistory.push({
+      time: state.elapsed,
+      thetaDeg: compareMetrics.thetaDeg,
+      angularVelocity: compareMetrics.angularVelocity
+    });
+  }
+
+  const keepSeconds = 12;
+  state.history = state.history.filter((item) => state.elapsed - item.time <= keepSeconds);
+  state.compareHistory = state.compareHistory.filter((item) => state.elapsed - item.time <= keepSeconds);
+}
+
+function updatePendulumRig(rig, metrics, isCompare) {
+  rig.bob.position.copy(metrics.bobPosition);
+  rig.maxGlow.position.copy(metrics.bobPosition);
+  rig.maxGlow.position.z = isCompare ? -0.08 : 0.08;
+
+  const midpoint = metrics.bobPosition.clone().multiplyScalar(0.5);
+  const direction = metrics.bobPosition.clone().normalize();
+  rig.string.position.copy(midpoint);
+  rig.string.scale.set(1, metrics.length, 1);
+  rig.string.quaternion.setFromUnitVectors(BASE_AXIS, direction);
+
+  const tangentPositive = new THREE.Vector3(Math.cos(metrics.theta), Math.sin(metrics.theta), 0);
+  const velocityDirection = tangentPositive.clone().multiplyScalar(metrics.angularVelocity >= 0 ? 1 : -1);
+  const restoringDirection = tangentPositive.clone().multiplyScalar(Math.sign(-metrics.theta || 0));
+  const accelerationDirection = restoringDirection.clone();
+
+  updateArrow(
+    rig.velocityArrow,
+    metrics.bobPosition.clone().add(new THREE.Vector3(0, 0, 0.16)),
+    velocityDirection,
+    THREE.MathUtils.clamp(metrics.speed * 0.38, 0.001, 1.3),
+    params.showVectors && metrics.speed > 0.001
+  );
+  updateArrow(
+    rig.accelerationArrow,
+    metrics.bobPosition.clone(),
+    accelerationDirection,
+    THREE.MathUtils.clamp(metrics.tangentialAcceleration * 0.12, 0.001, 1.25),
+    params.showVectors && Math.abs(metrics.theta) > 0.0004
+  );
+  updateArrow(
+    rig.restoringArrow,
+    metrics.bobPosition.clone().add(new THREE.Vector3(0, 0, -0.16)),
+    restoringDirection,
+    THREE.MathUtils.clamp(metrics.restoringForce * 0.08, 0.001, 1.25),
+    params.showVectors && Math.abs(metrics.theta) > 0.0004
+  );
+
+  const nearTurningPoint = Math.abs(metrics.angularVelocity) <= Math.max(0.06, metrics.angularFrequency * 0.04);
+  rig.bob.material.emissiveIntensity = nearTurningPoint ? 0.48 : 0.15;
+  rig.maxGlow.material.opacity = nearTurningPoint ? 0.34 : 0.08;
+}
+
+function updateArrow(arrow, origin, direction, length, visible) {
+  arrow.position.copy(origin);
+  arrow.visible = visible;
+  if (!visible || direction.lengthSq() < 1e-8) return;
+  arrow.setDirection(direction.clone().normalize());
+  arrow.setLength(length, Math.min(0.2, length * 0.25), Math.min(0.12, length * 0.18));
+}
+
+function updateLabels(mainMetrics, compareMetrics) {
+  positionLabel(pendulumRigs.main, mainMetrics, `m = ${formatNumber(mainMetrics.mass, 1)}kg · L = ${formatNumber(mainMetrics.length, 1)}m`);
+
+  if (compareMetrics) {
+    positionLabel(
+      pendulumRigs.compare,
+      compareMetrics,
+      `비교 진자 · L₂ = ${formatNumber(compareMetrics.length, 1)}m`
+    );
+  } else {
+    pendulumRigs.compare.labelEl.style.display = 'none';
+  }
+}
+
+function positionLabel(rig, metrics, baseText) {
+  const rect = overlay.scenePanel.getBoundingClientRect();
+  const world = rig.bob.getWorldPosition(TEMP_VEC_2);
+  world.project(camera);
+  const visible = world.z < 1 && world.z > -1;
+  if (!visible) {
+    rig.labelEl.style.display = 'none';
+    return;
+  }
+
+  const x = (world.x * 0.5 + 0.5) * rect.width;
+  const y = (-world.y * 0.5 + 0.5) * rect.height - 34;
+  const turningPoint = Math.abs(metrics.angularVelocity) <= Math.max(0.06, metrics.angularFrequency * 0.04);
+  rig.labelEl.textContent = turningPoint ? `${baseText} · 최대 변위` : baseText;
+  rig.labelEl.style.left = `${x}px`;
+  rig.labelEl.style.top = `${y}px`;
+  rig.labelEl.style.display = 'block';
+}
+
+function updatePanels(mainMetrics, compareMetrics, gravityInfo) {
+  overlay.metricTheory.textContent = `${formatNumber(mainMetrics.period, 2)} s`;
+  overlay.metricMeasured.textContent = state.measuredPeriod ? `${formatNumber(state.measuredPeriod, 2)} s` : '측정 중...';
+  overlay.metricOmega.textContent = `${formatNumber(mainMetrics.angularFrequency, 2)} rad/s`;
+
+  if (params.showEnergy) {
+    const total = Math.max(mainMetrics.total, 1e-6);
+    overlay.kineticFill.style.width = `${(mainMetrics.kinetic / total) * 100}%`;
+    overlay.potentialFill.style.width = `${(mainMetrics.potential / total) * 100}%`;
+    overlay.totalFill.style.width = '100%';
+    overlay.kineticValue.textContent = `${formatNumber(mainMetrics.kinetic, 2)} J`;
+    overlay.potentialValue.textContent = `${formatNumber(mainMetrics.potential, 2)} J`;
+    overlay.totalValue.textContent = `${formatNumber(mainMetrics.total, 2)} J`;
+  }
+
+  overlay.compareBanner.textContent = compareMetrics
+    ? `비교 모드 · T₁ ${formatNumber(mainMetrics.period, 2)}s / T₂ ${formatNumber(compareMetrics.period, 2)}s`
+    : '';
+
+  overlay.compareSummary.innerHTML = compareMetrics
+    ? `길이가 다른 두 진자를 같은 각도에서 동시에 놓으면, <strong>L이 긴 진자</strong>가 더 느리게 움직입니다. 이때 주기 비는 <strong>T₂ / T₁ = √(L₂ / L₁)</strong>입니다.`
+    : '';
+
+  overlay.insightPanel.innerHTML = buildInsightText(mainMetrics, compareMetrics, gravityInfo);
+  overlay.formulaPanel.innerHTML = buildFormulaText(mainMetrics, compareMetrics, gravityInfo);
+}
+
+function buildInsightText(mainMetrics, compareMetrics, gravityInfo) {
+  if (compareMetrics) {
+    const ratio = Math.sqrt(compareMetrics.length / mainMetrics.length);
+    return `비교 결과: L₁ = ${formatNumber(mainMetrics.length, 1)}m, L₂ = ${formatNumber(compareMetrics.length, 1)}m이면 주기 비는 약 <strong>${formatNumber(ratio, 2)}배</strong>입니다. 길이가 길수록 한 번 왕복하는 시간이 늘어납니다.`;
+  }
+
+  if (params.gravityPreset !== '지구') {
+    return `${gravityInfo.icon} ${gravityInfo.name}에서는 g = ${formatNumber(gravityInfo.g, 1)}m/s²입니다. g가 작을수록 진자는 천천히 흔들리므로 주기가 더 길어집니다.`;
+  }
+
+  if (Math.abs(params.mass - 1) > 0.05) {
+    return `질량을 ${formatNumber(params.mass, 1)}kg으로 바꾸어도 주기는 거의 그대로입니다. 수식 <strong>T = 2π√(L/g)</strong>에 질량 m이 없기 때문입니다.`;
+  }
+
+  if (params.angleDeg > 30) {
+    return `초기 각도 ${params.angleDeg}°는 작은 각도 근사 범위를 벗어나므로, 큰 각도 보정을 적용해 주기가 약간 길어지는 모습도 함께 보여 줍니다.`;
+  }
+
+  return '실의 길이를 4배로 늘리면 주기는 2배가 됩니다. 단진자의 주기는 L에 비례하지 않고 √L에 비례합니다.';
+}
+
+function buildFormulaText(mainMetrics, compareMetrics, gravityInfo) {
+  const measuredText = state.measuredPeriod
+    ? `${formatNumber(state.measuredPeriod, 2)} s`
+    : '측정 중...';
+  const compareLine = compareMetrics
+    ? `<div class="formula-note">비교 모드: L₂ = ${formatNumber(compareMetrics.length, 1)}m인 진자의 이론 주기는 <strong>${formatNumber(compareMetrics.period, 2)}s</strong>입니다.</div>`
+    : '';
+
+  return `
+    <div class="eyebrow">Simple Pendulum</div>
+    <h2>🕰️ 단진자 운동</h2>
+    <div class="formula-kv">
+      <div class="formula-cell">
+        <div class="label">Length · Mass</div>
+        <strong>L = ${formatNumber(mainMetrics.length, 1)}m, m = ${formatNumber(mainMetrics.mass, 1)}kg</strong>
+      </div>
+      <div class="formula-cell">
+        <div class="label">Gravity · Angle</div>
+        <strong>${gravityInfo.icon} ${gravityInfo.name} · θ₀ = ${params.angleDeg}°</strong>
+      </div>
+    </div>
+    <div class="formula-block">
+      현재 각도: <strong>θ = ${formatNumber(mainMetrics.thetaDeg, 1)}°</strong><br>
+      주기: <strong>T = 2π√(L/g) = 2π√(${formatNumber(mainMetrics.length, 1)}/${formatNumber(mainMetrics.g, 1)}) = ${formatNumber(mainMetrics.period, 2)}s</strong><br>
+      각진동수: <strong>ω = √(g/L) = ${formatNumber(mainMetrics.angularFrequency, 2)}rad/s</strong><br>
+      진동수: <strong>f = 1/T = ${formatNumber(1 / mainMetrics.period, 2)}Hz</strong><br>
+      측정 주기: <strong>${measuredText}</strong>
+    </div>
+    <div class="formula-note">
+      등시성: <strong>T는 질량 m에 무관</strong>하고, 작은 각도에서는 <strong>진폭 θ₀에도 거의 무관</strong>합니다.<br>
+      따라서 단진자의 주기는 <strong>L</strong>과 <strong>g</strong>에만 의존하며, <strong>T ∝ √L</strong>, <strong>T ∝ 1/√g</strong>입니다.
+    </div>
+    ${compareLine}
+  `;
+}
+
+function renderGraph(mainMetrics, compareMetrics) {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(320, overlay.graphCanvas.clientWidth);
+  const height = Math.max(280, overlay.graphCanvas.clientHeight);
+  const targetWidth = Math.floor(width * dpr);
+  const targetHeight = Math.floor(height * dpr);
+
+  if (overlay.graphCanvas.width !== targetWidth || overlay.graphCanvas.height !== targetHeight) {
+    overlay.graphCanvas.width = targetWidth;
+    overlay.graphCanvas.height = targetHeight;
+  }
+
+  graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphCtx.clearRect(0, 0, width, height);
+
+  const outer = {
+    x: 18,
+    y: 18,
+    w: width - 36,
+    h: height - 36
+  };
+  const gap = 18;
+  const plotHeight = (outer.h - gap) / 2;
+  const thetaRect = { x: outer.x, y: outer.y, w: outer.w, h: plotHeight };
+  const omegaRect = { x: outer.x, y: outer.y + plotHeight + gap, w: outer.w, h: plotHeight };
+
+  const timeWindow = Math.max(8, Math.min(12, mainMetrics.period * 3.5));
+  const minTime = Math.max(0, state.elapsed - timeWindow);
+  const maxTime = minTime + timeWindow;
+  const thetaRange = Math.max(20, params.angleDeg + 8);
+  const omegaRange = Math.max(
+    Math.abs(mainMetrics.angularVelocity),
+    compareMetrics ? Math.abs(compareMetrics.angularVelocity) : 0,
+    params.angleDeg * DEG * mainMetrics.angularFrequency,
+    compareMetrics ? params.angleDeg * DEG * compareMetrics.angularFrequency : 0
+  ) * 1.22 || 1;
+
+  drawChartBackground(thetaRect, 'θ-t 그래프', '#ff9b86');
+  drawChartBackground(omegaRect, 'ω-t 그래프', '#8fb7ff');
+
+  drawHistoryLine(thetaRect, state.history, minTime, maxTime, -thetaRange, thetaRange, (item) => item.thetaDeg, '#ff7c6d', 2.8);
+  drawHistoryLine(omegaRect, state.history, minTime, maxTime, -omegaRange, omegaRange, (item) => item.angularVelocity, '#78bbff', 2.6);
+
+  if (compareMetrics) {
+    drawHistoryLine(thetaRect, state.compareHistory, minTime, maxTime, -thetaRange, thetaRange, (item) => item.thetaDeg, '#9fc0ff', 2.2, [10, 8]);
+    drawHistoryLine(omegaRect, state.compareHistory, minTime, maxTime, -omegaRange, omegaRange, (item) => item.angularVelocity, '#ffd18b', 2.2, [10, 8]);
+  }
+
+  drawZeroLine(thetaRect, -thetaRange, thetaRange);
+  drawZeroLine(omegaRect, -omegaRange, omegaRange);
+  drawCurrentTimeCursor(thetaRect, omegaRect, state.elapsed, minTime, maxTime);
+  drawCurrentPoint(thetaRect, state.elapsed, minTime, maxTime, -thetaRange, thetaRange, mainMetrics.thetaDeg, '#fff4d0');
+  drawCurrentPoint(omegaRect, state.elapsed, minTime, maxTime, -omegaRange, omegaRange, mainMetrics.angularVelocity, '#dff4ff');
+
+  drawPeriodMarker(thetaRect, mainMetrics.period, timeWindow, `T = ${formatNumber(mainMetrics.period, 2)}s`, '#ffd86a');
+
+  if (compareMetrics) {
+    drawInlineNote(thetaRect, `L₁ ${formatNumber(mainMetrics.length, 1)}m`, '#ffb3aa', 16);
+    drawInlineNote(thetaRect, `L₂ ${formatNumber(compareMetrics.length, 1)}m`, '#bcd2ff', 124);
+  }
+
+  drawAxisLabels(thetaRect, `+${formatNumber(thetaRange, 0)}°`, '0°', `-${formatNumber(thetaRange, 0)}°`);
+  drawAxisLabels(omegaRect, `${formatNumber(omegaRange, 2)}`, '0', `-${formatNumber(omegaRange, 2)}`);
+}
+
+function drawChartBackground(rect, title, accent) {
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  graphCtx.lineWidth = 1;
+  roundRect(graphCtx, rect.x, rect.y, rect.w, rect.h, 18);
+  graphCtx.fill();
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.68)';
+  graphCtx.font = '600 12px Pretendard, system-ui, sans-serif';
+  graphCtx.fillText(title, rect.x + 14, rect.y + 20);
+  graphCtx.fillStyle = accent;
+  graphCtx.fillRect(rect.x + rect.w - 58, rect.y + 14, 42, 4);
+
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+  graphCtx.lineWidth = 1;
+  for (let i = 1; i <= 4; i += 1) {
+    const y = rect.y + (rect.h * i) / 5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(rect.x + 12, y);
+    graphCtx.lineTo(rect.x + rect.w - 12, y);
+    graphCtx.stroke();
+  }
+  for (let i = 1; i <= 5; i += 1) {
+    const x = rect.x + (rect.w * i) / 6;
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, rect.y + 12);
+    graphCtx.lineTo(x, rect.y + rect.h - 12);
+    graphCtx.stroke();
+  }
+  graphCtx.restore();
+}
+
+function drawHistoryLine(rect, history, minTime, maxTime, minValue, maxValue, pickValue, color, lineWidth, dash = []) {
+  if (history.length < 2) return;
+  graphCtx.save();
+  graphCtx.strokeStyle = color;
+  graphCtx.lineWidth = lineWidth;
+  graphCtx.setLineDash(dash);
+  graphCtx.beginPath();
+
+  let started = false;
+  for (const entry of history) {
+    if (entry.time < minTime) continue;
+    const x = map(entry.time, minTime, maxTime, rect.x + 12, rect.x + rect.w - 12);
+    const y = map(pickValue(entry), minValue, maxValue, rect.y + rect.h - 18, rect.y + 26);
+    if (!started) {
+      graphCtx.moveTo(x, y);
+      started = true;
+    } else {
+      graphCtx.lineTo(x, y);
+    }
+  }
+
+  graphCtx.stroke();
+  graphCtx.setLineDash([]);
+  graphCtx.restore();
+}
+
+function drawZeroLine(rect, minValue, maxValue) {
+  const zeroY = map(0, minValue, maxValue, rect.y + rect.h - 18, rect.y + 26);
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  graphCtx.setLineDash([6, 6]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(rect.x + 12, zeroY);
+  graphCtx.lineTo(rect.x + rect.w - 12, zeroY);
+  graphCtx.stroke();
+  graphCtx.restore();
+}
+
+function drawCurrentTimeCursor(thetaRect, omegaRect, time, minTime, maxTime) {
+  const x = map(time, minTime, maxTime, thetaRect.x + 12, thetaRect.x + thetaRect.w - 12);
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+  graphCtx.setLineDash([8, 6]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(x, thetaRect.y + 12);
+  graphCtx.lineTo(x, omegaRect.y + omegaRect.h - 12);
+  graphCtx.stroke();
+  graphCtx.restore();
+}
+
+function drawCurrentPoint(rect, time, minTime, maxTime, minValue, maxValue, value, color) {
+  const x = map(time, minTime, maxTime, rect.x + 12, rect.x + rect.w - 12);
+  const y = map(value, minValue, maxValue, rect.y + rect.h - 18, rect.y + 26);
+  graphCtx.save();
+  graphCtx.fillStyle = color;
+  graphCtx.beginPath();
+  graphCtx.arc(x, y, 4.4, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.restore();
+}
+
+function drawPeriodMarker(rect, period, timeWindow, label, color) {
+  const markerWidth = ((rect.w - 36) * period) / timeWindow;
+  const clampedWidth = Math.max(32, Math.min(rect.w - 90, markerWidth));
+  const startX = rect.x + 18;
+  const endX = startX + clampedWidth;
+  const y = rect.y + rect.h - 28;
+
+  graphCtx.save();
+  graphCtx.strokeStyle = color;
+  graphCtx.fillStyle = color;
+  graphCtx.lineWidth = 2;
+  graphCtx.beginPath();
+  graphCtx.moveTo(startX, y);
+  graphCtx.lineTo(endX, y);
+  graphCtx.stroke();
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(startX, y);
+  graphCtx.lineTo(startX + 8, y - 5);
+  graphCtx.lineTo(startX + 8, y + 5);
+  graphCtx.closePath();
+  graphCtx.fill();
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(endX, y);
+  graphCtx.lineTo(endX - 8, y - 5);
+  graphCtx.lineTo(endX - 8, y + 5);
+  graphCtx.closePath();
+  graphCtx.fill();
+
+  graphCtx.font = '600 11px Pretendard, system-ui, sans-serif';
+  graphCtx.fillText(label, startX, y - 8);
+  graphCtx.restore();
+}
+
+function drawInlineNote(rect, text, color, offsetX) {
+  graphCtx.save();
+  graphCtx.fillStyle = color;
+  graphCtx.font = '600 11px Pretendard, system-ui, sans-serif';
+  graphCtx.fillText(text, rect.x + offsetX, rect.y + 34);
+  graphCtx.restore();
+}
+
+function drawAxisLabels(rect, topLabel, midLabel, bottomLabel) {
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.46)';
+  graphCtx.font = '11px Pretendard, system-ui, sans-serif';
+  graphCtx.fillText(topLabel, rect.x + 12, rect.y + 42);
+  graphCtx.fillText(midLabel, rect.x + 12, rect.y + rect.h / 2 + 4);
+  graphCtx.fillText(bottomLabel, rect.x + 12, rect.y + rect.h - 18);
+  graphCtx.restore();
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function map(value, inMin, inMax, outMin, outMax) {
+  if (Math.abs(inMax - inMin) < 1e-8) return (outMin + outMax) * 0.5;
+  const ratio = (value - inMin) / (inMax - inMin);
+  return outMin + ratio * (outMax - outMin);
+}
+
+function formatNumber(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function handleResize() {
+  const width = overlay.scenePanel.clientWidth;
+  const height = overlay.scenePanel.clientHeight;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+
+function disposeAll() {
+  renderer.dispose();
+  controls.dispose();
+  pendulumRigs.main.arc.geometry.dispose();
+  pendulumRigs.compare.arc.geometry.dispose();
+  pendulumRigs.main.sweepMarkers.geometry.dispose();
+  pendulumRigs.compare.sweepMarkers.geometry.dispose();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역학적 에너지와 열에너지 전환 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --bg-sky: #eef0f5;
+    --panel-dark: rgba(10, 18, 30, 0.84);
+    --panel-mid: rgba(18, 28, 44, 0.74);
+    --panel-light: rgba(255, 252, 246, 0.9);
+    --line-light: rgba(255, 255, 255, 0.12);
+    --line-dark: rgba(72, 58, 42, 0.14);
+    --text-main: #f8fbff;
+    --text-dim: rgba(248, 251, 255, 0.72);
+    --text-body: #2b241d;
+    --text-muted: #7b6e63;
+    --mechanical: #ff6c6c;
+    --thermal: #ff9d42;
+    --total: #8de3a8;
+    --accent: #5cb4ff;
+    --shadow-soft: 0 22px 52px rgba(12, 22, 34, 0.22);
+    --shadow-warm: 0 22px 56px rgba(78, 56, 40, 0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 210, 168, 0.22), transparent 22%),
+      radial-gradient(circle at 84% 14%, rgba(110, 176, 255, 0.18), transparent 18%),
+      linear-gradient(180deg, #f7f3ea 0%, #eef0f5 36%, #dbe3ef 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas { display: block; }
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  #hero {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 25;
+    width: min(620px, calc(100vw - 32px));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #hero .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(32, 46, 64, 0.56);
+    font-weight: 700;
+  }
+
+  #hero h1 {
+    margin-top: 5px;
+    font-size: 28px;
+    line-height: 1.12;
+    color: rgba(20, 30, 44, 0.96);
+    letter-spacing: -0.04em;
+    text-shadow: 0 4px 18px rgba(255, 255, 255, 0.48);
+  }
+
+  #hero p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(26, 38, 54, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 52;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(8, 22, 42, 0.84);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 51;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(76vh, 820px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    background: rgba(7, 18, 34, 0.92);
+    color: #f7fbff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-soft);
+    display: none;
+    line-height: 1.75;
+    font-size: 13px;
+    backdrop-filter: blur(18px);
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #9fd5ff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #scenario-tabs {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(720px, calc(100vw - 32px));
+  }
+
+  .scenario-tab {
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.24);
+    color: rgba(18, 30, 46, 0.78);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  }
+
+  .scenario-tab:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.34);
+  }
+
+  .scenario-tab.active {
+    background: rgba(13, 28, 48, 0.86);
+    color: #fff;
+    border-color: rgba(124, 200, 255, 0.28);
+    box-shadow: 0 14px 28px rgba(12, 24, 40, 0.22);
+  }
+
+  #status-panel {
+    position: fixed;
+    top: 138px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    width: min(560px, calc(100vw - 34px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: rgba(9, 18, 32, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+  }
+
+  #status-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  #status-title {
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  #status-body {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #status-flow {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 244, 230, 0.92);
+    font-size: 12px;
+  }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 31;
+    width: min(390px, calc(100vw - 28px));
+    padding: 18px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(249, 244, 236, 0.92));
+    color: var(--text-body);
+    border: 1px solid var(--line-dark);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-warm);
+    line-height: 1.72;
+    font-size: 12px;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #a24f27;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(162, 79, 39, 0.4), rgba(162, 79, 39, 0.03));
+  }
+
+  #formula-panel .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  #formula-panel .label {
+    width: 108px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    font-weight: 700;
+  }
+
+  #formula-panel .callout,
+  #formula-panel .formula-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(182, 110, 71, 0.16);
+    background: rgba(255, 145, 77, 0.08);
+  }
+
+  #formula-panel .formula-box strong,
+  #formula-panel .callout strong {
+    color: #b55d2f;
+  }
+
+  #graph-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 32;
+    width: min(380px, calc(100vw - 28px));
+    height: min(360px, 46vh);
+    display: flex;
+    flex-direction: column;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(8, 16, 30, 0.94), rgba(18, 28, 44, 0.9));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+  }
+
+  #graph-panel.hidden { display: none; }
+
+  #graph-head {
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-head h2 {
+    font-size: 18px;
+    color: #f6fbff;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(246, 251, 255, 0.66);
+    line-height: 1.6;
+  }
+
+  #graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 16px currentColor;
+  }
+
+  #graph-canvas {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (max-width: 960px) {
+    #hero h1 { font-size: 25px; }
+    #status-panel { top: 150px; }
+    #graph-panel {
+      width: min(360px, calc(100vw - 24px));
+      height: min(320px, 40vh);
+      right: 12px;
+      bottom: 12px;
+    }
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: min(360px, calc(100vw - 24px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #hero {
+      top: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #hero h1 { font-size: 23px; }
+
+    #scenario-tabs {
+      top: 96px;
+      width: calc(100vw - 24px);
+    }
+
+    #status-panel {
+      top: 154px;
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 276px;
+    }
+
+    #graph-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      height: 250px;
+      bottom: 10px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    #status-panel { top: 186px; }
+    .scenario-tab {
+      width: 100%;
+      justify-content: center;
+    }
+    #formula-panel {
+      bottom: 286px;
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-root"></div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>물체가 마찰이나 저항을 받으며 운동하면 역학적 에너지의 일부가 열에너지로 전환됩니다. 그래서 역학적 에너지는 줄어들어도, 열에너지를 포함한 전체 에너지는 보존됩니다.</p>
+  <p>줄은 추를 떨어뜨려 패들을 돌리는 실험으로 역학적 에너지가 물의 열에너지로 바뀔 수 있음을 보였습니다. 반대로 열기관에서는 열에너지가 다시 역학적 에너지로 전환됩니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>마찰이 있는 면에서 운동하는 블록의 역학적 에너지가 감소하는 까닭은 무엇인가요?</li>
+    <li>줄의 실험에서 추의 위치 에너지가 물의 열에너지로 전환되는 경로를 설명해 보세요.</li>
+    <li>운석이 대기에 진입할 때 빛과 열을 내는 현상을 에너지 전환으로 설명해 보세요.</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>자동차 브레이크 패드가 뜨거워지는 것은 운동 에너지가 열에너지로 바뀌기 때문입니다.</li>
+    <li>손을 비비면 마찰로 열이 생겨 따뜻해집니다.</li>
+    <li>발전소의 터빈과 기관은 열에너지를 역학적 에너지로 전환합니다.</li>
+    <li>유성은 공기 저항과 마찰로 매우 뜨거워집니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>물리학 I편 p62~67</p>
+  <p>역학적 에너지와 열, 줄의 실험, 열기관의 기본 원리를 한 장면씩 비교하도록 구성했습니다.</p>
+</div>
+
+<div id="hero">
+  <div class="eyebrow">Physics I · Force &amp; Energy</div>
+  <h1>역학적 에너지와 열에너지 전환</h1>
+  <p>마찰, 줄의 실험, 열기관을 전환하며 역학적 에너지와 열에너지가 어떻게 오가는지 3D로 탐구하세요.</p>
+</div>
+
+<div id="scenario-tabs">
+  <button class="scenario-tab active" data-scenario="friction">마찰에 의한 전환</button>
+  <button class="scenario-tab" data-scenario="joule">줄의 실험</button>
+  <button class="scenario-tab" data-scenario="engine">열→역학</button>
+</div>
+
+<div id="status-panel">
+  <div id="status-eyebrow">Energy Conversion</div>
+  <div id="status-title">운동 에너지가 마찰열로 바뀌는 장면</div>
+  <div id="status-body">블록을 밀어 출발시키면 마찰이 운동을 방해하고, 줄어든 운동 에너지는 블록과 바닥의 열에너지로 전환됩니다.</div>
+  <div id="status-flow">에너지 전환 경로 · <strong>운동 E → 마찰 → 열 E</strong></div>
+</div>
+
+<div id="formula-panel"></div>
+
+<div id="graph-panel">
+  <div id="graph-head">
+    <h2>에너지 막대그래프</h2>
+    <p>역학적 에너지와 열에너지를 동시에 보고, 총에너지가 일정하게 유지되는지 확인해 보세요.</p>
+    <div id="graph-legend">
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--mechanical); background: var(--mechanical);"></span>역학적 E</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--thermal); background: var(--thermal);"></span>열 E</span>
+      <span class="legend-chip"><span class="legend-dot" style="color: var(--total); background: var(--total);"></span>총 E</span>
+    </div>
+  </div>
+  <canvas id="graph-canvas"></canvas>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const GRAVITY = 9.8;
+const BLOCK_MASS = 2;
+const ENGINE_TOTAL_ENERGY = 720;
+const ENGINE_EFFICIENCY = 0.36;
+const JOULE_WATER_MASS_GRAM = 80;
+const clock = new THREE.Clock();
+
+const SCENARIOS = {
+  friction: {
+    label: '마찰에 의한 전환',
+    shortLabel: '마찰',
+    title: '운동 에너지가 마찰열로 바뀌는 장면',
+    status: '블록을 밀어 출발시키면 마찰이 운동을 방해하고, 줄어든 운동 에너지는 블록과 바닥의 열에너지로 전환됩니다.',
+    flow: '운동 E → 마찰 → 열 E'
+  },
+  joule: {
+    label: '줄의 실험',
+    shortLabel: '줄의 실험',
+    title: '추의 위치 에너지가 물의 열에너지로 바뀌는 장면',
+    status: '떨어지는 추가 도르래와 패들을 돌리면 물과의 마찰이 커지고, 물의 온도가 올라갑니다. 줄은 이 과정으로 역학적 에너지와 열의 전환을 보여 주었습니다.',
+    flow: '추의 위치 E → 패들 운동 E → 물의 열 E'
+  },
+  engine: {
+    label: '열→역학',
+    shortLabel: '열기관',
+    title: '열에너지가 다시 역학적 에너지로 전환되는 장면',
+    status: '보일러에서 가열된 열에너지가 피스톤과 바퀴의 운동으로 바뀝니다. 하지만 일부는 폐열로 남으므로 효율은 100%보다 작습니다.',
+    flow: '열 E → 증기 압력 → 피스톤/바퀴의 역학적 E'
+  }
+};
+
+const scenarioTabs = Array.from(document.querySelectorAll('.scenario-tab'));
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const statusEyebrowEl = document.getElementById('status-eyebrow');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const statusFlowEl = document.getElementById('status-flow');
+const formulaPanelEl = document.getElementById('formula-panel');
+const graphPanelEl = document.getElementById('graph-panel');
+const graphCanvasEl = document.getElementById('graph-canvas');
+const sceneRootEl = document.getElementById('scene-root');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.02;
+renderer.setClearColor(0xeef0f5, 1);
+sceneRootEl.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(8.5, 5.6, 9.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 4.5;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.5, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(-12, 18, 12);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -20;
+dirLight.shadow.camera.right = 20;
+dirLight.shadow.camera.top = 20;
+dirLight.shadow.camera.bottom = -20;
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 60;
+dirLight.shadow.bias = -0.00015;
+scene.add(dirLight);
+
+const hemiLight = new THREE.HemisphereLight(0xf8fbff, 0xb9c8d8, 0.22);
+scene.add(hemiLight);
+
+const groundShadow = new THREE.Mesh(
+  new THREE.CircleGeometry(13, 64),
+  new THREE.ShadowMaterial({ opacity: 0.13 })
+);
+groundShadow.rotation.x = -Math.PI / 2;
+groundShadow.position.y = -0.01;
+groundShadow.receiveShadow = true;
+scene.add(groundShadow);
+
+const params = {
+  scenario: 'friction',
+  initialSpeed: 5,
+  frictionCoeff: 0.25,
+  weightMass: 5,
+  dropHeight: 3,
+  showGraph: true
+};
+
+const actions = {
+  start: () => startSimulation(),
+  reset: () => resetSimulation()
+};
+
+const runtime = {
+  activeScenario: null,
+  started: false,
+  running: false,
+  complete: false,
+  elapsed: 0,
+  globalTime: 0,
+  latestState: null
+};
+
+const CAMERA_POSES = {
+  friction: {
+    position: new THREE.Vector3(8.6, 5.2, 9.4),
+    target: new THREE.Vector3(0, 0.9, 0)
+  },
+  joule: {
+    position: new THREE.Vector3(7.4, 4.9, 8.2),
+    target: new THREE.Vector3(0, 1.4, 0)
+  },
+  engine: {
+    position: new THREE.Vector3(8.9, 4.8, 10.2),
+    target: new THREE.Vector3(0.7, 1.35, 0)
+  }
+};
+
+const gui = new GUI({ title: '시뮬레이션 설정', width: 290 });
+gui.domElement.style.zIndex = '60';
+gui.domElement.style.position = 'fixed';
+gui.domElement.style.top = '14px';
+gui.domElement.style.right = '14px';
+
+const scenarioController = gui.add(params, 'scenario', {
+  '마찰에 의한 전환': 'friction',
+  '줄의 실험': 'joule',
+  '열→역학': 'engine'
+}).name('시나리오');
+
+const speedController = gui.add(params, 'initialSpeed', 1, 10, 0.1).name('초기 속도 (m/s)');
+const frictionController = gui.add(params, 'frictionCoeff', 0.1, 0.5, 0.01).name('마찰 계수');
+const massController = gui.add(params, 'weightMass', 1, 10, 0.1).name('추 질량 (kg)');
+const heightController = gui.add(params, 'dropHeight', 1, 5, 0.1).name('낙하 높이 (m)');
+const graphController = gui.add(params, 'showGraph').name('에너지 그래프');
+gui.add(actions, 'start').name('시뮬레이션 시작');
+gui.add(actions, 'reset').name('초기화');
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function smoothstep(min, max, value) {
+  const x = clamp((value - min) / (max - min || 1), 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+function formatNumber(value, digits = 1) {
+  return Number.isFinite(value) ? value.toFixed(digits) : '0.0';
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach((entry) => disposeMaterial(entry));
+    return;
+  }
+  Object.keys(material).forEach((key) => {
+    const value = material[key];
+    if (value && typeof value === 'object' && typeof value.dispose === 'function') {
+      value.dispose();
+    }
+  });
+  material.dispose();
+}
+
+function disposeObject3D(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) disposeMaterial(child.material);
+  });
+}
+
+function createLabelSprite({ scaleX = 2.2, scaleY = 0.62 } = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.renderOrder = 10;
+  sprite.scale.set(scaleX, scaleY, 1);
+
+  const api = {
+    sprite,
+    setText(text, {
+      fill = 'rgba(8, 18, 30, 0.78)',
+      stroke = 'rgba(255, 255, 255, 0.08)',
+      color = '#ffffff'
+    } = {}) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      drawRoundRect(context, 18, 18, canvas.width - 36, canvas.height - 36, 34);
+      context.fillStyle = fill;
+      context.fill();
+      context.strokeStyle = stroke;
+      context.lineWidth = 2;
+      context.stroke();
+      context.font = '600 44px Pretendard, SUIT, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = color;
+      context.fillText(text, canvas.width / 2, canvas.height / 2);
+      texture.needsUpdate = true;
+    }
+  };
+
+  return api;
+}
+
+class PointParticleSystem {
+  constructor(maxCount, size = 0.12, opacity = 0.88) {
+    this.maxCount = maxCount;
+    this.positions = new Float32Array(maxCount * 3);
+    this.colors = new Float32Array(maxCount * 3);
+    this.life = new Float32Array(maxCount);
+    this.maxLife = new Float32Array(maxCount);
+    this.baseColors = Array.from({ length: maxCount }, () => new THREE.Color());
+    this.velocities = Array.from({ length: maxCount }, () => new THREE.Vector3());
+    this.cursor = 0;
+
+    for (let i = 0; i < maxCount; i += 1) {
+      this.positions[i * 3 + 1] = -999;
+    }
+
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+
+    this.material = new THREE.PointsMaterial({
+      size,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+      sizeAttenuation: true
+    });
+
+    this.points = new THREE.Points(this.geometry, this.material);
+    this.points.frustumCulled = false;
+  }
+
+  spawn(position, velocity, color, life = 1) {
+    const index = this.cursor % this.maxCount;
+    this.cursor += 1;
+    const offset = index * 3;
+    this.positions[offset] = position.x;
+    this.positions[offset + 1] = position.y;
+    this.positions[offset + 2] = position.z;
+    this.velocities[index].copy(velocity);
+    this.baseColors[index].set(color);
+    this.colors[offset] = this.baseColors[index].r;
+    this.colors[offset + 1] = this.baseColors[index].g;
+    this.colors[offset + 2] = this.baseColors[index].b;
+    this.life[index] = life;
+    this.maxLife[index] = life;
+  }
+
+  update(delta, gravity = 0, drag = 0.92) {
+    const dragFactor = Math.pow(drag, delta * 60);
+    for (let i = 0; i < this.maxCount; i += 1) {
+      if (this.life[i] <= 0) continue;
+      const offset = i * 3;
+      this.life[i] -= delta;
+      if (this.life[i] <= 0) {
+        this.positions[offset] = 0;
+        this.positions[offset + 1] = -999;
+        this.positions[offset + 2] = 0;
+        this.colors[offset] = 0;
+        this.colors[offset + 1] = 0;
+        this.colors[offset + 2] = 0;
+        continue;
+      }
+
+      this.velocities[i].y += gravity * delta;
+      this.velocities[i].multiplyScalar(dragFactor);
+      this.positions[offset] += this.velocities[i].x * delta;
+      this.positions[offset + 1] += this.velocities[i].y * delta;
+      this.positions[offset + 2] += this.velocities[i].z * delta;
+
+      const fade = clamp(this.life[i] / this.maxLife[i], 0, 1);
+      this.colors[offset] = this.baseColors[i].r * fade;
+      this.colors[offset + 1] = this.baseColors[i].g * fade;
+      this.colors[offset + 2] = this.baseColors[i].b * fade;
+    }
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.color.needsUpdate = true;
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    this.material.dispose();
+  }
+}
+
+function setControllerVisible(controller, visible) {
+  controller.domElement.style.display = visible ? '' : 'none';
+}
+
+function updateControllerVisibility() {
+  const isFriction = params.scenario === 'friction';
+  const isJoule = params.scenario === 'joule';
+  setControllerVisible(speedController, isFriction);
+  setControllerVisible(frictionController, isFriction);
+  setControllerVisible(massController, isJoule);
+  setControllerVisible(heightController, isJoule);
+  graphPanelEl.classList.toggle('hidden', !params.showGraph);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setTabState() {
+  scenarioTabs.forEach((button) => {
+    button.classList.toggle('active', button.dataset.scenario === params.scenario);
+  });
+}
+
+function applyCameraPose(key) {
+  const pose = CAMERA_POSES[key];
+  if (!pose) return;
+  camera.position.copy(pose.position);
+  controls.target.copy(pose.target);
+  controls.update();
+}
+
+function createGroundPlate(width, depth, color = 0xd5dce8) {
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.08, depth),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.96,
+      metalness: 0.02
+    })
+  );
+  plate.receiveShadow = true;
+  return plate;
+}
+
+function createScenarioRoot() {
+  const root = new THREE.Group();
+  const plate = createGroundPlate(16, 10);
+  plate.position.y = -0.04;
+  root.add(plate);
+  return root;
+}
+
+function createFrictionScenario() {
+  const root = createScenarioRoot();
+
+  const platform = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 0.1, 3),
+    new THREE.MeshStandardMaterial({
+      color: 0xaa9988,
+      roughness: 0.92,
+      metalness: 0.04
+    })
+  );
+  platform.position.y = 0.05;
+  platform.receiveShadow = true;
+  root.add(platform);
+
+  const frictionBand = new THREE.Mesh(
+    new THREE.BoxGeometry(10.6, 0.02, 1.4),
+    new THREE.MeshStandardMaterial({
+      color: 0xcb5a4a,
+      roughness: 0.72,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.9
+    })
+  );
+  frictionBand.position.y = 0.12;
+  root.add(frictionBand);
+
+  const blockMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4488aa,
+    roughness: 0.35,
+    metalness: 0.08,
+    emissive: 0x000000
+  });
+
+  const block = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.5, 0.5),
+    blockMaterial
+  );
+  block.castShadow = true;
+  block.receiveShadow = true;
+  root.add(block);
+
+  const blockEdge = new THREE.Mesh(
+    new THREE.BoxGeometry(0.82, 0.08, 0.52),
+    new THREE.MeshStandardMaterial({
+      color: 0x2a485f,
+      roughness: 0.5,
+      metalness: 0.05
+    })
+  );
+  blockEdge.position.y = -0.22;
+  block.add(blockEdge);
+
+  const floorGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.46, 36),
+    new THREE.MeshBasicMaterial({
+      color: 0xff7444,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  floorGlow.rotation.x = -Math.PI / 2;
+  floorGlow.position.y = 0.11;
+  root.add(floorGlow);
+
+  const speedArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(),
+    1.4,
+    0xff6c6c,
+    0.26,
+    0.16
+  );
+  root.add(speedArrow);
+
+  const heatParticles = new PointParticleSystem(90, 0.18, 0.82);
+  root.add(heatParticles.points);
+
+  const tempLabel = createLabelSprite({ scaleX: 1.95, scaleY: 0.56 });
+  tempLabel.setText('접촉면 20.0°C');
+  root.add(tempLabel.sprite);
+
+  const blockLabel = createLabelSprite({ scaleX: 1.8, scaleY: 0.54 });
+  blockLabel.setText('블록 20.0°C', {
+    fill: 'rgba(16, 32, 46, 0.74)',
+    color: '#f5fbff'
+  });
+  root.add(blockLabel.sprite);
+
+  const coolColor = new THREE.Color(0x4488aa);
+  const hotColor = new THREE.Color(0xff824d);
+  const emissiveHot = new THREE.Color(0xff5f2e);
+  const startX = -4.8;
+  const endX = 4.6;
+
+  const scenario = {
+    root,
+    maxDuration: 0,
+    reset() {
+      const stopTime = params.initialSpeed / (params.frictionCoeff * GRAVITY);
+      this.maxDuration = Math.max(0.2, stopTime);
+      block.position.set(startX, 0.35, 0);
+      floorGlow.position.set(startX, 0.11, 0);
+      floorGlow.scale.setScalar(1);
+      floorGlow.material.opacity = 0.08;
+      block.material.color.copy(coolColor);
+      block.material.emissive.setHex(0x000000);
+      speedArrow.position.set(startX, 0.6, 0);
+      speedArrow.setLength(1.3, 0.26, 0.16);
+      tempLabel.sprite.position.set(startX, 1.25, 0);
+      blockLabel.sprite.position.set(startX, 0.95, 0.8);
+      tempLabel.setText('접촉면 20.0°C');
+      blockLabel.setText('블록 20.0°C', {
+        fill: 'rgba(16, 32, 46, 0.74)',
+        color: '#f5fbff'
+      });
+    },
+    update(delta, globalTime, simTime) {
+      const kineticTotal = 0.5 * BLOCK_MASS * params.initialSpeed * params.initialSpeed;
+      const deceleration = params.frictionCoeff * GRAVITY;
+      const stopTime = params.initialSpeed / deceleration;
+      const stopDistance = (params.initialSpeed * params.initialSpeed) / (2 * deceleration);
+      const time = clamp(simTime, 0, stopTime);
+      const speed = Math.max(0, params.initialSpeed - deceleration * time);
+      const distance = params.initialSpeed * time - 0.5 * deceleration * time * time;
+      const progress = stopDistance > 0 ? clamp(distance / stopDistance, 0, 1) : 0;
+      const visualX = lerp(startX, endX, progress);
+      const kinetic = 0.5 * BLOCK_MASS * speed * speed;
+      const thermal = kineticTotal - kinetic;
+      const ratio = kineticTotal > 0 ? thermal / kineticTotal : 0;
+      const contactTemp = 20 + 95 * ratio;
+      const blockTemp = 20 + 78 * ratio;
+
+      block.position.x = visualX;
+      floorGlow.position.x = visualX;
+      tempLabel.sprite.position.set(visualX, 1.25, 0);
+      blockLabel.sprite.position.set(visualX, 0.95, 0.8);
+      speedArrow.position.set(visualX - 0.15, 0.64, 0);
+      speedArrow.setLength(0.42 + 1.58 * (speed / Math.max(params.initialSpeed, 0.1)), 0.26, 0.16);
+
+      block.material.color.copy(coolColor.clone().lerp(hotColor, ratio * 0.92));
+      block.material.emissive.copy(emissiveHot.clone().multiplyScalar(ratio * 0.7));
+      floorGlow.material.opacity = 0.08 + 0.28 * ratio;
+      floorGlow.scale.setScalar(1 + 1.35 * ratio);
+
+      tempLabel.setText(`접촉면 ${formatNumber(contactTemp, 1)}°C`);
+      blockLabel.setText(`블록 ${formatNumber(blockTemp, 1)}°C`, {
+        fill: 'rgba(16, 32, 46, 0.74)',
+        color: '#f5fbff'
+      });
+
+      if (runtime.running && speed > 0.03) {
+        const emissionCount = Math.max(1, Math.round((2 + 7 * speed / Math.max(params.initialSpeed, 0.1)) * delta * 60));
+        for (let i = 0; i < emissionCount; i += 1) {
+          const origin = new THREE.Vector3(
+            visualX + (Math.random() - 0.5) * 0.45,
+            0.16,
+            (Math.random() - 0.5) * 0.34
+          );
+          const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.22,
+            0.55 + Math.random() * 0.35,
+            (Math.random() - 0.5) * 0.18
+          );
+          const tint = Math.random() > 0.4 ? 0xff6b3d : 0xffb347;
+          heatParticles.spawn(origin, velocity, tint, 0.7 + Math.random() * 0.45);
+        }
+      }
+
+      heatParticles.update(delta, 0.26, 0.9);
+
+      return {
+        scenario: 'friction',
+        mechanical: kinetic,
+        thermal,
+        total: kineticTotal,
+        speed,
+        distance,
+        contactTemp,
+        blockTemp,
+        finished: simTime >= stopTime
+      };
+    },
+    dispose() {
+      heatParticles.dispose();
+      disposeObject3D(root);
+    }
+  };
+
+  scenario.reset();
+  return scenario;
+}
+
+function createJouleScenario() {
+  const root = createScenarioRoot();
+
+  const table = new THREE.Mesh(
+    new THREE.BoxGeometry(8, 0.16, 3.6),
+    new THREE.MeshStandardMaterial({
+      color: 0x8f7965,
+      roughness: 0.9,
+      metalness: 0.02
+    })
+  );
+  table.position.y = 0.08;
+  table.receiveShadow = true;
+  root.add(table);
+
+  const bucketOuter = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.04, 1.04, 2.04, 42, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x88bbdd,
+      transparent: true,
+      opacity: 0.34,
+      roughness: 0.18,
+      metalness: 0.06,
+      transmission: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  bucketOuter.position.y = 1.12;
+  bucketOuter.castShadow = true;
+  bucketOuter.receiveShadow = true;
+  root.add(bucketOuter);
+
+  const bucketTop = new THREE.Mesh(
+    new THREE.TorusGeometry(1.04, 0.03, 16, 60),
+    new THREE.MeshStandardMaterial({ color: 0xb1c8d6, roughness: 0.28, metalness: 0.26 })
+  );
+  bucketTop.rotation.x = Math.PI / 2;
+  bucketTop.position.y = 2.14;
+  root.add(bucketTop);
+
+  const bucketBottom = bucketTop.clone();
+  bucketBottom.position.y = 0.1;
+  root.add(bucketBottom);
+
+  const waterMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x4488cc,
+    transparent: true,
+    opacity: 0.72,
+    roughness: 0.2,
+    metalness: 0.02,
+    transmission: 0.06
+  });
+
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.95, 0.95, 1.52, 42),
+    waterMaterial
+  );
+  water.position.y = 0.88;
+  root.add(water);
+
+  const paddleGroup = new THREE.Group();
+  paddleGroup.position.set(0, 1.14, 0);
+  root.add(paddleGroup);
+
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 1.58, 16),
+    new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.35, metalness: 0.48 })
+  );
+  paddleGroup.add(axle);
+
+  for (let i = 0; i < 4; i += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 1, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.32, metalness: 0.42 })
+    );
+    blade.rotation.y = (Math.PI / 2) * i;
+    paddleGroup.add(blade);
+  }
+
+  const pulley = new THREE.Mesh(
+    new THREE.TorusGeometry(0.15, 0.03, 14, 36),
+    new THREE.MeshStandardMaterial({ color: 0x6c6c6c, roughness: 0.34, metalness: 0.52 })
+  );
+  pulley.rotation.y = Math.PI / 2;
+  pulley.position.set(0.96, 2.5, 0);
+  root.add(pulley);
+
+  const supportBeam = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 0.12, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x6e5d51, roughness: 0.78, metalness: 0.04 })
+  );
+  supportBeam.position.set(0.2, 2.36, 0);
+  root.add(supportBeam);
+
+  const supportPost = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 2.28, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0x6e5d51, roughness: 0.78, metalness: 0.04 })
+  );
+  supportPost.position.set(-0.96, 1.18, 0);
+  root.add(supportPost);
+
+  const ropePositions = new Float32Array(9);
+  const ropeGeometry = new THREE.BufferGeometry();
+  ropeGeometry.setAttribute('position', new THREE.BufferAttribute(ropePositions, 3));
+  const rope = new THREE.Line(
+    ropeGeometry,
+    new THREE.LineBasicMaterial({ color: 0xf5e8d5 })
+  );
+  root.add(rope);
+
+  const weightGroup = new THREE.Group();
+  root.add(weightGroup);
+
+  const thermometerGroup = new THREE.Group();
+  thermometerGroup.position.set(-2.25, 1.34, 0);
+  root.add(thermometerGroup);
+
+  const glassTube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 1.82, 18),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xdcecff,
+      transparent: true,
+      opacity: 0.4,
+      roughness: 0.12,
+      metalness: 0.04,
+      transmission: 0.16
+    })
+  );
+  thermometerGroup.add(glassTube);
+
+  const bulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.17, 20, 20),
+    new THREE.MeshStandardMaterial({ color: 0xc73a3a, roughness: 0.32, metalness: 0.08 })
+  );
+  bulb.position.y = -0.9;
+  thermometerGroup.add(bulb);
+
+  const mercury = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 1.2, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff5b57, roughness: 0.15, metalness: 0.08 })
+  );
+  mercury.position.y = -0.3;
+  thermometerGroup.add(mercury);
+
+  const tempLabel = createLabelSprite({ scaleX: 1.95, scaleY: 0.58 });
+  tempLabel.setText('물 20.0°C', {
+    fill: 'rgba(15, 28, 42, 0.76)',
+    color: '#f4fbff'
+  });
+  root.add(tempLabel.sprite);
+
+  const energyLabel = createLabelSprite({ scaleX: 2.4, scaleY: 0.58 });
+  energyLabel.setText('4.186 J = 1 cal', {
+    fill: 'rgba(30, 18, 12, 0.68)',
+    color: '#fff4ea'
+  });
+  energyLabel.sprite.position.set(0, 3.25, 0);
+  root.add(energyLabel.sprite);
+
+  const bubbleParticles = new PointParticleSystem(60, 0.11, 0.72);
+  root.add(bubbleParticles.points);
+
+  const weightStartY = 1.58;
+  let visualDrop = 1.6;
+  let stackHeight = 0.6;
+
+  function rebuildWeights() {
+    weightGroup.children.forEach((child) => disposeObject3D(child));
+    weightGroup.clear();
+    const count = Math.max(1, Math.round(params.weightMass / 2));
+    stackHeight = count * 0.22;
+    for (let i = 0; i < count; i += 1) {
+      const disk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, 0.18, 24),
+        new THREE.MeshStandardMaterial({ color: 0xff5555, roughness: 0.28, metalness: 0.14 })
+      );
+      disk.rotation.x = Math.PI / 2;
+      disk.position.y = i * 0.22;
+      disk.castShadow = true;
+      weightGroup.add(disk);
+    }
+
+    const connector = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.26, 12),
+      new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.36, metalness: 0.4 })
+    );
+    connector.position.y = stackHeight + 0.12;
+    weightGroup.add(connector);
+  }
+
+  function updateRope() {
+    const weightTop = new THREE.Vector3(2.1, weightGroup.position.y + stackHeight + 0.26, 0);
+    const pulleyTop = new THREE.Vector3(0.96, 2.64, 0);
+    const axleTop = new THREE.Vector3(0.14, 2.06, 0);
+
+    ropePositions[0] = weightTop.x;
+    ropePositions[1] = weightTop.y;
+    ropePositions[2] = weightTop.z;
+    ropePositions[3] = pulleyTop.x;
+    ropePositions[4] = pulleyTop.y;
+    ropePositions[5] = pulleyTop.z;
+    ropePositions[6] = axleTop.x;
+    ropePositions[7] = axleTop.y;
+    ropePositions[8] = axleTop.z;
+    ropeGeometry.attributes.position.needsUpdate = true;
+  }
+
+  const scenario = {
+    root,
+    maxDuration: 6.8,
+    reset() {
+      visualDrop = lerp(0.95, 2.5, (params.dropHeight - 1) / 4);
+      rebuildWeights();
+      weightGroup.position.set(2.1, weightStartY, 0);
+      paddleGroup.rotation.y = 0;
+      paddleGroup.rotation.x = 0;
+      water.scale.set(1, 1, 1);
+      water.material.color.set(0x4488cc);
+      mercury.scale.y = 0.26;
+      mercury.position.y = -0.78;
+      tempLabel.sprite.position.set(-2.25, 2.56, 0);
+      tempLabel.setText('물 20.0°C', {
+        fill: 'rgba(15, 28, 42, 0.76)',
+        color: '#f4fbff'
+      });
+      updateRope();
+    },
+    update(delta, globalTime, simTime) {
+      const total = params.weightMass * GRAVITY * params.dropHeight;
+      const progress = clamp(simTime / this.maxDuration, 0, 1);
+      const eased = 1 - Math.pow(1 - progress, 2.2);
+      const potential = total * (1 - progress);
+      const transientRotation = total * 0.14 * Math.sin(progress * Math.PI);
+      const mechanical = potential + Math.max(0, transientRotation);
+      const thermal = Math.max(0, total - mechanical);
+      const deltaTemp = thermal / (JOULE_WATER_MASS_GRAM * 4.186);
+      const temp = 20 + deltaTemp;
+      const visualY = weightStartY - visualDrop * eased;
+      const swirl = runtime.running ? 1 : 0;
+
+      weightGroup.position.y = visualY;
+      updateRope();
+
+      paddleGroup.rotation.y -= delta * (2.2 + 6.8 * (1 - progress)) * swirl;
+      paddleGroup.rotation.x = 0.06 * Math.sin(globalTime * 6.2);
+      water.scale.x = 1 + 0.01 * Math.sin(globalTime * 7.4) * swirl;
+      water.scale.z = 1 + 0.015 * Math.cos(globalTime * 5.8) * swirl;
+      water.material.color.setRGB(
+        lerp(0.27, 0.47, smoothstep(0, 2, deltaTemp)),
+        lerp(0.53, 0.66, smoothstep(0, 2, deltaTemp)),
+        lerp(0.80, 0.88, smoothstep(0, 2, deltaTemp))
+      );
+
+      const mercuryScale = clamp(0.24 + deltaTemp * 0.24, 0.24, 0.78);
+      mercury.scale.y = mercuryScale;
+      mercury.position.y = -0.9 + mercuryScale * 0.6;
+      tempLabel.setText(`물 ${formatNumber(temp, 1)}°C`, {
+        fill: 'rgba(15, 28, 42, 0.76)',
+        color: '#f4fbff'
+      });
+
+      if (runtime.running && progress < 1) {
+        const bubbleCount = Math.max(1, Math.round(delta * 60 * 3));
+        for (let i = 0; i < bubbleCount; i += 1) {
+          const origin = new THREE.Vector3(
+            (Math.random() - 0.5) * 1.1,
+            0.18 + Math.random() * 0.85,
+            (Math.random() - 0.5) * 1.1
+          );
+          const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.12,
+            0.45 + Math.random() * 0.24,
+            (Math.random() - 0.5) * 0.12
+          );
+          bubbleParticles.spawn(origin, velocity, Math.random() > 0.5 ? 0xcff2ff : 0x87d7ff, 0.9 + Math.random() * 0.35);
+        }
+      }
+
+      bubbleParticles.update(delta, 0.12, 0.93);
+
+      return {
+        scenario: 'joule',
+        mechanical,
+        thermal,
+        total,
+        potential,
+        deltaTemp,
+        temp,
+        progress,
+        finished: simTime >= this.maxDuration
+      };
+    },
+    dispose() {
+      bubbleParticles.dispose();
+      ropeGeometry.dispose();
+      rope.material.dispose();
+      disposeObject3D(root);
+    }
+  };
+
+  scenario.reset();
+  return scenario;
+}
+
+function createEngineScenario() {
+  const root = createScenarioRoot();
+
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 0.1, 4),
+    new THREE.MeshStandardMaterial({ color: 0x76808a, roughness: 0.94, metalness: 0.06 })
+  );
+  floor.position.y = 0.05;
+  floor.receiveShadow = true;
+  root.add(floor);
+
+  const boiler = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 0.9, 2.6, 36),
+    new THREE.MeshStandardMaterial({ color: 0x656d76, roughness: 0.38, metalness: 0.5 })
+  );
+  boiler.rotation.z = Math.PI / 2;
+  boiler.position.set(-1.2, 1.32, 0);
+  boiler.castShadow = true;
+  root.add(boiler);
+
+  const boilerCapLeft = new THREE.Mesh(
+    new THREE.CircleGeometry(0.9, 32),
+    new THREE.MeshStandardMaterial({ color: 0x858e98, roughness: 0.34, metalness: 0.56 })
+  );
+  boilerCapLeft.rotation.y = Math.PI / 2;
+  boilerCapLeft.position.set(-2.5, 1.32, 0);
+  root.add(boilerCapLeft);
+
+  const boilerCapRight = boilerCapLeft.clone();
+  boilerCapRight.position.x = 0.1;
+  root.add(boilerCapRight);
+
+  const waterLevel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.82, 0.82, 1.9, 30),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x4b88cf,
+      transparent: true,
+      opacity: 0.55,
+      roughness: 0.18,
+      metalness: 0.08,
+      transmission: 0.08
+    })
+  );
+  waterLevel.rotation.z = Math.PI / 2;
+  waterLevel.position.set(-1.24, 1.05, 0);
+  root.add(waterLevel);
+
+  const chimney = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.22, 1.2, 20),
+    new THREE.MeshStandardMaterial({ color: 0x5d6570, roughness: 0.42, metalness: 0.35 })
+  );
+  chimney.position.set(-0.4, 2.1, 0);
+  chimney.castShadow = true;
+  root.add(chimney);
+
+  const furnace = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 0.9, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0x5a4639, roughness: 0.85, metalness: 0.04 })
+  );
+  furnace.position.set(-1.2, 0.46, 0);
+  root.add(furnace);
+
+  const pipe = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.1, 2.2, 16),
+    new THREE.MeshStandardMaterial({ color: 0x9fa4ac, roughness: 0.3, metalness: 0.52 })
+  );
+  pipe.rotation.z = Math.PI / 2;
+  pipe.position.set(0.85, 1.76, 0);
+  root.add(pipe);
+
+  const pistonHousing = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.44, 0.44, 2.1, 26, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xc4ced7,
+      transparent: true,
+      opacity: 0.42,
+      roughness: 0.15,
+      metalness: 0.35,
+      side: THREE.DoubleSide
+    })
+  );
+  pistonHousing.rotation.z = Math.PI / 2;
+  pistonHousing.position.set(1.95, 1.74, 0);
+  root.add(pistonHousing);
+
+  const piston = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.39, 0.39, 0.34, 24),
+    new THREE.MeshStandardMaterial({ color: 0xadb5bd, roughness: 0.24, metalness: 0.46 })
+  );
+  piston.rotation.z = Math.PI / 2;
+  piston.position.set(1.48, 1.74, 0);
+  piston.castShadow = true;
+  root.add(piston);
+
+  const pistonRod = new THREE.Mesh(
+    new THREE.BoxGeometry(1.25, 0.08, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0xd8dce0, roughness: 0.2, metalness: 0.62 })
+  );
+  root.add(pistonRod);
+
+  const wheelGroup = new THREE.Group();
+  wheelGroup.position.set(3.9, 1.45, 0);
+  root.add(wheelGroup);
+
+  const flywheel = new THREE.Mesh(
+    new THREE.TorusGeometry(1, 0.16, 18, 48),
+    new THREE.MeshStandardMaterial({ color: 0x868d95, roughness: 0.26, metalness: 0.58 })
+  );
+  flywheel.castShadow = true;
+  wheelGroup.add(flywheel);
+
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.18, 0.24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xb9bec5, roughness: 0.2, metalness: 0.62 })
+  );
+  hub.rotation.x = Math.PI / 2;
+  wheelGroup.add(hub);
+
+  for (let i = 0; i < 4; i += 1) {
+    const spoke = new THREE.Mesh(
+      new THREE.BoxGeometry(1.62, 0.07, 0.06),
+      new THREE.MeshStandardMaterial({ color: 0xa7adb4, roughness: 0.22, metalness: 0.54 })
+    );
+    spoke.rotation.z = (Math.PI / 4) * i;
+    wheelGroup.add(spoke);
+  }
+
+  const crankPin = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xff7c50, roughness: 0.18, metalness: 0.16 })
+  );
+  crankPin.position.set(0.62, 0, 0);
+  wheelGroup.add(crankPin);
+
+  const linkagePositions = new Float32Array(6);
+  const linkageGeometry = new THREE.BufferGeometry();
+  linkageGeometry.setAttribute('position', new THREE.BufferAttribute(linkagePositions, 3));
+  const linkage = new THREE.Line(
+    linkageGeometry,
+    new THREE.LineBasicMaterial({ color: 0xf3efe8 })
+  );
+  root.add(linkage);
+
+  const engineLabel = createLabelSprite({ scaleX: 2.55, scaleY: 0.6 });
+  engineLabel.setText('효율 36.0%');
+  engineLabel.sprite.position.set(1.4, 3.18, 0);
+  root.add(engineLabel.sprite);
+
+  const steamLabel = createLabelSprite({ scaleX: 1.9, scaleY: 0.56 });
+  steamLabel.setText('증기 압력 상승', {
+    fill: 'rgba(24, 28, 36, 0.74)',
+    color: '#f4fbff'
+  });
+  steamLabel.sprite.position.set(0.4, 2.96, 0);
+  root.add(steamLabel.sprite);
+
+  const fireParticles = new PointParticleSystem(70, 0.2, 0.86);
+  const steamParticles = new PointParticleSystem(58, 0.15, 0.78);
+  root.add(fireParticles.points);
+  root.add(steamParticles.points);
+
+  const crankWorld = new THREE.Vector3();
+  const pistonWorld = new THREE.Vector3();
+
+  function updateLinkage() {
+    crankPin.getWorldPosition(crankWorld);
+    pistonRod.getWorldPosition(pistonWorld);
+    linkagePositions[0] = pistonWorld.x + 0.62;
+    linkagePositions[1] = pistonWorld.y;
+    linkagePositions[2] = pistonWorld.z;
+    linkagePositions[3] = crankWorld.x;
+    linkagePositions[4] = crankWorld.y;
+    linkagePositions[5] = crankWorld.z;
+    linkageGeometry.attributes.position.needsUpdate = true;
+  }
+
+  const scenario = {
+    root,
+    reset() {
+      wheelGroup.rotation.z = 0;
+      piston.position.set(1.48, 1.74, 0);
+      pistonRod.position.set(2.2, 1.74, 0);
+      engineLabel.setText('효율 36.0%');
+      steamLabel.setText('증기 압력 상승', {
+        fill: 'rgba(24, 28, 36, 0.74)',
+        color: '#f4fbff'
+      });
+      updateLinkage();
+    },
+    update(delta, globalTime, simTime) {
+      const transfer = runtime.started ? clamp(1 - Math.exp(-simTime * 0.45), 0, 1) : 0;
+      const mechanical = ENGINE_TOTAL_ENERGY * ENGINE_EFFICIENCY * transfer;
+      const thermal = ENGINE_TOTAL_ENERGY - mechanical;
+      const cycleRate = runtime.started ? 1.6 + 7.2 * transfer : 0;
+      const motion = runtime.started ? Math.sin(globalTime * cycleRate) : 0;
+      const amplitude = 0.44 + 0.08 * transfer;
+
+      wheelGroup.rotation.z -= runtime.started ? delta * (1.2 + 4.8 * transfer) : 0;
+      piston.position.x = 1.48 + motion * amplitude;
+      pistonRod.position.set(2.15 + motion * amplitude * 0.52, 1.74, 0);
+      steamLabel.setText(runtime.started ? (transfer > 0.15 ? '증기 → 피스톤 밀기' : '보일러 가열 중') : '시작 버튼으로 작동', {
+        fill: 'rgba(24, 28, 36, 0.74)',
+        color: '#f4fbff'
+      });
+      engineLabel.setText(`효율 ${(ENGINE_EFFICIENCY * 100).toFixed(1)}% | 출력 ${formatNumber(mechanical, 1)}J`);
+      updateLinkage();
+
+      if (runtime.started) {
+        const fireBurst = 2 + Math.round(transfer * 3);
+        for (let i = 0; i < fireBurst; i += 1) {
+          const origin = new THREE.Vector3(
+            -1.2 + (Math.random() - 0.5) * 0.9,
+            0.06 + Math.random() * 0.12,
+            (Math.random() - 0.5) * 0.45
+          );
+          const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.12,
+            0.7 + Math.random() * 0.48,
+            (Math.random() - 0.5) * 0.12
+          );
+          fireParticles.spawn(origin, velocity, Math.random() > 0.4 ? 0xff8a3d : 0xffcc5e, 0.62 + Math.random() * 0.24);
+        }
+
+        const steamBurst = transfer > 0.05 ? 2 : 1;
+        for (let i = 0; i < steamBurst; i += 1) {
+          const origin = new THREE.Vector3(
+            -0.4 + (Math.random() - 0.5) * 0.08,
+            2.68 + Math.random() * 0.08,
+            (Math.random() - 0.5) * 0.1
+          );
+          const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.08,
+            0.5 + Math.random() * 0.26,
+            (Math.random() - 0.5) * 0.08
+          );
+          steamParticles.spawn(origin, velocity, 0xf2f6ff, 1.0 + Math.random() * 0.35);
+        }
+      }
+
+      fireParticles.update(delta, 0.24, 0.88);
+      steamParticles.update(delta, 0.08, 0.95);
+
+      return {
+        scenario: 'engine',
+        mechanical,
+        thermal,
+        total: ENGINE_TOTAL_ENERGY,
+        efficiency: ENGINE_EFFICIENCY,
+        transfer,
+        finished: false
+      };
+    },
+    dispose() {
+      fireParticles.dispose();
+      steamParticles.dispose();
+      linkageGeometry.dispose();
+      linkage.material.dispose();
+      disposeObject3D(root);
+    }
+  };
+
+  scenario.reset();
+  return scenario;
+}
+
+function buildScenario(key) {
+  if (key === 'joule') return createJouleScenario();
+  if (key === 'engine') return createEngineScenario();
+  return createFrictionScenario();
+}
+
+function destroyActiveScenario() {
+  if (!runtime.activeScenario) return;
+  scene.remove(runtime.activeScenario.root);
+  runtime.activeScenario.dispose();
+  runtime.activeScenario = null;
+}
+
+function switchScenario(key) {
+  params.scenario = key;
+  destroyActiveScenario();
+  runtime.activeScenario = buildScenario(key);
+  scene.add(runtime.activeScenario.root);
+  runtime.started = false;
+  runtime.running = false;
+  runtime.complete = false;
+  runtime.elapsed = 0;
+  applyCameraPose(key);
+  setTabState();
+  updateControllerVisibility();
+  updateStatus(null);
+}
+
+function startSimulation() {
+  if (!runtime.activeScenario) return;
+  runtime.started = true;
+  runtime.running = true;
+  runtime.complete = false;
+  runtime.elapsed = 0;
+  runtime.activeScenario.reset();
+  updateStatus(runtime.latestState);
+}
+
+function resetSimulation() {
+  if (!runtime.activeScenario) return;
+  runtime.started = false;
+  runtime.running = false;
+  runtime.complete = false;
+  runtime.elapsed = 0;
+  runtime.activeScenario.reset();
+  runtime.latestState = runtime.activeScenario.update(0, runtime.globalTime, 0);
+  updateStatus(runtime.latestState);
+  drawEnergyGraph(runtime.latestState);
+}
+
+function updateStatus(state) {
+  const meta = SCENARIOS[params.scenario];
+  statusEyebrowEl.textContent = `Energy Conversion · ${meta.shortLabel}`;
+  statusTitleEl.textContent = meta.title;
+
+  if (!state) {
+    statusBodyEl.textContent = meta.status;
+  } else if (params.scenario === 'friction') {
+    if (runtime.running && !state.finished) {
+      statusBodyEl.textContent = `속력 ${formatNumber(state.speed, 2)} m/s로 감속 중입니다. 이동할수록 운동 에너지가 줄고 접촉면 온도는 ${formatNumber(state.contactTemp, 1)}°C까지 올라갑니다.`;
+    } else if (runtime.started && state.finished) {
+      statusBodyEl.textContent = '블록이 멈췄습니다. 처음의 운동 에너지가 거의 모두 열에너지로 바뀌어 총에너지는 일정하게 유지됩니다.';
+    } else {
+      statusBodyEl.textContent = meta.status;
+    }
+  } else if (params.scenario === 'joule') {
+    if (runtime.running && !state.finished) {
+      statusBodyEl.textContent = `추가 내려가며 패들을 돌립니다. 물의 온도는 ${formatNumber(state.temp, 2)}°C, 증가량은 ${formatNumber(state.deltaTemp, 2)}°C입니다.`;
+    } else if (runtime.started && state.finished) {
+      statusBodyEl.textContent = '줄의 실험이 끝났습니다. 추의 위치 에너지가 물의 열에너지로 전환되어 물의 온도가 상승했습니다.';
+    } else {
+      statusBodyEl.textContent = meta.status;
+    }
+  } else {
+    if (runtime.started) {
+      statusBodyEl.textContent = `열기관이 작동 중입니다. 입력 열에너지 ${ENGINE_TOTAL_ENERGY}J 중 ${formatNumber(state.mechanical, 1)}J가 역학적 에너지로 바뀌고, 나머지는 열로 남습니다.`;
+    } else {
+      statusBodyEl.textContent = meta.status;
+    }
+  }
+
+  statusFlowEl.innerHTML = `에너지 전환 경로 · <strong>${meta.flow}</strong>`;
+}
+
+function updateFormulaPanel(state) {
+  if (!state) return;
+
+  let extraRows = '';
+  let callout = '';
+
+  if (state.scenario === 'friction') {
+    extraRows = `
+      <div class="info-row"><span class="label">질량</span><span class="value">${formatNumber(BLOCK_MASS, 1)} kg</span></div>
+      <div class="info-row"><span class="label">속력</span><span class="value">${formatNumber(state.speed, 2)} m/s</span></div>
+      <div class="info-row"><span class="label">이동 거리</span><span class="value">${formatNumber(state.distance, 2)} m</span></div>
+      <div class="info-row"><span class="label">접촉면 온도</span><span class="value">${formatNumber(state.contactTemp, 1)} °C</span></div>
+    `;
+    callout = `
+      <div class="callout">
+        <strong>에너지 전환</strong><br>
+        마찰이 할 일의 크기만큼 운동 에너지가 감소하고, 감소분은 열에너지로 전환됩니다.
+      </div>
+      <div class="formula-box">
+        <strong>마찰 상황</strong><br>
+        출발: Ek = 1/2mv², 열E = 0<br>
+        정지: Ek = 0, 열E = 초기 Ek 전체
+      </div>
+    `;
+  } else if (state.scenario === 'joule') {
+    extraRows = `
+      <div class="info-row"><span class="label">추 질량</span><span class="value">${formatNumber(params.weightMass, 1)} kg</span></div>
+      <div class="info-row"><span class="label">낙하 높이</span><span class="value">${formatNumber(params.dropHeight, 1)} m</span></div>
+      <div class="info-row"><span class="label">물 온도</span><span class="value">${formatNumber(state.temp, 2)} °C</span></div>
+      <div class="info-row"><span class="label">온도 상승</span><span class="value">${formatNumber(state.deltaTemp, 2)} °C</span></div>
+    `;
+    callout = `
+      <div class="callout">
+        <strong>에너지 전환</strong><br>
+        추의 위치 에너지가 도르래와 패들을 거쳐 물의 열에너지 증가로 이어집니다.
+      </div>
+      <div class="formula-box">
+        <strong>줄의 실험 (1843)</strong><br>
+        역학적 에너지와 열에너지는 서로 전환될 수 있습니다.<br>
+        4.186 J = 물 1 g의 온도를 1°C 높이는 열량 1 cal
+      </div>
+    `;
+  } else {
+    extraRows = `
+      <div class="info-row"><span class="label">입력 열에너지</span><span class="value">${formatNumber(ENGINE_TOTAL_ENERGY, 1)} J</span></div>
+      <div class="info-row"><span class="label">출력 역학적 E</span><span class="value">${formatNumber(state.mechanical, 1)} J</span></div>
+      <div class="info-row"><span class="label">효율</span><span class="value">${(state.efficiency * 100).toFixed(1)} %</span></div>
+      <div class="info-row"><span class="label">전환 진행도</span><span class="value">${(state.transfer * 100).toFixed(0)} %</span></div>
+    `;
+    callout = `
+      <div class="callout">
+        <strong>에너지 전환</strong><br>
+        열기관은 열에너지의 일부를 피스톤과 바퀴의 역학적 에너지로 바꾸고, 나머지는 폐열로 남깁니다.
+      </div>
+      <div class="formula-box">
+        <strong>열기관</strong><br>
+        효율 η = 출력 역학적 에너지 / 입력 열에너지 &lt; 100%<br>
+        공급한 열이 모두 일로 바뀌지는 않습니다.
+      </div>
+    `;
+  }
+
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">🔥 역학적 에너지와 열에너지 전환</div>
+    <div class="divider"></div>
+    <div class="info-row"><span class="label">시나리오</span><span class="value">${SCENARIOS[params.scenario].label}</span></div>
+    <div class="info-row"><span class="label">역학적 에너지</span><span class="value">${formatNumber(state.mechanical, 1)} J</span></div>
+    <div class="info-row"><span class="label">열에너지</span><span class="value">${formatNumber(state.thermal, 1)} J</span></div>
+    <div class="info-row"><span class="label">총 에너지</span><span class="value">${formatNumber(state.total, 1)} J (보존)</span></div>
+    ${extraRows}
+    ${callout}
+  `;
+}
+
+function drawEnergyGraph(state) {
+  if (!params.showGraph || !state) return;
+
+  const ctx = graphCanvasEl.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = graphCanvasEl.clientWidth;
+  const height = graphCanvasEl.clientHeight;
+  graphCanvasEl.width = Math.max(1, Math.floor(width * dpr));
+  graphCanvasEl.height = Math.max(1, Math.floor(height * dpr));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+
+  const padding = 28;
+  const chartTop = 34;
+  const chartBottom = height - 54;
+  const chartHeight = chartBottom - chartTop;
+  const chartWidth = width - padding * 2;
+  const barWidth = 74;
+  const gap = 44;
+  const startX = (width - (barWidth * 2 + gap)) / 2;
+  const maxEnergy = Math.max(state.total * 1.08, 1);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  drawRoundRect(ctx, padding - 10, chartTop - 16, chartWidth + 20, chartHeight + 28, 22);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = chartBottom - (chartHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(width - padding, y);
+    ctx.stroke();
+  }
+
+  const bars = [
+    { label: '역학적 E', value: state.mechanical, colorA: '#ff8b7c', colorB: '#ff5656' },
+    { label: '열 E', value: state.thermal, colorA: '#ffc064', colorB: '#ff9342' }
+  ];
+
+  bars.forEach((bar, index) => {
+    const x = startX + index * (barWidth + gap);
+    const ratio = clamp(bar.value / maxEnergy, 0, 1);
+    const barHeight = ratio * chartHeight;
+    const y = chartBottom - barHeight;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    drawRoundRect(ctx, x, chartTop, barWidth, chartHeight, 18);
+    ctx.fill();
+
+    const gradient = ctx.createLinearGradient(0, y, 0, chartBottom);
+    gradient.addColorStop(0, bar.colorA);
+    gradient.addColorStop(1, bar.colorB);
+    ctx.fillStyle = gradient;
+    drawRoundRect(ctx, x, y, barWidth, Math.max(barHeight, 12), 18);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 13px Pretendard, SUIT, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(bar.label, x + barWidth / 2, chartBottom + 22);
+    ctx.font = '600 12px Pretendard, SUIT, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillText(`${formatNumber(bar.value, 1)} J`, x + barWidth / 2, y - 8);
+  });
+
+  const totalY = chartBottom - (state.total / maxEnergy) * chartHeight;
+  ctx.strokeStyle = '#8de3a8';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(padding - 2, totalY);
+  ctx.lineTo(width - padding + 2, totalY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#8de3a8';
+  ctx.font = '700 12px Pretendard, SUIT, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`총 E = ${formatNumber(state.total, 1)} J`, padding + 4, totalY - 10);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.64)';
+  ctx.font = '11px Pretendard, SUIT, sans-serif';
+  ctx.fillText('총에너지 선은 항상 거의 일정해야 합니다.', padding, height - 20);
+}
+
+function onParameterChanged({ rebuild = false } = {}) {
+  if (rebuild) {
+    switchScenario(params.scenario);
+    return;
+  }
+  resetSimulation();
+}
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.classList.toggle('open');
+});
+
+scenarioTabs.forEach((button) => {
+  button.addEventListener('click', () => {
+    params.scenario = button.dataset.scenario;
+    scenarioController.updateDisplay();
+    switchScenario(params.scenario);
+  });
+});
+
+scenarioController.onChange((value) => {
+  switchScenario(value);
+});
+
+speedController.onFinishChange(() => onParameterChanged());
+frictionController.onFinishChange(() => onParameterChanged());
+massController.onFinishChange(() => onParameterChanged({ rebuild: true }));
+heightController.onFinishChange(() => onParameterChanged({ rebuild: true }));
+graphController.onChange(() => {
+  updateControllerVisibility();
+  if (runtime.latestState) drawEnergyGraph(runtime.latestState);
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (runtime.latestState) drawEnergyGraph(runtime.latestState);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+  runtime.globalTime += delta;
+  if (runtime.running) runtime.elapsed += delta;
+
+  if (runtime.activeScenario) {
+    runtime.latestState = runtime.activeScenario.update(delta, runtime.globalTime, runtime.elapsed);
+    if (runtime.running && runtime.latestState.finished) {
+      runtime.running = false;
+      runtime.complete = true;
+    }
+    updateStatus(runtime.latestState);
+    updateFormulaPanel(runtime.latestState);
+    drawEnergyGraph(runtime.latestState);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+switchScenario('friction');
+resetSimulation();
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>등속 원운동과 구심력 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel-bg: rgba(13, 24, 40, 0.8);
+    --panel-strong: rgba(255, 255, 255, 0.92);
+    --panel-soft: rgba(228, 236, 248, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-shadow: 0 18px 40px rgba(34, 48, 70, 0.18);
+    --accent-green: #63df97;
+    --accent-red: #ff716c;
+    --accent-blue: #6fb7ff;
+    --accent-gold: #ffcf7f;
+    --safe: #41d38a;
+    --warn: #ff7a74;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0) 18%),
+      linear-gradient(180deg, #f8fafc 0%, var(--bg) 52%, #e3e7ef 100%);
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: #101925;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: relative;
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 10;
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #header-card {
+    top: 16px;
+    left: 16px;
+    width: min(430px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.75);
+    color: #15324d;
+  }
+
+  #header-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(21, 50, 77, 0.58);
+  }
+
+  #header-card h1 {
+    margin: 5px 0 0;
+    font-size: 27px;
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+  }
+
+  #header-card p {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(21, 50, 77, 0.82);
+  }
+
+  #legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(21, 50, 77, 0.08);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 22;
+    border: 1px solid rgba(17, 35, 58, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    color: #14314d;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    cursor: pointer;
+    box-shadow: 0 16px 36px rgba(34, 48, 70, 0.12);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  #guide-panel {
+    top: 62px;
+    right: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(72vh, 700px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: rgba(9, 18, 32, 0.9);
+    color: var(--panel-strong);
+    z-index: 21;
+    display: none;
+  }
+
+  #guide-panel h2 {
+    margin: 0;
+    font-size: 21px;
+    letter-spacing: -0.03em;
+  }
+
+  #guide-panel h3 {
+    margin: 16px 0 8px;
+    font-size: 14px;
+    color: #9cd1ff;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    margin: 0;
+    color: var(--panel-soft);
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  #guide-panel ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    color: var(--panel-strong);
+  }
+
+  #formula-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #formula-divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(111, 183, 255, 0.78), rgba(111, 183, 255, 0));
+  }
+
+  .formula-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  .formula-row .key {
+    color: rgba(224, 232, 246, 0.74);
+  }
+
+  .formula-row .value {
+    text-align: right;
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #e5eefb;
+  }
+
+  .formula-block strong {
+    color: #ffffff;
+  }
+
+  #status-chip {
+    right: 16px;
+    bottom: 16px;
+    width: min(330px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.78);
+    color: #15324d;
+  }
+
+  #status-chip .label {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(17, 49, 80, 0.08);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  #status-chip .headline {
+    margin-top: 8px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  #status-chip p {
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: rgba(21, 50, 77, 0.86);
+  }
+
+  #status-chip[data-tone="safe"] .label {
+    background: rgba(65, 211, 138, 0.16);
+    color: #0d7d45;
+  }
+
+  #status-chip[data-tone="warn"] .label {
+    background: rgba(255, 122, 116, 0.16);
+    color: #b53732;
+  }
+
+  #status-chip[data-tone="orbit"] .label {
+    background: rgba(111, 183, 255, 0.18);
+    color: #1f5f9f;
+  }
+
+  #tip-note {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    max-width: min(520px, calc(100vw - 32px));
+    padding: 11px 16px;
+    border-radius: 999px;
+    background: rgba(9, 18, 32, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(244, 248, 255, 0.88);
+    font-size: 12.5px;
+    line-height: 1.5;
+    z-index: 9;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    --width: 290px;
+    z-index: 20 !important;
+    margin-top: 54px;
+    margin-right: 14px;
+  }
+
+  @media (max-width: 980px) {
+    #header-card {
+      width: min(390px, calc(100vw - 32px));
+      padding: 15px 16px;
+    }
+
+    #header-card h1 {
+      font-size: 24px;
+    }
+
+    #formula-panel,
+    #status-chip {
+      width: min(340px, calc(100vw - 24px));
+    }
+  }
+
+  @media (max-width: 760px) {
+    #guide-toggle {
+      top: auto;
+      bottom: 16px;
+      right: 16px;
+      z-index: 24;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 68px;
+      right: 16px;
+      max-height: min(58vh, 520px);
+    }
+
+    #header-card {
+      top: 12px;
+      left: 12px;
+      width: min(100vw - 24px, 360px);
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 78px;
+      width: min(100vw - 24px, 360px);
+    }
+
+    #status-chip {
+      right: 12px;
+      bottom: 78px;
+      width: min(100vw - 24px, 320px);
+    }
+
+    #tip-note {
+      display: none;
+    }
+
+    .lil-gui {
+      margin-top: 10px;
+      margin-right: 10px;
+      transform: scale(0.95);
+      transform-origin: top right;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="scene-root"></div>
+
+  <section class="overlay" id="header-card">
+    <div class="eyebrow">Mechanics &amp; Energy</div>
+    <h1>등속 원운동과 구심력</h1>
+    <p id="header-description">등속 원운동에서는 속력은 일정하지만 속도 방향이 계속 바뀌므로, 항상 중심을 향하는 구심 가속도와 구심력이 필요합니다.</p>
+    <div id="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#63df97;"></span>속도 벡터 v</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ff716c;"></span>구심 가속도 a</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#6fb7ff;"></span>구심력 F</div>
+    </div>
+  </section>
+
+  <button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+  <section class="overlay" id="guide-panel">
+    <h2>📖 학습 가이드</h2>
+    <h3>핵심 원리</h3>
+    <p>등속 원운동에서 속력은 일정하지만 속도의 방향이 계속 변하므로 가속도가 존재합니다. 이 구심 가속도는 항상 원의 중심을 향하며 <strong>a = v²/r</strong>입니다. 구심력은 실의 장력, 마찰력, 중력 등 실제 힘이 제공합니다.</p>
+    <h3>탐구 질문</h3>
+    <ul>
+      <li>등속 원운동하는 물체의 속력이 일정한데 왜 가속도가 0이 아닌가요?</li>
+      <li>곡선 도로에서 자동차의 속력을 2배로 높이면 필요한 구심력은 몇 배가 되나요?</li>
+      <li>인공위성의 궤도 반지름이 커지면 궤도 속도는 어떻게 변하나요?</li>
+    </ul>
+    <h3>실생활 예시</h3>
+    <p>세탁기 탈수(원심 효과), 놀이공원 회전 놀이기구, GPS 위성, 원심 분리기처럼 회전 운동이 쓰이는 장면을 떠올려 보세요.</p>
+    <h3>교과서 연계</h3>
+    <p>역학과 에너지 I편 p26~31. 여러 가지 운동, 등속 원운동, 구심력을 한 화면에서 비교할 수 있도록 구성했습니다.</p>
+  </section>
+
+  <section class="overlay" id="formula-panel">
+    <div id="formula-title">🔄 등속 원운동과 구심력</div>
+    <div id="formula-divider"></div>
+    <div id="formula-content"></div>
+  </section>
+
+  <section class="overlay" id="status-chip" data-tone="safe">
+    <div class="label" id="status-label">SCENARIO</div>
+    <div class="headline" id="status-headline"></div>
+    <p id="status-body"></p>
+  </section>
+
+  <div id="tip-note">드래그로 장면을 돌리고 휠 또는 핀치로 확대할 수 있습니다. 사례를 바꾸면 같은 수식이 실, 마찰력, 중력으로 어떻게 구현되는지 비교할 수 있습니다.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const container = document.getElementById('scene-root');
+const formulaContentEl = document.getElementById('formula-content');
+const statusChipEl = document.getElementById('status-chip');
+const statusLabelEl = document.getElementById('status-label');
+const statusHeadlineEl = document.getElementById('status-headline');
+const statusBodyEl = document.getElementById('status-body');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const headerDescriptionEl = document.getElementById('header-description');
+
+const scenarioLabels = {
+  ball: '실에 매달린 공',
+  car: '곡선 도로',
+  satellite: '인공위성'
+};
+
+const labelToKey = Object.fromEntries(Object.entries(scenarioLabels).map(([key, value]) => [value, key]));
+
+const g = 9.8;
+const earthMu = 75;
+const maxTrailSegments = 100;
+
+const params = {
+  scenario: scenarioLabels.ball,
+  radius: 3,
+  speed: 5,
+  mass: 1,
+  friction: 0.5,
+  showVelocityVector: true,
+  showAccelerationVector: true,
+  showTrail: false
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 18, 42);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(9, 7, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1.6, 0);
+controls.minDistance = 4;
+controls.maxDistance = 26;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(8, 14, 10);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -20;
+directionalLight.shadow.camera.right = 20;
+directionalLight.shadow.camera.top = 20;
+directionalLight.shadow.camera.bottom = -20;
+scene.add(directionalLight);
+
+const vectorGroup = new THREE.Group();
+scene.add(vectorGroup);
+
+const velocityArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.4, 0x63df97, 0.35, 0.2);
+const accelerationArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.2, 0xff716c, 0.32, 0.18);
+const forceArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.2, 0x6fb7ff, 0.32, 0.18);
+vectorGroup.add(velocityArrow, accelerationArrow, forceArrow);
+
+const trailGroup = new THREE.Group();
+scene.add(trailGroup);
+
+const simulationRoot = new THREE.Group();
+scene.add(simulationRoot);
+
+const starField = createStarField();
+starField.visible = false;
+scene.add(starField);
+
+const state = {
+  angle: 0,
+  isRunning: false,
+  lastTime: performance.now(),
+  trailAccumulator: 0,
+  trailSegments: [],
+  currentScenarioKey: 'ball',
+  scenarioObject: null
+};
+
+const gui = new GUI({ title: '조절 패널' });
+const scenarioController = gui
+  .add(params, 'scenario', Object.values(scenarioLabels))
+  .name('사례')
+  .onChange(() => {
+    state.currentScenarioKey = getScenarioKey();
+    rebuildScenario(true);
+  });
+
+const radiusController = gui.add(params, 'radius', 1, 10, 0.1).name('반지름 r').onChange(() => rebuildScenario(false));
+const speedController = gui.add(params, 'speed', 1, 20, 0.1).name('속력 v').onChange(() => updateUIAndVectors());
+const massController = gui.add(params, 'mass', 0.5, 5, 0.1).name('질량 m').onChange(() => updateUIAndVectors());
+const frictionController = gui.add(params, 'friction', 0.1, 1.0, 0.01).name('마찰 계수 μ').onChange(() => updateUIAndVectors());
+const velocityToggle = gui.add(params, 'showVelocityVector').name('속도 벡터 표시').onChange(() => updateVectorVisibility());
+const accelerationToggle = gui.add(params, 'showAccelerationVector').name('가속도 벡터 표시').onChange(() => updateVectorVisibility());
+const trailToggle = gui.add(params, 'showTrail').name('잔상 표시').onChange((value) => {
+  trailGroup.visible = value;
+  if (!value) clearTrails();
+});
+
+const actions = {
+  startPause() {
+    state.isRunning = !state.isRunning;
+    updateStartButtonLabel();
+    updateUIAndVectors();
+  },
+  reset() {
+    resetSimulation();
+  }
+};
+
+const startController = gui.add(actions, 'startPause').name('시뮬레이션 시작');
+const resetController = gui.add(actions, 'reset').name('초기화');
+
+guideToggleEl.addEventListener('click', () => {
+  const isOpen = guidePanelEl.style.display === 'block';
+  guidePanelEl.style.display = isOpen ? 'none' : 'block';
+});
+
+rebuildScenario(true);
+updateStartButtonLabel();
+animate();
+
+window.addEventListener('resize', onWindowResize);
+
+function animate(now = performance.now()) {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min((now - state.lastTime) / 1000, 0.05);
+  state.lastTime = now;
+
+  if (state.isRunning && state.scenarioObject) {
+    const metrics = getScenarioMetrics();
+    const angularVelocity = metrics.omega;
+    state.angle = (state.angle + angularVelocity * delta) % (Math.PI * 2);
+    state.trailAccumulator += delta;
+
+    if (params.showTrail && state.trailAccumulator >= 0.08) {
+      state.trailAccumulator = 0;
+      addTrailSegment();
+    }
+  }
+
+  updateScenarioFrame(state.isRunning ? delta : 0);
+  updateVectors();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function getScenarioKey() {
+  return labelToKey[params.scenario] ?? 'ball';
+}
+
+function resetSimulation() {
+  state.angle = 0;
+  state.isRunning = false;
+  state.trailAccumulator = 0;
+  clearTrails();
+  updateStartButtonLabel();
+  rebuildScenario(false);
+}
+
+function rebuildScenario(shouldResetCamera) {
+  clearTrails();
+  state.trailAccumulator = 0;
+
+  if (state.scenarioObject?.group) {
+    simulationRoot.remove(state.scenarioObject.group);
+    disposeObject(state.scenarioObject.group);
+  }
+
+  const scenarioKey = getScenarioKey();
+  state.currentScenarioKey = scenarioKey;
+  state.scenarioObject = createScenarioObject(scenarioKey);
+  simulationRoot.add(state.scenarioObject.group);
+
+  starField.visible = scenarioKey === 'satellite';
+  const frictionRow = frictionController.domElement.parentElement;
+  if (frictionRow) {
+    frictionRow.style.display = scenarioKey === 'car' ? '' : 'none';
+  }
+  trailGroup.visible = params.showTrail;
+
+  if (shouldResetCamera) {
+    applyCameraPreset(scenarioKey);
+  }
+
+  updateHeaderDescription();
+  updateVectorVisibility();
+  updateUIAndVectors();
+  syncGui();
+}
+
+function updateScenarioFrame(delta) {
+  if (!state.scenarioObject) return;
+  state.scenarioObject.update(state.angle, delta);
+}
+
+function updateUIAndVectors() {
+  if (!state.scenarioObject) return;
+  state.scenarioObject.update(state.angle, 0);
+  updateVectors();
+  updateFormulaPanel();
+  updateStatusChip();
+}
+
+function updateVectorVisibility() {
+  velocityArrow.visible = params.showVelocityVector;
+  accelerationArrow.visible = params.showAccelerationVector;
+  forceArrow.visible = true;
+}
+
+function updateVectors() {
+  if (!state.scenarioObject) return;
+
+  const frame = state.scenarioObject.getFrame(state.angle);
+  const metrics = getScenarioMetrics();
+  const velocityLength = clampLength(metrics.speed * 0.22, 0.9, 2.6);
+  const accelerationLength = clampLength(metrics.acceleration * 0.12, 0.9, 2.8);
+  const forceLength = clampLength(metrics.force * 0.1, 0.9, 2.8);
+  const origin = frame.position.clone().add(new THREE.Vector3(0, frame.arrowYOffset, 0));
+
+  velocityArrow.position.copy(origin);
+  velocityArrow.setDirection(frame.tangent.clone().normalize());
+  velocityArrow.setLength(velocityLength, Math.min(0.55, velocityLength * 0.25), Math.min(0.32, velocityLength * 0.16));
+
+  accelerationArrow.position.copy(origin);
+  accelerationArrow.setDirection(frame.inward.clone().normalize());
+  accelerationArrow.setLength(accelerationLength, Math.min(0.52, accelerationLength * 0.25), Math.min(0.3, accelerationLength * 0.16));
+
+  forceArrow.position.copy(origin);
+  forceArrow.setDirection(frame.inward.clone().normalize());
+  forceArrow.setLength(forceLength, Math.min(0.52, forceLength * 0.25), Math.min(0.3, forceLength * 0.16));
+}
+
+function getScenarioMetrics() {
+  const key = getScenarioKey();
+  const radius = getFormulaRadius();
+  const speed = params.speed;
+  const mass = params.mass;
+  const acceleration = speed * speed / radius;
+  const force = mass * acceleration;
+  const omega = speed / radius;
+  const period = (Math.PI * 2 * radius) / speed;
+
+  if (key === 'car') {
+    const vMax = Math.sqrt(params.friction * g * radius);
+    return {
+      key,
+      radius,
+      speed,
+      mass,
+      acceleration,
+      force,
+      omega,
+      period,
+      vMax,
+      availableFriction: params.friction * mass * g,
+      safe: speed <= vMax + 1e-6
+    };
+  }
+
+  if (key === 'satellite') {
+    const gravityForce = earthMu * mass / (radius * radius);
+    const idealSpeed = Math.sqrt(earthMu / radius);
+    return {
+      key,
+      radius,
+      speed,
+      mass,
+      acceleration,
+      force,
+      omega,
+      period,
+      gravityForce,
+      idealSpeed,
+      orbitMatched: Math.abs(speed - idealSpeed) < 0.3
+    };
+  }
+
+  return {
+    key,
+    radius,
+    speed,
+    mass,
+    acceleration,
+    force,
+    omega,
+    period
+  };
+}
+
+function getFormulaRadius() {
+  return params.radius;
+}
+
+function updateFormulaPanel() {
+  const metrics = getScenarioMetrics();
+  const causeText = {
+    ball: '실의 장력',
+    car: '타이어와 도로 사이 마찰력',
+    satellite: '만유인력'
+  }[metrics.key];
+
+  let extraRows = '';
+  let extraBlock = '';
+
+  if (metrics.key === 'car') {
+    extraRows = `
+      <div class="formula-row"><span class="key">최대 안전 속력</span><span class="value">v_max = √(μgr) = ${formatNumber(metrics.vMax)} m/s</span></div>
+      <div class="formula-row"><span class="key">최대 마찰력</span><span class="value">μmg = ${formatNumber(metrics.availableFriction)} N</span></div>
+    `;
+    extraBlock = metrics.safe
+      ? `<div class="formula-block"><strong>핵심:</strong> 현재 속력에서는 필요한 구심력이 최대 마찰력보다 작아서 안전하게 곡선을 돌 수 있습니다.</div>`
+      : `<div class="formula-block"><strong>핵심:</strong> 현재 속력에서는 필요한 구심력이 최대 마찰력을 넘어서므로 바깥쪽으로 미끄러질 수 있습니다.</div>`;
+  }
+
+  if (metrics.key === 'satellite') {
+    extraRows = `
+      <div class="formula-row"><span class="key">중력이 제공하는 힘</span><span class="value">GMm/r² = ${formatNumber(metrics.gravityForce)} N</span></div>
+      <div class="formula-row"><span class="key">원형 궤도 속력</span><span class="value">√(GM/r) = ${formatNumber(metrics.idealSpeed)} m/s</span></div>
+    `;
+    extraBlock = metrics.orbitMatched
+      ? `<div class="formula-block"><strong>핵심:</strong> 현재 속력이 원형 궤도 조건과 거의 일치해 만유인력이 구심력으로 작용하는 모습을 확인하기 좋습니다.</div>`
+      : `<div class="formula-block"><strong>핵심:</strong> 시각화는 원형 궤도로 유지되지만, 실제로는 속력이 달라지면 타원 궤도나 탈출 궤도로 바뀔 수 있습니다.</div>`;
+  }
+
+  if (metrics.key === 'ball') {
+    extraBlock = `<div class="formula-block"><strong>핵심:</strong> 속도 잔상을 켜 보면 매 순간의 속도 벡터가 모두 접선 방향을 향하고, 가속도와 힘은 항상 중심을 향하는 것을 볼 수 있습니다.</div>`;
+  }
+
+  formulaContentEl.innerHTML = `
+    <div class="formula-row"><span class="key">사례</span><span class="value">${scenarioLabels[metrics.key]}</span></div>
+    <div class="formula-row"><span class="key">설정값</span><span class="value">r = ${formatNumber(metrics.radius)} m, v = ${formatNumber(metrics.speed)} m/s</span></div>
+    <div class="formula-row"><span class="key">질량</span><span class="value">m = ${formatNumber(metrics.mass)} kg</span></div>
+    <div class="formula-row"><span class="key">구심 가속도</span><span class="value">a = v²/r = ${formatNumber(metrics.acceleration)} m/s²</span></div>
+    <div class="formula-row"><span class="key">구심력</span><span class="value">F = mv²/r = ${formatNumber(metrics.force)} N</span></div>
+    <div class="formula-row"><span class="key">각속도</span><span class="value">ω = v/r = ${formatNumber(metrics.omega)} rad/s</span></div>
+    <div class="formula-row"><span class="key">주기</span><span class="value">T = 2πr/v = ${formatNumber(metrics.period)} s</span></div>
+    ${extraRows}
+    <div class="formula-block"><strong>구심력의 원인:</strong> ${causeText}<br><strong>핵심:</strong> 속력은 일정하지만 속도 방향은 계속 변하므로 가속도는 0이 아닙니다.</div>
+    ${extraBlock}
+  `;
+}
+
+function updateStatusChip() {
+  const metrics = getScenarioMetrics();
+
+  if (metrics.key === 'ball') {
+    statusChipEl.dataset.tone = 'safe';
+    statusLabelEl.textContent = 'STRING + BALL';
+    statusHeadlineEl.textContent = '속력은 일정하지만 방향이 계속 바뀝니다.';
+    statusBodyEl.textContent = '초록 화살표는 접선 방향으로 회전하고, 빨강·파랑 화살표는 항상 중심을 가리킵니다. 이것이 등속 원운동의 핵심입니다.';
+    return;
+  }
+
+  if (metrics.key === 'car') {
+    statusChipEl.dataset.tone = metrics.safe ? 'safe' : 'warn';
+    statusLabelEl.textContent = metrics.safe ? 'SAFE TURN' : 'SLIP WARNING';
+    statusHeadlineEl.textContent = metrics.safe
+      ? '마찰력이 충분해 차량이 곡선을 유지합니다.'
+      : '필요한 구심력이 너무 커서 미끄러질 수 있습니다.';
+    statusBodyEl.textContent = metrics.safe
+      ? `현재 속력 ${formatNumber(metrics.speed)} m/s는 최대 안전 속력 ${formatNumber(metrics.vMax)} m/s 이하입니다.`
+      : `현재 속력 ${formatNumber(metrics.speed)} m/s는 최대 안전 속력 ${formatNumber(metrics.vMax)} m/s를 넘습니다.`;
+    return;
+  }
+
+  statusChipEl.dataset.tone = 'orbit';
+  statusLabelEl.textContent = 'ORBIT CHECK';
+  statusHeadlineEl.textContent = metrics.orbitMatched
+    ? '만유인력이 필요한 구심력과 잘 맞아떨어집니다.'
+    : '속력과 중력 조건을 비교해 원형 궤도 조건을 확인해 보세요.';
+  statusBodyEl.textContent = metrics.orbitMatched
+    ? `현재 속력 ${formatNumber(metrics.speed)} m/s가 이 높이의 원형 궤도 속력 ${formatNumber(metrics.idealSpeed)} m/s와 거의 같습니다.`
+    : `이 높이에서 이상적인 원형 궤도 속력은 ${formatNumber(metrics.idealSpeed)} m/s입니다.`;
+}
+
+function updateHeaderDescription() {
+  const descriptions = {
+    ball: '실의 장력이 공을 중심 쪽으로 끌어당겨 수평 원운동을 유지합니다. 속도 잔상을 켜면 접선 방향 변화가 한눈에 보입니다.',
+    car: '곡선 도로에서는 타이어와 노면 사이의 마찰력이 구심력을 제공합니다. 속력을 높일수록 필요한 구심력은 v²에 비례해 커집니다.',
+    satellite: '인공위성은 만유인력이 구심력으로 작용해 지구 주위를 돕니다. 반지름이 커질수록 원형 궤도 속력과 각속도는 작아집니다.'
+  };
+  headerDescriptionEl.textContent = descriptions[getScenarioKey()];
+}
+
+function updateStartButtonLabel() {
+  startController.name(state.isRunning ? '일시정지' : '시뮬레이션 시작');
+  syncGui();
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function applyCameraPreset(scenarioKey) {
+  if (scenarioKey === 'ball') {
+    camera.position.set(9, 7.5, 10);
+    controls.target.set(0, 1.8, 0);
+  } else if (scenarioKey === 'car') {
+    camera.position.set(10, 7.2, 10.5);
+    controls.target.set(0, 0.7, 0);
+  } else {
+    camera.position.set(11.5, 8.4, 11.5);
+    controls.target.set(0, 0.5, 0);
+  }
+  controls.update();
+}
+
+function createScenarioObject(scenarioKey) {
+  if (scenarioKey === 'ball') {
+    return createBallScenario();
+  }
+  if (scenarioKey === 'car') {
+    return createCarScenario();
+  }
+  return createSatelliteScenario();
+}
+
+function createBallScenario() {
+  const group = new THREE.Group();
+  const orbitCenter = new THREE.Vector3(0, 1.9, 0);
+  const worldRadius = 1.4 + params.radius * 0.72;
+  const anchor = new THREE.Vector3(0, 4.5, 0);
+
+  const orbitLine = createDashedCircle(worldRadius, 0x98a7bb);
+  orbitLine.position.copy(orbitCenter);
+  group.add(orbitLine);
+
+  const ringShadow = new THREE.Mesh(
+    new THREE.RingGeometry(worldRadius - 0.06, worldRadius + 0.06, 96),
+    new THREE.MeshBasicMaterial({ color: 0xabb6c6, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+  );
+  ringShadow.rotation.x = -Math.PI / 2;
+  ringShadow.position.copy(orbitCenter);
+  group.add(ringShadow);
+
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.11, 4.7, 24),
+    new THREE.MeshStandardMaterial({ color: 0x6c7483, roughness: 0.8, metalness: 0.15 })
+  );
+  pole.position.set(0, 2.2, 0);
+  pole.castShadow = true;
+  pole.receiveShadow = true;
+  group.add(pole);
+
+  const anchorMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xf0f3f8, roughness: 0.28, metalness: 0.48 })
+  );
+  anchorMesh.position.copy(anchor);
+  anchorMesh.castShadow = true;
+  group.add(anchorMesh);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(9.5, 64),
+    new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.12 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0.001;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  const ballMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff4d4a,
+    roughness: 0.35,
+    metalness: 0.1
+  });
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), ballMaterial);
+  ball.castShadow = true;
+  group.add(ball);
+
+  const string = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 1, 18),
+    new THREE.MeshStandardMaterial({ color: 0xd9dce2, roughness: 0.6, metalness: 0.1 })
+  );
+  string.castShadow = true;
+  group.add(string);
+
+  const centerMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0x4f74ff, emissive: 0x2940a0, emissiveIntensity: 0.25 })
+  );
+  centerMarker.position.copy(orbitCenter);
+  group.add(centerMarker);
+
+  function update(angle) {
+    const position = getPosition(angle);
+    ball.position.copy(position);
+
+    const direction = position.clone().sub(anchor);
+    const midpoint = anchor.clone().add(position).multiplyScalar(0.5);
+    string.position.copy(midpoint);
+    string.scale.set(1, direction.length(), 1);
+    string.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+  }
+
+  function getPosition(angle) {
+    return new THREE.Vector3(
+      orbitCenter.x + Math.cos(angle) * worldRadius,
+      orbitCenter.y,
+      orbitCenter.z + Math.sin(angle) * worldRadius
+    );
+  }
+
+  function getFrame(angle) {
+    const position = getPosition(angle);
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+    const inward = orbitCenter.clone().sub(position).normalize();
+    return {
+      position,
+      tangent,
+      inward,
+      arrowYOffset: 0.15
+    };
+  }
+
+  return { group, update, getFrame };
+}
+
+function createCarScenario() {
+  const group = new THREE.Group();
+  const orbitCenter = new THREE.Vector3(0, 0.34, 0);
+  const worldRadius = 1.7 + params.radius * 0.72;
+  const roadTube = 0.62;
+
+  const ground = new THREE.Mesh(
+    new THREE.CylinderGeometry(worldRadius + 6.5, worldRadius + 6.5, 0.3, 96),
+    new THREE.MeshStandardMaterial({ color: 0x6f9f57, roughness: 0.96, metalness: 0.02 })
+  );
+  ground.position.y = -0.18;
+  ground.receiveShadow = true;
+  group.add(ground);
+
+  const road = new THREE.Mesh(
+    new THREE.TorusGeometry(worldRadius, roadTube, 28, 140),
+    new THREE.MeshStandardMaterial({ color: 0x4f545d, roughness: 0.92, metalness: 0.05 })
+  );
+  road.rotation.x = Math.PI / 2;
+  road.receiveShadow = true;
+  group.add(road);
+
+  const lane = createDashedCircle(worldRadius, 0xffe094);
+  lane.position.y = 0.39;
+  group.add(lane);
+
+  const outerRail = new THREE.Mesh(
+    new THREE.TorusGeometry(worldRadius + roadTube * 0.82, 0.07, 12, 128),
+    new THREE.MeshStandardMaterial({ color: 0xd4dde8, roughness: 0.34, metalness: 0.55 })
+  );
+  outerRail.rotation.x = Math.PI / 2;
+  outerRail.position.y = 0.66;
+  group.add(outerRail);
+
+  const innerGrass = new THREE.Mesh(
+    new THREE.CylinderGeometry(Math.max(0.8, worldRadius - roadTube - 0.24), Math.max(0.8, worldRadius - roadTube - 0.24), 0.18, 72),
+    new THREE.MeshStandardMaterial({ color: 0x7ab860, roughness: 0.9, metalness: 0.02 })
+  );
+  innerGrass.position.y = -0.02;
+  innerGrass.receiveShadow = true;
+  group.add(innerGrass);
+
+  const skidRing = new THREE.Mesh(
+    new THREE.TorusGeometry(worldRadius + roadTube + 0.25, 0.05, 12, 128),
+    new THREE.MeshBasicMaterial({ color: 0xff736d, transparent: true, opacity: 0.0 })
+  );
+  skidRing.rotation.x = Math.PI / 2;
+  skidRing.position.y = 0.46;
+  group.add(skidRing);
+
+  const car = new THREE.Group();
+  group.add(car);
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xff5447, roughness: 0.54, metalness: 0.12 });
+  const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0xcfe7ff, roughness: 0.14, metalness: 0.2, transparent: true, opacity: 0.88 });
+
+  const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.22, 1.28), bodyMaterial);
+  lowerBody.position.y = 0.2;
+  lowerBody.castShadow = true;
+  car.add(lowerBody);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.25, 0.62), cabinMaterial);
+  cabin.position.set(0, 0.42, -0.04);
+  cabin.castShadow = true;
+  car.add(cabin);
+
+  const bumper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.64, 0.12, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x111418, roughness: 0.7 })
+  );
+  bumper.position.set(0, 0.14, 0.56);
+  car.add(bumper);
+
+  const wheelGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.08, 20);
+  const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.82 });
+  const wheelOffsets = [
+    [-0.34, 0.08, 0.42],
+    [0.34, 0.08, 0.42],
+    [-0.34, 0.08, -0.42],
+    [0.34, 0.08, -0.42]
+  ];
+
+  wheelOffsets.forEach(([x, y, z]) => {
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x, y, z);
+    wheel.castShadow = true;
+    car.add(wheel);
+  });
+
+  function getBasePosition(angle) {
+    return new THREE.Vector3(Math.cos(angle) * worldRadius, orbitCenter.y, Math.sin(angle) * worldRadius);
+  }
+
+  function getFrame(angle) {
+    const metrics = getScenarioMetrics();
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+    const inward = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)).normalize();
+    const outward = inward.clone().multiplyScalar(-1);
+    const slipRatio = metrics.safe ? 0 : THREE.MathUtils.clamp((metrics.speed - metrics.vMax) / Math.max(metrics.vMax, 0.01), 0, 1);
+    const position = getBasePosition(angle).add(outward.multiplyScalar(slipRatio * 1.05));
+    return {
+      position,
+      tangent,
+      inward,
+      arrowYOffset: 0.4,
+      slipRatio
+    };
+  }
+
+  function update(angle) {
+    const frame = getFrame(angle);
+    const heading = Math.atan2(frame.tangent.x, frame.tangent.z);
+    car.position.copy(frame.position);
+    car.rotation.y = heading;
+    car.rotation.z = frame.slipRatio * 0.18;
+    skidRing.material.opacity = frame.slipRatio * 0.65;
+    skidRing.scale.setScalar(1 + frame.slipRatio * 0.05);
+  }
+
+  return { group, update, getFrame };
+}
+
+function createSatelliteScenario() {
+  const group = new THREE.Group();
+  const earthRadius = 3;
+  const worldRadius = earthRadius + 0.9 + params.radius * 0.55;
+
+  const earthMaterial = new THREE.MeshStandardMaterial({
+    map: createEarthTexture(),
+    roughness: 0.92,
+    metalness: 0.02,
+    emissive: 0x123c68,
+    emissiveIntensity: 0.2
+  });
+
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(earthRadius, 64, 64), earthMaterial);
+  earth.castShadow = true;
+  earth.receiveShadow = true;
+  group.add(earth);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(earthRadius * 1.05, 48, 48),
+    new THREE.MeshBasicMaterial({ color: 0x9bd5ff, transparent: true, opacity: 0.15, side: THREE.BackSide })
+  );
+  group.add(atmosphere);
+
+  const orbitLine = createDashedCircle(worldRadius, 0xb3c6df);
+  group.add(orbitLine);
+
+  const glowRing = new THREE.Mesh(
+    new THREE.RingGeometry(worldRadius - 0.08, worldRadius + 0.08, 100),
+    new THREE.MeshBasicMaterial({ color: 0x95b8ff, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+  );
+  glowRing.rotation.x = -Math.PI / 2;
+  group.add(glowRing);
+
+  const satellite = new THREE.Group();
+  group.add(satellite);
+
+  const satelliteBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.38, 0.16, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0xdfdfdf, roughness: 0.38, metalness: 0.65 })
+  );
+  satelliteBody.castShadow = true;
+  satellite.add(satelliteBody);
+
+  const dish = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.11, 0.05, 20),
+    new THREE.MeshStandardMaterial({ color: 0xc8d0dd, roughness: 0.34, metalness: 0.58 })
+  );
+  dish.rotation.x = Math.PI / 2;
+  dish.position.set(0, 0.08, 0.2);
+  satellite.add(dish);
+
+  const panelMaterial = new THREE.MeshStandardMaterial({ color: 0x264f95, roughness: 0.44, metalness: 0.26 });
+  const leftPanel = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.04, 0.26), panelMaterial);
+  leftPanel.position.set(-0.55, 0, 0);
+  satellite.add(leftPanel);
+
+  const rightPanel = leftPanel.clone();
+  rightPanel.position.x = 0.55;
+  satellite.add(rightPanel);
+
+  function getPosition(angle) {
+    return new THREE.Vector3(Math.cos(angle) * worldRadius, 0, Math.sin(angle) * worldRadius);
+  }
+
+  function getFrame(angle) {
+    const position = getPosition(angle);
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize();
+    const inward = position.clone().multiplyScalar(-1).normalize();
+    return {
+      position,
+      tangent,
+      inward,
+      arrowYOffset: 0.2
+    };
+  }
+
+  function update(angle, delta) {
+    earth.rotation.y += delta * 0.18;
+    const frame = getFrame(angle);
+    satellite.position.copy(frame.position);
+    satellite.lookAt(new THREE.Vector3(0, 0, 0));
+    satellite.rotateY(Math.PI / 2);
+  }
+
+  return { group, update, getFrame };
+}
+
+function addTrailSegment() {
+  if (!state.scenarioObject) return;
+  const frame = state.scenarioObject.getFrame(state.angle);
+  const start = frame.position.clone().add(new THREE.Vector3(0, frame.arrowYOffset * 0.5, 0));
+  const end = start.clone().add(frame.tangent.clone().multiplyScalar(0.9));
+  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const material = new THREE.LineBasicMaterial({
+    color: 0x63df97,
+    transparent: true,
+    opacity: 0.12 + state.trailSegments.length * 0.006
+  });
+  const segment = new THREE.Line(geometry, material);
+  trailGroup.add(segment);
+  state.trailSegments.push(segment);
+
+  while (state.trailSegments.length > maxTrailSegments) {
+    const oldest = state.trailSegments.shift();
+    trailGroup.remove(oldest);
+    oldest.geometry.dispose();
+    oldest.material.dispose();
+  }
+
+  state.trailSegments.forEach((line, index) => {
+    line.material.opacity = 0.08 + (index / Math.max(1, state.trailSegments.length)) * 0.32;
+  });
+}
+
+function clearTrails() {
+  state.trailSegments.forEach((segment) => {
+    trailGroup.remove(segment);
+    segment.geometry.dispose();
+    segment.material.dispose();
+  });
+  state.trailSegments = [];
+}
+
+function createDashedCircle(radius, color) {
+  const points = [];
+  const segments = 160;
+  for (let i = 0; i <= segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.18,
+    gapSize: 0.14,
+    transparent: true,
+    opacity: 0.75
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
+function createEarthTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#3da1ff');
+  gradient.addColorStop(0.52, '#1e6ecb');
+  gradient.addColorStop(1, '#114b9a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const continents = [
+    [170, 180, 120, 70, '#6ab96b'],
+    [270, 240, 160, 80, '#74c77a'],
+    [510, 145, 190, 92, '#87cf84'],
+    [610, 290, 125, 76, '#6ab96b'],
+    [820, 220, 170, 90, '#7ccf78'],
+    [900, 320, 120, 64, '#63b66a']
+  ];
+
+  continents.forEach(([x, y, w, h, color]) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((x + y) * 0.0015);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(41, 114, 63, 0.38)';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.18, -h * 0.12, w * 0.48, h * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+  for (let i = 0; i < 18; i += 1) {
+    const x = (i * 57) % canvas.width;
+    const y = 70 + (i * 83) % (canvas.height - 140);
+    ctx.beginPath();
+    ctx.ellipse(x, y, 44, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createStarField() {
+  const geometry = new THREE.BufferGeometry();
+  const points = [];
+  for (let i = 0; i < 700; i += 1) {
+    const radius = THREE.MathUtils.randFloat(18, 60);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    points.push(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  const material = new THREE.PointsMaterial({
+    color: 0xf7fbff,
+    size: 0.16,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.9
+  });
+  return new THREE.Points(geometry, material);
+}
+
+function disposeObject(root) {
+  root.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(child.material);
+      }
+    }
+  });
+}
+
+function disposeMaterial(material) {
+  ['map', 'alphaMap', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'envMap'].forEach((key) => {
+    if (material[key]) {
+      material[key].dispose();
+    }
+  });
+  material.dispose();
+}
+
+function clampLength(value, min, max) {
+  return THREE.MathUtils.clamp(value, min, max);
+}
+
+function formatNumber(value) {
+  if (!Number.isFinite(value)) return '-';
+  return value >= 10 ? value.toFixed(1) : value.toFixed(2);
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+}
+</script>
+</body>
+</html>

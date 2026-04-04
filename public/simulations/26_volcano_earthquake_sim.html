@@ -1,0 +1,2270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>화산과 지진 시뮬레이션</title>
+  <style>
+    :root {
+      --bg: #0d1320;
+      --panel: rgba(6, 10, 20, 0.74);
+      --panel-strong: rgba(9, 14, 28, 0.86);
+      --line: rgba(255, 255, 255, 0.16);
+      --text: #eef4ff;
+      --muted: #b8c3d9;
+      --accent: #ff7c4d;
+      --accent-cool: #56a5ff;
+      --shadow: 0 20px 48px rgba(0, 0, 0, 0.34);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(255, 133, 90, 0.12), transparent 22%),
+        radial-gradient(circle at 82% 16%, rgba(90, 150, 255, 0.11), transparent 26%),
+        linear-gradient(180deg, #11192b, #09101b);
+      color: var(--text);
+      font-family: "Pretendard", "SUIT", "Noto Sans KR", sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #top-bar {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 6;
+    }
+
+    #guide-toggle,
+    .tab-btn {
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(9, 15, 29, 0.72);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 16px;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    #guide-toggle:hover,
+    .tab-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.28);
+      background: rgba(14, 23, 41, 0.86);
+    }
+
+    #status-pill {
+      max-width: min(44vw, 620px);
+      padding: 11px 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(255, 103, 63, 0.22), rgba(255, 185, 77, 0.12));
+      border: 1px solid rgba(255, 155, 122, 0.24);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      font-size: 14px;
+      line-height: 1.4;
+      color: #fff1eb;
+    }
+
+    #guide-panel {
+      position: absolute;
+      top: 74px;
+      left: 18px;
+      width: min(440px, calc(100vw - 36px));
+      max-height: min(46vh, 460px);
+      overflow: auto;
+      padding: 18px 18px 16px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(10, 15, 30, 0.9), rgba(8, 13, 24, 0.82));
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      z-index: 5;
+    }
+
+    #guide-panel.closed {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+
+    #guide-panel h2,
+    #guide-panel h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    #guide-panel h3 {
+      margin-top: 14px;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      color: #ffd6b0;
+      text-transform: uppercase;
+    }
+
+    #guide-panel p,
+    #guide-panel li {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.7;
+    }
+
+    #guide-panel ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    #tab-strip {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 6;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(255, 113, 61, 0.36), rgba(255, 178, 77, 0.18));
+      border-color: rgba(255, 176, 97, 0.4);
+    }
+
+    #info-panel {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      padding: 18px 20px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.74), rgba(11, 16, 28, 0.82));
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+      z-index: 5;
+    }
+
+    #info-panel pre {
+      margin: 0;
+      white-space: pre-wrap;
+      font-family: "Pretendard", "SUIT", "Noto Sans KR", sans-serif;
+      font-size: 13.5px;
+      line-height: 1.72;
+      color: var(--text);
+    }
+
+    .value {
+      color: #ffe19c;
+      font-weight: 700;
+    }
+
+    .value.cool {
+      color: #88c4ff;
+    }
+
+    .value.danger {
+      color: #ff8f72;
+    }
+
+    #quake-panel {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      padding: 18px 20px;
+      border-radius: 22px;
+      border: 1px solid rgba(138, 187, 255, 0.16);
+      background: linear-gradient(180deg, rgba(5, 8, 18, 0.82), rgba(8, 12, 24, 0.88));
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+      z-index: 5;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #quake-panel.hidden {
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+    }
+
+    .panel-title {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .compare-grid strong {
+      color: var(--text);
+      font-size: 13.2px;
+    }
+
+    .compare-grid div {
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .compare-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(86, 165, 255, 0.08);
+      border: 1px solid rgba(86, 165, 255, 0.18);
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #d6e8ff;
+    }
+
+    #flash {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 34px rgba(255, 73, 42, 0.88);
+      transition: opacity 0.06s linear;
+      z-index: 8;
+    }
+
+    .lil-gui.root {
+      --width: 288px;
+      z-index: 7;
+      margin-top: 14px;
+      margin-right: 12px;
+    }
+
+    .lil-gui {
+      --background-color: rgba(8, 12, 20, 0.92);
+      --widget-color: rgba(255, 255, 255, 0.06);
+      --focus-color: rgba(255, 124, 77, 0.35);
+      --hover-color: rgba(255, 255, 255, 0.12);
+      --title-background-color: rgba(255, 255, 255, 0.03);
+      --number-color: #ffe1a3;
+      --string-color: #b8d8ff;
+    }
+
+    @media (max-width: 960px) {
+      #top-bar,
+      #tab-strip {
+        left: 14px;
+        right: 14px;
+        transform: none;
+      }
+
+      #top-bar {
+        flex-direction: column;
+      }
+
+      #tab-strip {
+        top: auto;
+        bottom: 200px;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      #status-pill {
+        max-width: 100%;
+      }
+
+      #guide-panel {
+        top: 114px;
+        max-height: 34vh;
+      }
+
+      #info-panel,
+      #quake-panel {
+        width: calc(100vw - 28px);
+        left: 14px;
+        right: 14px;
+      }
+
+      #quake-panel {
+        bottom: 192px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="top-bar">
+        <button id="guide-toggle">📖 학습 가이드</button>
+        <div id="status-pill">지진과 화산 활동은 지구 내부 에너지로 일어나는 지각 변동입니다.</div>
+      </div>
+
+      <section id="guide-panel">
+        <h2>🌋 화산과 지진</h2>
+        <p>
+          지진과 화산 활동은 지구 내부 에너지에 의해 일어납니다. 화산 분출물은 기후를 변화시키기도 하고 비옥한 토양을 만들기도 합니다.
+          지진파 분석으로 지구 내부 구조를 파악할 수 있습니다.
+        </p>
+
+        <h3>탐구 질문</h3>
+        <ul>
+          <li>화산 활동이 지구시스템에 미치는 긍정적 영향과 부정적 영향을 각각 설명해 보세요.</li>
+          <li>S파가 외핵을 통과하지 못하는 까닭은 무엇인가요? 답: 횡파는 액체를 통과하지 못합니다.</li>
+          <li>화산재가 성층권까지 올라가면 기후에 어떤 영향을 줄까요? 답: 햇빛을 가려 기온이 낮아질 수 있습니다.</li>
+          <li>지진파를 이용해 지구 내부가 액체인 부분을 어떻게 알 수 있나요?</li>
+          <li>화산 활동이 있는 지역에서 온천이 발달하는 까닭은 무엇인가요?</li>
+        </ul>
+
+        <h3>실생활 예시</h3>
+        <ul>
+          <li>2022년 통가 해저 화산 분출</li>
+          <li>2011년 동일본 대지진</li>
+          <li>지열 발전과 화산 지대의 온천</li>
+          <li>지진 조기 경보 시스템: P파가 S파보다 먼저 도착하는 원리 활용</li>
+        </ul>
+
+        <h3>교과서 연계</h3>
+        <p>미래엔 통합과학1 III편 p112~118, 그림 III-10과 III-13을 함께 참고해 보세요.</p>
+      </section>
+
+      <div id="tab-strip">
+        <button class="tab-btn active" data-tab="화산 분출">화산 분출</button>
+        <button class="tab-btn" data-tab="지진파 전파">지진파 전파</button>
+      </div>
+
+      <section id="info-panel"><pre></pre></section>
+
+      <section id="quake-panel" class="hidden">
+        <h3 class="panel-title">📊 지진파 비교</h3>
+        <div class="compare-grid">
+          <div><strong>항목</strong></div>
+          <div><strong>P파 (종파)</strong></div>
+          <div><strong>S파 (횡파)</strong></div>
+          <div>속도</div>
+          <div>빠름</div>
+          <div>느림</div>
+          <div>통과</div>
+          <div>고체 + 액체</div>
+          <div>고체만</div>
+          <div>외핵</div>
+          <div>통과 ✓</div>
+          <div>차단 ✗</div>
+        </div>
+        <div class="compare-note">
+          결론: S파가 외핵에서 차단되므로 외핵은 액체 상태임을 알 수 있습니다.
+        </div>
+      </section>
+    </div>
+    <div id="flash"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const canvas = document.getElementById('scene');
+    const infoPre = document.querySelector('#info-panel pre');
+    const quakePanel = document.getElementById('quake-panel');
+    const statusPill = document.getElementById('status-pill');
+    const flashEl = document.getElementById('flash');
+    const guideToggle = document.getElementById('guide-toggle');
+    const guidePanel = document.getElementById('guide-panel');
+    const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.localClippingEnabled = true;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.setClearColor(0x1a1a2a, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.position.set(11, 8, 11);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 5;
+    controls.maxDistance = 24;
+    controls.target.set(0, 2.4, 0);
+
+    const clock = new THREE.Clock();
+    const tempVec3 = new THREE.Vector3();
+
+    const STAGE_NAMES = ['전조', '폭발', '용암', '기후'];
+    const FAR_AWAY = 9999;
+
+    const appState = {
+      currentTab: '화산 분출',
+      flashOpacity: 0,
+      flashColor: 'rgba(255, 73, 42, 0.88)',
+      cameraShake: 0,
+      statusLockTimer: 0
+    };
+
+    const params = {
+      experimentTab: '화산 분출',
+      startEruption: () => triggerEruption(),
+      volcanoVEI: 3,
+      volcanoStage: 0,
+      positiveEffects: false,
+      climateEffect: true,
+      volcanoSlowMo: 0.5,
+      startEarthquake: () => triggerEarthquake(),
+      quakeMagnitude: 5,
+      showPWave: true,
+      showSWave: true,
+      showShadowZone: false,
+      showLayerLabels: true,
+      quakeSlowMo: 1,
+      reset: () => resetAll()
+    };
+
+    const guiRefs = {};
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function formatNumber(value, digits = 1) {
+      return Number(value).toFixed(digits);
+    }
+
+    function terrainHeightAt(x, z) {
+      const dist = Math.hypot(x, z);
+      const coneLift = Math.exp(-dist * 0.32) * 0.95;
+      const rolling = Math.sin(x * 0.35) * Math.cos(z * 0.38) * 0.08;
+      const apron = Math.max(0, 0.14 - dist * 0.012);
+      return coneLift + rolling + apron - 0.12;
+    }
+
+    function setSpriteOpacity(sprite, opacity) {
+      if (sprite.material) {
+        sprite.material.opacity = opacity;
+        sprite.material.transparent = true;
+      }
+    }
+
+    function createTextSprite(text, options = {}) {
+      const {
+        color = '#ffffff',
+        background = 'rgba(10, 14, 25, 0.66)',
+        border = 'rgba(255,255,255,0.22)',
+        padding = 20,
+        font = '700 34px Pretendard',
+        radius = 18
+      } = options;
+
+      const lines = String(text).split('\n');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.font = font;
+      const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+      const lineHeight = 42;
+      canvas.width = Math.ceil(maxWidth + padding * 2);
+      canvas.height = Math.ceil(lineHeight * lines.length + padding * 1.6);
+      ctx.font = font;
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+
+      if (background !== 'transparent') {
+        ctx.fillStyle = background;
+        ctx.strokeStyle = border;
+        ctx.lineWidth = 2;
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(w - radius, 0);
+        ctx.quadraticCurveTo(w, 0, w, radius);
+        ctx.lineTo(w, h - radius);
+        ctx.quadraticCurveTo(w, h, w - radius, h);
+        ctx.lineTo(radius, h);
+        ctx.quadraticCurveTo(0, h, 0, h - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+        ctx.closePath();
+        ctx.fill();
+        if (border !== 'transparent') {
+          ctx.stroke();
+        }
+      }
+
+      ctx.fillStyle = color;
+      lines.forEach((line, index) => {
+        const y = padding * 0.72 + index * lineHeight + lineHeight / 2;
+        ctx.fillText(line, padding, y);
+      });
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+      const scale = 0.01;
+      sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
+      return sprite;
+    }
+
+    function createDashedCircle(radius, color = 0xffffff) {
+      const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, Math.PI * 2, false, 0);
+      const points = curve.getPoints(160).map((point) => new THREE.Vector3(0, point.y, point.x));
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineDashedMaterial({
+        color,
+        dashSize: 0.18,
+        gapSize: 0.14,
+        transparent: true,
+        opacity: 0.82
+      });
+      const line = new THREE.LineLoop(geometry, material);
+      line.computeLineDistances();
+      return line;
+    }
+
+    function createPooledParticles(count, options = {}) {
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const sizes = new Float32Array(count);
+      const alphas = new Float32Array(count);
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+      geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+
+      const material = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        depthTest: options.depthTest ?? true,
+        blending: options.blending ?? THREE.NormalBlending,
+        uniforms: {
+          uPixelRatio: { value: renderer.getPixelRatio() }
+        },
+        vertexShader: `
+          attribute float aSize;
+          attribute float aAlpha;
+          varying vec3 vColor;
+          varying float vAlpha;
+          uniform float uPixelRatio;
+          void main() {
+            vColor = color;
+            vAlpha = aAlpha;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = max(1.0, aSize * uPixelRatio * (220.0 / -mvPosition.z));
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          varying float vAlpha;
+          void main() {
+            vec2 p = gl_PointCoord - 0.5;
+            float d = length(p);
+            if (d > 0.5) discard;
+            float soft = smoothstep(0.5, 0.14, d);
+            gl_FragColor = vec4(vColor, vAlpha * soft);
+          }
+        `
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+
+      const particles = Array.from({ length: count }, () => ({
+        active: false,
+        position: new THREE.Vector3(FAR_AWAY, FAR_AWAY, FAR_AWAY),
+        velocity: new THREE.Vector3(),
+        color: new THREE.Color(1, 1, 1),
+        size: 10,
+        alpha: 0,
+        age: 0,
+        maxAge: 1,
+        curveIndex: 0,
+        progress: 0,
+        progressSpeed: 0
+      }));
+
+      function syncOne(index) {
+        const particle = particles[index];
+        const offset = index * 3;
+        positions[offset] = particle.position.x;
+        positions[offset + 1] = particle.position.y;
+        positions[offset + 2] = particle.position.z;
+        particle.color.toArray(colors, offset);
+        sizes[index] = particle.size;
+        alphas[index] = particle.alpha;
+      }
+
+      function hide(index) {
+        const particle = particles[index];
+        particle.active = false;
+        particle.position.set(FAR_AWAY, FAR_AWAY, FAR_AWAY);
+        particle.velocity.set(0, 0, 0);
+        particle.size = 0;
+        particle.alpha = 0;
+        syncOne(index);
+      }
+
+      function deactivateAll() {
+        for (let i = 0; i < count; i += 1) {
+          hide(i);
+        }
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+        geometry.attributes.aSize.needsUpdate = true;
+        geometry.attributes.aAlpha.needsUpdate = true;
+      }
+
+      function findInactive() {
+        for (let i = 0; i < count; i += 1) {
+          if (!particles[i].active) return i;
+        }
+        return -1;
+      }
+
+      function activate(setupFn) {
+        const index = findInactive();
+        if (index === -1) return -1;
+        const particle = particles[index];
+        particle.active = true;
+        setupFn(particle);
+        syncOne(index);
+        return index;
+      }
+
+      function commit() {
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+        geometry.attributes.aSize.needsUpdate = true;
+        geometry.attributes.aAlpha.needsUpdate = true;
+      }
+
+      deactivateAll();
+
+      return {
+        points,
+        particles,
+        activate,
+        hide,
+        deactivateAll,
+        syncOne,
+        commit,
+        material
+      };
+    }
+
+    function getVeiProfile(vei) {
+      const t = clamp((vei - 1) / 4, 0, 1);
+      return {
+        lavaParticles: Math.round(50 + t * 350),
+        ashParticles: Math.round(100 + t * 500),
+        gasParticles: Math.round(60 + t * 120),
+        flowParticles: Math.round(45 + t * 105),
+        heightKm: Math.round(2 + t * 23),
+        darkness: t < 0.1 ? 0 : 0.2 + t * 0.8
+      };
+    }
+
+    function createTree(x, z) {
+      const tree = new THREE.Group();
+      const trunkMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6b4226,
+        roughness: 0.92
+      });
+      const leavesMaterial = new THREE.MeshStandardMaterial({
+        color: 0x228b22,
+        roughness: 0.74
+      });
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.8, 10), trunkMaterial);
+      trunk.position.y = 0.42;
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
+
+      const leaves = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 20), leavesMaterial);
+      leaves.position.y = 0.97;
+      leaves.castShadow = true;
+      leaves.receiveShadow = true;
+
+      tree.add(trunk, leaves);
+      tree.position.set(x, terrainHeightAt(x, z), z);
+      tree.userData = {
+        trunk,
+        leaves,
+        destroyed: false,
+        originalLeaf: new THREE.Color(0x228b22)
+      };
+      return tree;
+    }
+
+    function createBuilding(x, z) {
+      const building = new THREE.Group();
+      const baseMaterial = new THREE.MeshStandardMaterial({
+        color: 0xddccbb,
+        roughness: 0.86
+      });
+      const roofMaterial = new THREE.MeshStandardMaterial({
+        color: 0x9a4d32,
+        roughness: 0.8
+      });
+
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.3), baseMaterial);
+      base.position.y = 0.2;
+      base.castShadow = true;
+      base.receiveShadow = true;
+
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.22, 4), roofMaterial);
+      roof.position.y = 0.54;
+      roof.rotation.y = Math.PI / 4;
+      roof.castShadow = true;
+
+      building.add(base, roof);
+      building.position.set(x, terrainHeightAt(x, z), z);
+      building.userData = {
+        base,
+        roof,
+        destroyed: false
+      };
+      return building;
+    }
+
+    function createWaveMesh(color) {
+      const uniforms = {
+        uColor: { value: new THREE.Color(color) },
+        uRadius: { value: 0 },
+        uThickness: { value: 0.03 },
+        uOpacity: { value: 0.0 }
+      };
+
+      const material = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        uniforms,
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec2 vUv;
+          uniform vec3 uColor;
+          uniform float uRadius;
+          uniform float uThickness;
+          uniform float uOpacity;
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0;
+            float d = length(p);
+            float outer = 1.0 - smoothstep(uRadius, uRadius + uThickness, d);
+            float inner = 1.0 - smoothstep(uRadius - uThickness, uRadius, d);
+            float ring = clamp(outer - inner, 0.0, 1.0);
+            float edge = 1.0 - smoothstep(0.98, 1.02, d);
+            float alpha = ring * uOpacity * edge;
+            if (alpha < 0.01) discard;
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `
+      });
+
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), material);
+      mesh.rotation.y = Math.PI / 2;
+      mesh.visible = false;
+      return { mesh, uniforms };
+    }
+
+    const volcano = {
+      group: new THREE.Group(),
+      smokeAccumulator: 0,
+      springSteamAccumulator: 0,
+      timeline: 0,
+      autoPlaying: false,
+      manualPreview: false,
+      currentStage: 0,
+      climate: 0,
+      flowActive: false,
+      stageEntered: new Set(),
+      eruptionHeightKm: 8
+    };
+
+    const quake = {
+      group: new THREE.Group(),
+      waves: [],
+      active: false,
+      elapsed: 0,
+      blockFlash: 0,
+      focusPulse: 0,
+      sBlockRadius: 2,
+      shadowOpacity: 0
+    };
+
+    scene.add(volcano.group);
+    scene.add(quake.group);
+
+    function buildVolcanoScene() {
+      const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+      const sun = new THREE.DirectionalLight(0xfff1d8, 0.6);
+      sun.position.set(7, 11, 5);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.camera.left = -14;
+      sun.shadow.camera.right = 14;
+      sun.shadow.camera.top = 14;
+      sun.shadow.camera.bottom = -14;
+
+      const craterLight = new THREE.PointLight(0xff4400, 2, 18, 2);
+      craterLight.position.set(0, 4.9, 0);
+
+      const bombFlashLight = new THREE.PointLight(0xff9955, 0, 7, 2);
+      bombFlashLight.position.set(0, 0.6, 0);
+
+      volcano.ambient = ambient;
+      volcano.sun = sun;
+      volcano.craterLight = craterLight;
+      volcano.bombFlashLight = bombFlashLight;
+
+      const skyMaterial = new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        uniforms: {
+          uTop: { value: new THREE.Color(0x87ceeb) },
+          uHorizon: { value: new THREE.Color(0x334466) },
+          uDarken: { value: 0 }
+        },
+        vertexShader: `
+          varying vec3 vPosition;
+          void main() {
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uTop;
+          uniform vec3 uHorizon;
+          uniform float uDarken;
+          varying vec3 vPosition;
+          void main() {
+            float h = normalize(vPosition).y * 0.5 + 0.5;
+            vec3 base = mix(uHorizon, uTop, smoothstep(0.08, 0.88, h));
+            vec3 darkened = mix(base, vec3(0.33, 0.34, 0.40), uDarken);
+            gl_FragColor = vec4(darkened, 1.0);
+          }
+        `
+      });
+      const sky = new THREE.Mesh(new THREE.SphereGeometry(30, 64, 32), skyMaterial);
+      volcano.sky = sky;
+      volcano.skyMaterial = skyMaterial;
+
+      const terrainGeometry = new THREE.PlaneGeometry(25, 25, 50, 50);
+      const terrainPositions = terrainGeometry.attributes.position;
+      for (let i = 0; i < terrainPositions.count; i += 1) {
+        const x = terrainPositions.getX(i);
+        const z = terrainPositions.getY(i);
+        terrainPositions.setZ(i, terrainHeightAt(x, z));
+      }
+      terrainGeometry.rotateX(-Math.PI / 2);
+      terrainGeometry.computeVertexNormals();
+
+      const terrain = new THREE.Mesh(
+        terrainGeometry,
+        new THREE.MeshStandardMaterial({
+          color: 0x447744,
+          roughness: 0.82,
+          metalness: 0.04
+        })
+      );
+      terrain.receiveShadow = true;
+      volcano.terrain = terrain;
+
+      const fertilePatch = new THREE.Mesh(
+        new THREE.CircleGeometry(2.4, 40),
+        new THREE.MeshStandardMaterial({
+          color: 0x1c7a2d,
+          transparent: true,
+          opacity: 0,
+          roughness: 0.92
+        })
+      );
+      fertilePatch.rotation.x = -Math.PI / 2;
+      fertilePatch.position.set(3.1, terrainHeightAt(3.1, -1.4) + 0.03, -1.4);
+      volcano.fertilePatch = fertilePatch;
+
+      const hotSpring = new THREE.Group();
+      hotSpring.position.set(-3.6, terrainHeightAt(-3.6, 2.6) + 0.02, 2.6);
+
+      const springRock = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.9, 1.0, 0.18, 20),
+        new THREE.MeshStandardMaterial({ color: 0x75604f, roughness: 0.92 })
+      );
+      springRock.receiveShadow = true;
+
+      const springWater = new THREE.Mesh(
+        new THREE.CircleGeometry(0.48, 24),
+        new THREE.MeshStandardMaterial({
+          color: 0x49b3ff,
+          emissive: 0x1f7fd8,
+          emissiveIntensity: 0.8,
+          roughness: 0.12,
+          metalness: 0.06
+        })
+      );
+      springWater.rotation.x = -Math.PI / 2;
+      springWater.position.y = 0.1;
+      hotSpring.add(springRock, springWater);
+      hotSpring.visible = false;
+      volcano.hotSpring = hotSpring;
+
+      const volcanoGeometry = new THREE.CylinderGeometry(1.55, 4.05, 5, 32, 18, false);
+      const vp = volcanoGeometry.attributes.position;
+      for (let i = 0; i < vp.count; i += 1) {
+        const x = vp.getX(i);
+        const y = vp.getY(i);
+        const z = vp.getZ(i);
+        const radial = Math.hypot(x, z);
+        const yNorm = (y + 2.5) / 5;
+        const ridge = Math.sin(Math.atan2(z, x) * 6 + y * 2.2) * 0.08;
+        const offset = (Math.random() - 0.5) * 0.12 * (1 - yNorm * 0.5);
+        const scale = 1 + ridge + offset;
+        if (radial > 0.001) {
+          vp.setXYZ(i, x * scale, y + Math.sin((x + z) * 0.6) * 0.03, z * scale);
+        }
+      }
+      volcanoGeometry.computeVertexNormals();
+
+      const volcanoBody = new THREE.Mesh(
+        volcanoGeometry,
+        new THREE.MeshStandardMaterial({
+          color: 0x664433,
+          roughness: 0.9,
+          metalness: 0.02,
+          bumpScale: 0.3
+        })
+      );
+      volcanoBody.position.y = 2.33;
+      volcanoBody.castShadow = true;
+      volcanoBody.receiveShadow = true;
+      volcano.body = volcanoBody;
+
+      const crater = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.0, 0.88, 0.55, 32, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: 0xff592d,
+          emissive: 0xff2200,
+          emissiveIntensity: 1.25,
+          roughness: 0.3,
+          side: THREE.DoubleSide
+        })
+      );
+      crater.position.y = 4.78;
+      volcano.crater = crater;
+
+      const craterRim = new THREE.Mesh(
+        new THREE.TorusGeometry(1.02, 0.1, 16, 64),
+        new THREE.MeshStandardMaterial({
+          color: 0x554433,
+          roughness: 0.92
+        })
+      );
+      craterRim.rotation.x = Math.PI / 2;
+      craterRim.position.y = 5.04;
+
+      const lavaPoolMaterial = new THREE.ShaderMaterial({
+        transparent: false,
+        uniforms: {
+          uTime: { value: 0 }
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec2 vUv;
+          uniform float uTime;
+          float wave(vec2 uv) {
+            return sin((uv.x + uTime * 0.12) * 18.0)
+              + cos((uv.y - uTime * 0.09) * 15.0)
+              + sin((uv.x + uv.y + uTime * 0.07) * 22.0);
+          }
+          void main() {
+            vec2 uv = vUv - 0.5;
+            float mask = smoothstep(0.52, 0.26, length(uv));
+            float heat = wave(vUv) * 0.12 + 0.5;
+            vec3 cool = vec3(1.0, 0.28, 0.03);
+            vec3 hot = vec3(1.0, 0.82, 0.08);
+            vec3 color = mix(cool, hot, clamp(heat, 0.0, 1.0));
+            color += vec3(0.12, 0.05, 0.0) * mask;
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `
+      });
+      const lavaPool = new THREE.Mesh(new THREE.CircleGeometry(0.8, 48), lavaPoolMaterial);
+      lavaPool.rotation.x = -Math.PI / 2;
+      lavaPool.position.y = 4.74;
+      volcano.lavaPoolMaterial = lavaPoolMaterial;
+
+      const magmaConduit = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 5.15, 20, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: 0xff3300,
+          transparent: true,
+          opacity: 0.25,
+          side: THREE.DoubleSide
+        })
+      );
+      magmaConduit.position.y = 2.25;
+      volcano.magmaConduit = magmaConduit;
+
+      const crackMaterial = new THREE.LineBasicMaterial({
+        color: 0xff4400,
+        transparent: true,
+        opacity: 0.92
+      });
+
+      const cracks = new THREE.Group();
+      const crackSeeds = [
+        [-0.7, 3.9, 0.4, -2.2, 1.2, 1.3],
+        [0.8, 4.1, -0.5, 2.1, 0.8, -1.2],
+        [0.15, 4.0, 0.9, 0.9, 1.0, 2.5],
+        [-1.1, 3.6, -0.6, -2.4, 0.8, -1.5]
+      ];
+      crackSeeds.forEach((seed, index) => {
+        const points = [
+          new THREE.Vector3(seed[0], seed[1], seed[2]),
+          new THREE.Vector3(seed[0] + seed[3] * 0.26, seed[4] + 2.6, seed[2] + seed[5] * 0.26),
+          new THREE.Vector3(seed[0] + seed[3] * 0.62, seed[4] + 1.6, seed[2] + seed[5] * 0.62),
+          new THREE.Vector3(seed[0] + seed[3], seed[4], seed[2] + seed[5])
+        ];
+        const crack = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), crackMaterial);
+        crack.userData.baseOpacity = 0.35 + index * 0.1;
+        cracks.add(crack);
+      });
+      volcano.cracks = cracks;
+
+      const treePositions = [
+        [-6.2, -1.4],
+        [-5.4, 2.5],
+        [-2.8, -5.2],
+        [2.4, -6.0],
+        [5.6, 2.4],
+        [6.4, -2.4],
+        [3.1, 5.7]
+      ];
+      const buildingPositions = [
+        [6.8, -0.8],
+        [5.8, 3.2],
+        [-6.4, 1.1]
+      ];
+
+      const vegetation = new THREE.Group();
+      const structures = new THREE.Group();
+      volcano.trees = treePositions.map(([x, z]) => {
+        const tree = createTree(x, z);
+        vegetation.add(tree);
+        return tree;
+      });
+      volcano.buildings = buildingPositions.map(([x, z]) => {
+        const building = createBuilding(x, z);
+        structures.add(building);
+        return building;
+      });
+
+      const conduitParticles = createPooledParticles(30, {
+        blending: THREE.AdditiveBlending
+      });
+      const smokeParticles = createPooledParticles(60, {
+        blending: THREE.NormalBlending
+      });
+      const ejectaParticles = createPooledParticles(450, {
+        blending: THREE.AdditiveBlending
+      });
+      const ashParticles = createPooledParticles(650, {
+        blending: THREE.NormalBlending
+      });
+      const gasParticles = createPooledParticles(180, {
+        blending: THREE.AdditiveBlending
+      });
+      const flowParticles = createPooledParticles(170, {
+        blending: THREE.AdditiveBlending
+      });
+      const springSteamParticles = createPooledParticles(28, {
+        blending: THREE.NormalBlending
+      });
+
+      volcano.conduitParticles = conduitParticles;
+      volcano.smokeParticles = smokeParticles;
+      volcano.ejectaParticles = ejectaParticles;
+      volcano.ashParticles = ashParticles;
+      volcano.gasParticles = gasParticles;
+      volcano.flowParticles = flowParticles;
+      volcano.springSteamParticles = springSteamParticles;
+
+      const bombGroup = new THREE.Group();
+      volcano.bombs = Array.from({ length: 10 }, () => {
+        const radius = rand(0.08, 0.15);
+        const bomb = new THREE.Mesh(
+          new THREE.SphereGeometry(radius, 16, 16),
+          new THREE.MeshStandardMaterial({
+            color: 0xff2200,
+            emissive: 0x661100,
+            emissiveIntensity: 0.6,
+            roughness: 0.42
+          })
+        );
+        bomb.visible = false;
+        bomb.castShadow = true;
+        bomb.userData = {
+          active: false,
+          radius,
+          velocity: new THREE.Vector3()
+        };
+        bombGroup.add(bomb);
+        return bomb;
+      });
+
+      const flowCurves = [
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.0, 4.92, 0.0),
+          new THREE.Vector3(0.8, 4.1, 0.4),
+          new THREE.Vector3(2.1, 2.9, 0.9),
+          new THREE.Vector3(4.1, 1.5, 1.6),
+          new THREE.Vector3(6.5, 0.26, 2.1)
+        ]),
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.0, 4.92, 0.0),
+          new THREE.Vector3(-0.9, 4.15, -0.25),
+          new THREE.Vector3(-2.2, 3.0, -0.8),
+          new THREE.Vector3(-4.4, 1.6, -1.6),
+          new THREE.Vector3(-6.5, 0.18, -2.8)
+        ]),
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.0, 4.92, 0.0),
+          new THREE.Vector3(-0.2, 4.1, 0.95),
+          new THREE.Vector3(-0.7, 3.0, 2.2),
+          new THREE.Vector3(-1.6, 1.85, 4.0),
+          new THREE.Vector3(-2.5, 0.52, 6.4)
+        ]),
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.0, 4.92, 0.0),
+          new THREE.Vector3(0.6, 4.05, -0.9),
+          new THREE.Vector3(1.9, 2.95, -2.1),
+          new THREE.Vector3(3.8, 1.52, -3.8),
+          new THREE.Vector3(6.1, 0.2, -5.4)
+        ])
+      ];
+      volcano.flowCurves = flowCurves;
+
+      const flowLines = new THREE.Group();
+      flowCurves.forEach((curve) => {
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(60));
+        const line = new THREE.Line(
+          lineGeometry,
+          new THREE.LineBasicMaterial({
+            color: 0xff7a26,
+            transparent: true,
+            opacity: 0.0
+          })
+        );
+        flowLines.add(line);
+      });
+      volcano.flowLines = flowLines;
+
+      const volcanoLabel = createTextSprite('화산체', {
+        color: '#ffe7d8',
+        background: 'rgba(18, 12, 10, 0.62)',
+        border: 'rgba(255, 145, 84, 0.28)',
+        font: '700 30px Pretendard'
+      });
+      volcanoLabel.position.set(2.2, 6.2, 0);
+
+      const craterLabel = createTextSprite('분화구', {
+        color: '#ffd3ba',
+        background: 'rgba(18, 12, 10, 0.7)',
+        border: 'rgba(255, 145, 84, 0.34)',
+        font: '700 30px Pretendard'
+      });
+      craterLabel.position.set(0.1, 5.95, 1.2);
+
+      volcano.group.add(
+        sky,
+        terrain,
+        fertilePatch,
+        hotSpring,
+        volcanoBody,
+        crater,
+        craterRim,
+        lavaPool,
+        magmaConduit,
+        cracks,
+        vegetation,
+        structures,
+        conduitParticles.points,
+        smokeParticles.points,
+        ejectaParticles.points,
+        ashParticles.points,
+        gasParticles.points,
+        flowParticles.points,
+        springSteamParticles.points,
+        flowLines,
+        bombGroup,
+        ambient,
+        sun,
+        craterLight,
+        bombFlashLight,
+        volcanoLabel,
+        craterLabel
+      );
+
+      volcano.structureGroup = structures;
+      volcano.vegetationGroup = vegetation;
+
+      for (let i = 0; i < conduitParticles.particles.length; i += 1) {
+        conduitParticles.activate((particle) => {
+          particle.position.set(rand(-0.18, 0.18), rand(0.3, 4.5), rand(-0.18, 0.18));
+          particle.velocity.set(rand(-0.02, 0.02), rand(0.8, 1.6), rand(-0.02, 0.02));
+          particle.color.setRGB(1.0, 0.68, 0.12);
+          particle.size = rand(6, 12);
+          particle.alpha = rand(0.5, 0.9);
+          particle.age = 0;
+          particle.maxAge = rand(1.2, 2.4);
+        });
+      }
+      conduitParticles.commit();
+    }
+
+    function buildEarthquakeScene() {
+      const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+      quake.clipPlane = clipPlane;
+
+      const ambient = new THREE.AmbientLight(0xffffff, 0.2);
+      const coreLight = new THREE.PointLight(0xff4400, 1.5, 18, 2);
+      coreLight.position.set(0, 0, 0);
+      quake.coreLight = coreLight;
+
+      const shell = new THREE.Mesh(
+        new THREE.SphereGeometry(5.0, 64, 64),
+        new THREE.MeshStandardMaterial({
+          color: 0x3a5585,
+          emissive: 0x0b1630,
+          emissiveIntensity: 0.18,
+          transparent: true,
+          opacity: 0.2,
+          roughness: 0.8,
+          metalness: 0.08,
+          side: THREE.DoubleSide,
+          clippingPlanes: [clipPlane]
+        })
+      );
+
+      const shellEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.SphereGeometry(5.0, 32, 32)),
+        new THREE.LineBasicMaterial({
+          color: 0x90a4d0,
+          transparent: true,
+          opacity: 0.2
+        })
+      );
+      shellEdges.material.clippingPlanes = [clipPlane];
+
+      const layerMaterials = {
+        crust: new THREE.MeshStandardMaterial({
+          color: 0x886644,
+          roughness: 0.88,
+          side: THREE.DoubleSide
+        }),
+        mantle: new THREE.MeshStandardMaterial({
+          color: 0xcc5533,
+          roughness: 0.78,
+          side: THREE.DoubleSide
+        }),
+        outerCore: new THREE.MeshStandardMaterial({
+          color: 0xff6622,
+          emissive: 0x441100,
+          emissiveIntensity: 0.9,
+          roughness: 0.48,
+          side: THREE.DoubleSide
+        }),
+        innerCore: new THREE.MeshStandardMaterial({
+          color: 0xffaa44,
+          emissive: 0x663300,
+          emissiveIntensity: 1.2,
+          metalness: 0.8,
+          roughness: 0.26,
+          side: THREE.DoubleSide
+        })
+      };
+      quake.layerMaterials = layerMaterials;
+
+      const crust = new THREE.Mesh(new THREE.RingGeometry(4.85, 5.0, 128), layerMaterials.crust);
+      const mantle = new THREE.Mesh(new THREE.RingGeometry(2.7, 4.85, 128), layerMaterials.mantle);
+      const outerCore = new THREE.Mesh(new THREE.RingGeometry(1.3, 2.7, 96), layerMaterials.outerCore);
+      const innerCore = new THREE.Mesh(new THREE.CircleGeometry(1.3, 96), layerMaterials.innerCore);
+
+      [crust, mantle, outerCore, innerCore].forEach((mesh) => {
+        mesh.rotation.y = Math.PI / 2;
+        mesh.position.x = 0.04;
+      });
+
+      quake.outerCoreSection = outerCore;
+
+      const boundaries = new THREE.Group();
+      [5.0, 4.85, 2.7, 1.3].forEach((radius) => {
+        const circle = createDashedCircle(radius);
+        circle.position.x = 0.06;
+        boundaries.add(circle);
+      });
+
+      const focusRadius = 4.7;
+      const focusAngle = THREE.MathUtils.degToRad(30);
+      const focusPosition = new THREE.Vector3(0, Math.sin(focusAngle) * focusRadius, Math.cos(focusAngle) * focusRadius);
+      const epicenterPosition = focusPosition.clone().normalize().multiplyScalar(5.02);
+      quake.focusPosition = focusPosition;
+      quake.epicenterPosition = epicenterPosition;
+      quake.sBlockRadius = focusRadius - 2.7;
+
+      const focus = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0xff0000,
+          emissive: 0xff0000,
+          emissiveIntensity: 1.8
+        })
+      );
+      focus.position.copy(focusPosition);
+      quake.focusMarker = focus;
+
+      const focusLabel = createTextSprite('진원', {
+        color: '#ffdcdc',
+        background: 'rgba(35, 10, 12, 0.72)',
+        border: 'rgba(255, 92, 92, 0.4)',
+        font: '700 28px Pretendard'
+      });
+      focusLabel.position.copy(focusPosition).add(new THREE.Vector3(0.1, 0.55, 0.5));
+
+      const epicenterMark = createTextSprite('✱', {
+        color: '#ff7c6b',
+        background: 'transparent',
+        border: 'transparent',
+        padding: 8,
+        font: '900 80px Pretendard'
+      });
+      epicenterMark.position.copy(epicenterPosition).add(new THREE.Vector3(0, 0.28, 0));
+
+      const epicenterLabel = createTextSprite('진앙', {
+        color: '#ffdcdc',
+        background: 'rgba(35, 10, 12, 0.72)',
+        border: 'rgba(255, 92, 92, 0.4)',
+        font: '700 28px Pretendard'
+      });
+      epicenterLabel.position.copy(epicenterPosition).add(new THREE.Vector3(0.2, 0.7, 0.08));
+
+      const layerLabels = new THREE.Group();
+      const labelSpecs = [
+        ['지각\n고체', new THREE.Vector3(0.35, 4.15, 1.8), '#ffe3c4'],
+        ['맨틀\n고체(유동성)', new THREE.Vector3(0.35, 2.5, 3.3), '#ffd2c2'],
+        ['외핵\n액체', new THREE.Vector3(0.35, -0.3, 1.8), '#ffd09a'],
+        ['내핵\n고체', new THREE.Vector3(0.35, 0.2, -1.45), '#ffe1ae']
+      ];
+      labelSpecs.forEach(([text, position, color]) => {
+        const label = createTextSprite(text, {
+          color,
+          background: 'rgba(8, 12, 24, 0.74)',
+          border: 'rgba(255,255,255,0.15)',
+          font: '700 28px Pretendard'
+        });
+        label.position.copy(position);
+        layerLabels.add(label);
+      });
+      quake.layerLabels = layerLabels;
+
+      const shadowZone = new THREE.Mesh(
+        new THREE.RingGeometry(2.72, 5.04, 64, 1, Math.PI * 0.68, Math.PI * 0.64),
+        new THREE.MeshBasicMaterial({
+          color: 0x888888,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide
+        })
+      );
+      shadowZone.rotation.y = Math.PI / 2;
+      shadowZone.position.x = 0.03;
+      quake.shadowZone = shadowZone;
+
+      const starPositions = new Float32Array(360 * 3);
+      for (let i = 0; i < 360; i += 1) {
+        const radius = rand(18, 36);
+        const theta = rand(0, Math.PI * 2);
+        const phi = rand(0, Math.PI);
+        starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        starPositions[i * 3 + 1] = radius * Math.cos(phi);
+        starPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+      }
+      const starGeometry = new THREE.BufferGeometry();
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      const stars = new THREE.Points(
+        starGeometry,
+        new THREE.PointsMaterial({
+          color: 0xd8e7ff,
+          size: 0.08,
+          transparent: true,
+          opacity: 0.85,
+          sizeAttenuation: true
+        })
+      );
+
+      quake.group.add(
+        stars,
+        shell,
+        shellEdges,
+        crust,
+        mantle,
+        outerCore,
+        innerCore,
+        boundaries,
+        shadowZone,
+        focus,
+        focusLabel,
+        epicenterMark,
+        epicenterLabel,
+        layerLabels,
+        ambient,
+        coreLight
+      );
+      quake.shell = shell;
+    }
+
+    buildVolcanoScene();
+    buildEarthquakeScene();
+
+    function restoreVolcanoDamage() {
+      volcano.trees.forEach((tree) => {
+        tree.userData.destroyed = false;
+        tree.userData.leaves.material.color.copy(tree.userData.originalLeaf);
+        tree.userData.leaves.material.emissive.set(0x000000);
+      });
+
+      volcano.buildings.forEach((building) => {
+        building.userData.destroyed = false;
+        building.userData.base.material.color.set(0xddccbb);
+        building.userData.base.material.transparent = false;
+        building.userData.base.material.opacity = 1;
+        building.userData.roof.material.color.set(0x9a4d32);
+      });
+    }
+
+    function scorchNearbyLandscape(position) {
+      volcano.trees.forEach((tree) => {
+        if (!tree.userData.destroyed && tree.position.distanceTo(position) < 0.9) {
+          tree.userData.destroyed = true;
+          tree.userData.leaves.material.color.set(0x222222);
+          tree.userData.leaves.material.emissive.set(0x110000);
+        }
+      });
+
+      volcano.buildings.forEach((building) => {
+        if (!building.userData.destroyed && building.position.distanceTo(position) < 0.75) {
+          building.userData.destroyed = true;
+          building.userData.base.material.color.set(0x111111);
+          building.userData.base.material.transparent = true;
+          building.userData.base.material.opacity = 0.52;
+          building.userData.roof.material.color.set(0x332222);
+        }
+      });
+    }
+
+    function resetVolcanoParticles() {
+      volcano.smokeParticles.deactivateAll();
+      volcano.ejectaParticles.deactivateAll();
+      volcano.ashParticles.deactivateAll();
+      volcano.gasParticles.deactivateAll();
+      volcano.flowParticles.deactivateAll();
+      volcano.springSteamParticles.deactivateAll();
+      volcano.bombs.forEach((bomb) => {
+        bomb.visible = false;
+        bomb.userData.active = false;
+      });
+    }
+
+    function resetVolcanoState() {
+      volcano.timeline = 0;
+      volcano.autoPlaying = false;
+      volcano.manualPreview = false;
+      volcano.currentStage = 0;
+      volcano.flowActive = false;
+      volcano.stageEntered.clear();
+      volcano.climate = 0;
+      volcano.smokeAccumulator = 0;
+      volcano.springSteamAccumulator = 0;
+      volcano.bombFlashLight.intensity = 0;
+      resetVolcanoParticles();
+      restoreVolcanoDamage();
+      volcano.fertilePatch.material.opacity = 0;
+      volcano.hotSpring.visible = false;
+      volcano.flowLines.children.forEach((line) => {
+        line.material.opacity = 0;
+      });
+      params.volcanoStage = 0;
+      if (guiRefs.volcanoStage) {
+        guiRefs.volcanoStage.updateDisplay();
+      }
+    }
+
+    function resetQuakeState() {
+      quake.active = false;
+      quake.elapsed = 0;
+      quake.blockFlash = 0;
+      quake.shadowOpacity = 0;
+      quake.waves.forEach((wave) => {
+        quake.group.remove(wave.mesh);
+        wave.mesh.geometry.dispose();
+        wave.mesh.material.dispose();
+      });
+      quake.waves = [];
+      if (quake.shadowZone) {
+        quake.shadowZone.material.opacity = 0;
+      }
+    }
+
+    function emitScreenFlash(color, opacity) {
+      appState.flashColor = color;
+      appState.flashOpacity = Math.max(appState.flashOpacity, opacity);
+      flashEl.style.boxShadow = `inset 0 0 34px ${color}`;
+    }
+
+    function setStatus(text, duration = 0) {
+      statusPill.textContent = text;
+      appState.statusLockTimer = duration;
+    }
+
+    function applyVolcanoPreview(stage) {
+      resetVolcanoState();
+      volcano.manualPreview = true;
+      volcano.currentStage = stage;
+      params.volcanoStage = stage;
+      if (stage >= 1) {
+        emitExplosion();
+      }
+      if (stage === 2) {
+        volcano.flowActive = true;
+      }
+      if (stage >= 3) {
+        volcano.climate = 1;
+      }
+    }
+
+    function triggerEruption() {
+      resetVolcanoState();
+      volcano.autoPlaying = true;
+      volcano.manualPreview = false;
+      volcano.currentStage = 0;
+      setStatus('⚠️ 전조 현상: 지진 감지와 화산 가스 분출이 시작됩니다.', 2.6);
+    }
+
+    function emitExplosion() {
+      const profile = getVeiProfile(params.volcanoVEI);
+      volcano.eruptionHeightKm = profile.heightKm;
+
+      for (let i = 0; i < profile.lavaParticles; i += 1) {
+        volcano.ejectaParticles.activate((particle) => {
+          particle.position.set(rand(-0.45, 0.45), rand(4.85, 5.12), rand(-0.45, 0.45));
+          particle.velocity.set(rand(-3, 3), rand(8, 15 + params.volcanoVEI), rand(-3, 3));
+          particle.color.setHSL(rand(0.08, 0.13), 1.0, rand(0.48, 0.64));
+          particle.size = rand(9, 18);
+          particle.alpha = rand(0.72, 0.98);
+          particle.age = 0;
+          particle.maxAge = rand(3.1, 5.0);
+        });
+      }
+
+      for (let i = 0; i < profile.ashParticles; i += 1) {
+        volcano.ashParticles.activate((particle) => {
+          particle.position.set(rand(-0.36, 0.36), rand(4.88, 5.1), rand(-0.36, 0.36));
+          particle.velocity.set(rand(-5, 5), rand(5, 10 + params.volcanoVEI), rand(-5, 5));
+          particle.color.setScalar(rand(0.28, 0.52));
+          particle.size = rand(5, 13);
+          particle.alpha = rand(0.34, 0.62);
+          particle.age = 0;
+          particle.maxAge = rand(6.0, 10.0);
+        });
+      }
+
+      for (let i = 0; i < profile.gasParticles; i += 1) {
+        volcano.gasParticles.activate((particle) => {
+          particle.position.set(rand(-0.35, 0.35), rand(4.88, 5.0), rand(-0.35, 0.35));
+          particle.velocity.set(rand(-2.8, 2.8), rand(5.5, 8.0), rand(-2.8, 2.8));
+          particle.color.setRGB(0.74, 0.72, 0.52);
+          particle.size = rand(8, 18);
+          particle.alpha = rand(0.18, 0.32);
+          particle.age = 0;
+          particle.maxAge = rand(3.6, 5.6);
+        });
+      }
+
+      volcano.bombs.forEach((bomb, index) => {
+        bomb.visible = index < 10;
+        bomb.userData.active = true;
+        bomb.position.set(rand(-0.45, 0.45), rand(4.95, 5.1), rand(-0.45, 0.45));
+        bomb.userData.velocity.set(rand(-2.8, 2.8), rand(7.4, 10.2), rand(-2.8, 2.8));
+      });
+
+      emitScreenFlash('rgba(255, 68, 32, 0.9)', 0.9);
+      appState.cameraShake = Math.max(appState.cameraShake, 0.08);
+      setStatus('폭발적 분출: 화산재, 화산탄, 화산 가스가 상공으로 빠르게 퍼집니다.', 2.8);
+    }
+
+    function triggerEarthquake() {
+      resetQuakeState();
+      quake.active = true;
+      quake.elapsed = 0;
+      const waveCount = Math.round(THREE.MathUtils.mapLinear(params.quakeMagnitude, 1, 9, 2, 8));
+      const thickness = THREE.MathUtils.mapLinear(params.quakeMagnitude, 1, 9, 0.05, 0.3) / 10;
+
+      for (let i = 0; i < waveCount; i += 1) {
+        if (params.showPWave) {
+          const wave = createWaveMesh(0x4488ff);
+          wave.mesh.position.copy(quake.focusPosition);
+          quake.group.add(wave.mesh);
+          quake.waves.push({
+            kind: 'P',
+            mesh: wave.mesh,
+            uniforms: wave.uniforms,
+            delay: i * 0.35,
+            thickness,
+            speed: 10 / 3,
+            maxRadius: 10,
+            blocked: false,
+            done: false
+          });
+        }
+
+        if (params.showSWave) {
+          const wave = createWaveMesh(0xff6644);
+          wave.mesh.position.copy(quake.focusPosition);
+          quake.group.add(wave.mesh);
+          quake.waves.push({
+            kind: 'S',
+            mesh: wave.mesh,
+            uniforms: wave.uniforms,
+            delay: i * 0.48 + 0.18,
+            thickness,
+            speed: 10 / 5,
+            maxRadius: quake.sBlockRadius + 1.4,
+            blocked: false,
+            done: false
+          });
+        }
+      }
+
+      setStatus('지진 발생: P파와 S파의 전파 차이를 비교해 보세요.', 2.4);
+      appState.cameraShake = Math.max(appState.cameraShake, THREE.MathUtils.mapLinear(params.quakeMagnitude, 1, 9, 0.01, 0.1));
+    }
+
+    function updateVolcanoStageAuto() {
+      const t = volcano.timeline;
+      let stage = 0;
+      if (t >= 8) stage = 3;
+      else if (t >= 4) stage = 2;
+      else if (t >= 2) stage = 1;
+
+      if (volcano.currentStage !== stage) {
+        volcano.currentStage = stage;
+        params.volcanoStage = stage;
+        if (guiRefs.volcanoStage) {
+          guiRefs.volcanoStage.updateDisplay();
+        }
+      }
+
+      if (stage >= 1 && !volcano.stageEntered.has(1)) {
+        volcano.stageEntered.add(1);
+        emitExplosion();
+      }
+
+      if (stage === 2) {
+        volcano.flowActive = true;
+      } else if (stage >= 3) {
+        volcano.flowActive = false;
+      }
+
+      if (t > 10) {
+        volcano.autoPlaying = false;
+        volcano.flowActive = false;
+      }
+    }
+
+    function spawnSmoke(dt, strength) {
+      volcano.smokeAccumulator += dt * strength;
+      while (volcano.smokeAccumulator >= 1) {
+        volcano.smokeAccumulator -= 1;
+        volcano.smokeParticles.activate((particle) => {
+          particle.position.set(rand(-0.24, 0.24), rand(4.9, 5.08), rand(-0.24, 0.24));
+          particle.velocity.set(rand(-0.18, 0.18), rand(0.9, 1.4), rand(-0.18, 0.18));
+          particle.color.setScalar(rand(0.35, 0.52));
+          particle.size = rand(10, 18);
+          particle.alpha = rand(0.32, 0.58);
+          particle.age = 0;
+          particle.maxAge = rand(3.8, 4.8);
+        });
+      }
+    }
+
+    function spawnSpringSteam(dt, active) {
+      if (!active) return;
+      volcano.springSteamAccumulator += dt * 8;
+      while (volcano.springSteamAccumulator >= 1) {
+        volcano.springSteamAccumulator -= 1;
+        volcano.springSteamParticles.activate((particle) => {
+          particle.position.set(rand(-0.18, 0.18) - 3.6, rand(0.18, 0.28) + terrainHeightAt(-3.6, 2.6), rand(-0.18, 0.18) + 2.6);
+          particle.velocity.set(rand(-0.04, 0.04), rand(0.5, 0.8), rand(-0.04, 0.04));
+          particle.color.setRGB(0.86, 0.9, 0.94);
+          particle.size = rand(7, 11);
+          particle.alpha = rand(0.22, 0.32);
+          particle.age = 0;
+          particle.maxAge = rand(1.2, 2.2);
+        });
+      }
+    }
+
+    function updateParticleSystems(dt) {
+      const smokeStrength = volcano.currentStage === 0 ? 12 : volcano.currentStage >= 1 ? 8 : 4;
+      spawnSmoke(dt, smokeStrength);
+
+      const profile = getVeiProfile(params.volcanoVEI);
+      const positiveActive = params.positiveEffects && (volcano.currentStage >= 3 || volcano.climate > 0.55);
+      spawnSpringSteam(dt, positiveActive);
+
+      volcano.conduitParticles.particles.forEach((particle, index) => {
+        if (!particle.active) return;
+        const speedBoost = volcano.currentStage >= 0 ? 1 + params.volcanoVEI * 0.12 : 1;
+        const multiplier = volcano.currentStage >= 1 ? 2.0 : 1.0;
+        particle.position.addScaledVector(particle.velocity, dt * speedBoost * multiplier);
+        particle.age += dt;
+        if (particle.position.y > 4.8 || particle.age > particle.maxAge) {
+          particle.position.set(rand(-0.18, 0.18), rand(0.2, 0.6), rand(-0.18, 0.18));
+          particle.age = 0;
+        }
+        particle.alpha = 0.5 + Math.sin(performance.now() * 0.004 + index) * 0.25;
+        volcano.conduitParticles.syncOne(index);
+      });
+      volcano.conduitParticles.commit();
+
+      function updateRising(system, config) {
+        system.particles.forEach((particle, index) => {
+          if (!particle.active) return;
+          particle.age += dt;
+          particle.position.addScaledVector(particle.velocity, dt);
+          particle.velocity.x *= config.dragX ?? 0.98;
+          particle.velocity.z *= config.dragZ ?? 0.98;
+          particle.velocity.y *= config.dragY ?? 0.995;
+          particle.size += (config.sizeGrowth ?? 0) * dt;
+          const life = clamp(particle.age / particle.maxAge, 0, 1);
+          particle.alpha = (config.alpha ?? 0.5) * (1 - life);
+          if (config.customUpdate) {
+            config.customUpdate(particle, life);
+          }
+          if (particle.age >= particle.maxAge) {
+            system.hide(index);
+          } else {
+            system.syncOne(index);
+          }
+        });
+        system.commit();
+      }
+
+      function updateBallistic(system, gravity, extraUpdate) {
+        system.particles.forEach((particle, index) => {
+          if (!particle.active) return;
+          particle.age += dt;
+          particle.velocity.y -= gravity * dt;
+          particle.position.addScaledVector(particle.velocity, dt);
+          if (extraUpdate) extraUpdate(particle);
+          const life = clamp(particle.age / particle.maxAge, 0, 1);
+          particle.alpha *= 0.992;
+          particle.alpha = Math.max(0, particle.alpha * (1 - life * 0.45));
+          if (particle.age >= particle.maxAge || particle.position.y < terrainHeightAt(particle.position.x, particle.position.z)) {
+            system.hide(index);
+          } else {
+            system.syncOne(index);
+          }
+        });
+        system.commit();
+      }
+
+      updateRising(volcano.smokeParticles, {
+        sizeGrowth: 4.4,
+        alpha: 0.58,
+        customUpdate: (particle) => {
+          particle.velocity.x += Math.sin(particle.age * 1.6) * 0.002;
+          particle.velocity.z += Math.cos(particle.age * 1.3) * 0.002;
+        }
+      });
+
+      updateBallistic(volcano.ejectaParticles, 9.8);
+
+      updateRising(volcano.ashParticles, {
+        sizeGrowth: 1.5,
+        alpha: 0.5,
+        customUpdate: (particle) => {
+          if (particle.position.y > 10) {
+            particle.velocity.y *= 0.75;
+            particle.velocity.x *= 1.01;
+            particle.velocity.z *= 1.01;
+          } else {
+            particle.velocity.y -= 1.0 * dt;
+          }
+        }
+      });
+
+      updateRising(volcano.gasParticles, {
+        sizeGrowth: 3.2,
+        alpha: 0.3,
+        customUpdate: (particle) => {
+          particle.velocity.y += 0.16 * dt;
+        }
+      });
+
+      volcano.bombs.forEach((bomb) => {
+        if (!bomb.userData.active) return;
+        bomb.userData.velocity.y -= 9.8 * dt;
+        bomb.position.addScaledVector(bomb.userData.velocity, dt);
+        const ground = terrainHeightAt(bomb.position.x, bomb.position.z) + bomb.userData.radius;
+        if (bomb.position.y <= ground) {
+          bomb.position.y = ground;
+          bomb.visible = false;
+          bomb.userData.active = false;
+          volcano.bombFlashLight.position.copy(bomb.position);
+          volcano.bombFlashLight.intensity = 3;
+        }
+      });
+      volcano.bombFlashLight.intensity = Math.max(0, volcano.bombFlashLight.intensity - dt * 10);
+
+      if (volcano.flowActive) {
+        const flowTarget = profile.flowParticles;
+        let activeFlow = volcano.flowParticles.particles.reduce((sum, particle) => sum + (particle.active ? 1 : 0), 0);
+        while (activeFlow < flowTarget) {
+          const created = volcano.flowParticles.activate((particle) => {
+            particle.curveIndex = Math.floor(rand(0, volcano.flowCurves.length));
+            particle.progress = rand(0, 0.06);
+            particle.progressSpeed = rand(0.06, 0.16) * (0.8 + params.volcanoVEI * 0.18);
+            particle.position.copy(volcano.flowCurves[particle.curveIndex].getPointAt(particle.progress));
+            particle.position.y += 0.08;
+            particle.velocity.set(0, 0, 0);
+            particle.color.setRGB(1.0, rand(0.38, 0.72), rand(0.04, 0.1));
+            particle.size = rand(9, 16);
+            particle.alpha = rand(0.72, 0.92);
+            particle.age = 0;
+            particle.maxAge = rand(6, 10);
+          });
+          if (created === -1) break;
+          activeFlow += 1;
+        }
+      }
+
+      volcano.flowParticles.particles.forEach((particle, index) => {
+        if (!particle.active) return;
+        particle.age += dt;
+        particle.progress += particle.progressSpeed * dt;
+        if (particle.progress >= 1 || particle.age > particle.maxAge) {
+          if (volcano.flowActive) {
+            particle.curveIndex = Math.floor(rand(0, volcano.flowCurves.length));
+            particle.progress = rand(0, 0.05);
+            particle.progressSpeed = rand(0.06, 0.16) * (0.8 + params.volcanoVEI * 0.18);
+            particle.position.copy(volcano.flowCurves[particle.curveIndex].getPointAt(particle.progress));
+            particle.age = 0;
+          } else {
+            volcano.flowParticles.hide(index);
+            return;
+          }
+        }
+        const position = volcano.flowCurves[particle.curveIndex].getPointAt(clamp(particle.progress, 0, 1));
+        particle.position.copy(position);
+        particle.position.y += 0.08 + Math.sin(particle.age * 7 + index) * 0.04;
+        particle.alpha = 0.76 + Math.sin(particle.age * 8) * 0.08;
+        if (particle.progress > 0.32) {
+          scorchNearbyLandscape(position);
+        }
+        volcano.flowParticles.syncOne(index);
+      });
+      volcano.flowParticles.commit();
+
+      updateRising(volcano.springSteamParticles, {
+        sizeGrowth: 2.6,
+        alpha: 0.28
+      });
+    }
+
+    function updateVolcano(dt) {
+      const scaledDt = dt * params.volcanoSlowMo;
+      if (volcano.autoPlaying) {
+        volcano.timeline += scaledDt;
+        updateVolcanoStageAuto();
+      } else if (volcano.manualPreview) {
+        volcano.currentStage = params.volcanoStage;
+      }
+
+      volcano.lavaPoolMaterial.uniforms.uTime.value += scaledDt;
+
+      const stage = volcano.currentStage;
+      const flickerBase = stage === 0 ? 2.5 : stage === 1 ? 5.5 : stage >= 2 ? 4.2 : 2;
+      volcano.craterLight.intensity = flickerBase + Math.sin(performance.now() * 0.012) * 0.65 + Math.random() * 0.24;
+
+      volcano.cracks.children.forEach((crack, index) => {
+        crack.material.opacity = crack.userData.baseOpacity + (stage >= 1 ? 0.36 : 0.08) + Math.sin(performance.now() * 0.006 + index) * 0.05;
+      });
+
+      updateParticleSystems(scaledDt);
+
+      const climateTarget = params.climateEffect && (stage >= 3 || (volcano.autoPlaying && volcano.timeline > 6))
+        ? getVeiProfile(params.volcanoVEI).darkness
+        : 0;
+      volcano.climate = lerp(volcano.climate, climateTarget, 0.03);
+
+      volcano.sun.intensity = lerp(0.6, 0.15, volcano.climate);
+      volcano.ambient.intensity = lerp(0.35, 0.18, volcano.climate);
+      volcano.skyMaterial.uniforms.uDarken.value = volcano.climate * 0.92;
+
+      volcano.flowLines.children.forEach((line) => {
+        const target = volcano.flowActive ? 0.18 : 0.0;
+        line.material.opacity = lerp(line.material.opacity, target, 0.06);
+      });
+
+      const positiveActive = params.positiveEffects && (stage >= 3 || volcano.climate > 0.55);
+      volcano.fertilePatch.material.opacity = lerp(volcano.fertilePatch.material.opacity, positiveActive ? 0.72 : 0, 0.04);
+      volcano.hotSpring.visible = positiveActive;
+
+      if (stage === 0) {
+        setStatus('⚠️ 전조 현상: 지진 감지, 화산 가스 분출, 마그마 상승이 빨라집니다.');
+      } else if (stage === 1) {
+        setStatus('폭발적 분출: 화산 쇄설물, 화산재, 화산 가스가 상공으로 확산됩니다.');
+      } else if (stage === 2) {
+        setStatus('용암 흐름: 지표로 분출된 용암이 숲과 건물을 뒤덮어 파괴합니다.');
+      } else if (stage === 3) {
+        setStatus('화산재가 햇빛을 가려 기후를 변화시키고, 풍화 후 비옥한 토양을 만듭니다.');
+      }
+    }
+
+    function updateQuake(dt) {
+      const scaledDt = dt * params.quakeSlowMo;
+      quake.focusPulse += scaledDt * 3.4;
+      const pulse = 0.72 + Math.sin(quake.focusPulse * 2.0) * 0.28;
+      quake.focusMarker.scale.setScalar(0.8 + pulse * 0.3);
+
+      if (quake.active) {
+        quake.elapsed += scaledDt;
+        let liveCount = 0;
+
+        quake.waves.forEach((wave) => {
+          const age = quake.elapsed - wave.delay;
+          if (age < 0) {
+            wave.mesh.visible = false;
+            return;
+          }
+
+          if (wave.done) return;
+
+          const radius = wave.speed * age;
+          if (wave.kind === 'S' && !wave.blocked && radius >= quake.sBlockRadius) {
+            wave.blocked = true;
+            quake.blockFlash = 1;
+            setStatus('✗ S파 차단! S파는 액체 외핵을 통과하지 못합니다.', 1.8);
+            emitScreenFlash('rgba(255, 95, 71, 0.86)', 0.55);
+          }
+
+          if (wave.kind === 'S' && wave.blocked) {
+            wave.uniforms.uOpacity.value = Math.max(0, wave.uniforms.uOpacity.value - scaledDt * 2.8);
+            if (wave.uniforms.uOpacity.value <= 0.01) {
+              wave.done = true;
+              wave.mesh.visible = false;
+            } else {
+              liveCount += 1;
+            }
+            return;
+          }
+
+          if (radius > wave.maxRadius) {
+            wave.done = true;
+            wave.mesh.visible = false;
+            return;
+          }
+
+          wave.mesh.visible = true;
+          wave.uniforms.uRadius.value = clamp(radius / 10, 0, 0.98);
+          wave.uniforms.uThickness.value = wave.thickness;
+          wave.uniforms.uOpacity.value = clamp(0.42 - radius * 0.025, 0, 0.42);
+          liveCount += 1;
+        });
+
+        if (liveCount === 0 && quake.elapsed > 4.5) {
+          quake.active = false;
+        }
+      }
+
+      quake.blockFlash = Math.max(0, quake.blockFlash - scaledDt * 0.9);
+      quake.outerCoreSection.material.emissiveIntensity = 0.9 + quake.blockFlash * 2.1;
+      const shadowTarget = params.showShadowZone ? 0.15 : 0;
+      quake.shadowOpacity = lerp(quake.shadowOpacity, shadowTarget + quake.blockFlash * 0.1, 0.08);
+      quake.shadowZone.material.opacity = quake.shadowOpacity;
+      quake.layerLabels.visible = params.showLayerLabels;
+
+      if (!quake.active && params.experimentTab === '지진파 전파' && appState.statusLockTimer <= 0) {
+        setStatus('지진 발생 버튼을 눌러 P파와 S파의 전파 차이, 그리고 S파 암영대를 비교하세요.');
+      }
+    }
+
+    function updateInfoPanel() {
+      if (params.experimentTab === '화산 분출') {
+        const stageName = STAGE_NAMES[volcano.currentStage];
+        const profile = getVeiProfile(params.volcanoVEI);
+        const positiveText = params.positiveEffects ? 'ON' : 'OFF';
+        const climateText = params.climateEffect ? 'ON' : 'OFF';
+        const previewOrAuto = volcano.autoPlaying ? '자동 재생' : volcano.manualPreview ? '단계 관찰' : '대기';
+
+        infoPre.innerHTML = `🌋 화산과 지진
+━━━━━━━━━━━━
+
+[화산 탭]
+분출 강도(VEI): <span class="value">${params.volcanoVEI}</span>
+분출 단계:      <span class="value danger">${stageName}</span> (${previewOrAuto})
+기둥 높이:      <span class="value">${profile.heightKm} km</span>
+기후 영향:      <span class="value">${climateText}</span>
+긍정 효과:      <span class="value">${positiveText}</span>
+
+분출물:
+  용암 — 고온 액체 암석, 경사면 따라 흐름
+  화산재 — 미세 입자, 기권으로 확산, 기후 영향
+  화산 가스 — SO₂, CO₂ 등, 산성비 원인
+  화산탄 — 큰 암석 조각, 포물선 궤적 낙하
+
+피해: 건물·숲 파괴, 기후 변화, 산성비
+이점: 비옥한 토양, 온천, 관광 자원`;
+      } else {
+        const thickness = THREE.MathUtils.mapLinear(params.quakeMagnitude, 1, 9, 0.05, 0.3);
+        const liveP = quake.waves.filter((wave) => wave.kind === 'P' && !wave.done).length;
+        const liveS = quake.waves.filter((wave) => wave.kind === 'S' && !wave.done).length;
+
+        infoPre.innerHTML = `🌋 화산과 지진
+━━━━━━━━━━━━
+
+[지진 탭]
+지진 규모:     <span class="value danger">${params.quakeMagnitude}</span>
+P파 속도:      <span class="value cool">~6~8 km/s</span> (맨틀 기준)
+S파 속도:      <span class="value danger">~3.5~4.5 km/s</span>
+파동 두께:     <span class="value">${formatNumber(thickness, 2)}</span>
+현재 파동 수:   <span class="value cool">P ${liveP}</span> / <span class="value danger">S ${liveS}</span>
+
+P파 (종파): 고체+액체 통과
+S파 (횡파): 고체만 통과
+→ S파가 외핵에서 차단
+→ 외핵이 액체임을 알 수 있다!`;
+      }
+    }
+
+    function updateQuakePanelVisibility() {
+      quakePanel.classList.toggle('hidden', params.experimentTab !== '지진파 전파');
+    }
+
+    function updateTabButtons() {
+      tabButtons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.tab === params.experimentTab);
+      });
+    }
+
+    function switchTab(tab) {
+      params.experimentTab = tab;
+      appState.currentTab = tab;
+      volcano.group.visible = tab === '화산 분출';
+      quake.group.visible = tab === '지진파 전파';
+      updateTabButtons();
+      updateQuakePanelVisibility();
+
+      if (tab === '화산 분출') {
+        renderer.setClearColor(0x1a1a2a, 1);
+        camera.position.set(11, 8, 11);
+        controls.target.set(0, 2.4, 0);
+      } else {
+        renderer.setClearColor(0x000011, 1);
+        camera.position.set(9.5, 6.2, 10.2);
+        controls.target.set(0, 0.6, 0);
+      }
+      controls.update();
+      if (guiRefs.tab) guiRefs.tab.updateDisplay();
+      updateInfoPanel();
+    }
+
+    function resetAll() {
+      resetVolcanoState();
+      resetQuakeState();
+      if (params.experimentTab === '화산 분출') {
+        applyVolcanoPreview(params.volcanoStage);
+      }
+      updateInfoPanel();
+    }
+
+    function initGui() {
+      const gui = new GUI({ title: '실험 제어' });
+      guiRefs.tab = gui.add(params, 'experimentTab', ['화산 분출', '지진파 전파']).name('실험 탭').onChange((value) => switchTab(value));
+
+      const volcanoFolder = gui.addFolder('화산 탭');
+      volcanoFolder.add(params, 'startEruption').name('분출 시작');
+      volcanoFolder.add(params, 'volcanoVEI', 1, 5, 1).name('분출 강도(VEI)');
+      guiRefs.volcanoStage = volcanoFolder.add(params, 'volcanoStage', 0, 3, 1).name('분출 단계').onChange((value) => {
+        applyVolcanoPreview(value);
+      });
+      volcanoFolder.add(params, 'positiveEffects').name('긍정적 효과 표시');
+      volcanoFolder.add(params, 'climateEffect').name('기후 영향 표시');
+      volcanoFolder.add(params, 'volcanoSlowMo', 0.1, 3, 0.1).name('슬로모션');
+
+      const quakeFolder = gui.addFolder('지진 탭');
+      quakeFolder.add(params, 'startEarthquake').name('지진 발생');
+      quakeFolder.add(params, 'quakeMagnitude', 1, 9, 1).name('지진 규모');
+      quakeFolder.add(params, 'showPWave').name('P파 표시');
+      quakeFolder.add(params, 'showSWave').name('S파 표시');
+      quakeFolder.add(params, 'showShadowZone').name('S파 암영대 표시');
+      quakeFolder.add(params, 'showLayerLabels').name('내부 층 라벨');
+      quakeFolder.add(params, 'quakeSlowMo', 0.1, 3, 0.1).name('슬로모션');
+
+      gui.add(params, 'reset').name('초기화');
+
+      if (window.innerWidth < 960) {
+        gui.close();
+      }
+    }
+
+    initGui();
+
+    guideToggle.addEventListener('click', () => {
+      guidePanel.classList.toggle('closed');
+    });
+
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        switchTab(button.dataset.tab);
+      });
+    });
+
+    function animate() {
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if (appState.statusLockTimer > 0) {
+        appState.statusLockTimer -= dt;
+      }
+
+      if (params.experimentTab === '화산 분출') {
+        updateVolcano(dt);
+      } else {
+        updateQuake(dt);
+      }
+
+      updateInfoPanel();
+      controls.update();
+
+      const shake = appState.cameraShake;
+      if (shake > 0.0001) {
+        const offset = new THREE.Vector3(
+          rand(-shake, shake),
+          rand(-shake, shake),
+          rand(-shake, shake)
+        );
+        camera.position.add(offset);
+        appState.cameraShake = Math.max(0, appState.cameraShake - dt * 0.18);
+      }
+
+      appState.flashOpacity = Math.max(0, appState.flashOpacity - dt * 1.7);
+      flashEl.style.opacity = appState.flashOpacity.toFixed(3);
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      [
+        volcano.conduitParticles,
+        volcano.smokeParticles,
+        volcano.ejectaParticles,
+        volcano.ashParticles,
+        volcano.gasParticles,
+        volcano.flowParticles,
+        volcano.springSteamParticles
+      ].forEach((system) => {
+        system.material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+      });
+    });
+
+    switchTab('화산 분출');
+    applyVolcanoPreview(0);
+    animate();
+  </script>
+</body>
+</html>

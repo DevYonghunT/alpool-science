@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>구조물의 안정성 - 3D 시뮬레이션</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; }
+  canvas { display: block; }
+
+  /* 수식 패널 */
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    padding: 16px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.7;
+    font-family: 'Courier New', monospace;
+    min-width: 270px;
+    backdrop-filter: blur(10px);
+    z-index: 10;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  #formula-panel .title { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+  #formula-panel .divider { border-bottom: 1px solid rgba(255,255,255,0.25); margin-bottom: 8px; }
+  #formula-panel .verdict { font-size: 20px; font-weight: bold; margin-top: 10px; padding: 4px 0; }
+
+  /* 상태 표시 (화면 중앙) */
+  #status-display {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 52px;
+    font-weight: bold;
+    pointer-events: none;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity 0.4s;
+    z-index: 20;
+  }
+
+  /* 학습 가이드 */
+  #guide-toggle {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    background: rgba(0, 90, 180, 0.88);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    z-index: 30;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+  }
+  #guide-toggle:hover { background: rgba(0, 90, 180, 1); }
+  #guide-panel {
+    position: fixed;
+    top: 50px;
+    left: 12px;
+    background: rgba(0, 50, 110, 0.92);
+    color: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    max-width: 420px;
+    font-size: 13px;
+    line-height: 1.8;
+    display: none;
+    z-index: 25;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  #guide-panel h3 { font-size: 15px; margin: 12px 0 6px; color: #7ecfff; }
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+
+  /* 비교 막대그래프 */
+  #comparison-bar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 13px;
+    display: none;
+    z-index: 10;
+    min-width: 380px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .bar-row { display: flex; align-items: center; margin: 5px 0; }
+  .bar-label { width: 85px; font-size: 12px; }
+  .bar-track { flex: 1; height: 18px; background: rgba(255,255,255,0.12); border-radius: 9px; overflow: hidden; margin: 0 8px; }
+  .bar-fill { height: 100%; border-radius: 9px; transition: width 0.3s; }
+  .bar-value { width: 65px; text-align: right; font-family: monospace; font-size: 12px; }
+
+  /* 각도 라벨 */
+  .angle-label {
+    position: fixed;
+    color: #fff;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    pointer-events: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<!-- 상태 표시 -->
+<div id="status-display"></div>
+
+<!-- 학습 가이드 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>🔬 핵심 원리</h3>
+  <p>구조물이 기울어져 무게 중심의 수직선이 바닥면 끝부분을 벗어나면 중력에 의한 돌림힘 때문에 넘어집니다.</p>
+  <h3>❓ 탐구 질문</h3>
+  <ul>
+    <li>무게 중심을 낮추면 임계 각도는 어떻게 변하나요?</li>
+    <li>바닥 면적을 넓히면 임계 각도는 어떻게 변하나요?</li>
+    <li>초고층 건물은 왜 바닥으로 갈수록 넓어질까요?</li>
+  </ul>
+  <h3>🌍 실생활 예시</h3>
+  <ul>
+    <li><strong>초고층 건물</strong> — 바닥 면적을 넓혀 안정성 확보</li>
+    <li><strong>입간판</strong> — 바닥에 무거운 추를 달아 무게 중심을 낮춤</li>
+    <li><strong>사다리차</strong> — 작업 시 지지대를 펼쳐 바닥 면적 확대</li>
+  </ul>
+  <h3>📏 공식</h3>
+  <p><strong>임계 각도 θc = arctan(d / h)</strong></p>
+  <p>d: 바닥 반지름, h: 무게 중심 높이</p>
+  <p>θc가 클수록 구조물이 더 안정적입니다.</p>
+</div>
+
+<!-- 수식 패널 -->
+<div id="formula-panel">
+  <div class="title">📐 구조물의 안정성</div>
+  <div class="divider"></div>
+  <div>무게 중심 높이 (h): <span id="val-h">1.50</span> m</div>
+  <div>바닥 반지름 (d): &nbsp;&nbsp;&nbsp;<span id="val-d">0.80</span> m</div>
+  <div>현재 기울기 (θ): &nbsp;&nbsp;&nbsp;<span id="val-theta">0.0</span>°</div>
+  <div>임계 각도 (θc): &nbsp;&nbsp;&nbsp;<span id="val-tc">28.1</span>°</div>
+  <div style="color:#aaa; margin-top:4px;">θc = arctan(d / h)</div>
+  <div class="verdict" id="val-verdict" style="color:#00ff88;">✅ 안정</div>
+</div>
+
+<!-- 비교 막대그래프 -->
+<div id="comparison-bar">
+  <div style="font-weight:bold; margin-bottom:8px; text-align:center;">📊 안정성 비교 (임계 각도)</div>
+  <div class="bar-row">
+    <span class="bar-label">구조물 A</span>
+    <div class="bar-track"><div class="bar-fill" id="bar-a" style="width:50%; background:#4ecdc4;"></div></div>
+    <span class="bar-value" id="bar-a-val">28.1°</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">구조물 B</span>
+    <div class="bar-track"><div class="bar-fill" id="bar-b" style="width:50%; background:#ff6b6b;"></div></div>
+    <span class="bar-value" id="bar-b-val">28.1°</span>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 씬 초기화 ───
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xE0F0FF);
+scene.fog = new THREE.Fog(0xE0F0FF, 25, 50);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(5, 4, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1, 0);
+controls.maxPolarAngle = Math.PI * 0.48;
+
+// ─── 조명 ───
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -10;
+dirLight.shadow.camera.right = 10;
+dirLight.shadow.camera.top = 10;
+dirLight.shadow.camera.bottom = -10;
+dirLight.shadow.bias = -0.0001;
+scene.add(dirLight);
+
+// 보조 조명 (그림자 부분 밝히기)
+const fillLight = new THREE.DirectionalLight(0x88aacc, 0.25);
+fillLight.position.set(-3, 5, -3);
+scene.add(fillLight);
+
+// ─── 바닥 ───
+const gridHelper = new THREE.GridHelper(20, 20, 0xbbbbbb, 0xe0e0e0);
+scene.add(gridHelper);
+
+const floorGeo = new THREE.PlaneGeometry(20, 20);
+const floorMat = new THREE.ShadowMaterial({ opacity: 0.12 });
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ─── 설정값 ───
+const params = {
+  형태: '좁고 높은',
+  무게중심높이: 1.5,
+  바닥반지름: 0.8,
+  기울기: 0,
+  밀어보기: () => startPush(),
+  초기화: () => resetAll(),
+  비교모드: false,
+  비교_형태: '넓고 낮은',
+  비교_높이: 0.8,
+  비교_반지름: 1.5
+};
+
+// ─── 구조물 그룹 ───
+// 피봇 그룹: 바닥 끝을 중심으로 회전하기 위한 구조
+// pivotGroup.position = 바닥 끝 위치, structureGroup은 피봇 내부
+const pivotA = new THREE.Group();
+scene.add(pivotA);
+const structureGroup = new THREE.Group();
+pivotA.add(structureGroup);
+
+const pivotB = new THREE.Group();
+scene.add(pivotB);
+const compareGroup = new THREE.Group();
+pivotB.add(compareGroup);
+pivotB.visible = false;
+
+// ─── 애니메이션 상태 ───
+let pushAnimating = false;
+let isFallen = false; // 넘어진 상태 추적
+
+// ─── 구조물 형태별 기하학 생성 ───
+function createGeometry(shape, height, radius) {
+  if (shape === '좁고 높은') {
+    // 좁고 높은: 반지름 작고 높이 큰 원뿔
+    return new THREE.ConeGeometry(radius * 0.6, height * 2, 32);
+  } else if (shape === '넓고 낮은') {
+    // 넓고 낮은: 반지름 크고 높이 작은 원뿔
+    return new THREE.ConeGeometry(radius * 1.4, height * 2, 32);
+  } else {
+    // 직육면체
+    return new THREE.BoxGeometry(radius * 2, height * 2, radius * 2);
+  }
+}
+
+// ─── 구조물 생성 ───
+function createStructure(group, shape, height, radius) {
+  // 기존 자식 제거 (메모리 해제)
+  while (group.children.length > 0) {
+    const child = group.children[0];
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+      else child.material.dispose();
+    }
+    group.remove(child);
+  }
+
+  // 구조물 본체
+  const geo = createGeometry(shape, height, radius);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x5588bb,
+    transparent: true,
+    opacity: 0.72,
+    roughness: 0.35,
+    metalness: 0.08,
+    side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = height;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.userData.type = 'body';
+  group.add(mesh);
+
+  // 와이어프레임 외곽선
+  const wireGeo = createGeometry(shape, height, radius);
+  const wireMat = new THREE.MeshBasicMaterial({ color: 0x44aa66, wireframe: true, transparent: true, opacity: 0.15 });
+  const wire = new THREE.Mesh(wireGeo, wireMat);
+  wire.position.y = height;
+  wire.userData.type = 'wireframe';
+  group.add(wire);
+
+  // 바닥면 하이라이트 (지지면 표시)
+  const baseGeo = new THREE.CircleGeometry(radius, 48);
+  const baseMat = new THREE.MeshBasicMaterial({
+    color: 0x00ff88,
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.DoubleSide
+  });
+  const basePlane = new THREE.Mesh(baseGeo, baseMat);
+  basePlane.rotation.x = -Math.PI / 2;
+  basePlane.position.y = 0.005;
+  basePlane.userData.type = 'base';
+  group.add(basePlane);
+
+  // 바닥 경계선 (원 테두리)
+  const circlePoints = [];
+  for (let i = 0; i <= 64; i++) {
+    const angle = (i / 64) * Math.PI * 2;
+    circlePoints.push(new THREE.Vector3(Math.cos(angle) * radius, 0.01, Math.sin(angle) * radius));
+  }
+  const circleGeo = new THREE.BufferGeometry().setFromPoints(circlePoints);
+  const circleMat = new THREE.LineBasicMaterial({ color: 0x00cc66, linewidth: 2 });
+  const circle = new THREE.Line(circleGeo, circleMat);
+  circle.userData.type = 'baseCircle';
+  group.add(circle);
+
+  // 무게 중심 (빨간 구 + 글로우)
+  const cogGeo = new THREE.SphereGeometry(0.12, 20, 20);
+  const cogMat = new THREE.MeshStandardMaterial({
+    color: 0xff2222,
+    emissive: 0xff0000,
+    emissiveIntensity: 0.4,
+    roughness: 0.2
+  });
+  const cog = new THREE.Mesh(cogGeo, cogMat);
+  cog.position.y = height;
+  cog.userData.type = 'cog';
+  group.add(cog);
+
+  // 무게 중심 글로우 (큰 반투명 구)
+  const glowGeo = new THREE.SphereGeometry(0.22, 16, 16);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: 0xff4444,
+    transparent: true,
+    opacity: 0.15
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.position.y = height;
+  glow.userData.type = 'cogGlow';
+  group.add(glow);
+
+  // 수직 점선 (무게 중심 → 지면)
+  const linePoints = [new THREE.Vector3(0, height, 0), new THREE.Vector3(0, 0, 0)];
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+  const lineMat = new THREE.LineDashedMaterial({
+    color: 0x00ff00,
+    dashSize: 0.08,
+    gapSize: 0.04,
+    linewidth: 2
+  });
+  const vertLine = new THREE.Line(lineGeo, lineMat);
+  vertLine.computeLineDistances();
+  vertLine.userData.type = 'vertLine';
+  group.add(vertLine);
+
+  // 중력 화살표 (무게 중심에서 아래로)
+  const gravDir = new THREE.Vector3(0, -1, 0);
+  const gravArrow = new THREE.ArrowHelper(gravDir, new THREE.Vector3(0, height, 0), 0.6, 0xff6600, 0.12, 0.08);
+  gravArrow.userData.type = 'gravity';
+  group.add(gravArrow);
+}
+
+// ─── 기울기 적용 및 판정 ───
+function applyTilt(pivot, group, angleDeg, height, radius) {
+  const angleRad = THREE.MathUtils.degToRad(angleDeg);
+
+  // 피봇 회전 (바닥 끝을 기준점으로)
+  pivot.rotation.z = 0;
+  group.position.set(0, 0, 0);
+
+  // 회전축: 바닥면 가장자리 (-radius, 0, 0)을 중심으로 기울임
+  // 구조물을 원점에서 radius만큼 이동 후 회전
+  group.position.x = radius;
+  pivot.rotation.z = -angleRad;
+
+  // 임계각 계산
+  const criticalAngle = Math.atan2(radius, height) * (180 / Math.PI);
+
+  // 무게 중심의 월드 위치 계산
+  const cog = group.children.find(c => c.userData.type === 'cog');
+  const vertLine = group.children.find(c => c.userData.type === 'vertLine');
+
+  if (!cog || !vertLine) return { status: 'stable', criticalAngle, projX: 0 };
+
+  // 무게 중심 월드 좌표
+  const cogWorld = new THREE.Vector3();
+  cog.getWorldPosition(cogWorld);
+
+  // 수직 점선 업데이트: 무게중심에서 수직 아래로
+  const cogLocal = group.worldToLocal(cogWorld.clone());
+  const groundWorld = new THREE.Vector3(cogWorld.x, 0, cogWorld.z);
+  const groundLocal = group.worldToLocal(groundWorld.clone());
+
+  const pts = vertLine.geometry.attributes.position;
+  pts.setXYZ(0, cogLocal.x, cogLocal.y, cogLocal.z);
+  pts.setXYZ(1, groundLocal.x, groundLocal.y, groundLocal.z);
+  pts.needsUpdate = true;
+  vertLine.computeLineDistances();
+
+  // 중력 화살표 업데이트
+  const gravArrow = group.children.find(c => c.userData.type === 'gravity');
+  if (gravArrow) {
+    gravArrow.position.copy(cogLocal);
+  }
+
+  // 판정: 수직선이 바닥면(피봇의 x 좌표 기준 ±radius) 안에 있는지
+  const pivotWorldX = pivot.position.x;
+  const baseCenter = pivotWorldX; // 회전 후 바닥 중심의 x 좌표
+  const projX = cogWorld.x - baseCenter;
+
+  // 기울어지면 바닥면 접촉 범위가 달라짐 — 단순화: 원래 바닥 반지름 기준
+  const margin = radius * 0.85; // 임계 영역 (85~100%)
+
+  let status = 'stable';
+  if (angleDeg >= criticalAngle + 2) {
+    status = 'unstable';
+  } else if (angleDeg >= criticalAngle - 3) {
+    status = 'critical';
+  }
+
+  // 수직선 색상 업데이트
+  const colors = { stable: 0x00ff00, critical: 0xffff00, unstable: 0xff0000 };
+  vertLine.material.color.setHex(colors[status]);
+
+  // 와이어프레임 색상 업데이트
+  const wire = group.children.find(c => c.userData.type === 'wireframe');
+  if (wire) {
+    const wireColors = { stable: 0x44aa66, critical: 0xaaaa22, unstable: 0xaa3333 };
+    wire.material.color.setHex(wireColors[status]);
+    wire.material.opacity = status === 'stable' ? 0.12 : 0.25;
+  }
+
+  // 바닥 하이라이트 색상
+  const base = group.children.find(c => c.userData.type === 'base');
+  if (base) {
+    const baseColors = { stable: 0x00ff88, critical: 0xffff00, unstable: 0xff4444 };
+    base.material.color.setHex(baseColors[status]);
+  }
+
+  return { status, criticalAngle, projX };
+}
+
+// ─── UI 업데이트 ───
+function updateFormulaPanel(h, d, theta, critAngle, status) {
+  document.getElementById('val-h').textContent = h.toFixed(2);
+  document.getElementById('val-d').textContent = d.toFixed(2);
+  document.getElementById('val-theta').textContent = theta.toFixed(1);
+  document.getElementById('val-tc').textContent = critAngle.toFixed(1);
+
+  const verdictEl = document.getElementById('val-verdict');
+  const statusEl = document.getElementById('status-display');
+
+  if (status === 'stable') {
+    verdictEl.textContent = '✅ 안정';
+    verdictEl.style.color = '#00ff88';
+    statusEl.style.opacity = '0';
+  } else if (status === 'critical') {
+    verdictEl.textContent = '⚠️ 임계점';
+    verdictEl.style.color = '#ffdd00';
+    statusEl.textContent = '⚠️ 임계점';
+    statusEl.style.color = '#ffdd00';
+    statusEl.style.opacity = '1';
+  } else {
+    verdictEl.textContent = '❌ 넘어짐!';
+    verdictEl.style.color = '#ff4444';
+    statusEl.textContent = '❌ 넘어짐!';
+    statusEl.style.color = '#ff4444';
+    statusEl.style.opacity = '1';
+  }
+}
+
+// ─── 밀어보기 ───
+function startPush() {
+  if (pushAnimating || isFallen) return;
+  pushAnimating = true;
+  params.기울기 = 0;
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 초기화 ───
+function resetAll() {
+  pushAnimating = false;
+  isFallen = false;
+  params.기울기 = 0;
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+  document.getElementById('status-display').style.opacity = '0';
+  rebuildAll();
+}
+
+// ─── 전체 재구성 ───
+function rebuildAll() {
+  const xA = params.비교모드 ? -2 : 0;
+  pivotA.position.set(xA, 0, 0);
+  createStructure(structureGroup, params.형태, params.무게중심높이, params.바닥반지름);
+
+  if (params.비교모드) {
+    pivotB.visible = true;
+    pivotB.position.set(2, 0, 0);
+    createStructure(compareGroup, params.비교_형태, params.비교_높이, params.비교_반지름);
+    document.getElementById('comparison-bar').style.display = 'block';
+  } else {
+    pivotB.visible = false;
+    document.getElementById('comparison-bar').style.display = 'none';
+  }
+}
+
+// ─── GUI ───
+const gui = new GUI({ title: '🎛️ 컨트롤', width: 280 });
+
+const mainFolder = gui.addFolder('구조물 설정');
+mainFolder.add(params, '형태', ['좁고 높은', '넓고 낮은', '직육면체']).onChange(() => { isFallen = false; rebuildAll(); });
+mainFolder.add(params, '무게중심높이', 0.1, 3.0, 0.1).name('무게 중심 높이').onChange(() => { isFallen = false; rebuildAll(); });
+mainFolder.add(params, '바닥반지름', 0.3, 2.0, 0.1).name('바닥 면적(반지름)').onChange(() => { isFallen = false; rebuildAll(); });
+mainFolder.add(params, '기울기', 0, 90, 0.5).name('기울기 각도 (°)').listen();
+mainFolder.open();
+
+const actionFolder = gui.addFolder('동작');
+actionFolder.add(params, '밀어보기').name('🫸 밀어보기');
+actionFolder.add(params, '초기화').name('🔄 초기화');
+actionFolder.open();
+
+const compareFolder = gui.addFolder('비교 모드');
+compareFolder.add(params, '비교모드').name('비교 모드 ON/OFF').onChange(() => { isFallen = false; params.기울기 = 0; rebuildAll(); });
+compareFolder.add(params, '비교_형태', ['좁고 높은', '넓고 낮은', '직육면체']).name('형태 (기본: 넓고 낮은)').onChange(rebuildAll);
+compareFolder.add(params, '비교_높이', 0.1, 3.0, 0.1).name('높이 (기본: 0.8)').onChange(rebuildAll);
+compareFolder.add(params, '비교_반지름', 0.3, 2.0, 0.1).name('반지름 (기본: 1.5)').onChange(rebuildAll);
+compareFolder.close();
+
+// ─── 학습 가이드 토글 ───
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.style.display = guideOpen ? 'block' : 'none';
+  guideToggle.textContent = guideOpen ? '📖 가이드 닫기' : '📖 학습 가이드';
+});
+
+// ─── 각도 호 시각화 ───
+let currentArc = null;
+let criticalArc = null;
+
+function updateArcs(tiltDeg, criticalDeg, pivotPos) {
+  if (currentArc) { scene.remove(currentArc); currentArc = null; }
+  if (criticalArc) { scene.remove(criticalArc); criticalArc = null; }
+
+  const arcRadius = 1.0;
+
+  // 현재 기울기 호 (파란색)
+  if (tiltDeg > 0.5) {
+    const tiltRad = THREE.MathUtils.degToRad(Math.min(tiltDeg, 90));
+    const curve = new THREE.EllipseCurve(0, 0, arcRadius, arcRadius, Math.PI / 2, Math.PI / 2 - tiltRad, true, 0);
+    const pts = curve.getPoints(32).map(p => new THREE.Vector3(p.x, p.y, 0));
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    currentArc = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x00aaff, linewidth: 2 }));
+    currentArc.position.copy(pivotPos);
+    currentArc.position.y = 0.03;
+    scene.add(currentArc);
+  }
+
+  // 임계각 점선 호 (회색)
+  const critRad = THREE.MathUtils.degToRad(criticalDeg);
+  const critCurve = new THREE.EllipseCurve(0, 0, arcRadius * 0.85, arcRadius * 0.85, Math.PI / 2, Math.PI / 2 - critRad, true, 0);
+  const critPts = critCurve.getPoints(32).map(p => new THREE.Vector3(p.x, p.y, 0));
+  const critGeo = new THREE.BufferGeometry().setFromPoints(critPts);
+  const critMat = new THREE.LineDashedMaterial({ color: 0x999999, dashSize: 0.06, gapSize: 0.03 });
+  criticalArc = new THREE.Line(critGeo, critMat);
+  criticalArc.computeLineDistances();
+  criticalArc.position.copy(pivotPos);
+  criticalArc.position.y = 0.03;
+  scene.add(criticalArc);
+}
+
+// ─── 비교 막대그래프 업데이트 ───
+function updateComparisonBars(critA, critB) {
+  const maxAngle = 75;
+  const barA = document.getElementById('bar-a');
+  const barAVal = document.getElementById('bar-a-val');
+  const barB = document.getElementById('bar-b');
+  const barBVal = document.getElementById('bar-b-val');
+
+  barA.style.width = Math.min(critA / maxAngle * 100, 100) + '%';
+  barAVal.textContent = critA.toFixed(1) + '°';
+  barB.style.width = Math.min(critB / maxAngle * 100, 100) + '%';
+  barBVal.textContent = critB.toFixed(1) + '°';
+
+  barA.style.background = critA >= critB ? '#4ecdc4' : '#ff6b6b';
+  barB.style.background = critB >= critA ? '#4ecdc4' : '#ff6b6b';
+}
+
+// ─── 초기 구성 ───
+rebuildAll();
+
+// ─── 애니메이션 루프 ───
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  controls.update();
+
+  // 밀어보기 애니메이션 — 가속도 적용 (더 자연스러운 물리)
+  if (pushAnimating && !isFallen) {
+    const critAngle = Math.atan2(params.바닥반지름, params.무게중심높이) * (180 / Math.PI);
+
+    if (params.기울기 < critAngle) {
+      // 임계각 전: 천천히 기울이기
+      params.기울기 += 0.25;
+    } else {
+      // 임계각 초과: 가속도 붙여서 넘어짐 (중력 효과)
+      const overshoot = params.기울기 - critAngle;
+      const accel = 0.3 + overshoot * 0.08;
+      params.기울기 += accel;
+    }
+
+    if (params.기울기 >= 85) {
+      params.기울기 = 85;
+      pushAnimating = false;
+      isFallen = true; // 넘어진 상태 — 수동 초기화 필요
+    }
+  }
+
+  // ─── 메인 구조물 업데이트 ───
+  const resultA = applyTilt(pivotA, structureGroup, params.기울기, params.무게중심높이, params.바닥반지름);
+
+  // 구조물 본체 색상
+  const bodyA = structureGroup.children.find(c => c.userData.type === 'body');
+  if (bodyA) {
+    const bodyColors = { stable: 0x5588bb, critical: 0xbbaa22, unstable: 0xbb3333 };
+    bodyA.material.color.lerp(new THREE.Color(bodyColors[resultA.status]), 0.1);
+    bodyA.material.emissive = new THREE.Color(resultA.status === 'unstable' ? 0x220000 : 0x000000);
+    bodyA.material.emissiveIntensity = resultA.status === 'unstable' ? 0.2 : 0;
+  }
+
+  // 임계 상태: 흔들림 효과
+  if (resultA.status === 'critical' && !pushAnimating) {
+    const shake = Math.sin(Date.now() * 0.015) * 0.003;
+    pivotA.rotation.z += shake;
+  }
+
+  // 수식 패널 업데이트
+  updateFormulaPanel(params.무게중심높이, params.바닥반지름, params.기울기, resultA.criticalAngle, resultA.status);
+
+  // 각도 호 시각화
+  updateArcs(params.기울기, resultA.criticalAngle, pivotA.position);
+
+  // ─── 비교 모드 ───
+  if (params.비교모드 && pivotB.visible) {
+    const resultB = applyTilt(pivotB, compareGroup, params.기울기, params.비교_높이, params.비교_반지름);
+
+    const bodyB = compareGroup.children.find(c => c.userData.type === 'body');
+    if (bodyB) {
+      const bodyColors = { stable: 0x5588bb, critical: 0xbbaa22, unstable: 0xbb3333 };
+      bodyB.material.color.lerp(new THREE.Color(bodyColors[resultB.status]), 0.1);
+    }
+
+    const critA = resultA.criticalAngle;
+    const critB = resultB.criticalAngle;
+    updateComparisonBars(critA, critB);
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ─── 반응형 ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

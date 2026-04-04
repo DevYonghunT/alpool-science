@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지구 내부 구조 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --panel-bg: rgba(8, 12, 30, 0.88);
+    --panel-stroke: rgba(255, 255, 255, 0.12);
+    --text-main: #f8fbff;
+    --text-dim: rgba(248, 251, 255, 0.68);
+    --accent: #ffb36b;
+    --accent-soft: #9ed4ff;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(58, 106, 255, 0.18), transparent 24%),
+      radial-gradient(circle at 80% 18%, rgba(255, 120, 60, 0.08), transparent 22%),
+      linear-gradient(180deg, #000011 0%, #02071d 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas { display: block; }
+
+  #scene-title {
+    position: fixed;
+    left: 50%;
+    top: 16px;
+    transform: translateX(-50%);
+    z-index: 18;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #scene-title h1 {
+    margin-top: 4px;
+    font-size: 23px;
+    font-weight: 700;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.35);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: 348px;
+    padding: 18px 18px 16px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-stroke);
+    border-radius: 18px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+    z-index: 28;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: var(--accent);
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .row .label {
+    width: 86px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .info-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .info-box strong {
+    color: #ffd9a6;
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: -0.2px;
+  }
+
+  #layer-focus {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  #layer-focus-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-soft);
+    margin-bottom: 4px;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(8, 12, 30, 0.86);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 42;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    right: 14px;
+    width: 408px;
+    max-height: 66vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    background: rgba(8, 12, 30, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    backdrop-filter: blur(14px);
+    z-index: 41;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #bde3ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffbe8b;
+  }
+
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 10px;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    max-width: 332px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(8, 12, 30, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.64);
+    backdrop-filter: blur(8px);
+    font-size: 10px;
+    z-index: 25;
+  }
+
+  #layer-chips {
+    position: fixed;
+    left: 14px;
+    top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 360px;
+    z-index: 18;
+    pointer-events: none;
+  }
+
+  .layer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(8, 12, 30, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(8px);
+  }
+
+  .swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .lil-gui.root {
+    z-index: 48;
+    margin-top: 12px;
+    margin-right: 8px;
+  }
+
+  @media (max-width: 768px) {
+    #scene-title h1 { font-size: 20px; }
+
+    #formula-panel {
+      width: calc(100vw - 28px);
+      max-width: 350px;
+    }
+
+    #guide-panel {
+      width: calc(100vw - 28px);
+      max-height: 58vh;
+    }
+
+    #hint-chip {
+      left: 14px;
+      right: 14px;
+      max-width: none;
+      border-radius: 12px;
+    }
+
+    #layer-chips {
+      top: auto;
+      bottom: 178px;
+      max-width: calc(100vw - 28px);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="scene-title">
+  <div class="eyebrow">통합과학1 · 지구시스템</div>
+  <h1>지구 내부 구조</h1>
+  <p>지각, 맨틀, 외핵, 내핵의 층상 구조와 깊이별 정보를 3D 단면으로 탐구합니다.</p>
+</div>
+
+<div id="layer-chips">
+  <div class="layer-chip"><span class="swatch" style="background:#886644;"></span>지각</div>
+  <div class="layer-chip"><span class="swatch" style="background:#cc5533;"></span>맨틀</div>
+  <div class="layer-chip"><span class="swatch" style="background:#ff6622;"></span>외핵</div>
+  <div class="layer-chip"><span class="swatch" style="background:#ffaa44;"></span>내핵</div>
+</div>
+
+<div id="formula-panel">
+  <h3>🌍 지구 내부 구조</h3>
+  <div class="row"><span class="label">현재 깊이:</span><span class="value" id="fp-depth">0 km</span></div>
+  <div class="row"><span class="label">현재 층:</span><span class="value" id="fp-layer">지각</span></div>
+  <div class="row"><span class="label">온도:</span><span class="value" id="fp-temp">약 20°C</span></div>
+  <div class="row"><span class="label">밀도:</span><span class="value" id="fp-density">약 2.7 g/cm³</span></div>
+  <div class="row"><span class="label">구성 물질:</span><span class="value" id="fp-composition">산소, 규소, 알루미늄</span></div>
+  <div class="row"><span class="label">상태:</span><span class="value" id="fp-state">고체</span></div>
+  <div class="row"><span class="label">강조 층:</span><span class="value" id="fp-highlight">전체</span></div>
+
+  <div id="layer-focus">
+    <div id="layer-focus-title">현재 탐색 포인트</div>
+    <div id="layer-focus-body">지표면 근처의 지각은 가장 얇지만, 대륙 지각과 해양 지각으로 다시 나뉩니다.</div>
+  </div>
+
+  <div class="info-box mono">
+    <strong>지구 반지름</strong>: 6,371 km<br>
+    지각: ~35km / 맨틀: ~2865km / 외핵: ~2200km / 내핵: ~1271km<br>
+    맨틀이 지구 전체 부피의 대부분을 차지
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>지구 내부는 지각, 맨틀, 외핵, 내핵으로 구분됩니다. 맨틀은 고체이지만 유동성이 있어 대류가 일어나며, 이것이 판 운동의 원동력입니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>대륙 지각과 해양 지각의 두께가 다른 까닭은 무엇일까요?</li>
+    <li>외핵은 액체인데 내핵은 고체인 까닭은 무엇인가요? 힌트: 압력</li>
+    <li>지구 내부 구조를 어떻게 알 수 있나요? 힌트: 지진파</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li><strong>지진파 분석</strong>: 지구 내부 구조를 간접적으로 탐사</li>
+    <li><strong>지열 발전</strong>: 맨틀의 열을 에너지원으로 활용</li>
+    <li><strong>지구 자기장</strong>: 외핵의 액체 금속 대류와 관련</li>
+  </ul>
+
+  <div class="textbook-ref">📚 교과서 연계: 미래엔 통합과학1 III편 p106 — 지권의 층상 구조(그림 III-3, 그림 III-4)</div>
+</div>
+
+<div id="hint-chip">드래그로 회전 · 휠/핀치로 확대 · GUI로 절단 각도, 층 강조, 깊이 탐색을 조절할 수 있습니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const EARTH_RADIUS = 3.0;
+const MAX_DEPTH = 6371;
+const OUTER_CORE_RADIUS = 1.7;
+
+const LAYERS = [
+  {
+    key: '전체',
+    name: '전체',
+    focus: '지각, 맨틀, 외핵, 내핵을 함께 보며 지구 내부의 층상 구조를 비교해 보세요.'
+  },
+  {
+    key: '지각',
+    name: '지각',
+    depthMin: 0,
+    depthMax: 35,
+    radius: 3.0,
+    color: 0x886644,
+    baseOpacity: 0.98,
+    tempMin: 0,
+    tempMax: 800,
+    densityMin: 2.7,
+    densityMax: 3.0,
+    composition: '산소, 규소, 알루미늄',
+    state: '고체',
+    focus: '지각은 대륙 지각과 해양 지각으로 나뉘며, 지구 가장 바깥을 이루는 얇은 고체 층입니다.'
+  },
+  {
+    key: '맨틀',
+    name: '맨틀',
+    depthMin: 35,
+    depthMax: 2900,
+    radius: 2.85,
+    color: 0xcc5533,
+    baseOpacity: 0.9,
+    tempMin: 800,
+    tempMax: 4000,
+    densityMin: 3.3,
+    densityMax: 5.5,
+    composition: '산소, 규소, 마그네슘, 철',
+    state: '고체(유동성)',
+    focus: '맨틀은 지구 부피의 대부분을 차지하며, 고체이지만 오랜 시간에 걸쳐 서서히 흐르며 대류합니다.'
+  },
+  {
+    key: '외핵',
+    name: '외핵',
+    depthMin: 2900,
+    depthMax: 5100,
+    radius: 1.7,
+    color: 0xff6622,
+    baseOpacity: 0.94,
+    tempMin: 4000,
+    tempMax: 5000,
+    densityMin: 10,
+    densityMax: 12,
+    composition: '철, 니켈',
+    state: '액체',
+    focus: '외핵은 철과 니켈이 액체 상태로 존재하는 영역으로, 지구 자기장 형성과 깊은 관련이 있습니다.'
+  },
+  {
+    key: '내핵',
+    name: '내핵',
+    depthMin: 5100,
+    depthMax: 6371,
+    radius: 0.8,
+    color: 0xffaa44,
+    baseOpacity: 1.0,
+    tempMin: 5000,
+    tempMax: 6000,
+    densityMin: 13,
+    densityMax: 14,
+    composition: '철, 니켈',
+    state: '고체',
+    focus: '내핵은 매우 높은 온도에도 강한 압력 때문에 고체 상태를 유지하는 금속 중심부입니다.'
+  }
+];
+
+const LAYER_MAP = new Map(LAYERS.map((layer) => [layer.key, layer]));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000011);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 160);
+camera.position.set(7.6, 4.3, 8.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.localClippingEnabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.04;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minDistance = 5;
+controls.maxDistance = 20;
+controls.target.set(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(-8, 9, 7);
+scene.add(directionalLight);
+
+const coreLight = new THREE.PointLight(0xff4400, 2.0, 14, 2);
+coreLight.position.set(0, 0, 0);
+scene.add(coreLight);
+
+const starCount = 800;
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  starPositions[i * 3] = (Math.random() - 0.5) * 120;
+  starPositions[i * 3 + 1] = (Math.random() - 0.5) * 100;
+  starPositions[i * 3 + 2] = (Math.random() - 0.5) * 120;
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starMat = new THREE.PointsMaterial({
+  color: 0xffffff,
+  size: 0.12,
+  transparent: true,
+  opacity: 0.75,
+  sizeAttenuation: true
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+const clipPlaneA = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+const clipPlaneB = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+
+const state = {
+  clipMaterials: [],
+  layerOpacityControllers: [],
+  crustDetailMaterials: [],
+  labelControllers: [],
+  clock: new THREE.Clock()
+};
+
+const params = {
+  절단각도: 90,
+  층선택: '전체',
+  맨틀대류표시: true,
+  지각구분표시: true,
+  깊이탐색: 0,
+  지구회전: true,
+  초기화() {
+    params.절단각도 = 90;
+    params.층선택 = '전체';
+    params.맨틀대류표시 = true;
+    params.지각구분표시 = true;
+    params.깊이탐색 = 0;
+    params.지구회전 = true;
+    updateClippingState(true);
+    updateLayerTargets(true);
+    updateCrustDetailVisibility(true);
+    updateDepthMarker();
+    updateInfoPanel();
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+};
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  fpDepth: document.getElementById('fp-depth'),
+  fpLayer: document.getElementById('fp-layer'),
+  fpTemp: document.getElementById('fp-temp'),
+  fpDensity: document.getElementById('fp-density'),
+  fpComposition: document.getElementById('fp-composition'),
+  fpState: document.getElementById('fp-state'),
+  fpHighlight: document.getElementById('fp-highlight'),
+  focusTitle: document.getElementById('layer-focus-title'),
+  focusBody: document.getElementById('layer-focus-body')
+};
+
+function clamp01(value) {
+  return THREE.MathUtils.clamp(value, 0, 1);
+}
+
+function formatNumber(value, digits = 0) {
+  return new Intl.NumberFormat('ko-KR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  }).format(value);
+}
+
+function lerpRange(value, min, max, from, to) {
+  if (max === min) return from;
+  const t = clamp01((value - min) / (max - min));
+  return THREE.MathUtils.lerp(from, to, t);
+}
+
+function findDepthLayer(depth) {
+  if (depth <= 35) return LAYER_MAP.get('지각');
+  if (depth <= 2900) return LAYER_MAP.get('맨틀');
+  if (depth <= 5100) return LAYER_MAP.get('외핵');
+  return LAYER_MAP.get('내핵');
+}
+
+function createLabel(text, scale = 0.42, color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const lines = String(text).split('\n');
+  canvas.width = 512;
+  canvas.height = 128;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 28px Pretendard, sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 + (index - (lines.length - 1) / 2) * 32;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale * 3.2, scale * 0.88 * lines.length, 1);
+  return sprite;
+}
+
+function registerClipMaterial(material) {
+  state.clipMaterials.push(material);
+  return material;
+}
+
+function registerLayerOpacity(material, key, baseOpacity, uniformKey = null) {
+  state.layerOpacityControllers.push({
+    key,
+    material,
+    baseOpacity,
+    currentOpacity: baseOpacity,
+    targetOpacity: baseOpacity,
+    uniformKey
+  });
+}
+
+function registerCrustDetailMaterial(material, baseOpacity) {
+  state.crustDetailMaterials.push({
+    material,
+    baseOpacity,
+    currentOpacity: baseOpacity,
+    targetOpacity: baseOpacity
+  });
+}
+
+function registerLabelOpacity(sprite, category, baseOpacity = 1) {
+  state.labelControllers.push({
+    sprite,
+    category,
+    baseOpacity,
+    currentOpacity: baseOpacity,
+    targetOpacity: baseOpacity
+  });
+}
+
+function placeSurfacePatch(width, height, thickness, latitudeDeg, longitudeDeg, color, radiusOffset = 0.02) {
+  const geometry = new THREE.BoxGeometry(width, thickness, height);
+  const material = registerClipMaterial(new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.84,
+    metalness: 0.02,
+    transparent: true,
+    opacity: 0.98,
+    side: THREE.DoubleSide
+  }));
+  const patch = new THREE.Mesh(geometry, material);
+  const lat = THREE.MathUtils.degToRad(latitudeDeg);
+  const lon = THREE.MathUtils.degToRad(longitudeDeg);
+  const normal = new THREE.Vector3(
+    Math.cos(lat) * Math.cos(lon),
+    Math.sin(lat),
+    Math.cos(lat) * Math.sin(lon)
+  ).normalize();
+  patch.position.copy(normal).multiplyScalar(EARTH_RADIUS + radiusOffset + thickness * 0.5);
+  patch.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  registerCrustDetailMaterial(material, 0.98);
+  return patch;
+}
+
+const earthRoot = new THREE.Group();
+earthRoot.rotation.y = -Math.PI / 5;
+scene.add(earthRoot);
+
+const crustMaterial = registerClipMaterial(new THREE.MeshStandardMaterial({
+  color: 0x886644,
+  roughness: 0.8,
+  metalness: 0.03,
+  transparent: true,
+  opacity: 0.98,
+  side: THREE.DoubleSide
+}));
+const mantleMaterial = registerClipMaterial(new THREE.MeshStandardMaterial({
+  color: 0xcc5533,
+  roughness: 0.6,
+  metalness: 0.05,
+  transparent: true,
+  opacity: 0.9,
+  emissive: 0x311108,
+  emissiveIntensity: 0.28,
+  side: THREE.DoubleSide
+}));
+const outerCoreUniforms = {
+  time: { value: 0 },
+  uOpacity: { value: 0.94 }
+};
+const outerCoreMaterial = registerClipMaterial(new THREE.ShaderMaterial({
+  uniforms: outerCoreUniforms,
+  transparent: true,
+  side: THREE.DoubleSide,
+  clipping: true,
+  vertexShader: `
+    varying vec3 vWorldPos;
+    varying vec3 vNormalDir;
+    void main() {
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vWorldPos = worldPos.xyz;
+      vNormalDir = normalize(normalMatrix * normal);
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    uniform float time;
+    uniform float uOpacity;
+    varying vec3 vWorldPos;
+    varying vec3 vNormalDir;
+    void main() {
+      float flowA = sin((vWorldPos.x + time * 0.38) * 5.2);
+      float flowB = sin((vWorldPos.y - time * 0.22) * 6.1);
+      float flowC = sin((vWorldPos.z + time * 0.31) * 5.6);
+      float swirl = 0.5 + 0.5 * (flowA * flowB * flowC);
+      vec3 base = mix(vec3(1.0, 0.40, 0.13), vec3(1.0, 0.56, 0.27), swirl);
+      float rim = pow(1.0 - abs(dot(normalize(vNormalDir), normalize(cameraPosition - vWorldPos))), 2.2);
+      vec3 color = base + vec3(0.22, 0.11, 0.03) * rim;
+      gl_FragColor = vec4(color, uOpacity);
+    }
+  `
+}));
+const innerCoreMaterial = registerClipMaterial(new THREE.MeshStandardMaterial({
+  color: 0xffaa44,
+  roughness: 0.2,
+  metalness: 0.9,
+  transparent: true,
+  opacity: 1,
+  emissive: 0x663300,
+  emissiveIntensity: 0.7,
+  side: THREE.DoubleSide
+}));
+
+registerLayerOpacity(crustMaterial, '지각', 0.98);
+registerLayerOpacity(mantleMaterial, '맨틀', 0.9);
+registerLayerOpacity(outerCoreMaterial, '외핵', 0.94, 'uOpacity');
+registerLayerOpacity(innerCoreMaterial, '내핵', 1.0);
+
+const crustMesh = new THREE.Mesh(new THREE.SphereGeometry(3.0, 96, 96), crustMaterial);
+const mantleMesh = new THREE.Mesh(new THREE.SphereGeometry(2.85, 80, 80), mantleMaterial);
+const outerCoreMesh = new THREE.Mesh(new THREE.SphereGeometry(1.7, 64, 64), outerCoreMaterial);
+const innerCoreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 48, 48), innerCoreMaterial);
+earthRoot.add(crustMesh, mantleMesh, outerCoreMesh, innerCoreMesh);
+
+const oceanMaterial = registerClipMaterial(new THREE.MeshStandardMaterial({
+  color: 0x5da9ff,
+  transparent: true,
+  opacity: 0.2,
+  roughness: 0.12,
+  metalness: 0.03,
+  side: THREE.DoubleSide
+}));
+registerCrustDetailMaterial(oceanMaterial, 0.2);
+const oceanMesh = new THREE.Mesh(new THREE.SphereGeometry(3.02, 64, 64), oceanMaterial);
+earthRoot.add(oceanMesh);
+
+const crustDetailGroup = new THREE.Group();
+earthRoot.add(crustDetailGroup);
+
+[
+  [0.88, 0.70, 0.16, 32, 20, 0x5b7e3d],
+  [1.08, 0.88, 0.18, 8, -35, 0x667e43],
+  [0.74, 0.62, 0.14, -22, 92, 0x4d7040],
+  [0.94, 0.78, 0.16, 48, -122, 0x6c8550],
+  [0.82, 0.56, 0.14, -8, -150, 0x577a40]
+].forEach((patch) => {
+  crustDetailGroup.add(placeSurfacePatch(...patch));
+});
+
+[
+  [1.3, 0.64, 0.06, -5, 18, 0x334466],
+  [1.1, 0.58, 0.05, 18, 78, 0x2f4868],
+  [0.98, 0.52, 0.05, -28, -48, 0x304f72],
+  [1.15, 0.58, 0.05, 42, -82, 0x2d4761],
+  [0.88, 0.48, 0.05, -36, 132, 0x39506b]
+].forEach((patch) => {
+  crustDetailGroup.add(placeSurfacePatch(...patch, 0.01));
+});
+
+const labelGroup = new THREE.Group();
+scene.add(labelGroup);
+
+function addLabel(text, position, scale, color, category, onEarth = false) {
+  const label = createLabel(text, scale, color);
+  label.position.copy(position);
+  if (onEarth) {
+    earthRoot.add(label);
+  } else {
+    labelGroup.add(label);
+  }
+  registerLabelOpacity(label, category);
+  return label;
+}
+
+addLabel('지각', new THREE.Vector3(2.2, 1.85, 1.9), 0.28, '#f0d3b0', '지각', true);
+addLabel('맨틀', new THREE.Vector3(1.55, 0.7, 1.2), 0.32, '#ffd1ba', '맨틀', true);
+addLabel('외핵', new THREE.Vector3(1.02, -0.25, 0.9), 0.3, '#ffc48c', '외핵', true);
+addLabel('내핵', new THREE.Vector3(0.35, -0.95, 0.55), 0.28, '#ffe0a6', '내핵', true);
+addLabel('대륙 지각\n(~35km)', new THREE.Vector3(-4.0, 2.4, 0), 0.34, '#b7dd98', '지각구분');
+addLabel('해양 지각\n(~7km)', new THREE.Vector3(-4.0, 1.2, 0), 0.34, '#9bc7ff', '지각구분');
+addLabel('맨틀 대류\n고체이지만 서서히 흐름', new THREE.Vector3(-3.8, -2.2, 0), 0.38, '#ffcfb0');
+addLabel('외핵 — 액체 상태\n(철, 니켈)', new THREE.Vector3(3.6, -2.3, 0), 0.34, '#ffc58f');
+addLabel('내핵 — 고체 상태\n(철, 니켈), 약 6000°C', new THREE.Vector3(3.4, -3.35, 0), 0.34, '#ffe4ad');
+
+const mantleFlowGroup = new THREE.Group();
+earthRoot.add(mantleFlowGroup);
+const mantleFlows = [];
+
+function addMantleFlow(angleDeg, rising) {
+  const angle = THREE.MathUtils.degToRad(angleDeg);
+  const innerRadius = rising ? 1.25 : 2.55;
+  const outerRadius = rising ? 2.42 : 1.35;
+  const start = new THREE.Vector3(Math.cos(angle) * innerRadius, rising ? -1.25 : 1.2, Math.sin(angle) * innerRadius);
+  const end = new THREE.Vector3(Math.cos(angle) * outerRadius, rising ? 1.2 : -1.25, Math.sin(angle) * outerRadius);
+  const dir = end.clone().sub(start).normalize();
+  const color = rising ? 0xff4422 : 0x4466ff;
+  const arrow = new THREE.ArrowHelper(dir, start, start.distanceTo(end), color, 0.32, 0.18);
+  arrow.line.material.transparent = true;
+  arrow.line.material.opacity = 0.78;
+  arrow.cone.material.transparent = true;
+  arrow.cone.material.opacity = 0.88;
+  mantleFlowGroup.add(arrow);
+
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 12, 12),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 })
+  );
+  mantleFlowGroup.add(dot);
+  mantleFlows.push({
+    arrow,
+    dot,
+    start,
+    end,
+    phase: Math.random() * Math.PI * 2,
+    speed: 0.35 + Math.random() * 0.12
+  });
+}
+
+[18, 122, 232].forEach((angle) => addMantleFlow(angle, true));
+[74, 184, 302].forEach((angle) => addMantleFlow(angle, false));
+
+const depthSlice = new THREE.Mesh(
+  new THREE.CircleGeometry(1, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0xff3344,
+    transparent: true,
+    opacity: 0.18,
+    side: THREE.DoubleSide
+  })
+);
+depthSlice.rotation.x = -Math.PI / 2;
+scene.add(depthSlice);
+
+const depthOutline = new THREE.Mesh(
+  new THREE.RingGeometry(0.94, 1.0, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0xff6677,
+    transparent: true,
+    opacity: 0.72,
+    side: THREE.DoubleSide
+  })
+);
+depthOutline.rotation.x = -Math.PI / 2;
+scene.add(depthOutline);
+
+const depthLabel = createLabel('깊이 0 km', 0.3, '#ffbcc2');
+depthLabel.position.set(0, 0.12, 0);
+scene.add(depthLabel);
+
+function updateClippingState(force = false) {
+  const angle = params.절단각도;
+  let clippingPlanes = [];
+  let clipIntersection = false;
+
+  if (angle <= 0.5) {
+    clippingPlanes = [];
+  } else if (angle >= 179.5) {
+    clippingPlanes = [clipPlaneA];
+    clipIntersection = false;
+  } else {
+    const radians = THREE.MathUtils.degToRad(angle);
+    clipPlaneA.normal.set(1, 0, 0);
+    clipPlaneB.normal.set(Math.cos(radians), 0, Math.sin(radians)).normalize();
+    clippingPlanes = [clipPlaneA, clipPlaneB];
+    clipIntersection = true;
+  }
+
+  state.clipMaterials.forEach((material) => {
+    material.clippingPlanes = clippingPlanes;
+    material.clipIntersection = clipIntersection;
+    if (force) material.needsUpdate = true;
+  });
+}
+
+function updateLayerTargets(force = false) {
+  const selected = params.층선택;
+  state.layerOpacityControllers.forEach((controller) => {
+    controller.targetOpacity = selected === '전체' || selected === controller.key
+      ? controller.baseOpacity
+      : 0.05;
+    if (force) controller.currentOpacity = controller.targetOpacity;
+  });
+
+  state.labelControllers.forEach((controller) => {
+    const isLayerLabel = ['지각', '맨틀', '외핵', '내핵'].includes(controller.category);
+    if (controller.category === '지각구분') {
+      controller.targetOpacity = params.지각구분표시 && (selected === '전체' || selected === '지각') ? controller.baseOpacity : 0;
+    } else if (isLayerLabel) {
+      controller.targetOpacity = selected === '전체' || selected === controller.category ? controller.baseOpacity : 0.18;
+    } else if (controller.category === undefined) {
+      controller.targetOpacity = controller.baseOpacity;
+    } else {
+      controller.targetOpacity = controller.baseOpacity;
+    }
+    if (force) controller.currentOpacity = controller.targetOpacity;
+  });
+}
+
+function updateCrustDetailVisibility(force = false) {
+  const selected = params.층선택;
+  const active = params.지각구분표시 && (selected === '전체' || selected === '지각');
+  state.crustDetailMaterials.forEach((entry) => {
+    entry.targetOpacity = active ? entry.baseOpacity : 0;
+    if (force) entry.currentOpacity = entry.targetOpacity;
+  });
+}
+
+function updateDepthMarker() {
+  const radius = THREE.MathUtils.lerp(EARTH_RADIUS, 0.001, params.깊이탐색 / MAX_DEPTH);
+  const scale = Math.max(radius, 0.001);
+  depthSlice.scale.setScalar(scale);
+  depthOutline.scale.setScalar(scale);
+  depthSlice.visible = scale > 0.02 && params.절단각도 > 0.5;
+  depthOutline.visible = scale > 0.02 && params.절단각도 > 0.5;
+  depthLabel.visible = params.절단각도 > 0.5;
+  depthLabel.position.set(radius + 0.25, 0.14, 0);
+  depthLabel.material.opacity = params.절단각도 > 0.5 ? 1 : 0;
+  depthLabel.material.map.needsUpdate = true;
+}
+
+function updateDepthLabelText() {
+  const label = createLabel(`깊이 ${formatNumber(params.깊이탐색)} km`, 0.3, '#ffbcc2');
+  const oldMap = depthLabel.material.map;
+  depthLabel.material.map = label.material.map;
+  depthLabel.scale.copy(label.scale);
+  label.material.dispose();
+  oldMap.dispose();
+}
+
+function updateInfoPanel() {
+  const depth = params.깊이탐색;
+  const layer = findDepthLayer(depth);
+  const temp = lerpRange(depth, layer.depthMin, layer.depthMax, layer.tempMin, layer.tempMax);
+  const density = lerpRange(depth, layer.depthMin, layer.depthMax, layer.densityMin, layer.densityMax);
+  const highlighted = LAYER_MAP.get(params.층선택);
+  const focusLayer = params.층선택 === '전체' ? layer : highlighted;
+
+  dom.fpDepth.textContent = `${formatNumber(depth)} km`;
+  dom.fpLayer.textContent = layer.name;
+  dom.fpTemp.textContent = `약 ${formatNumber(Math.round(temp / 10) * 10)}°C`;
+  dom.fpDensity.textContent = `약 ${density < 10 ? density.toFixed(1) : density.toFixed(0)} g/cm³`;
+  dom.fpComposition.textContent = layer.composition;
+  dom.fpState.textContent = layer.state;
+  dom.fpHighlight.textContent = params.층선택;
+  dom.focusTitle.textContent = params.층선택 === '전체' ? '현재 탐색 포인트' : `${focusLayer.name} 집중 보기`;
+  dom.focusBody.textContent = focusLayer.focus;
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.style.display = dom.guidePanel.style.display === 'block' ? 'none' : 'block';
+});
+
+const gui = new GUI({ title: '지구 내부 구조', width: 312 });
+gui.add(params, '절단각도', 0, 180, 1).name('절단 각도').onChange(() => {
+  updateClippingState(true);
+  updateDepthMarker();
+});
+gui.add(params, '층선택', ['전체', '지각', '맨틀', '외핵', '내핵']).name('층 선택').onChange(() => {
+  updateLayerTargets();
+  updateCrustDetailVisibility();
+  updateInfoPanel();
+});
+gui.add(params, '맨틀대류표시').name('맨틀 대류 표시');
+gui.add(params, '지각구분표시').name('지각 구분 표시').onChange(() => {
+  updateCrustDetailVisibility();
+  updateLayerTargets();
+});
+gui.add(params, '깊이탐색', 0, 6371, 1).name('깊이 탐색').onChange(() => {
+  updateDepthMarker();
+  updateDepthLabelText();
+  updateInfoPanel();
+});
+gui.add(params, '지구회전').name('지구 회전');
+gui.add(params, '초기화').name('초기화');
+
+if (window.innerWidth < 900) gui.close();
+
+updateClippingState(true);
+updateLayerTargets(true);
+updateCrustDetailVisibility(true);
+updateDepthMarker();
+updateDepthLabelText();
+updateInfoPanel();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(state.clock.getDelta(), 0.05);
+  const elapsed = state.clock.elapsedTime;
+
+  outerCoreUniforms.time.value = elapsed;
+
+  if (params.지구회전) {
+    earthRoot.rotation.y += delta * 0.18;
+  }
+
+  if (params.맨틀대류표시) {
+    mantleFlowGroup.visible = true;
+    mantleFlows.forEach((flow, index) => {
+      const pulse = 0.58 + 0.42 * Math.sin(elapsed * 1.8 + flow.phase + index * 0.4);
+      flow.arrow.line.material.opacity = 0.25 + pulse * 0.5;
+      flow.arrow.cone.material.opacity = 0.4 + pulse * 0.5;
+      const t = 0.5 + 0.5 * Math.sin(elapsed * flow.speed + flow.phase);
+      flow.dot.position.copy(flow.start).lerp(flow.end, t);
+      flow.dot.material.opacity = 0.35 + pulse * 0.6;
+    });
+  } else {
+    mantleFlowGroup.visible = false;
+  }
+
+  state.layerOpacityControllers.forEach((controller) => {
+    controller.currentOpacity = THREE.MathUtils.lerp(controller.currentOpacity, controller.targetOpacity, delta * 5);
+    if (controller.uniformKey) {
+      controller.material.uniforms[controller.uniformKey].value = controller.currentOpacity;
+    } else {
+      controller.material.opacity = controller.currentOpacity;
+    }
+  });
+
+  state.crustDetailMaterials.forEach((entry) => {
+    entry.currentOpacity = THREE.MathUtils.lerp(entry.currentOpacity, entry.targetOpacity, delta * 5);
+    entry.material.opacity = entry.currentOpacity;
+    entry.material.visible = entry.currentOpacity > 0.002;
+  });
+
+  state.labelControllers.forEach((entry) => {
+    entry.currentOpacity = THREE.MathUtils.lerp(entry.currentOpacity, entry.targetOpacity, delta * 6);
+    entry.sprite.material.opacity = entry.currentOpacity;
+    entry.sprite.visible = entry.currentOpacity > 0.01;
+  });
+
+  coreLight.intensity = 1.75 + Math.sin(elapsed * 2.2) * 0.2;
+  innerCoreMaterial.emissiveIntensity = 0.58 + Math.sin(elapsed * 2.5) * 0.08;
+  mantleMaterial.emissiveIntensity = 0.24 + Math.sin(elapsed * 1.3) * 0.05;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 900) gui.close();
+});
+</script>
+</body>
+</html>

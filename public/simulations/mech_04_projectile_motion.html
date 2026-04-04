@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포물선 운동 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sky-top: #7fc2ea;
+    --sky-bottom: #e4f3ff;
+    --panel-dark: rgba(6, 17, 30, 0.94);
+    --panel-mid: rgba(10, 27, 45, 0.88);
+    --panel-light: rgba(255, 255, 255, 0.18);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.68);
+    --text-dark: rgba(12, 30, 49, 0.92);
+    --accent-blue: #62b6ff;
+    --accent-red: #ff7878;
+    --accent-green: #78f7a6;
+    --accent-gold: #ffd56f;
+    --accent-cyan: #6feaff;
+    --accent-coral: #ff9b6d;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 15% 12%, rgba(255, 239, 183, 0.2), transparent 24%),
+      linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 48%, #d5eaf8 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.95fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 14% 9%, rgba(255, 242, 186, 0.28), transparent 18%),
+      linear-gradient(180deg, rgba(132, 202, 238, 0.98) 0%, rgba(194, 229, 248, 0.96) 32%, rgba(228, 243, 255, 0.92) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 10% 8%, rgba(108, 193, 255, 0.16), transparent 22%),
+      linear-gradient(180deg, rgba(8, 20, 35, 0.98) 0%, rgba(3, 10, 18, 1) 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(18, 46, 77, 0.72);
+  }
+
+  #scene-title h1 {
+    margin-top: 5px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: rgba(12, 34, 59, 0.95);
+    text-shadow: 0 10px 20px rgba(255, 255, 255, 0.32);
+  }
+
+  #scene-title p {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(17, 45, 76, 0.7);
+  }
+
+  #scene-note {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 12;
+    max-width: 310px;
+    padding: 13px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.48);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.36);
+    box-shadow: 0 14px 30px rgba(53, 89, 123, 0.12);
+    color: rgba(11, 31, 54, 0.82);
+    font-size: 11px;
+    line-height: 1.68;
+    pointer-events: none;
+  }
+
+  #scene-note strong {
+    color: rgba(8, 24, 44, 0.95);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 12;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+    pointer-events: none;
+  }
+
+  #graph-head .title h2 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  #graph-head .title p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    max-width: 280px;
+  }
+
+  #legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    max-width: 250px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .legend-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-tabs {
+    position: absolute;
+    top: 104px;
+    left: 22px;
+    right: 22px;
+    z-index: 13;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .graph-tab {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.72);
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .graph-tab:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .graph-tab.active {
+    color: #ffffff;
+    border-color: rgba(113, 222, 255, 0.38);
+    background: linear-gradient(135deg, rgba(98, 182, 255, 0.22), rgba(120, 247, 166, 0.12));
+    transform: translateY(-1px);
+  }
+
+  #comparison-note {
+    position: absolute;
+    top: 162px;
+    left: 22px;
+    right: 22px;
+    z-index: 12;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 213, 111, 0.12);
+    border: 1px solid rgba(255, 213, 111, 0.22);
+    color: rgba(255, 244, 214, 0.92);
+    font-size: 11px;
+    line-height: 1.6;
+    display: none;
+  }
+
+  #metrics {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 20px;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    min-height: 94px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .metric-card .label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 14;
+    width: 360px;
+    padding: 16px 18px 15px;
+    border-radius: 22px;
+    background: rgba(8, 20, 34, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 36px rgba(5, 14, 25, 0.22);
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #formula-panel .divider {
+    margin: 9px 0 12px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), transparent);
+  }
+
+  .formula-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .formula-row .label {
+    color: rgba(255, 255, 255, 0.62);
+    white-space: nowrap;
+  }
+
+  .formula-row .value {
+    color: rgba(255, 255, 255, 0.95);
+    text-align: right;
+  }
+
+  .formula-block {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(120, 247, 166, 0.08);
+    border: 1px solid rgba(120, 247, 166, 0.14);
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(232, 255, 242, 0.94);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 20;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(8, 24, 40, 0.72);
+    color: #ffffff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 14px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  }
+
+  #guide-toggle:hover {
+    transform: translateY(-1px);
+    background: rgba(10, 29, 49, 0.88);
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 66px;
+    right: 18px;
+    z-index: 19;
+    width: min(420px, calc(100vw - 36px));
+    max-height: min(66vh, 620px);
+    overflow: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 21, 36, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 42px rgba(4, 12, 23, 0.28);
+    display: none;
+  }
+
+  #guide-panel h3 {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  #guide-panel h4 {
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  .guide-card {
+    margin-top: 14px;
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .guide-card p {
+    margin-top: 4px;
+  }
+
+  #status-banner {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0.94);
+    z-index: 18;
+    padding: 12px 22px;
+    border-radius: 999px;
+    background: rgba(15, 49, 79, 0.9);
+    border: 1px solid rgba(98, 182, 255, 0.34);
+    box-shadow: 0 16px 32px rgba(6, 18, 31, 0.24);
+    font-size: 26px;
+    font-weight: 800;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #status-banner.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  @media (max-width: 1180px) {
+    #layout {
+      grid-template-columns: minmax(0, 1.24fr) minmax(320px, 0.96fr);
+    }
+
+    #formula-panel {
+      width: 332px;
+    }
+
+    #metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 920px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    #formula-panel {
+      width: min(360px, calc(100vw - 32px));
+    }
+
+    #graph-tabs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    #scene-title {
+      top: 14px;
+      width: calc(100vw - 132px);
+    }
+
+    #scene-title h1 {
+      font-size: 20px;
+    }
+
+    #scene-note {
+      max-width: 220px;
+      top: 82px;
+      font-size: 10px;
+    }
+
+    #guide-toggle {
+      top: 14px;
+      right: 14px;
+      padding: 8px 12px;
+      font-size: 11px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      width: auto;
+      padding: 14px 14px 13px;
+    }
+
+    #graph-head {
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+
+    #graph-tabs {
+      top: 138px;
+      left: 14px;
+      right: 14px;
+      gap: 6px;
+    }
+
+    #comparison-note {
+      top: 236px;
+      left: 14px;
+      right: 14px;
+    }
+
+    #metrics {
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      grid-template-columns: 1fr;
+    }
+
+    .metric-card {
+      min-height: 82px;
+    }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+
+      <div id="scene-title">
+        <div class="eyebrow">Mechanics &amp; Energy · Projectile Motion</div>
+        <h1 id="scene-title-main">포물선 운동</h1>
+        <p id="scene-title-sub">수평 등속 운동과 수직 등가속도 운동이 합쳐져 2차원 포물선을 만듭니다.</p>
+      </div>
+
+      <div id="scene-note">
+        <strong>관찰 포인트</strong><br>
+        파란 화살표 <strong>vₓ</strong>는 일정하고, 빨간 화살표 <strong>vᵧ</strong>는 중력 때문에 계속 변합니다. 두 성분이 합쳐진 초록 화살표가 실제 속도 벡터입니다.
+      </div>
+
+      <div id="formula-panel">
+        <h3>🎯 포물선 운동</h3>
+        <div class="divider"></div>
+        <div class="formula-row"><span class="label">모드</span><span class="value" id="formula-mode">비스듬히 던지기</span></div>
+        <div class="formula-row"><span class="label">초기 조건</span><span class="value" id="formula-config">v₀ = 15.0 m/s, θ = 45°</span></div>
+        <div class="formula-row"><span class="label">경과 시간</span><span class="value" id="formula-time">t = 0.00 s</span></div>
+        <div class="formula-block">
+          <div class="formula-row"><span class="label">수평</span><span class="value" id="formula-x">x = v₀cosθ·t = 0.00 m</span></div>
+          <div class="formula-row"><span class="label">수직</span><span class="value" id="formula-y">y = v₀sinθ·t - ½gt² = 0.00 m</span></div>
+          <div class="formula-row"><span class="label">수평 속도</span><span class="value" id="formula-vx">vₓ = v₀cosθ = 10.61 m/s</span></div>
+          <div class="formula-row"><span class="label">수직 속도</span><span class="value" id="formula-vy">vᵧ = v₀sinθ - gt = 10.61 m/s</span></div>
+        </div>
+        <div class="formula-block">
+          <div class="formula-row"><span class="label">지표</span><span class="value" id="formula-extra-1">최고점 H = 5.74 m</span></div>
+          <div class="formula-row"><span class="label">지표</span><span class="value" id="formula-extra-2">체공 시간 T = 2.16 s</span></div>
+          <div class="formula-row"><span class="label">지표</span><span class="value" id="formula-extra-3">도달 거리 R = 22.96 m</span></div>
+        </div>
+        <div class="formula-note" id="formula-note">
+          핵심: 포물선 운동은 수평 등속 운동과 수직 등가속도 운동의 합성입니다. 비스듬히 던질 때 도달 거리는 45°에서 최대가 됩니다.
+        </div>
+      </div>
+    </section>
+
+    <section id="graph-panel">
+      <canvas id="graph-canvas"></canvas>
+
+      <div id="graph-head">
+        <div class="title">
+          <h2>운동 그래프</h2>
+          <p id="graph-subtitle">x-t 그래프는 일정한 기울기의 직선이며, 수평 성분의 속도가 변하지 않음을 보여 줍니다.</p>
+        </div>
+        <div id="legend"></div>
+      </div>
+
+      <div id="graph-tabs">
+        <button class="graph-tab active" data-graph="x-t">x-t</button>
+        <button class="graph-tab" data-graph="y-t">y-t</button>
+        <button class="graph-tab" data-graph="vₓ-t">vₓ-t</button>
+        <button class="graph-tab" data-graph="vᵧ-t">vᵧ-t</button>
+      </div>
+
+      <div id="comparison-note"></div>
+
+      <div id="metrics">
+        <div class="metric-card">
+          <span class="label" id="metric-1-label">경과 시간</span>
+          <strong id="metric-1-value">0.00 s</strong>
+          <p id="metric-1-desc">발사 전에는 초기 조건만 준비된 상태입니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label" id="metric-2-label">최고점</span>
+          <strong id="metric-2-value">5.74 m</strong>
+          <p id="metric-2-desc">수직 속도가 0이 되는 순간의 높이입니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label" id="metric-3-label">도달 거리</span>
+          <strong id="metric-3-value">22.96 m</strong>
+          <p id="metric-3-desc">45°일 때 같은 속도에서 가장 멀리 도달합니다.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <button id="guide-toggle">📖 학습 가이드</button>
+  <div id="guide-panel">
+    <h3>학습 가이드</h3>
+    <p>포물선 운동은 수평 방향의 등속 운동과 수직 방향의 등가속도 운동이 동시에 일어나는 2차원 운동입니다. 비스듬히 던질 때 도달 거리는 발사 각도 45°에서 최대가 됩니다.</p>
+
+    <div class="guide-card">
+      <h4>핵심 원리</h4>
+      <p>수평 성분과 수직 성분은 서로 독립적으로 계산할 수 있습니다. 그래서 x-t 그래프는 직선, y-t 그래프는 포물선, vₓ-t 그래프는 수평선, vᵧ-t 그래프는 기울어진 직선으로 나타납니다.</p>
+    </div>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>수평 투사에서 초기 수평 속도를 2배로 늘리면 도달 거리는 어떻게 바뀔까요?</li>
+      <li>비스듬히 던질 때 30°와 60°에서 도달 거리가 같은 까닭을 sin2θ 식으로 설명할 수 있을까요?</li>
+      <li>포물선 운동하는 물체의 최고점에서 속도는 0일까요? 수평 속도 성분을 함께 생각해 보세요.</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>농구 슛과 야구 투구</li>
+      <li>포탄 발사와 스키 점프</li>
+      <li>분수대 물줄기와 소방 호스 분사</li>
+    </ul>
+
+    <div class="guide-card">
+      <h4>교과서 연계</h4>
+      <p>역학과 에너지 I편 p16~25 - 뉴턴 운동 법칙과 포물선 운동</p>
+    </div>
+  </div>
+
+  <div id="status-banner">발사!</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const G = 9.8;
+const BALL_RADIUS = 0.2;
+const GROUND_LENGTH = 112;
+const GROUND_WIDTH = 30;
+const LAUNCH_X = 6;
+const LAUNCH_Z = 0;
+const COMPONENT_Z = -1.15;
+const TRAIL_INTERVAL = 0.035;
+const MAX_TRAIL_POINTS = 220;
+const MAX_GHOSTS = 200;
+const GRAPH_TYPES = ['x-t', 'y-t', 'vₓ-t', 'vᵧ-t'];
+const MODES = {
+  horizontal: '수평 투사',
+  angled: '비스듬히 던지기'
+};
+const COMPARISON_ANGLES = [15, 30, 45, 60, 75];
+
+const COLORS = {
+  projectile: 0xff4444,
+  landing: 0xff5b5b,
+  vx: 0x58aefc,
+  vy: 0xff6a6a,
+  speed: 0x77f5a0,
+  componentX: 0x58aefc,
+  componentY: 0xff6a6a,
+  guide: 0x9cc6ff,
+  comparison: [0xffaf4f, 0x55c3ff, 0xff5f83, 0x7be695, 0xc8a6ff],
+  graph: 0x6feaff
+};
+
+const dom = {
+  scenePanel: document.getElementById('scene-panel'),
+  sceneCanvas: document.getElementById('scene-canvas'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  graphTabs: Array.from(document.querySelectorAll('.graph-tab')),
+  graphSubtitle: document.getElementById('graph-subtitle'),
+  legend: document.getElementById('legend'),
+  comparisonNote: document.getElementById('comparison-note'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  statusBanner: document.getElementById('status-banner'),
+  sceneTitleMain: document.getElementById('scene-title-main'),
+  sceneTitleSub: document.getElementById('scene-title-sub'),
+  formulaMode: document.getElementById('formula-mode'),
+  formulaConfig: document.getElementById('formula-config'),
+  formulaTime: document.getElementById('formula-time'),
+  formulaX: document.getElementById('formula-x'),
+  formulaY: document.getElementById('formula-y'),
+  formulaVx: document.getElementById('formula-vx'),
+  formulaVy: document.getElementById('formula-vy'),
+  formulaExtra1: document.getElementById('formula-extra-1'),
+  formulaExtra2: document.getElementById('formula-extra-2'),
+  formulaExtra3: document.getElementById('formula-extra-3'),
+  formulaNote: document.getElementById('formula-note'),
+  metric1Label: document.getElementById('metric-1-label'),
+  metric1Value: document.getElementById('metric-1-value'),
+  metric1Desc: document.getElementById('metric-1-desc'),
+  metric2Label: document.getElementById('metric-2-label'),
+  metric2Value: document.getElementById('metric-2-value'),
+  metric2Desc: document.getElementById('metric-2-desc'),
+  metric3Label: document.getElementById('metric-3-label'),
+  metric3Value: document.getElementById('metric-3-value'),
+  metric3Desc: document.getElementById('metric-3-desc')
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x88ccdd);
+scene.fog = new THREE.Fog(0x88ccdd, 38, 150);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 260);
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+  alpha: false
+});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.03;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 10;
+controls.maxDistance = 90;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(18, 5, 0);
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+const clock = new THREE.Clock();
+
+const staticGroup = new THREE.Group();
+const dynamicGroup = new THREE.Group();
+const comparisonGroup = new THREE.Group();
+scene.add(staticGroup, dynamicGroup, comparisonGroup);
+
+const sharedBallGeometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+const sharedSmallGeometry = new THREE.SphereGeometry(0.11, 20, 20);
+
+const params = {
+  mode: MODES.angled,
+  speed: 15,
+  angle: 45,
+  height: 10,
+  showVectors: true,
+  showComponents: false,
+  showTrail: true,
+  graphType: GRAPH_TYPES[0],
+  launch: () => launchSimulation(),
+  compareAngles: () => toggleComparison(),
+  reset: () => resetSimulation()
+};
+
+const state = {
+  elapsed: 0,
+  launched: false,
+  completed: false,
+  statusTimer: 0,
+  flashTimer: 0,
+  compareVisible: false,
+  graphSize: { width: 0, height: 0, dpr: 0 },
+  trailTimer: 0,
+  gui: null,
+  graphController: null,
+  controllers: {},
+  disposables: []
+};
+
+const platformGroup = new THREE.Group();
+const platformColumn = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 1, 1),
+  new THREE.MeshStandardMaterial({ color: 0x886644, roughness: 0.84, metalness: 0.1 })
+);
+const platformDeck = new THREE.Mesh(
+  new THREE.BoxGeometry(2.6, 0.32, 1.5),
+  new THREE.MeshStandardMaterial({ color: 0x886644, roughness: 0.76, metalness: 0.08 })
+);
+const platformFoot = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, 0.18, 1.8),
+  new THREE.MeshStandardMaterial({ color: 0x6f5237, roughness: 0.84, metalness: 0.05 })
+);
+platformGroup.add(platformColumn, platformDeck, platformFoot);
+staticGroup.add(platformGroup);
+
+const launcherGroup = new THREE.Group();
+const launcherBase = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.52, 0.65, 0.45, 24),
+  new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.58, metalness: 0.28 })
+);
+const launcherBarrel = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.18, 0.22, 2, 28),
+  new THREE.MeshStandardMaterial({ color: 0x5d6672, roughness: 0.48, metalness: 0.4 })
+);
+const launcherSupport = new THREE.Mesh(
+  new THREE.BoxGeometry(0.45, 0.55, 0.85),
+  new THREE.MeshStandardMaterial({ color: 0x4a4f55, roughness: 0.62, metalness: 0.22 })
+);
+launcherGroup.add(launcherBase, launcherBarrel, launcherSupport);
+staticGroup.add(launcherGroup);
+
+const projectile = new THREE.Mesh(
+  sharedBallGeometry,
+  new THREE.MeshStandardMaterial({ color: COLORS.projectile, roughness: 0.35, metalness: 0.18 })
+);
+projectile.castShadow = true;
+projectile.receiveShadow = true;
+dynamicGroup.add(projectile);
+
+const trailLine = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({
+    color: COLORS.projectile,
+    transparent: true,
+    opacity: 0.92
+  })
+);
+dynamicGroup.add(trailLine);
+
+const xComponentBall = new THREE.Mesh(
+  sharedSmallGeometry,
+  new THREE.MeshStandardMaterial({ color: COLORS.componentX, roughness: 0.25, metalness: 0.18 })
+);
+xComponentBall.castShadow = true;
+xComponentBall.receiveShadow = true;
+dynamicGroup.add(xComponentBall);
+
+const yComponentBall = new THREE.Mesh(
+  sharedSmallGeometry,
+  new THREE.MeshStandardMaterial({ color: COLORS.componentY, roughness: 0.25, metalness: 0.18 })
+);
+yComponentBall.castShadow = true;
+yComponentBall.receiveShadow = true;
+dynamicGroup.add(yComponentBall);
+
+const componentLineX = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineDashedMaterial({ color: COLORS.componentX, dashSize: 0.22, gapSize: 0.12, transparent: true, opacity: 0.9 })
+);
+const componentLineY = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineDashedMaterial({ color: COLORS.componentY, dashSize: 0.22, gapSize: 0.12, transparent: true, opacity: 0.9 })
+);
+dynamicGroup.add(componentLineX, componentLineY);
+
+const landingMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.35, 0.5, 40),
+  new THREE.MeshBasicMaterial({
+    color: COLORS.landing,
+    transparent: true,
+    opacity: 0.86,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+landingMarker.rotation.x = -Math.PI * 0.5;
+landingMarker.position.set(LAUNCH_X, 0.02, LAUNCH_Z);
+dynamicGroup.add(landingMarker);
+
+const velocityGroup = new THREE.Group();
+const vxArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, COLORS.vx, 0.28, 0.14);
+const vyArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 1, COLORS.vy, 0.28, 0.14);
+const speedArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, COLORS.speed, 0.28, 0.14);
+velocityGroup.add(vxArrow, vyArrow, speedArrow);
+dynamicGroup.add(velocityGroup);
+
+const labelSprites = [];
+const ghostMeshes = [];
+const trailPoints = [];
+
+const projectileLabel = createTextSprite('투사체', {
+  width: 160,
+  height: 60,
+  color: '#ffffff',
+  font: '700 24px Pretendard',
+  background: 'rgba(214, 58, 58, 0.84)'
+});
+projectileLabel.scale.set(0.7, 0.26, 1);
+dynamicGroup.add(projectileLabel);
+labelSprites.push(projectileLabel);
+
+const landingLabel = createTextSprite('착지 지점', {
+  width: 180,
+  height: 60,
+  color: '#ffffff',
+  font: '700 24px Pretendard',
+  background: 'rgba(184, 50, 50, 0.84)'
+});
+landingLabel.scale.set(0.8, 0.26, 1);
+dynamicGroup.add(landingLabel);
+labelSprites.push(landingLabel);
+
+const angleLabel = createTextSprite('θ = 45°', {
+  width: 160,
+  height: 60,
+  color: '#ffffff',
+  font: '700 24px Pretendard',
+  background: 'rgba(82, 98, 118, 0.82)'
+});
+angleLabel.scale.set(0.76, 0.26, 1);
+staticGroup.add(angleLabel);
+labelSprites.push(angleLabel);
+
+const vxLabel = createTextSprite('vₓ = 0.0 m/s', {
+  width: 220,
+  height: 64,
+  color: '#eef6ff',
+  font: '700 24px Pretendard',
+  background: 'rgba(44, 108, 173, 0.78)'
+});
+vxLabel.scale.set(0.9, 0.28, 1);
+velocityGroup.add(vxLabel);
+labelSprites.push(vxLabel);
+
+const vyLabel = createTextSprite('vᵧ = 0.0 m/s', {
+  width: 220,
+  height: 64,
+  color: '#fff3f3',
+  font: '700 24px Pretendard',
+  background: 'rgba(173, 57, 57, 0.78)'
+});
+vyLabel.scale.set(0.9, 0.28, 1);
+velocityGroup.add(vyLabel);
+labelSprites.push(vyLabel);
+
+const speedLabel = createTextSprite('|v| = 0.0 m/s', {
+  width: 220,
+  height: 64,
+  color: '#f2fff8',
+  font: '700 24px Pretendard',
+  background: 'rgba(42, 121, 72, 0.82)'
+});
+speedLabel.scale.set(0.9, 0.28, 1);
+velocityGroup.add(speedLabel);
+labelSprites.push(speedLabel);
+
+initScene();
+createGUI();
+bindEvents();
+setMode(params.mode, true);
+resetSimulation();
+animate();
+
+function initScene() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const sunlight = new THREE.DirectionalLight(0xffffff, 0.7);
+  sunlight.position.set(18, 26, 14);
+  sunlight.castShadow = true;
+  sunlight.shadow.mapSize.set(2048, 2048);
+  sunlight.shadow.camera.left = -30;
+  sunlight.shadow.camera.right = 90;
+  sunlight.shadow.camera.top = 36;
+  sunlight.shadow.camera.bottom = -20;
+  sunlight.shadow.camera.near = 1;
+  sunlight.shadow.camera.far = 90;
+  staticGroup.add(sunlight);
+
+  const hemi = new THREE.HemisphereLight(0xe8f7ff, 0xbfd7b2, 0.28);
+  staticGroup.add(hemi);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(GROUND_LENGTH, GROUND_WIDTH),
+    new THREE.MeshStandardMaterial({ color: 0x66aa44, roughness: 0.96, metalness: 0.02 })
+  );
+  ground.rotation.x = -Math.PI * 0.5;
+  ground.position.set(GROUND_LENGTH * 0.5 - 1, 0, 0);
+  ground.receiveShadow = true;
+  staticGroup.add(ground);
+
+  const grid = new THREE.GridHelper(GROUND_LENGTH, GROUND_LENGTH, 0xe7fff1, 0xbad9b2);
+  grid.position.set(GROUND_LENGTH * 0.5 - 1, 0.01, 0);
+  grid.material.opacity = 0.34;
+  grid.material.transparent = true;
+  staticGroup.add(grid);
+
+  const xAxis = new THREE.Mesh(
+    new THREE.BoxGeometry(GROUND_LENGTH, 0.05, 0.05),
+    new THREE.MeshBasicMaterial({ color: 0xf2fbff })
+  );
+  xAxis.position.set(GROUND_LENGTH * 0.5 - 1, 0.04, 0);
+  staticGroup.add(xAxis);
+
+  const yAxis = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 24, 0.05),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  yAxis.position.set(LAUNCH_X, 12, COMPONENT_Z);
+  staticGroup.add(yAxis);
+
+  createGroundLabels();
+  createHeightLabels();
+
+  platformColumn.castShadow = true;
+  platformColumn.receiveShadow = true;
+  platformDeck.castShadow = true;
+  platformDeck.receiveShadow = true;
+  platformFoot.castShadow = true;
+  platformFoot.receiveShadow = true;
+
+  launcherBase.castShadow = true;
+  launcherBase.receiveShadow = true;
+  launcherBarrel.castShadow = true;
+  launcherBarrel.receiveShadow = true;
+  launcherSupport.castShadow = true;
+  launcherSupport.receiveShadow = true;
+
+  landingMarker.visible = false;
+  landingLabel.visible = false;
+}
+
+function createGroundLabels() {
+  for (let x = 0; x <= 100; x += 10) {
+    const label = createTextSprite(`${x}m`, {
+      width: 120,
+      height: 52,
+      color: '#173a5d',
+      font: '700 22px Pretendard'
+    });
+    label.position.set(x, 0.18, 1.75);
+    label.scale.set(0.52, 0.2, 1);
+    staticGroup.add(label);
+    labelSprites.push(label);
+  }
+}
+
+function createHeightLabels() {
+  for (let y = 0; y <= 20; y += 2) {
+    const mark = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.03, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0xf2fbff })
+    );
+    mark.position.set(LAUNCH_X + 0.14, y, COMPONENT_Z);
+    staticGroup.add(mark);
+
+    const label = createTextSprite(`${y}m`, {
+      width: 100,
+      height: 48,
+      color: '#173a5d',
+      font: '700 22px Pretendard'
+    });
+    label.position.set(LAUNCH_X - 0.44, y, COMPONENT_Z);
+    label.scale.set(0.44, 0.18, 1);
+    staticGroup.add(label);
+    labelSprites.push(label);
+  }
+}
+
+function createGUI() {
+  const gui = new GUI({ title: '포물선 운동 제어', width: 316 });
+  state.gui = gui;
+
+  state.controllers.mode = gui.add(params, 'mode', Object.values(MODES)).name('모드').onChange((value) => {
+    setMode(value);
+  });
+  state.controllers.speed = gui.add(params, 'speed', 1, 30, 1).name('초기 속도 v₀').onChange(() => {
+    resetSimulation();
+  });
+  state.controllers.angle = gui.add(params, 'angle', 5, 85, 5).name('발사 각도 θ').onChange(() => {
+    updateLauncherVisuals();
+    resetSimulation();
+  });
+  state.controllers.height = gui.add(params, 'height', 2, 20, 1).name('절벽 높이 h').onChange(() => {
+    updatePlatformVisuals();
+    resetSimulation();
+  });
+  gui.add(params, 'launch').name('발사');
+  state.controllers.compare = gui.add(params, 'compareAngles').name('각도 비교');
+  state.controllers.showVectors = gui.add(params, 'showVectors').name('속도 벡터 표시').onChange(() => {
+    updateVectorVisibility();
+  });
+  state.controllers.showComponents = gui.add(params, 'showComponents').name('수평/수직 분리').onChange(() => {
+    updateComponentVisibility();
+  });
+  state.controllers.showTrail = gui.add(params, 'showTrail').name('궤적 표시').onChange(() => {
+    updateTrailVisibility();
+  });
+  state.graphController = gui.add(params, 'graphType', GRAPH_TYPES).name('그래프').onChange((value) => {
+    setGraphType(value);
+  });
+  gui.add(params, 'reset').name('초기화');
+
+  if (window.innerWidth < 920) gui.close();
+}
+
+function bindEvents() {
+  dom.graphTabs.forEach((button) => {
+    button.addEventListener('click', () => {
+      const type = button.dataset.graph;
+      setGraphType(type);
+      state.graphController?.setValue(type);
+    });
+  });
+
+  dom.guideToggle.addEventListener('click', () => {
+    const open = dom.guidePanel.style.display === 'block';
+    dom.guidePanel.style.display = open ? 'none' : 'block';
+  });
+
+  window.addEventListener('resize', handleResize);
+}
+
+function setMode(mode, initial = false) {
+  params.mode = mode;
+  const horizontal = mode === MODES.horizontal;
+
+  platformGroup.visible = horizontal;
+  launcherGroup.visible = !horizontal;
+
+  toggleController(state.controllers.angle, !horizontal);
+  toggleController(state.controllers.compare, !horizontal);
+  toggleController(state.controllers.height, horizontal);
+
+  if (horizontal) {
+    clearComparison();
+  }
+
+  updatePlatformVisuals();
+  updateLauncherVisuals();
+  updateTitles();
+  updateLegend();
+  updateGraphSubtitle();
+
+  if (!initial) {
+    resetSimulation();
+    state.gui?.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function toggleController(controller, visible) {
+  const row = controller?.domElement?.parentElement;
+  if (row) row.style.display = visible ? '' : 'none';
+}
+
+function updateTitles() {
+  const horizontal = params.mode === MODES.horizontal;
+  dom.sceneTitleMain.textContent = horizontal ? '포물선 운동 - 수평 투사' : '포물선 운동 - 비스듬히 던지기';
+  dom.sceneTitleSub.textContent = horizontal
+    ? '수평 방향은 등속, 수직 방향은 자유 낙하이므로 궤적은 포물선이 됩니다.'
+    : '발사 속도를 수평과 수직 성분으로 나누면 포물선 운동의 구조가 명확해집니다.';
+}
+
+function updatePlatformVisuals() {
+  const height = params.height;
+  platformGroup.position.set(0, 0, 0);
+
+  platformColumn.scale.set(0.8, Math.max(0.5, height), 1);
+  platformColumn.position.set(LAUNCH_X - 2.1, height * 0.5, LAUNCH_Z);
+
+  platformDeck.position.set(LAUNCH_X - 1.28, height - 0.16, LAUNCH_Z);
+  platformFoot.position.set(LAUNCH_X - 2.1, 0.09, LAUNCH_Z);
+}
+
+function updateLauncherVisuals() {
+  launcherGroup.position.set(LAUNCH_X - 0.65, 0, LAUNCH_Z);
+  launcherBase.position.set(0, 0.25, 0);
+  launcherSupport.position.set(-0.15, 0.38, 0);
+
+  const angleRad = THREE.MathUtils.degToRad(params.angle);
+  const dir = new THREE.Vector3(Math.cos(angleRad), Math.sin(angleRad), 0).normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  launcherBarrel.quaternion.copy(quat);
+  launcherBarrel.position.copy(new THREE.Vector3(0.15, 0.52, 0).add(dir.clone().multiplyScalar(0.95)));
+
+  angleLabel.position.set(LAUNCH_X + 1.5, 1.75, 0.3);
+  angleLabel.visible = params.mode === MODES.angled;
+  updateTextSprite(angleLabel, `θ = ${params.angle.toFixed(0)}°`);
+}
+
+function resetSimulation() {
+  state.elapsed = 0;
+  state.launched = false;
+  state.completed = false;
+  state.trailTimer = 0;
+  state.flashTimer = 0;
+  hideStatus();
+
+  clearTrail();
+  landingMarker.visible = false;
+  landingLabel.visible = false;
+  updateCameraPreset();
+
+  const kin = getKinematics(0);
+  updateProjectile(kin);
+  updateVectors(kin);
+  updateComponents(kin);
+  updateFormulaPanel(kin);
+  updateMetrics(kin);
+  updateVectorVisibility();
+  updateComponentVisibility();
+  updateTrailVisibility();
+  updateLegend();
+  drawGraph(true);
+}
+
+function launchSimulation() {
+  resetSimulation();
+  state.launched = true;
+  showStatus(params.mode === MODES.horizontal ? '수평 투사 시작!' : '비스듬히 발사!', false);
+}
+
+function toggleComparison() {
+  if (params.mode !== MODES.angled) {
+    showStatus('각도 비교는 비스듬히 던지기 모드에서 사용합니다.', false);
+    return;
+  }
+
+  if (state.compareVisible) {
+    clearComparison();
+    updateLegend();
+    showStatus('각도 비교를 숨겼습니다.', false);
+    return;
+  }
+
+  clearComparison();
+  state.compareVisible = true;
+
+  COMPARISON_ANGLES.forEach((angle, index) => {
+    const derived = getDerived(MODES.angled, params.speed, angle, 0);
+    const points = [];
+    const samples = 72;
+    for (let i = 0; i <= samples; i += 1) {
+      const t = (derived.flightTime * i) / samples;
+      const y = Math.max(0, derived.vy0 * t - 0.5 * G * t * t);
+      const x = derived.vx0 * t;
+      points.push(new THREE.Vector3(LAUNCH_X + x, BALL_RADIUS + y, -0.02 - index * 0.02));
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineDashedMaterial({
+      color: COLORS.comparison[index],
+      dashSize: 0.32,
+      gapSize: 0.18,
+      transparent: true,
+      opacity: angle === 45 ? 0.98 : 0.74
+    });
+    const line = new THREE.Line(geometry, material);
+    line.computeLineDistances();
+    comparisonGroup.add(line);
+    state.disposables.push({ geometry, material });
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(angle === 45 ? 0.34 : 0.28, angle === 45 ? 0.52 : 0.42, 28),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.comparison[index],
+        transparent: true,
+        opacity: angle === 45 ? 0.9 : 0.72,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    ring.rotation.x = -Math.PI * 0.5;
+    ring.position.set(LAUNCH_X + derived.range, 0.03, -0.22 - index * 0.1);
+    comparisonGroup.add(ring);
+    state.disposables.push({ geometry: ring.geometry, material: ring.material });
+
+    const text = angle === 45
+      ? `${angle}° · 최대 ${derived.range.toFixed(1)}m`
+      : `${angle}° · ${derived.range.toFixed(1)}m`;
+    const label = createTextSprite(text, {
+      width: angle === 45 ? 260 : 190,
+      height: 56,
+      color: '#ffffff',
+      font: '700 22px Pretendard',
+      background: `rgba(${colorHexToRgbString(COLORS.comparison[index])},0.82)`
+    });
+    label.position.set(LAUNCH_X + derived.range, 1.1 + index * 0.15, -0.3 - index * 0.08);
+    label.scale.set(angle === 45 ? 1.1 : 0.9, 0.24, 1);
+    comparisonGroup.add(label);
+    labelSprites.push(label);
+    state.disposables.push({
+      dispose: () => {
+        label.material.map?.dispose?.();
+        label.material.dispose();
+      }
+    });
+  });
+
+  dom.comparisonNote.style.display = 'block';
+  dom.comparisonNote.textContent = `각도 비교: 45°가 가장 멀리 도달하고, 30°와 60°는 sin(2θ)가 같아서 같은 거리를 보입니다. 현재 속도는 ${params.speed.toFixed(0)} m/s입니다.`;
+  updateLegend();
+  showStatus('15°~75° 궤적 비교 표시', false);
+}
+
+function clearComparison() {
+  state.compareVisible = false;
+  while (comparisonGroup.children.length) {
+    comparisonGroup.remove(comparisonGroup.children[0]);
+  }
+  while (state.disposables.length) {
+    const item = state.disposables.pop();
+    item.dispose?.();
+    item.geometry?.dispose?.();
+    item.material?.dispose?.();
+  }
+  dom.comparisonNote.style.display = 'none';
+  dom.comparisonNote.textContent = '';
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  controls.update();
+  updateSimulation(dt);
+  updateStatus(dt);
+  drawGraph();
+  renderer.render(scene, camera);
+}
+
+function updateSimulation(dt) {
+  if (state.launched) {
+    const derived = getDerived();
+    state.elapsed = Math.min(state.elapsed + dt, derived.flightTime);
+
+    const kin = getKinematics(state.elapsed);
+    updateProjectile(kin);
+    updateVectors(kin);
+    updateComponents(kin);
+    updateFormulaPanel(kin);
+    updateMetrics(kin);
+
+    recordTrail(dt, kin);
+
+    if (state.elapsed >= derived.flightTime - 1e-4) {
+      state.launched = false;
+      state.completed = true;
+      showLanding(derived);
+      showStatus('도착!', true);
+    }
+  }
+}
+
+function updateProjectile(kin) {
+  projectile.position.set(LAUNCH_X + kin.x, BALL_RADIUS + kin.y, LAUNCH_Z);
+  projectileLabel.position.set(projectile.position.x, projectile.position.y + 0.5, LAUNCH_Z);
+
+  if (!landingMarker.visible) {
+    landingMarker.position.set(LAUNCH_X + kin.range, 0.02, LAUNCH_Z);
+    landingLabel.position.set(LAUNCH_X + kin.range, 0.9, LAUNCH_Z);
+  }
+}
+
+function updateVectors(kin) {
+  const origin = projectile.position.clone().add(new THREE.Vector3(0, 0.28, 0.55));
+  const vxLength = Math.max(0.35, Math.min(4.8, Math.abs(kin.vx) * 0.22));
+  const vyLength = Math.max(0.18, Math.min(4.3, Math.abs(kin.vy) * 0.22));
+  const speedLength = Math.max(0.35, Math.min(5.2, kin.speedMag * 0.2));
+  const speedDir = new THREE.Vector3(kin.vx, kin.vy, 0).normalize();
+
+  vxArrow.position.copy(origin);
+  vxArrow.setDirection(new THREE.Vector3(1, 0, 0));
+  vxArrow.setLength(vxLength, 0.28, 0.14);
+
+  vyArrow.position.copy(origin);
+  vyArrow.setDirection(kin.vy >= 0 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, -1, 0));
+  vyArrow.setLength(vyLength, 0.28, 0.14);
+
+  speedArrow.position.copy(origin);
+  speedArrow.setDirection(speedDir.lengthSq() > 0 ? speedDir : new THREE.Vector3(1, 0, 0));
+  speedArrow.setLength(speedLength, 0.28, 0.14);
+
+  updateTextSprite(vxLabel, `vₓ = ${kin.vx.toFixed(2)} m/s`);
+  updateTextSprite(vyLabel, `vᵧ = ${kin.vy.toFixed(2)} m/s`);
+  updateTextSprite(speedLabel, `|v| = ${kin.speedMag.toFixed(2)} m/s`);
+
+  vxLabel.position.copy(origin).add(new THREE.Vector3(vxLength * 0.55, 0.25, 0));
+  vyLabel.position.copy(origin).add(new THREE.Vector3(0.35, kin.vy >= 0 ? vyLength * 0.55 + 0.12 : -vyLength * 0.55 - 0.12, 0));
+  speedLabel.position.copy(origin).add(speedDir.clone().multiplyScalar(speedLength * 0.65)).add(new THREE.Vector3(0, 0.3, 0));
+}
+
+function updateComponents(kin) {
+  const visible = params.showComponents;
+  xComponentBall.visible = visible;
+  yComponentBall.visible = visible;
+  componentLineX.visible = visible;
+  componentLineY.visible = visible;
+
+  if (!visible) return;
+
+  xComponentBall.position.set(LAUNCH_X + kin.x, BALL_RADIUS, COMPONENT_Z);
+  yComponentBall.position.set(LAUNCH_X, BALL_RADIUS + kin.y, COMPONENT_Z);
+
+  componentLineX.geometry.setFromPoints([
+    new THREE.Vector3(LAUNCH_X + kin.x, BALL_RADIUS + kin.y, COMPONENT_Z),
+    xComponentBall.position.clone()
+  ]);
+  componentLineY.geometry.setFromPoints([
+    new THREE.Vector3(LAUNCH_X + kin.x, BALL_RADIUS + kin.y, COMPONENT_Z),
+    yComponentBall.position.clone()
+  ]);
+  componentLineX.computeLineDistances();
+  componentLineY.computeLineDistances();
+}
+
+function updateVectorVisibility() {
+  const visible = params.showVectors;
+  velocityGroup.visible = visible;
+}
+
+function updateComponentVisibility() {
+  const visible = params.showComponents;
+  xComponentBall.visible = visible;
+  yComponentBall.visible = visible;
+  componentLineX.visible = visible;
+  componentLineY.visible = visible;
+}
+
+function updateTrailVisibility() {
+  const visible = params.showTrail;
+  trailLine.visible = visible;
+  ghostMeshes.forEach((ghost) => {
+    ghost.visible = visible;
+  });
+}
+
+function recordTrail(dt, kin) {
+  if (!params.showTrail) return;
+
+  state.trailTimer += dt;
+  if (state.trailTimer < TRAIL_INTERVAL) return;
+  state.trailTimer = 0;
+
+  trailPoints.push(projectile.position.clone());
+  if (trailPoints.length > MAX_TRAIL_POINTS) trailPoints.shift();
+  trailLine.geometry.setFromPoints(trailPoints);
+
+  const ghost = new THREE.Mesh(
+    sharedSmallGeometry,
+    new THREE.MeshBasicMaterial({
+      color: COLORS.projectile,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false
+    })
+  );
+  ghost.position.copy(projectile.position);
+  dynamicGroup.add(ghost);
+  ghostMeshes.push(ghost);
+
+  while (ghostMeshes.length > MAX_GHOSTS) {
+    const oldGhost = ghostMeshes.shift();
+    dynamicGroup.remove(oldGhost);
+    oldGhost.material.dispose();
+  }
+
+  ghostMeshes.forEach((mesh, index) => {
+    const fade = 1 - index / Math.max(1, ghostMeshes.length);
+    mesh.material.opacity = 0.03 + fade * 0.1;
+  });
+}
+
+function clearTrail() {
+  trailPoints.length = 0;
+  trailLine.geometry.setFromPoints([]);
+  while (ghostMeshes.length) {
+    const ghost = ghostMeshes.pop();
+    dynamicGroup.remove(ghost);
+    ghost.material.dispose();
+  }
+}
+
+function showLanding(derived) {
+  landingMarker.visible = true;
+  landingLabel.visible = true;
+  landingMarker.position.set(LAUNCH_X + derived.range, 0.02, LAUNCH_Z);
+  landingLabel.position.set(LAUNCH_X + derived.range, 0.9, LAUNCH_Z);
+}
+
+function getDerived(mode = params.mode, speed = params.speed, angle = params.angle, height = params.height) {
+  if (mode === MODES.horizontal) {
+    const vx0 = speed;
+    const vy0 = 0;
+    const flightTime = Math.sqrt((2 * height) / G);
+    const range = vx0 * flightTime;
+    return {
+      vx0,
+      vy0,
+      flightTime,
+      range,
+      apex: height,
+      initialHeight: height
+    };
+  }
+
+  const angleRad = THREE.MathUtils.degToRad(angle);
+  const vx0 = speed * Math.cos(angleRad);
+  const vy0 = speed * Math.sin(angleRad);
+  const flightTime = (2 * vy0) / G;
+  const apex = (vy0 * vy0) / (2 * G);
+  const range = vx0 * flightTime;
+  return {
+    vx0,
+    vy0,
+    flightTime,
+    range,
+    apex,
+    initialHeight: 0
+  };
+}
+
+function getKinematics(time) {
+  const derived = getDerived();
+  const t = Math.min(Math.max(time, 0), derived.flightTime);
+
+  if (params.mode === MODES.horizontal) {
+    const x = derived.vx0 * t;
+    const y = Math.max(0, params.height - 0.5 * G * t * t);
+    const vx = derived.vx0;
+    const vy = -G * t;
+    return {
+      t,
+      x,
+      y,
+      vx,
+      vy,
+      speedMag: Math.hypot(vx, vy),
+      flightTime: derived.flightTime,
+      range: derived.range,
+      apex: derived.apex
+    };
+  }
+
+  const x = derived.vx0 * t;
+  const y = Math.max(0, derived.vy0 * t - 0.5 * G * t * t);
+  const vx = derived.vx0;
+  const vy = derived.vy0 - G * t;
+  return {
+    t,
+    x,
+    y,
+    vx,
+    vy,
+    speedMag: Math.hypot(vx, vy),
+    flightTime: derived.flightTime,
+    range: derived.range,
+    apex: derived.apex
+  };
+}
+
+function updateFormulaPanel(kin) {
+  const derived = getDerived();
+  const horizontal = params.mode === MODES.horizontal;
+  const angle = horizontal ? 0 : params.angle;
+
+  dom.formulaMode.textContent = params.mode;
+  dom.formulaConfig.textContent = horizontal
+    ? `v₀ = ${params.speed.toFixed(1)} m/s, h = ${params.height.toFixed(1)} m`
+    : `v₀ = ${params.speed.toFixed(1)} m/s, θ = ${angle.toFixed(0)}°`;
+  dom.formulaTime.textContent = `t = ${kin.t.toFixed(2)} s`;
+
+  if (horizontal) {
+    dom.formulaX.textContent = `x = v₀t = ${kin.x.toFixed(2)} m`;
+    dom.formulaY.textContent = `y = h - ½gt² = ${kin.y.toFixed(2)} m`;
+    dom.formulaVx.textContent = `vₓ = v₀ = ${kin.vx.toFixed(2)} m/s`;
+    dom.formulaVy.textContent = `vᵧ = -gt = ${kin.vy.toFixed(2)} m/s`;
+    dom.formulaExtra1.textContent = `낙하 시간 t = √(2h/g) = ${derived.flightTime.toFixed(2)} s`;
+    dom.formulaExtra2.textContent = `도달 거리 R = v₀√(2h/g) = ${derived.range.toFixed(2)} m`;
+    dom.formulaExtra3.textContent = `합성 속력 |v| = ${kin.speedMag.toFixed(2)} m/s`;
+    dom.formulaNote.textContent = '핵심: 수평 방향은 등속 운동, 수직 방향은 자유 낙하입니다. 따라서 수평으로 던져도 떨어지는 시간은 높이와 중력에 의해 결정됩니다.';
+  } else {
+    dom.formulaX.textContent = `x = v₀cosθ·t = ${kin.x.toFixed(2)} m`;
+    dom.formulaY.textContent = `y = v₀sinθ·t - ½gt² = ${kin.y.toFixed(2)} m`;
+    dom.formulaVx.textContent = `vₓ = v₀cosθ = ${kin.vx.toFixed(2)} m/s`;
+    dom.formulaVy.textContent = `vᵧ = v₀sinθ - gt = ${kin.vy.toFixed(2)} m/s`;
+    dom.formulaExtra1.textContent = `최고점 H = v₀²sin²θ/(2g) = ${derived.apex.toFixed(2)} m`;
+    dom.formulaExtra2.textContent = `체공 시간 T = 2v₀sinθ/g = ${derived.flightTime.toFixed(2)} s`;
+    dom.formulaExtra3.textContent = `도달 거리 R = v₀²sin2θ/g = ${derived.range.toFixed(2)} m`;
+    dom.formulaNote.textContent = '핵심: 포물선 운동 = 수평 등속 + 수직 등가속도. 같은 속도라면 45°에서 최대 거리에 도달하고, 보각 관계인 30°와 60°는 같은 거리를 만듭니다.';
+  }
+}
+
+function updateMetrics(kin) {
+  const derived = getDerived();
+  const horizontal = params.mode === MODES.horizontal;
+
+  dom.metric1Label.textContent = '경과 시간';
+  dom.metric1Value.textContent = `${kin.t.toFixed(2)} s`;
+  dom.metric1Desc.textContent = state.completed
+    ? '착지까지의 전체 시간이 채워졌습니다.'
+    : state.launched
+      ? '세로 점선 마커가 그래프에서 같은 시간을 가리킵니다.'
+      : '발사 전에는 초기 속도와 각도만 설정된 상태입니다.';
+
+  if (horizontal) {
+    dom.metric2Label.textContent = '낙하 시간';
+    dom.metric2Value.textContent = `${derived.flightTime.toFixed(2)} s`;
+    dom.metric2Desc.textContent = '높이가 높을수록 자유 낙하 시간이 길어집니다.';
+
+    dom.metric3Label.textContent = '도달 거리';
+    dom.metric3Value.textContent = `${(state.completed ? derived.range : kin.x).toFixed(2)} m`;
+    dom.metric3Desc.textContent = '수평 속도를 키우면 같은 낙하 시간 동안 더 멀리 이동합니다.';
+  } else {
+    dom.metric2Label.textContent = '최고점';
+    dom.metric2Value.textContent = `${derived.apex.toFixed(2)} m`;
+    dom.metric2Desc.textContent = 'vᵧ가 0이 되는 순간 가장 높은 위치에 도달합니다.';
+
+    dom.metric3Label.textContent = '도달 거리';
+    dom.metric3Value.textContent = `${(state.completed ? derived.range : kin.x).toFixed(2)} m`;
+    dom.metric3Desc.textContent = state.compareVisible
+      ? '45°가 가장 멀고 30°와 60°는 같은 거리를 보입니다.'
+      : '같은 속도에서는 발사 각도에 따라 도달 거리가 달라집니다.';
+  }
+}
+
+function updateLegend() {
+  dom.legend.innerHTML = '';
+  const chips = [
+    { color: '#ff6d6d', label: params.mode },
+    { color: '#63b9ff', label: `v₀ ${params.speed.toFixed(0)} m/s` },
+    { color: '#7bffab', label: params.mode === MODES.horizontal ? `h ${params.height.toFixed(0)} m` : `θ ${params.angle.toFixed(0)}°` }
+  ];
+
+  if (state.compareVisible) {
+    chips.push({ color: '#ffd56f', label: '각도 비교 ON' });
+  }
+
+  chips.forEach((chip) => {
+    const el = document.createElement('div');
+    el.className = 'legend-chip';
+    el.innerHTML = `<span class="dot" style="background:${chip.color}"></span><span>${chip.label}</span>`;
+    dom.legend.appendChild(el);
+  });
+}
+
+function setGraphType(type) {
+  params.graphType = type;
+  dom.graphTabs.forEach((button) => {
+    button.classList.toggle('active', button.dataset.graph === type);
+  });
+  updateGraphSubtitle();
+  drawGraph(true);
+}
+
+function updateGraphSubtitle() {
+  const horizontal = params.mode === MODES.horizontal;
+
+  if (params.graphType === 'x-t') {
+    dom.graphSubtitle.textContent = horizontal
+      ? 'x-t 그래프는 기울기 v₀를 가지는 직선으로, 수평 속도가 일정함을 보여 줍니다.'
+      : 'x-t 그래프는 v₀cosθ 기울기를 가지는 직선입니다. 각도가 커질수록 기울기는 작아집니다.';
+  } else if (params.graphType === 'y-t') {
+    dom.graphSubtitle.textContent = horizontal
+      ? 'y-t 그래프는 높이 h에서 시작하는 아래로 열린 포물선입니다.'
+      : 'y-t 그래프는 위로 올라갔다가 다시 내려오는 포물선입니다. 최고점에서 기울기가 0이 됩니다.';
+  } else if (params.graphType === 'vₓ-t') {
+    dom.graphSubtitle.textContent = 'vₓ-t 그래프는 수평선입니다. 공기 저항을 무시하면 수평 속도는 변하지 않습니다.';
+  } else {
+    dom.graphSubtitle.textContent = horizontal
+      ? 'vᵧ-t 그래프는 0에서 시작해 직선으로 감소합니다. 중력이 매초 9.8m/s씩 속도를 바꿉니다.'
+      : 'vᵧ-t 그래프는 직선으로 감소하며, 최고점에서 0을 지납니다. 그 뒤에는 음수여서 아래로 향합니다.';
+  }
+}
+
+function drawGraph(force = false) {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  if (width <= 0 || height <= 0) return;
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  if (
+    force ||
+    state.graphSize.width !== width ||
+    state.graphSize.height !== height ||
+    state.graphSize.dpr !== dpr
+  ) {
+    dom.graphCanvas.width = Math.max(1, Math.round(width * dpr));
+    dom.graphCanvas.height = Math.max(1, Math.round(height * dpr));
+    graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    state.graphSize = { width, height, dpr };
+  }
+
+  graphCtx.clearRect(0, 0, width, height);
+
+  const margin = {
+    left: 66,
+    right: 24,
+    top: window.innerWidth <= 640 ? 280 : 186,
+    bottom: window.innerWidth <= 640 ? 122 : 116
+  };
+  const plotWidth = Math.max(120, width - margin.left - margin.right);
+  const plotHeight = Math.max(120, height - margin.top - margin.bottom);
+  const derived = getDerived();
+  const currentTime = Math.min(state.elapsed, derived.flightTime);
+
+  let yMin = 0;
+  let yMax = 1;
+  let yLabel = '';
+  let note = '';
+  let valueFn = () => 0;
+  let lineColor = COLORS.graph;
+
+  if (params.graphType === 'x-t') {
+    yMax = Math.max(5, derived.range * 1.1);
+    yLabel = 'x (m)';
+    note = '수평 성분은 일정한 속도로 이동';
+    valueFn = (t) => getKinematics(t).x;
+    lineColor = COLORS.vx;
+  } else if (params.graphType === 'y-t') {
+    yMax = Math.max(5, (params.mode === MODES.horizontal ? params.height : derived.apex) * 1.15 + 0.5);
+    yLabel = 'y (m)';
+    note = '수직 성분은 중력 때문에 포물선 운동';
+    valueFn = (t) => getKinematics(t).y;
+    lineColor = COLORS.projectile;
+  } else if (params.graphType === 'vₓ-t') {
+    yMax = Math.max(3, derived.vx0 * 1.22);
+    yLabel = 'vₓ (m/s)';
+    note = '수평 속도는 일정';
+    valueFn = () => derived.vx0;
+    lineColor = COLORS.vx;
+  } else {
+    const endVy = getKinematics(derived.flightTime).vy;
+    yMin = Math.min(-3, Math.min(0, endVy) * 1.18);
+    yMax = Math.max(3, Math.max(0, derived.vy0) * 1.18 + 0.8);
+    yLabel = 'vᵧ (m/s)';
+    note = '수직 속도는 시간에 따라 선형 변화';
+    valueFn = (t) => getKinematics(t).vy;
+    lineColor = COLORS.vy;
+  }
+
+  const mapX = (value) => margin.left + (value / Math.max(0.1, derived.flightTime)) * plotWidth;
+  const mapY = (value) => margin.top + plotHeight - ((value - yMin) / Math.max(0.1, yMax - yMin)) * plotHeight;
+
+  const bgGradient = graphCtx.createLinearGradient(0, margin.top, 0, margin.top + plotHeight);
+  bgGradient.addColorStop(0, 'rgba(255,255,255,0.06)');
+  bgGradient.addColorStop(1, 'rgba(255,255,255,0.015)');
+  graphCtx.fillStyle = bgGradient;
+  graphCtx.fillRect(margin.left, margin.top, plotWidth, plotHeight);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.lineWidth = 1;
+  graphCtx.setLineDash([4, 6]);
+  for (let i = 0; i <= 5; i += 1) {
+    const gx = margin.left + (plotWidth * i) / 5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(gx, margin.top);
+    graphCtx.lineTo(gx, margin.top + plotHeight);
+    graphCtx.stroke();
+  }
+  for (let i = 0; i <= 5; i += 1) {
+    const gy = margin.top + (plotHeight * i) / 5;
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, gy);
+    graphCtx.lineTo(margin.left + plotWidth, gy);
+    graphCtx.stroke();
+  }
+  graphCtx.setLineDash([]);
+
+  if (yMin < 0 && yMax > 0) {
+    graphCtx.strokeStyle = 'rgba(255,213,111,0.55)';
+    graphCtx.lineWidth = 1.2;
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, mapY(0));
+    graphCtx.lineTo(margin.left + plotWidth, mapY(0));
+    graphCtx.stroke();
+  }
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.44)';
+  graphCtx.lineWidth = 1.4;
+  graphCtx.beginPath();
+  graphCtx.moveTo(margin.left, margin.top);
+  graphCtx.lineTo(margin.left, margin.top + plotHeight);
+  graphCtx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.84)';
+  graphCtx.font = '12px Pretendard';
+  graphCtx.textAlign = 'center';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = (derived.flightTime * i) / 5;
+    graphCtx.fillText(value.toFixed(1), mapX(value), margin.top + plotHeight + 24);
+  }
+
+  graphCtx.textAlign = 'right';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = yMin + ((yMax - yMin) * i) / 5;
+    graphCtx.fillText(value.toFixed(1), margin.left - 10, mapY(value) + 4);
+  }
+
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.92)';
+  graphCtx.font = '600 12px Pretendard';
+  graphCtx.textAlign = 'center';
+  graphCtx.fillText('시간 t (s)', margin.left + plotWidth * 0.5, height - 26);
+  graphCtx.translate(22, margin.top + plotHeight * 0.5);
+  graphCtx.rotate(-Math.PI * 0.5);
+  graphCtx.fillText(yLabel, 0, 0);
+  graphCtx.restore();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.72)';
+  graphCtx.font = '600 11px Pretendard';
+  graphCtx.textAlign = 'left';
+  graphCtx.fillText(note, margin.left, margin.top - 16);
+
+  graphCtx.save();
+  graphCtx.strokeStyle = `rgba(${colorHexToRgbString(lineColor)},0.96)`;
+  graphCtx.lineWidth = 3;
+  graphCtx.beginPath();
+  const samples = 120;
+  for (let i = 0; i <= samples; i += 1) {
+    const t = (derived.flightTime * i) / samples;
+    const x = mapX(t);
+    const y = mapY(valueFn(t));
+    if (i === 0) graphCtx.moveTo(x, y);
+    else graphCtx.lineTo(x, y);
+  }
+  graphCtx.stroke();
+  graphCtx.restore();
+
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.55)';
+  graphCtx.lineWidth = 1.2;
+  graphCtx.setLineDash([6, 6]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(mapX(currentTime), margin.top);
+  graphCtx.lineTo(mapX(currentTime), margin.top + plotHeight);
+  graphCtx.stroke();
+  graphCtx.restore();
+
+  const currentValue = valueFn(currentTime);
+  graphCtx.beginPath();
+  graphCtx.fillStyle = `rgba(${colorHexToRgbString(lineColor)},0.98)`;
+  graphCtx.arc(mapX(currentTime), mapY(currentValue), 5, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.lineWidth = 1.4;
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.88)';
+  graphCtx.stroke();
+}
+
+function updateCameraPreset() {
+  const derived = getDerived();
+  const targetX = LAUNCH_X + Math.min(derived.range * 0.34, 28);
+  const targetY = params.mode === MODES.horizontal
+    ? Math.max(3.2, params.height * 0.42)
+    : Math.max(3.2, derived.apex * 0.48 + 2);
+  const distance = Math.max(18, Math.min(56, derived.range * 0.58 + (params.mode === MODES.horizontal ? 12 : 16)));
+
+  controls.target.set(targetX, targetY, 0);
+  camera.position.set(targetX + distance * 0.48, targetY + distance * 0.28, distance * 0.46);
+  camera.lookAt(controls.target);
+}
+
+function updateStatus(dt) {
+  if (state.statusTimer > 0) {
+    state.statusTimer = Math.max(0, state.statusTimer - dt);
+    if (state.statusTimer === 0) hideStatus();
+  }
+}
+
+function showStatus(text, success) {
+  dom.statusBanner.textContent = text;
+  dom.statusBanner.style.background = success ? 'rgba(16, 58, 39, 0.92)' : 'rgba(17, 54, 87, 0.92)';
+  dom.statusBanner.style.borderColor = success ? 'rgba(123, 255, 171, 0.34)' : 'rgba(99, 185, 255, 0.34)';
+  dom.statusBanner.classList.add('show');
+  state.statusTimer = success ? 1.55 : 1.2;
+}
+
+function hideStatus() {
+  dom.statusBanner.classList.remove('show');
+  state.statusTimer = 0;
+}
+
+function handleResize() {
+  const rect = dom.scenePanel.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+
+  renderer.setSize(rect.width, rect.height, false);
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+  drawGraph(true);
+}
+
+function createTextSprite(text, options = {}) {
+  const width = options.width ?? 200;
+  const height = options.height ?? 60;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(width / 180, height / 180, 1);
+  sprite.userData = {
+    canvas,
+    ctx,
+    texture,
+    options: {
+      color: options.color ?? '#ffffff',
+      font: options.font ?? '700 24px Pretendard',
+      background: options.background ?? null,
+      border: options.border ?? null
+    }
+  };
+  updateTextSprite(sprite, text, options);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const data = sprite.userData;
+  const canvas = data.canvas;
+  const ctx = data.ctx;
+  const texture = data.texture;
+  const settings = {
+    color: options.color ?? data.options.color,
+    font: options.font ?? data.options.font,
+    background: options.background ?? data.options.background,
+    border: options.border ?? data.options.border
+  };
+  data.options = settings;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (settings.background) {
+    drawRoundedRect(ctx, 4, 4, canvas.width - 8, canvas.height - 8, 18, settings.background, settings.border);
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = settings.color;
+  ctx.font = settings.font;
+  ctx.fillText(text, canvas.width * 0.5, canvas.height * 0.55);
+  texture.needsUpdate = true;
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function colorHexToRgbString(hex) {
+  const color = new THREE.Color(hex);
+  return `${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}`;
+}
+
+handleResize();
+</script>
+</body>
+</html>

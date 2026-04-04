@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>정상파와 공명 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1a1a2e;
+    --panel: rgba(10, 16, 34, 0.82);
+    --border: rgba(173, 212, 255, 0.14);
+    --text: #f4f8ff;
+    --dim: rgba(244, 248, 255, 0.72);
+    --node: #ff6961;
+    --antinode: #7df5a6;
+    --string: #cc6633;
+    --open: #aab9ff;
+    --closed: #8dd8ff;
+    --accent: #ffd36e;
+    --wave-a: #60a7ff;
+    --wave-b: #ff7c7c;
+    --wave-sum: #76f0b7;
+    --shadow: 0 24px 56px rgba(0, 0, 0, 0.28);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 12% 14%, rgba(121, 166, 255, 0.14), transparent 18%),
+      radial-gradient(circle at 86% 12%, rgba(126, 255, 203, 0.08), transparent 16%),
+      linear-gradient(180deg, #181a32 0%, #15182b 50%, #111225 100%);
+    color: var(--text);
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body { position: relative; }
+  button, input, select { font: inherit; }
+  canvas { display: block; }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
+  }
+
+  #scene-panel,
+  #analysis-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 45% 20%, rgba(111, 165, 255, 0.16), transparent 28%),
+      linear-gradient(180deg, rgba(23, 28, 52, 0.96), rgba(12, 14, 24, 0.98));
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #analysis-panel {
+    display: flex;
+    flex-direction: column;
+    background:
+      linear-gradient(180deg, rgba(13, 20, 42, 0.92), rgba(9, 14, 29, 0.96)),
+      radial-gradient(circle at 20% 10%, rgba(138, 181, 255, 0.08), transparent 18%);
+  }
+
+  #scene-canvas,
+  #analysis-canvas { width: 100%; height: 100%; }
+
+  #analysis-head {
+    flex: 0 0 auto;
+    padding: 18px 22px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(10, 16, 34, 0.82), rgba(10, 16, 34, 0));
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(187, 206, 255, 0.6);
+  }
+
+  #analysis-head h2,
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 26px;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+  }
+
+  #analysis-head p,
+  #title-card p,
+  #formula-panel p,
+  #guide-panel p,
+  #guide-panel li {
+    color: var(--dim);
+    line-height: 1.68;
+  }
+
+  #analysis-head p {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  #analysis-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .glass {
+    position: fixed;
+    z-index: 18;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 30;
+    padding: 11px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(11, 18, 38, 0.88);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    top: 62px;
+    right: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    display: none;
+    z-index: 29;
+  }
+
+  #guide-panel.open { display: block; }
+  #guide-panel h3 { margin: 14px 0 8px; color: #9dcbff; font-size: 15px; }
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul, #guide-panel ol { padding-left: 18px; }
+  #guide-panel li + li { margin-top: 6px; }
+
+  #title-card {
+    top: 16px;
+    left: 16px;
+    width: min(430px, calc(60vw - 40px));
+    padding: 18px 20px;
+    border-radius: 22px;
+  }
+
+  #title-card p { margin-top: 10px; font-size: 13px; }
+
+  #status-pill {
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(500px, calc(100vw - 32px));
+    padding: 12px 18px;
+    border-radius: 999px;
+    text-align: center;
+    pointer-events: none;
+    background: rgba(9, 14, 29, 0.8);
+  }
+
+  #status-pill strong { color: #fff; }
+  #status-pill span { color: #d6e2ff; }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(420px, calc(60vw - 40px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 13, 29, 0.88);
+  }
+
+  #formula-panel h2 { font-size: 18px; color: #dff0ff; }
+  #formula-panel p { margin-top: 8px; font-size: 12px; }
+
+  #formula-text {
+    margin-top: 14px;
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.68;
+    color: #eaf2ff;
+  }
+
+  #mode-note {
+    position: fixed;
+    left: 16px;
+    bottom: 272px;
+    z-index: 19;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: rgba(7, 12, 25, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+    color: #dce9ff;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  #mode-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 18px rgba(255, 211, 110, 0.8);
+  }
+
+  #marker-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 12;
+  }
+
+  .marker-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f1b33;
+    white-space: nowrap;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+  }
+
+  .marker-label.node { background: rgba(255, 105, 97, 0.92); }
+  .marker-label.antinode { background: rgba(125, 245, 166, 0.94); }
+
+  .lil-gui.root {
+    --background-color: rgba(10, 16, 34, 0.94);
+    --widget-color: rgba(23, 36, 70, 0.96);
+    --hover-color: rgba(43, 67, 122, 0.96);
+    --focus-color: rgba(90, 154, 255, 0.9);
+    --title-background-color: rgba(9, 14, 29, 0.98);
+    --title-text-color: #cbe4ff;
+    --text-color: #f2f7ff;
+    --number-color: #92dbff;
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    z-index: 28;
+  }
+
+  @media (max-width: 900px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: 56vh 44vh;
+    }
+
+    #analysis-panel { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+    #title-card { top: 72px; width: calc(100vw - 32px); }
+    #status-pill { top: 16px; width: calc(100vw - 32px); }
+
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      bottom: 12px;
+      max-height: 32vh;
+      overflow-y: auto;
+    }
+
+    #mode-note {
+      left: 12px;
+      bottom: calc(32vh + 24px);
+      width: calc(100vw - 24px);
+    }
+
+    .lil-gui.root {
+      top: auto;
+      right: 12px;
+      left: 12px;
+      bottom: 12px;
+      max-height: 42vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+<section id="guide-panel" class="glass" aria-label="학습 가이드">
+  <h3>핵심 원리</h3>
+  <p>같은 진동수의 두 파동이 반대 방향으로 중첩되면 정상파가 형성됩니다. 현의 양 끝이 고정되면 L = nλ/2 조건에서 정상파가 생기며, 이 고유 진동수로 진동시키면 공명이 일어납니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ol>
+    <li>기타줄의 길이를 반으로 줄이면 기본 진동수는 어떻게 변하나요?</li>
+    <li>닫힌 관에서 짝수 배음이 나타나지 않는 까닭을 경계 조건으로 설명해 보세요.</li>
+    <li>와인잔에 노래를 불러 깨뜨리는 것이 가능한 까닭을 공명으로 설명해 보세요.</li>
+  </ol>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>기타줄과 바이올린 줄은 양 끝이 고정된 현의 정상파를 이용합니다.</li>
+    <li>플루트는 열린 관, 클라리넷은 닫힌 관의 경계 조건을 잘 보여 줍니다.</li>
+    <li>타코마 다리 붕괴는 구조물이 고유 진동수 근처에서 크게 흔들릴 수 있음을 보여 줍니다.</li>
+    <li>전자레인지 내부에도 공간적인 정상파 분포가 생겨 가열이 고르지 않을 수 있습니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>역학과 에너지 III편 p120~127. 정상파와 악기 단원의 고조파, 경계 조건, 공명 개념을 함께 정리해 보세요.</p>
+</section>
+
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas" aria-label="정상파 3D 장면"></canvas>
+    <div id="marker-layer" aria-hidden="true"></div>
+  </section>
+
+  <aside id="analysis-panel">
+    <div id="analysis-head">
+      <div class="eyebrow">Canvas 2D Analysis</div>
+      <h2>고조파 비교와 진동수 관계</h2>
+      <p id="analysis-note">선택한 모드의 고조파 패턴, 공명 곡선, 그리고 두 진행파의 합성을 한 번에 확인하세요.</p>
+    </div>
+    <div id="analysis-wrap">
+      <canvas id="analysis-canvas" aria-label="고조파 및 공명 그래프"></canvas>
+    </div>
+  </aside>
+</div>
+
+<header id="title-card" class="glass">
+  <div class="eyebrow">Mechanics &amp; Energy</div>
+  <h1>정상파와 공명</h1>
+  <p>현과 관의 경계 조건에 따라 달라지는 정상파를 3D 장면으로 탐구하고, 오른쪽 패널에서 고조파와 공명 곡선을 비교해 보세요.</p>
+</header>
+
+<div id="status-pill" class="glass">
+  <strong>공명 대기</strong>
+  <span>고유 진동수에 맞추면 진폭이 커지고, 어긋나면 진행파 성분이 두드러집니다.</span>
+</div>
+
+<section id="formula-panel" class="glass">
+  <h2>🎸 정상파와 공명</h2>
+  <p>길이, 고조파, 진동수를 바꾸면 식과 현재 상태가 함께 갱신됩니다.</p>
+  <pre id="formula-text"></pre>
+</section>
+
+<div id="mode-note">
+  <span id="mode-dot" aria-hidden="true"></span>
+  <span id="mode-note-text">현의 기본 진동수에서 공명을 관찰하는 중입니다.</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const TAU = Math.PI * 2;
+  const sceneCanvas = document.getElementById('scene-canvas');
+  const analysisCanvas = document.getElementById('analysis-canvas');
+  const scenePanel = document.getElementById('scene-panel');
+  const analysisPanel = document.getElementById('analysis-panel');
+  const analysisNote = document.getElementById('analysis-note');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const statusPill = document.getElementById('status-pill');
+  const formulaText = document.getElementById('formula-text');
+  const modeNoteText = document.getElementById('mode-note-text');
+  const markerLayer = document.getElementById('marker-layer');
+
+  const defaults = {
+    mode: '현(줄)',
+    harmonic: 1,
+    length: 1.2,
+    waveSpeed: 340,
+    driveFrequency: 0,
+    showFormation: false,
+    showMarkers: true
+  };
+
+  const params = { ...defaults };
+  const state = {
+    time: 0,
+    previousTime: performance.now(),
+    scanActive: false,
+    scanStart: 0,
+    scanDuration: 8.8,
+    needsRebuild: true,
+    modeScene: null,
+    markers: [],
+    pixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+  };
+
+  const renderer = new THREE.WebGLRenderer({ canvas: sceneCanvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(state.pixelRatio);
+  renderer.setClearColor(0x1a1a2e, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+  scene.fog = new THREE.Fog(0x1a1a2e, 6, 16);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0.2, 1.9, 5.8);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 3.6;
+  controls.maxDistance = 9.5;
+  controls.target.set(0, 0.1, 0);
+  controls.maxPolarAngle = Math.PI * 0.5;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  directionalLight.position.set(4.8, 5.2, 4.2);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.near = 0.1;
+  directionalLight.shadow.camera.far = 20;
+  directionalLight.shadow.camera.left = -6;
+  directionalLight.shadow.camera.right = 6;
+  directionalLight.shadow.camera.top = 6;
+  directionalLight.shadow.camera.bottom = -6;
+  scene.add(directionalLight);
+
+  const backLight = new THREE.PointLight(0x63a3ff, 0.7, 14, 2);
+  backLight.position.set(-2.6, 2.2, -2.8);
+  scene.add(backLight);
+
+  const staticGroup = new THREE.Group();
+  scene.add(staticGroup);
+  buildStaticScene();
+
+  const gui = new GUI({ title: '정상파 조작 패널' });
+  const modeController = gui.add(params, 'mode', ['현(줄)', '열린 관', '닫힌 관']).name('모드');
+  const harmonicController = gui.add(params, 'harmonic', 1, 5, 1).name('고조파 n');
+  const lengthController = gui.add(params, 'length', 0.5, 3, 0.01).name('줄/관 길이 L');
+  const speedController = gui.add(params, 'waveSpeed', 100, 500, 1).name('파동 속력 v');
+  const frequencyController = gui.add(params, 'driveFrequency', 20, 1500, 1).name('구동 진동수 f');
+  gui.add(params, 'showFormation').name('형성 원리');
+  gui.add(params, 'showMarkers').name('마디/배 표시');
+  gui.add({ resonanceScan: toggleResonanceScan }, 'resonanceScan').name('공명 스캔');
+  gui.add({
+    reset() {
+      stopScan();
+      Object.assign(params, defaults);
+      params.driveFrequency = getSelectedResonance().freq;
+      state.needsRebuild = true;
+      syncGui();
+      updateUi();
+    }
+  }, 'reset').name('초기화');
+
+  gui.controllersRecursive().forEach((controller) => {
+    controller.onChange(() => {
+      if (controller === frequencyController) stopScan();
+      if (controller === modeController || controller === lengthController) {
+        params.driveFrequency = getSelectedResonance().freq;
+        state.needsRebuild = true;
+      } else if (controller === harmonicController || controller === speedController) {
+        params.driveFrequency = getSelectedResonance().freq;
+        if (state.modeScene) rebuildMarkers();
+      } else if (controller.object === params && controller.property === 'showMarkers') {
+        refreshMarkerVisibility();
+      }
+      syncGui();
+      updateUi();
+    });
+  });
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+    guideToggle.textContent = guidePanel.classList.contains('open') ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  });
+
+  window.addEventListener('resize', handleResize);
+  params.driveFrequency = getSelectedResonance().freq;
+  handleResize();
+  rebuildModeScene();
+  updateUi();
+  animate();
+
+  function buildStaticScene() {
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(5.8, 80),
+      new THREE.MeshStandardMaterial({ color: 0x202744, transparent: true, opacity: 0.42, roughness: 0.92, metalness: 0.02 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -1.04, 0);
+    floor.receiveShadow = true;
+    staticGroup.add(floor);
+
+    const grid = new THREE.GridHelper(10, 14, 0x3f4f82, 0x2a355c);
+    grid.position.y = -1.02;
+    grid.material.opacity = 0.35;
+    grid.material.transparent = true;
+    staticGroup.add(grid);
+
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(2.4, 3.8, 64),
+      new THREE.MeshBasicMaterial({ color: 0x5f8fff, transparent: true, opacity: 0.1, side: THREE.DoubleSide })
+    );
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.set(0, -1.01, 0);
+    staticGroup.add(halo);
+  }
+
+  function createPedestal(length) {
+    const pedestal = new THREE.Group();
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(length + 1.1, 0.16, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0x1f2743, roughness: 0.75, metalness: 0.06 })
+    );
+    base.position.y = -0.94;
+    base.receiveShadow = true;
+    pedestal.add(base);
+
+    const lip = new THREE.Mesh(
+      new THREE.BoxGeometry(length + 0.92, 0.05, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x2a355c, roughness: 0.45, metalness: 0.1 })
+    );
+    lip.position.y = -0.84;
+    pedestal.add(lip);
+    return pedestal;
+  }
+
+  function createSpeaker(length, accentColor) {
+    const speaker = new THREE.Group();
+    speaker.position.set(-length / 2 - 0.62, -0.12, 0);
+
+    const housing = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.46, 0.42),
+      new THREE.MeshStandardMaterial({ color: 0x12192f, roughness: 0.52, metalness: 0.18 })
+    );
+    housing.castShadow = true;
+    speaker.add(housing);
+
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12, 0.2, 24),
+      new THREE.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.18, roughness: 0.3 })
+    );
+    cone.rotation.z = -Math.PI / 2;
+    cone.position.x = 0.24;
+    cone.castShadow = true;
+    speaker.add(cone);
+
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(0.18, 0.28, 32),
+      new THREE.MeshBasicMaterial({ color: accentColor, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
+    );
+    halo.rotation.y = Math.PI / 2;
+    halo.position.x = 0.26;
+    speaker.add(halo);
+
+    speaker.userData = { halo };
+    return speaker;
+  }
+
+  function createStringMode() {
+    const group = new THREE.Group();
+    const length = params.length * 2.2;
+    group.add(createPedestal(length));
+
+    const supportMaterial = new THREE.MeshStandardMaterial({ color: 0x2f354a, roughness: 0.6, metalness: 0.18 });
+    const anchorMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.65, metalness: 0.22 });
+
+    const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 16), supportMaterial);
+    leftPost.position.set(-length / 2, -0.35, 0);
+    leftPost.castShadow = true;
+    group.add(leftPost);
+    const rightPost = leftPost.clone();
+    rightPost.position.x = length / 2;
+    group.add(rightPost);
+
+    const leftAnchor = new THREE.Mesh(new THREE.SphereGeometry(0.08, 20, 20), anchorMaterial);
+    leftAnchor.position.set(-length / 2, 0.24, 0);
+    const rightAnchor = leftAnchor.clone();
+    rightAnchor.position.x = length / 2;
+    group.add(leftAnchor, rightAnchor);
+
+    const guideRod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.026, 0.026, length, 12, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x27314f, transparent: true, opacity: 0.16, roughness: 0.8 })
+    );
+    guideRod.rotation.z = Math.PI / 2;
+    guideRod.position.y = 0.24;
+    group.add(guideRod);
+
+    const curve = new THREE.LineCurve3(
+      new THREE.Vector3(-length / 2, 0.24, 0),
+      new THREE.Vector3(length / 2, 0.24, 0)
+    );
+    const tubeGeometry = new THREE.TubeGeometry(curve, 220, 0.04, 18, false);
+    const tube = new THREE.Mesh(
+      tubeGeometry,
+      new THREE.MeshStandardMaterial({ color: 0xcc6633, roughness: 0.28, metalness: 0.22, emissive: 0x7f2c13, emissiveIntensity: 0.12 })
+    );
+    tube.castShadow = true;
+    group.add(tube);
+
+    const basePositions = tubeGeometry.attributes.position.array.slice();
+    const xNorm = new Float32Array(basePositions.length / 3);
+    const radialY = new Float32Array(basePositions.length / 3);
+    const radialZ = new Float32Array(basePositions.length / 3);
+    for (let i = 0; i < basePositions.length; i += 3) {
+      const index = i / 3;
+      xNorm[index] = (basePositions[i] + length / 2) / length;
+      radialY[index] = basePositions[i + 1] - 0.24;
+      radialZ[index] = basePositions[i + 2];
+    }
+
+    const lineCount = 240;
+    const linePositions = new Float32Array(lineCount * 3);
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const centerLine = new THREE.Line(
+      lineGeometry,
+      new THREE.LineBasicMaterial({ color: 0xffd985, transparent: true, opacity: 0.8 })
+    );
+    group.add(centerLine);
+
+    const speaker = createSpeaker(length, 0xffd985);
+    group.add(speaker);
+
+    return { type: 'string', group, length, tube, xNorm, radialY, radialZ, centerLine, linePositions, markerGroup: new THREE.Group(), speaker };
+  }
+
+  function createPipeMode(closed) {
+    const group = new THREE.Group();
+    const length = params.length * 2.05;
+    group.add(createPedestal(length));
+
+    const shellGeometry = new THREE.CylinderGeometry(0.3, 0.3, length, 48, 1, true);
+    shellGeometry.rotateZ(Math.PI / 2);
+    const shell = new THREE.Mesh(
+      shellGeometry,
+      new THREE.MeshPhysicalMaterial({
+        color: closed ? 0x8dd8ff : 0xaab9ff,
+        transparent: true,
+        opacity: 0.24,
+        roughness: 0.1,
+        metalness: 0.02,
+        transmission: 0.56,
+        thickness: 0.18,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.18
+      })
+    );
+    shell.position.y = 0.04;
+    shell.castShadow = true;
+    shell.receiveShadow = true;
+    group.add(shell);
+
+    const rimGeometry = new THREE.TorusGeometry(0.3, 0.018, 12, 40);
+    const rimMaterial = new THREE.MeshStandardMaterial({ color: 0xe0e8ff, roughness: 0.25, metalness: 0.16 });
+    const leftRim = new THREE.Mesh(rimGeometry, rimMaterial);
+    leftRim.rotation.y = Math.PI / 2;
+    leftRim.position.set(-length / 2, 0.04, 0);
+    const rightRim = leftRim.clone();
+    rightRim.position.x = length / 2;
+    group.add(leftRim, rightRim);
+
+    if (closed) {
+      const cap = new THREE.Mesh(
+        new THREE.CircleGeometry(0.29, 48),
+        new THREE.MeshStandardMaterial({ color: 0xcdd8ff, roughness: 0.22, metalness: 0.08, transparent: true, opacity: 0.88 })
+      );
+      cap.rotation.y = Math.PI / 2;
+      cap.position.set(-length / 2, 0.04, 0);
+      group.add(cap);
+    }
+
+    const standGeometry = new THREE.CylinderGeometry(0.06, 0.08, 0.8, 16);
+    const standMaterial = new THREE.MeshStandardMaterial({ color: 0x2d3554, roughness: 0.65, metalness: 0.18 });
+    const leftStand = new THREE.Mesh(standGeometry, standMaterial);
+    leftStand.position.set(-length * 0.24, -0.52, 0);
+    leftStand.castShadow = true;
+    const rightStand = leftStand.clone();
+    rightStand.position.x = length * 0.24;
+    group.add(leftStand, rightStand);
+
+    const particleCountX = 54;
+    const particleRings = 16;
+    const total = particleCountX * particleRings;
+    const particlePositions = new Float32Array(total * 3);
+    const particleColors = new Float32Array(total * 3);
+    const particleNorms = new Float32Array(total);
+    const particleBaseY = new Float32Array(total);
+    const particleBaseZ = new Float32Array(total);
+    const particlePhase = new Float32Array(total);
+
+    let offset = 0;
+    for (let ix = 0; ix < particleCountX; ix += 1) {
+      const norm = (ix + 0.5) / particleCountX;
+      for (let ir = 0; ir < particleRings; ir += 1) {
+        const angle = (ir / particleRings) * TAU;
+        const radius = 0.04 + ((ir % 4) / 3) * 0.2;
+        particleNorms[offset] = norm;
+        particleBaseY[offset] = 0.04 + Math.cos(angle) * radius;
+        particleBaseZ[offset] = Math.sin(angle) * radius;
+        particlePhase[offset] = Math.random() * TAU;
+        particlePositions[offset * 3] = -length / 2 + norm * length;
+        particlePositions[offset * 3 + 1] = particleBaseY[offset];
+        particlePositions[offset * 3 + 2] = particleBaseZ[offset];
+        particleColors[offset * 3] = 0.55;
+        particleColors[offset * 3 + 1] = 0.75;
+        particleColors[offset * 3 + 2] = 1;
+        offset += 1;
+      }
+    }
+
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+    const particles = new THREE.Points(
+      particleGeometry,
+      new THREE.PointsMaterial({ size: 0.055, vertexColors: true, transparent: true, opacity: 0.88, sizeAttenuation: true })
+    );
+    group.add(particles);
+
+    const lineCount = 180;
+    const tracePositions = new Float32Array(lineCount * 3);
+    const traceGeometry = new THREE.BufferGeometry();
+    traceGeometry.setAttribute('position', new THREE.BufferAttribute(tracePositions, 3));
+    const trace = new THREE.Line(
+      traceGeometry,
+      new THREE.LineBasicMaterial({ color: closed ? 0x8dd8ff : 0xaab9ff, transparent: true, opacity: 0.9 })
+    );
+    group.add(trace);
+
+    const speaker = createSpeaker(length, closed ? 0x8dd8ff : 0xaab9ff);
+    speaker.position.y = 0.04;
+    group.add(speaker);
+
+    return { type: closed ? 'closedPipe' : 'openPipe', group, length, particles, particleNorms, particleBaseY, particleBaseZ, particlePhase, trace, tracePositions, markerGroup: new THREE.Group(), speaker };
+  }
+
+  function rebuildModeScene() {
+    disposeModeScene();
+    state.modeScene = params.mode === '현(줄)' ? createStringMode() : createPipeMode(params.mode === '닫힌 관');
+    state.modeScene.group.add(state.modeScene.markerGroup);
+    scene.add(state.modeScene.group);
+    rebuildMarkers();
+    state.needsRebuild = false;
+  }
+
+  function disposeModeScene() {
+    clearMarkers();
+    if (!state.modeScene) return;
+    scene.remove(state.modeScene.group);
+    state.modeScene.group.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+        else disposeMaterial(child.material);
+      }
+    });
+    state.modeScene = null;
+  }
+
+  function disposeMaterial(material) {
+    if (material.map) material.map.dispose();
+    if (material.alphaMap) material.alphaMap.dispose();
+    if (material.normalMap) material.normalMap.dispose();
+    material.dispose();
+  }
+
+  function clearMarkers() {
+    state.markers.forEach((marker) => marker.label.remove());
+    state.markers = [];
+    if (state.modeScene?.markerGroup) {
+      while (state.modeScene.markerGroup.children.length) {
+        const child = state.modeScene.markerGroup.children.pop();
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
+    }
+  }
+
+  function rebuildMarkers() {
+    clearMarkers();
+    if (!state.modeScene) return;
+    const positions = getNodeAntinodePositions();
+    positions.nodes.forEach((norm) => createMarker('node', norm));
+    positions.antinodes.forEach((norm) => createMarker('antinode', norm));
+    refreshMarkerVisibility();
+  }
+
+  function createMarker(type, norm) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(type === 'node' ? 0.055 : 0.06, 20, 20),
+      new THREE.MeshStandardMaterial({
+        color: type === 'node' ? 0xff6961 : 0x7df5a6,
+        emissive: type === 'node' ? 0xff6961 : 0x7df5a6,
+        emissiveIntensity: 0.24,
+        roughness: 0.3,
+        metalness: 0.08
+      })
+    );
+    mesh.castShadow = true;
+    state.modeScene.markerGroup.add(mesh);
+
+    const label = document.createElement('div');
+    label.className = `marker-label ${type}`;
+    label.textContent = type === 'node' ? '마디' : '배';
+    markerLayer.appendChild(label);
+    state.markers.push({ mesh, label, norm, type });
+  }
+
+  function refreshMarkerVisibility() {
+    state.markers.forEach((marker) => {
+      marker.mesh.visible = params.showMarkers;
+      marker.label.style.display = params.showMarkers ? 'block' : 'none';
+    });
+  }
+
+  function getActualModeNumber(index = params.harmonic, mode = params.mode) {
+    return mode === '닫힌 관' ? index * 2 - 1 : index;
+  }
+
+  function getFundamentalFrequency(mode = params.mode) {
+    return mode === '닫힌 관' ? params.waveSpeed / (4 * params.length) : params.waveSpeed / (2 * params.length);
+  }
+
+  function getResonances(mode = params.mode, count = 5) {
+    const fundamental = getFundamentalFrequency(mode);
+    return Array.from({ length: count }, (_, idx) => {
+      const index = idx + 1;
+      const actual = getActualModeNumber(index, mode);
+      return { index, actual, freq: fundamental * actual };
+    });
+  }
+
+  function getSelectedResonance() {
+    return getResonances().find((item) => item.index === params.harmonic);
+  }
+
+  function getWavelength(mode = params.mode, actual = getActualModeNumber()) {
+    return mode === '닫힌 관' ? (4 * params.length) / actual : (2 * params.length) / actual;
+  }
+
+  function getEnvelope(norm, mode = params.mode, actual = getActualModeNumber()) {
+    if (mode === '현(줄)') return Math.sin(actual * Math.PI * norm);
+    if (mode === '열린 관') return Math.cos(actual * Math.PI * norm);
+    return Math.sin(actual * Math.PI * norm / 2);
+  }
+
+  function lorentzian(value, center, width) {
+    const scaled = (value - center) / width;
+    return 1 / (1 + scaled * scaled * 5.2);
+  }
+
+  function getVisualFrequency() {
+    return 0.35 + Math.min(params.driveFrequency, 700) / 220;
+  }
+
+  function getSelectedResponse() {
+    const selected = getSelectedResonance();
+    return lorentzian(params.driveFrequency, selected.freq, Math.max(4, selected.freq * 0.065));
+  }
+
+  function getClosestResonance() {
+    const resonances = getResonances();
+    let best = resonances[0];
+    let bestGap = Math.abs(params.driveFrequency - best.freq);
+    resonances.forEach((entry) => {
+      const gap = Math.abs(params.driveFrequency - entry.freq);
+      if (gap < bestGap) { best = entry; bestGap = gap; }
+    });
+    return { ...best, gap: bestGap };
+  }
+
+  function getGlobalResponseAt(frequency) {
+    return Math.max(...getResonances().map((entry) => lorentzian(frequency, entry.freq, Math.max(5, entry.freq * 0.055))));
+  }
+
+  function getNodeAntinodePositions() {
+    const actual = getActualModeNumber();
+    if (params.mode === '현(줄)') {
+      return {
+        nodes: Array.from({ length: actual + 1 }, (_, i) => i / actual),
+        antinodes: Array.from({ length: actual }, (_, i) => (i + 0.5) / actual)
+      };
+    }
+    if (params.mode === '열린 관') {
+      return {
+        nodes: Array.from({ length: actual }, (_, i) => (i + 0.5) / actual),
+        antinodes: Array.from({ length: actual + 1 }, (_, i) => i / actual)
+      };
+    }
+    const nodes = [];
+    const antinodes = [];
+    for (let m = 0; ; m += 1) {
+      const node = (2 * m) / actual;
+      if (node > 1 + 1e-6) break;
+      nodes.push(Math.min(node, 1));
+    }
+    for (let m = 0; ; m += 1) {
+      const antinode = (2 * m + 1) / actual;
+      if (antinode > 1 + 1e-6) break;
+      antinodes.push(Math.min(antinode, 1));
+    }
+    return { nodes, antinodes };
+  }
+
+  function getMarkerCounts() {
+    const { nodes, antinodes } = getNodeAntinodePositions();
+    return { nodes: nodes.length, antinodes: antinodes.length };
+  }
+
+  function getStringDisplacement(norm) {
+    const actual = getActualModeNumber();
+    const response = getSelectedResponse();
+    const visualPhase = state.time * getVisualFrequency() * TAU;
+    const standingAmp = params.length * (0.03 + response * 0.13);
+    const irregularAmp = params.length * (0.005 + (1 - response) * 0.03);
+    const standing = standingAmp * getEnvelope(norm, '현(줄)', actual) * Math.cos(visualPhase);
+    const traveling = irregularAmp * (
+      0.68 * Math.sin((actual * Math.PI * 1.12) * norm - visualPhase * 1.08) +
+      0.34 * Math.sin((actual * Math.PI * 0.56) * norm + visualPhase * 1.44)
+    );
+    return standing + traveling;
+  }
+
+  function getPipeDisplacement(norm) {
+    const actual = getActualModeNumber();
+    const response = getSelectedResponse();
+    const visualPhase = state.time * getVisualFrequency() * TAU;
+    const standingAmp = params.length * (0.015 + response * 0.055);
+    const irregularAmp = params.length * (0.004 + (1 - response) * 0.018);
+    return standingAmp * getEnvelope(norm, params.mode, actual) * Math.cos(visualPhase) + irregularAmp * Math.sin(actual * Math.PI * norm - visualPhase * 1.22);
+  }
+
+  function updateStringScene() {
+    const modeScene = state.modeScene;
+    const positions = modeScene.tube.geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+      const index = i / 3;
+      const norm = modeScene.xNorm[index];
+      const x = -modeScene.length / 2 + norm * modeScene.length;
+      positions[i] = x;
+      positions[i + 1] = 0.24 + modeScene.radialY[index] + getStringDisplacement(norm);
+      positions[i + 2] = modeScene.radialZ[index];
+    }
+    modeScene.tube.geometry.attributes.position.needsUpdate = true;
+    modeScene.tube.geometry.computeVertexNormals();
+
+    const response = getSelectedResponse();
+    for (let i = 0; i < modeScene.linePositions.length; i += 3) {
+      const index = i / 3;
+      const norm = index / (modeScene.linePositions.length / 3 - 1);
+      modeScene.linePositions[i] = -modeScene.length / 2 + norm * modeScene.length;
+      modeScene.linePositions[i + 1] = 0.24 + getStringDisplacement(norm);
+      modeScene.linePositions[i + 2] = 0;
+    }
+    modeScene.centerLine.geometry.attributes.position.needsUpdate = true;
+    modeScene.centerLine.material.opacity = 0.45 + response * 0.45;
+    const pulse = 0.88 + response * 0.34 + Math.sin(state.time * 8) * 0.04;
+    modeScene.speaker.userData.halo.scale.setScalar(pulse);
+    modeScene.speaker.userData.halo.material.opacity = 0.16 + response * 0.26;
+  }
+
+  function updatePipeScene() {
+    const modeScene = state.modeScene;
+    const positions = modeScene.particles.geometry.attributes.position.array;
+    const colors = modeScene.particles.geometry.attributes.color.array;
+    const actual = getActualModeNumber();
+    const response = getSelectedResponse();
+    const visualPhase = state.time * getVisualFrequency() * TAU;
+
+    for (let i = 0; i < modeScene.particleNorms.length; i += 1) {
+      const norm = modeScene.particleNorms[i];
+      const xBase = -modeScene.length / 2 + norm * modeScene.length;
+      const displacement = getPipeDisplacement(norm);
+      const compression = Math.sin(actual * Math.PI * norm * (params.mode === '닫힌 관' ? 0.5 : 1) + visualPhase + modeScene.particlePhase[i] * 0.15);
+      const spread = 1 + compression * 0.08;
+
+      positions[i * 3] = xBase + displacement;
+      positions[i * 3 + 1] = 0.04 + (modeScene.particleBaseY[i] - 0.04) * spread;
+      positions[i * 3 + 2] = modeScene.particleBaseZ[i] * spread;
+
+      const density = 0.5 + compression * 0.5;
+      colors[i * 3] = THREE.MathUtils.lerp(0.44, 0.88, density);
+      colors[i * 3 + 1] = THREE.MathUtils.lerp(0.68, 0.92, response);
+      colors[i * 3 + 2] = THREE.MathUtils.lerp(0.9, 1, density);
+    }
+    modeScene.particles.geometry.attributes.position.needsUpdate = true;
+    modeScene.particles.geometry.attributes.color.needsUpdate = true;
+
+    for (let i = 0; i < modeScene.tracePositions.length; i += 3) {
+      const index = i / 3;
+      const norm = index / (modeScene.tracePositions.length / 3 - 1);
+      modeScene.tracePositions[i] = -modeScene.length / 2 + norm * modeScene.length + getPipeDisplacement(norm);
+      modeScene.tracePositions[i + 1] = 0.5 + getEnvelope(norm, params.mode, actual) * (0.16 + response * 0.1);
+      modeScene.tracePositions[i + 2] = 0;
+    }
+    modeScene.trace.geometry.attributes.position.needsUpdate = true;
+    modeScene.trace.material.opacity = 0.48 + response * 0.42;
+    const pulse = 0.92 + response * 0.32 + Math.sin(state.time * 7.2) * 0.04;
+    modeScene.speaker.userData.halo.scale.setScalar(pulse);
+    modeScene.speaker.userData.halo.material.opacity = 0.16 + response * 0.26;
+  }
+
+  function updateMarkers() {
+    if (!params.showMarkers) return;
+    const width = scenePanel.clientWidth;
+    const height = scenePanel.clientHeight;
+    state.markers.forEach((marker) => {
+      const x = -state.modeScene.length / 2 + marker.norm * state.modeScene.length;
+      if (params.mode === '현(줄)') marker.mesh.position.set(x, 0.24 + getStringDisplacement(marker.norm), 0.12);
+      else marker.mesh.position.set(x + getPipeDisplacement(marker.norm), marker.type === 'node' ? 0.42 : 0.58, 0.05);
+
+      const projected = marker.mesh.position.clone().project(camera);
+      if (projected.z < -1 || projected.z > 1) { marker.label.style.display = 'none'; return; }
+      const screenX = (projected.x * 0.5 + 0.5) * width;
+      const screenY = (-projected.y * 0.5 + 0.5) * height - 18;
+      const visible = params.showMarkers && screenX >= -20 && screenX <= width + 20 && screenY >= -20 && screenY <= height + 20;
+      marker.label.style.display = visible ? 'block' : 'none';
+      if (!visible) return;
+      marker.label.style.transform = `translate(${screenX}px, ${screenY}px) translate(-50%, -50%)`;
+    });
+  }
+
+  function toggleResonanceScan() {
+    if (state.scanActive) { stopScan(); updateUi(); return; }
+    state.scanActive = true;
+    state.scanStart = performance.now();
+  }
+
+  function stopScan() { state.scanActive = false; }
+
+  function updateScan(now) {
+    if (!state.scanActive) return;
+    const resonances = getResonances();
+    const minFreq = Math.max(20, resonances[0].freq * 0.55);
+    const maxFreq = Math.max(minFreq + 10, resonances[resonances.length - 1].freq * 1.12);
+    const progress = (now - state.scanStart) / 1000 / state.scanDuration;
+    if (progress >= 1) {
+      params.driveFrequency = maxFreq;
+      stopScan();
+      syncGui();
+      return;
+    }
+    params.driveFrequency = THREE.MathUtils.lerp(minFreq, maxFreq, progress);
+    syncGui();
+  }
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function handleResize() {
+    state.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(state.pixelRatio);
+    renderer.setSize(scenePanel.clientWidth, scenePanel.clientHeight, false);
+    camera.aspect = scenePanel.clientWidth / Math.max(scenePanel.clientHeight, 1);
+    camera.updateProjectionMatrix();
+
+    const width = analysisPanel.clientWidth;
+    const headHeight = document.getElementById('analysis-head').offsetHeight;
+    const height = Math.max(120, analysisPanel.clientHeight - headHeight);
+    analysisCanvas.width = Math.floor(width * state.pixelRatio);
+    analysisCanvas.height = Math.floor(height * state.pixelRatio);
+    analysisCanvas.style.width = `${width}px`;
+    analysisCanvas.style.height = `${height}px`;
+  }
+
+  function formatNumber(value, digits = 1) {
+    return Number(value).toFixed(digits);
+  }
+
+  function updateUi() {
+    const selected = getSelectedResonance();
+    const closest = getClosestResonance();
+    const response = getSelectedResponse();
+    const counts = getMarkerCounts();
+    const wavelength = getWavelength();
+    const f1String = params.waveSpeed / (2 * params.length);
+    const f1Closed = params.waveSpeed / (4 * params.length);
+
+    const statusTitle = response > 0.88 ? '공명 도달' : response > 0.55 ? '공명에 접근 중' : '비공명 상태';
+    const statusDetail = response > 0.88
+      ? `선택한 ${selected.actual}차 고유 진동수 ${formatNumber(selected.freq)} Hz와 거의 일치해 진폭이 최대입니다.`
+      : response > 0.55
+        ? `현재 구동 진동수가 ${formatNumber(selected.freq)} Hz에 가까워 정상파 패턴이 점점 또렷해집니다.`
+        : `현재 구동 진동수 ${formatNumber(params.driveFrequency)} Hz는 선택 공진 ${formatNumber(selected.freq)} Hz와 달라 진행파 성분이 섞입니다.`;
+    statusPill.innerHTML = `<strong>${statusTitle}</strong> <span>${statusDetail}</span>`;
+
+    modeNoteText.textContent = params.mode === '현(줄)'
+      ? `양 끝이 고정된 현에서 ${selected.actual}차 고조파를 관찰 중입니다. 배 ${counts.antinodes}개, 마디 ${counts.nodes}개가 형성됩니다.`
+      : params.mode === '열린 관'
+        ? `양쪽이 열린 관에서는 모든 정수 배음이 허용됩니다. 끝점이 모두 배가 되어 배 ${counts.antinodes}개가 나타납니다.`
+        : `한쪽이 닫힌 관에서는 홀수 배음만 허용됩니다. 선택 ${params.harmonic}단계는 실제 ${selected.actual}차 모드입니다.`;
+
+    analysisNote.textContent = `${params.mode === '닫힌 관' ? `선택 ${params.harmonic}단계 → 실제 ${selected.actual}차` : `${selected.actual}차 모드`}, λ = ${formatNumber(wavelength, 2)} m, 선택 공진 ${formatNumber(selected.freq)} Hz, 현재 공명도 ${Math.round(response * 100)}%.`;
+
+    formulaText.textContent = [
+      '🎸 정상파와 공명',
+      '━━━━━━━━━━━━━━',
+      `모드: ${params.mode}`,
+      `L = ${formatNumber(params.length, 2)} m, v = ${Math.round(params.waveSpeed)} m/s`,
+      `선택 차수 = ${params.harmonic}${params.mode === '닫힌 관' ? ` (실제 ${selected.actual}차)` : ''}`,
+      `구동 진동수 f = ${formatNumber(params.driveFrequency)} Hz`,
+      `선택 공진 f_n = ${formatNumber(selected.freq)} Hz`,
+      '',
+      '현 (양쪽 고정):',
+      '  L = nλ/2 → λ_n = 2L/n',
+      '  f_n = nv/(2L) = n × f₁',
+      `  f₁ = v/(2L) = ${formatNumber(f1String)} Hz`,
+      '',
+      '열린 관 (양쪽 열림):',
+      `  f_n = nv/(2L) = n × ${formatNumber(f1String)} Hz`,
+      '',
+      '닫힌 관 (한쪽 닫힘):',
+      '  f_n = nv/(4L), n = 1, 3, 5, ...',
+      `  f₁ = v/(4L) = ${formatNumber(f1Closed)} Hz`,
+      '',
+      `현재 파장 λ = ${formatNumber(wavelength, 2)} m`,
+      `정상파: 배 ${counts.antinodes}개, 마디 ${counts.nodes}개`,
+      `가장 가까운 공진: ${closest.actual}차 (${formatNumber(closest.freq)} Hz)`,
+      '공명: 고유 진동수에서 진폭 최대'
+    ].join('\n');
+  }
+
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  }
+
+  function drawPanelCard(ctx, rect, title, subtitle) {
+    drawRoundedRect(ctx, rect.x, rect.y, rect.w, rect.h, 18);
+    const gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
+    gradient.addColorStop(0, 'rgba(17, 26, 52, 0.88)');
+    gradient.addColorStop(1, 'rgba(10, 15, 28, 0.82)');
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#f4f8ff';
+    ctx.font = '600 15px Pretendard, sans-serif';
+    ctx.fillText(title, rect.x + 18, rect.y + 24);
+    ctx.fillStyle = '#9fb5e5';
+    ctx.font = '12px Pretendard, sans-serif';
+    ctx.fillText(subtitle, rect.x + 18, rect.y + 43);
+  }
+
+  function drawHarmonicComparison(ctx, rect) {
+    drawPanelCard(ctx, rect, '고조파 비교', '현재 모드에서 허용되는 처음 다섯 공진 패턴');
+    const rows = 5;
+    const contentX = rect.x + 18;
+    const contentY = rect.y + 58;
+    const contentW = rect.w - 36;
+    const contentH = rect.h - 72;
+    const rowH = contentH / rows;
+
+    for (let i = 1; i <= rows; i += 1) {
+      const actual = getActualModeNumber(i);
+      const freq = getResonances()[i - 1].freq;
+      const baseY = contentY + rowH * (i - 0.5);
+      const amp = rowH * 0.26;
+      const highlight = i === params.harmonic;
+      ctx.strokeStyle = highlight ? 'rgba(255, 219, 115, 0.72)' : 'rgba(117, 135, 176, 0.24)';
+      ctx.lineWidth = highlight ? 1.2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(contentX + 58, baseY);
+      ctx.lineTo(contentX + contentW, baseY);
+      ctx.stroke();
+
+      if (highlight) {
+        ctx.fillStyle = 'rgba(255, 211, 110, 0.12)';
+        drawRoundedRect(ctx, contentX - 6, baseY - rowH * 0.4, contentW + 12, rowH * 0.8, 14);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = highlight ? '#fff1ba' : '#dbe6ff';
+      ctx.font = highlight ? '700 12px Pretendard, sans-serif' : '600 12px Pretendard, sans-serif';
+      ctx.fillText(params.mode === '닫힌 관' ? `${i}단계 (${actual}차)` : `${i}차`, contentX, baseY + 4);
+      ctx.fillStyle = highlight ? '#ffd36e' : '#9fb5e5';
+      ctx.fillText(`${formatNumber(freq)} Hz`, contentX + contentW - 70, baseY + 4);
+
+      ctx.beginPath();
+      for (let sx = 0; sx <= 1; sx += 0.01) {
+        const x = contentX + 58 + (contentW - 58) * sx;
+        const y = baseY - getEnvelope(sx, params.mode, actual) * amp;
+        if (sx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = highlight ? '#ffd36e' : 'rgba(158, 195, 255, 0.76)';
+      ctx.lineWidth = highlight ? 2.4 : 1.4;
+      ctx.stroke();
+    }
+  }
+
+  function drawFormationPanel(ctx, rect) {
+    drawPanelCard(ctx, rect, '형성 원리', '두 진행파의 중첩이 정상파를 만든다는 점을 보여 줍니다.');
+    const contentX = rect.x + 16;
+    const contentY = rect.y + 58;
+    const contentW = rect.w - 32;
+    const contentH = rect.h - 72;
+    const rows = [
+      { label: 'y₁ = A sin(kx - ωt)', color: '#60a7ff', offset: 0.2 },
+      { label: 'y₂ = A sin(kx + ωt)', color: '#ff7c7c', offset: 0.5 },
+      { label: 'y = 2A sin(kx) cos(ωt)', color: '#76f0b7', offset: 0.8 }
+    ];
+    const phase = state.time * getVisualFrequency() * TAU;
+    const actual = getActualModeNumber();
+
+    rows.forEach((row) => {
+      const baseline = contentY + contentH * row.offset;
+      ctx.strokeStyle = 'rgba(142, 168, 217, 0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(contentX + 110, baseline);
+      ctx.lineTo(contentX + contentW, baseline);
+      ctx.stroke();
+
+      ctx.fillStyle = row.color;
+      ctx.font = '600 12px Pretendard, sans-serif';
+      ctx.fillText(row.label, contentX, baseline + 4);
+
+      ctx.beginPath();
+      for (let sx = 0; sx <= 1; sx += 0.01) {
+        const x = contentX + 110 + (contentW - 110) * sx;
+        const travelingA = Math.sin(actual * Math.PI * sx - phase);
+        const travelingB = Math.sin(actual * Math.PI * sx + phase);
+        const value = row.offset < 0.3 ? travelingA : row.offset < 0.6 ? travelingB : travelingA + travelingB;
+        const y = baseline - value * contentH * 0.12;
+        if (sx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = row.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  }
+
+  function drawFrequencyLadder(ctx, rect) {
+    drawPanelCard(ctx, rect, '진동수 관계', '기본 진동수에서 각 공진 모드가 어떻게 배수로 늘어나는지 확인하세요.');
+    const contentX = rect.x + 18;
+    const contentY = rect.y + 58;
+    const contentW = rect.w - 36;
+    const contentH = rect.h - 76;
+    const resonances = getResonances();
+    const maxFreq = resonances[resonances.length - 1].freq;
+
+    resonances.forEach((entry, idx) => {
+      const rowY = contentY + idx * (contentH / resonances.length) + 8;
+      const isSelected = entry.index === params.harmonic;
+      const barW = (entry.freq / maxFreq) * (contentW - 124);
+      ctx.fillStyle = isSelected ? 'rgba(255, 211, 110, 0.18)' : 'rgba(103, 144, 232, 0.14)';
+      drawRoundedRect(ctx, contentX, rowY - 10, contentW, 26, 13);
+      ctx.fill();
+
+      ctx.fillStyle = isSelected ? '#fff1ba' : '#dbe6ff';
+      ctx.font = isSelected ? '700 12px Pretendard, sans-serif' : '600 12px Pretendard, sans-serif';
+      ctx.fillText(params.mode === '닫힌 관' ? `${entry.index}단계 → 실제 ${entry.actual}차` : `${entry.actual}차 고조파`, contentX + 10, rowY + 4);
+
+      ctx.fillStyle = isSelected ? '#ffd36e' : '#9ec7ff';
+      drawRoundedRect(ctx, contentX + 112, rowY - 4, Math.max(10, barW), 12, 6);
+      ctx.fill();
+      ctx.fillStyle = '#cfe1ff';
+      ctx.fillText(`${formatNumber(entry.freq)} Hz`, contentX + 118 + Math.max(10, barW), rowY + 4);
+    });
+  }
+
+  function drawResonanceGraph(ctx, rect) {
+    drawPanelCard(ctx, rect, '공명 곡선', '고유 진동수에서 진폭이 최대가 되는 모습을 스캔과 함께 추적합니다.');
+    const graphX = rect.x + 22;
+    const graphY = rect.y + 60;
+    const graphW = rect.w - 44;
+    const graphH = rect.h - 86;
+    const resonances = getResonances();
+    const maxFreq = Math.max(resonances[resonances.length - 1].freq * 1.18, params.driveFrequency * 1.05, 140);
+
+    ctx.strokeStyle = 'rgba(142, 168, 217, 0.22)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i += 1) {
+      const y = graphY + (graphH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(graphX, y);
+      ctx.lineTo(graphX + graphW, y);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    for (let sample = 0; sample <= graphW; sample += 1) {
+      const freq = (sample / graphW) * maxFreq;
+      const response = getGlobalResponseAt(freq);
+      const x = graphX + sample;
+      const y = graphY + graphH - response * graphH * 0.84;
+      if (sample === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#8fd8ff';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    const currentResponse = getGlobalResponseAt(params.driveFrequency);
+    const currentX = graphX + (params.driveFrequency / maxFreq) * graphW;
+    const currentY = graphY + graphH - currentResponse * graphH * 0.84;
+    ctx.strokeStyle = 'rgba(255, 211, 110, 0.8)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(currentX, graphY);
+    ctx.lineTo(currentX, graphY + graphH);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd36e';
+    ctx.beginPath();
+    ctx.arc(currentX, currentY, 4.5, 0, TAU);
+    ctx.fill();
+
+    resonances.forEach((entry) => {
+      const peakX = graphX + (entry.freq / maxFreq) * graphW;
+      const peakY = graphY + graphH - getGlobalResponseAt(entry.freq) * graphH * 0.84;
+      const isSelected = entry.index === params.harmonic;
+      ctx.fillStyle = isSelected ? '#fff1ba' : '#cfe1ff';
+      ctx.beginPath();
+      ctx.arc(peakX, peakY, isSelected ? 4.2 : 3.2, 0, TAU);
+      ctx.fill();
+      ctx.font = isSelected ? '700 11.5px Pretendard, sans-serif' : '600 11px Pretendard, sans-serif';
+      ctx.fillText(`f${entry.index}`, peakX - 8, peakY - 10);
+    });
+
+    ctx.fillStyle = '#9fb5e5';
+    ctx.font = '11px Pretendard, sans-serif';
+    ctx.fillText('0 Hz', graphX, graphY + graphH + 16);
+    ctx.fillText(`${Math.round(maxFreq)} Hz`, graphX + graphW - 34, graphY + graphH + 16);
+    ctx.fillText(state.scanActive ? '공명 스캔 진행 중' : `현재 f = ${formatNumber(params.driveFrequency)} Hz`, graphX, rect.y + rect.h - 14);
+  }
+
+  function drawAnalysis() {
+    const ctx = analysisCanvas.getContext('2d');
+    const width = analysisCanvas.clientWidth;
+    const height = analysisCanvas.clientHeight;
+    ctx.setTransform(state.pixelRatio, 0, 0, state.pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#11192f');
+    gradient.addColorStop(1, '#091120');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const padding = 16;
+    const topRect = { x: padding, y: padding, w: width - padding * 2, h: height * 0.37 };
+    const midRect = { x: padding, y: topRect.y + topRect.h + 14, w: width - padding * 2, h: params.showFormation && params.mode === '현(줄)' ? height * 0.25 : height * 0.22 };
+    const bottomRect = { x: padding, y: midRect.y + midRect.h + 14, w: width - padding * 2, h: height - (midRect.y + midRect.h + padding) };
+    drawHarmonicComparison(ctx, topRect);
+    if (params.showFormation && params.mode === '현(줄)') drawFormationPanel(ctx, midRect);
+    else drawFrequencyLadder(ctx, midRect);
+    drawResonanceGraph(ctx, bottomRect);
+  }
+
+  function animate(now = performance.now()) {
+    requestAnimationFrame(animate);
+    if (state.needsRebuild) rebuildModeScene();
+
+    const delta = Math.min((now - state.previousTime) / 1000, 0.05);
+    state.previousTime = now;
+    state.time += delta;
+    updateScan(now);
+
+    if (state.modeScene) {
+      if (state.modeScene.type === 'string') updateStringScene();
+      else updatePipeScene();
+      updateMarkers();
+    }
+
+    updateUi();
+    drawAnalysis();
+    controls.update();
+    renderer.render(scene, camera);
+  }
+</script>
+</body>
+</html>

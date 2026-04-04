@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수권의 층상 구조 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --panel-bg: rgba(6, 18, 34, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --mixed-bg: rgba(48, 170, 224, 0.14);
+    --thermo-bg: rgba(10, 101, 175, 0.18);
+    --deep-bg: rgba(0, 25, 55, 0.36);
+    --accent: #ff7a59;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 221, 125, 0.14), transparent 26%),
+      linear-gradient(180deg, #79bfe7 0%, #5d9fcc 15%, #1d5f92 32%, #07345c 58%, #021021 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  }
+
+  #ocean-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #ocean-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 16% 14%, rgba(255, 214, 107, 0.3), transparent 18%),
+      linear-gradient(180deg, rgba(132, 204, 240, 0.96) 0%, rgba(91, 162, 206, 0.9) 20%, rgba(14, 76, 126, 0.95) 52%, rgba(1, 18, 37, 0.98) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      linear-gradient(180deg, rgba(7, 22, 40, 0.96) 0%, rgba(4, 15, 29, 0.98) 100%);
+  }
+
+  #ocean-view,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  #scene-title h1 {
+    margin-top: 3px;
+    font-size: 22px;
+    font-weight: 700;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.32);
+  }
+
+  #scene-title p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 24px;
+    right: 24px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  #graph-head .title h2 {
+    font-size: 19px;
+    font-weight: 700;
+  }
+
+  #graph-head .title p {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 300px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: 338px;
+    padding: 18px 18px 16px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: 18px;
+    z-index: 30;
+    font-size: 11px;
+    line-height: 1.7;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #bdeeff;
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .row .label {
+    width: 80px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .info-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .info-block strong {
+    color: #ffd39c;
+  }
+
+  .layer-card {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .layer-card.mixed { background: var(--mixed-bg); }
+  .layer-card.thermo { background: var(--thermo-bg); }
+  .layer-card.deep { background: var(--deep-bg); }
+
+  .layer-card .layer-title {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(5, 19, 36, 0.84);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 42;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    right: 14px;
+    width: 404px;
+    max-height: 66vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    background: rgba(5, 19, 36, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    backdrop-filter: blur(14px);
+    z-index: 41;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #bdeeff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd39c;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 5px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 11px;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(5, 19, 36, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(10px);
+    font-size: 10px;
+    z-index: 30;
+  }
+
+  .lil-gui {
+    z-index: 45 !important;
+    --background-color: rgba(4, 16, 31, 0.92);
+    --title-background-color: rgba(255, 255, 255, 0.05);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #eff9ff;
+  }
+
+  @media (max-width: 960px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: 56vh 44vh;
+    }
+
+    #ocean-panel {
+      border-right: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #formula-panel {
+      width: calc(100vw - 28px);
+      max-width: 350px;
+      font-size: 10px;
+    }
+
+    #guide-panel {
+      width: calc(100vw - 28px);
+      max-height: 58vh;
+    }
+
+    #graph-head {
+      top: 12px;
+      left: 16px;
+      right: 16px;
+      flex-direction: column;
+    }
+
+    #graph-legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #scene-title {
+      top: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #scene-title h1 {
+      font-size: 18px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: auto;
+      max-width: none;
+      max-height: 42vh;
+      overflow-y: auto;
+    }
+
+    #hint-chip {
+      left: 12px;
+      right: 12px;
+      border-radius: 14px;
+      text-align: center;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="layout">
+  <section id="ocean-panel">
+    <div id="ocean-view"></div>
+  </section>
+  <section id="graph-panel">
+    <div id="graph-head">
+      <div class="title">
+        <h2>깊이-수온 그래프</h2>
+        <p>위도와 계절에 따라 혼합층과 수온 약층의 형태가 달라집니다.</p>
+      </div>
+      <div id="graph-legend">
+        <div class="legend-chip"><span class="legend-dot" style="background:#ff6b57;"></span>적도</div>
+        <div class="legend-chip"><span class="legend-dot" style="background:#ffd166;"></span>중위도</div>
+        <div class="legend-chip"><span class="legend-dot" style="background:#6ec5ff;"></span>극지방</div>
+      </div>
+    </div>
+    <canvas id="graph-canvas"></canvas>
+  </section>
+</div>
+
+<div id="scene-title">
+  <div class="eyebrow">Integrated Science I</div>
+  <h1>수권의 층상 구조</h1>
+  <p id="scene-subtitle">태양 에너지와 바람이 혼합층의 온도와 두께를 함께 결정합니다.</p>
+</div>
+
+<div id="formula-panel">
+  <h3>🌊 수권의 층상 구조</h3>
+  <div class="row"><span class="label">현재 깊이:</span><span class="value" id="fp-depth">0 m</span></div>
+  <div class="row"><span class="label">현재 층:</span><span class="value" id="fp-layer">혼합층</span></div>
+  <div class="row"><span class="label">수온:</span><span class="value" id="fp-temp">약 25.0°C</span></div>
+  <div class="row"><span class="label">위도:</span><span class="value" id="fp-latitude">적도</span></div>
+  <div class="row"><span class="label">계절:</span><span class="value" id="fp-season">여름</span></div>
+  <div class="row"><span class="label">혼합층:</span><span class="value" id="fp-mixed-depth">0~200 m</span></div>
+  <div class="row"><span class="label">풍랑 메모:</span><span class="value" id="fp-wind-note">강한 태양 복사로 표층이 따뜻하고 비교적 두꺼운 혼합층이 형성됩니다.</span></div>
+
+  <div class="info-block">
+    <strong>층별 특징</strong><br>
+    태양 에너지와 바람은 표층을 섞어 혼합층을 만들고, 밀도 차이로 형성된 수온 약층은 아래층과의 혼합을 억제합니다. 심해층은 태양 에너지가 거의 닿지 않아 항상 차갑습니다.
+  </div>
+
+  <div class="layer-card mixed">
+    <div class="layer-title" id="mix-title">혼합층 (0~200m)</div>
+    태양 에너지 가열 + 바람 혼합 → 수온 높고 거의 일정
+  </div>
+  <div class="layer-card thermo">
+    <div class="layer-title" id="thermo-title">수온 약층 (200~1000m)</div>
+    깊이 증가 → 수온 급격히 하강, 밀도 차로 안정한 층
+  </div>
+  <div class="layer-card deep">
+    <div class="layer-title" id="deep-title">심해층 (1000m~)</div>
+    태양 에너지 미도달 → 수온 변화가 매우 작고 2~3°C 부근 유지
+  </div>
+
+  <div class="info-block">
+    <strong>수권 구성</strong><br>
+    해수 97% 이상 / 육수 3% 미만
+  </div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+
+  <h4>🔑 핵심 원리</h4>
+  <p>해수는 깊이에 따라 혼합층, 수온 약층, 심해층으로 구분됩니다. 태양 에너지와 바람은 혼합층의 수온과 두께를 결정하고, 심해층은 항상 차갑게 유지됩니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>적도와 극지방의 수온 프로파일이 서로 다른 까닭은 무엇인가요?</li>
+    <li>혼합층의 두께가 바람의 세기에 따라 달라지는 까닭은 무엇인가요?</li>
+    <li>수온 약층이 안정한 층인 까닭은 무엇인가요? 힌트: 밀도 차이를 떠올려 보세요.</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li><strong>해양 심층수</strong>: 차갑고 안정한 심해층의 특성을 이용합니다.</li>
+    <li><strong>해양 온도차 발전</strong>: 혼합층과 심해층의 온도 차를 에너지로 활용합니다.</li>
+    <li><strong>수중 음파 전파</strong>: 수온 약층은 음파의 굴절과 전달 경로에 영향을 줍니다.</li>
+  </ul>
+
+  <h4>📘 교과서 연계</h4>
+  <p>혼합층의 두께는 바람이 강할수록 두꺼워질 수 있으며, 위도와 계절에 따라 수온 약층의 발달 정도도 달라집니다.</p>
+
+  <div class="textbook-ref">📚 미래엔 통합과학1 III편 p107 — 수권의 층상 구조 (그림 III-5)</div>
+</div>
+
+<div id="hint-chip">드래그와 휠로 카메라를 조절할 수 있고, GUI로 깊이·위도·계절을 바꾸면 단면도와 그래프가 함께 갱신됩니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MAX_DEPTH = 4000;
+const OCEAN_WIDTH = 6;
+const OCEAN_HEIGHT = 8;
+const OCEAN_THICKNESS = 0.55;
+const HALF_HEIGHT = OCEAN_HEIGHT * 0.5;
+
+const PROFILE_COLORS = {
+  equator: '#ff6b57',
+  midlatitude: '#ffd166',
+  polar: '#6ec5ff'
+};
+
+const LATITUDE_PRESETS = {
+  equator: {
+    label: '적도',
+    subtitle: '강한 태양 복사로 표층이 따뜻하고 뚜렷한 수온 약층이 발달합니다.',
+    surfaceTemp: { summer: 25, winter: 23 },
+    deepTemp: { summer: 2.4, winter: 2.3 },
+    mixedDepth: { summer: 200, winter: 150 },
+    thermoclineDepth: { summer: 1000, winter: 900 },
+    decayScale: { summer: 720, winter: 650 },
+    thermoWidth: { summer: 150, winter: 165 },
+    mixedDrift: { summer: 0.5, winter: 0.7 },
+    windNote: {
+      summer: '강한 태양 복사로 표층이 따뜻하고 비교적 두꺼운 혼합층이 형성됩니다.',
+      winter: '계절 변화는 작지만 표층 냉각으로 혼합층이 조금 얕아집니다.'
+    }
+  },
+  midlatitude: {
+    label: '중위도 (30°N)',
+    subtitle: '계절 변화가 커서 여름과 겨울의 혼합층 두께 차이가 뚜렷합니다.',
+    surfaceTemp: { summer: 18, winter: 9 },
+    deepTemp: { summer: 2.2, winter: 2.1 },
+    mixedDepth: { summer: 180, winter: 320 },
+    thermoclineDepth: { summer: 900, winter: 720 },
+    decayScale: { summer: 760, winter: 690 },
+    thermoWidth: { summer: 185, winter: 210 },
+    mixedDrift: { summer: 0.7, winter: 1.0 },
+    windNote: {
+      summer: '표층 가열로 따뜻한 혼합층이 유지되지만 겨울보다 상대적으로 얕습니다.',
+      winter: '강한 바람과 냉각으로 표층 혼합이 깊어져 혼합층이 두꺼워집니다.'
+    }
+  },
+  polar: {
+    label: '극지방 (60°N)',
+    subtitle: '표층이 이미 차갑기 때문에 수온 약층이 거의 없고 전체 수온 차가 작습니다.',
+    surfaceTemp: { summer: 2.6, winter: 1.3 },
+    deepTemp: { summer: 1.5, winter: 1.2 },
+    mixedDepth: { summer: 90, winter: 480 },
+    thermoclineDepth: { summer: 260, winter: 560 },
+    decayScale: { summer: 1400, winter: 1900 },
+    thermoWidth: { summer: 230, winter: 280 },
+    mixedDrift: { summer: 0.2, winter: 0.12 },
+    windNote: {
+      summer: '표층과 심층의 온도 차가 작아서 약한 수온 약층만 나타납니다.',
+      winter: '찬 공기와 강한 바람으로 깊은 혼합이 일어나 수온 약층이 거의 사라집니다.'
+    }
+  }
+};
+
+const LATITUDE_OPTIONS = {
+  '적도': 'equator',
+  '중위도(30°N)': 'midlatitude',
+  '극지방(60°N)': 'polar'
+};
+
+const SEASON_OPTIONS = {
+  '여름': 'summer',
+  '겨울': 'winter'
+};
+
+const CAMERA_OPTIONS = {
+  '직교 카메라': 'orthographic',
+  '원근 카메라': 'perspective'
+};
+
+const state = {
+  depth: 0,
+  latitude: 'equator',
+  season: 'summer',
+  showSunRays: true,
+  showWind: true,
+  cameraMode: 'orthographic'
+};
+
+const dom = {
+  oceanView: document.getElementById('ocean-view'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  subtitle: document.getElementById('scene-subtitle'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  fpDepth: document.getElementById('fp-depth'),
+  fpLayer: document.getElementById('fp-layer'),
+  fpTemp: document.getElementById('fp-temp'),
+  fpLatitude: document.getElementById('fp-latitude'),
+  fpSeason: document.getElementById('fp-season'),
+  fpMixedDepth: document.getElementById('fp-mixed-depth'),
+  fpWindNote: document.getElementById('fp-wind-note'),
+  mixTitle: document.getElementById('mix-title'),
+  thermoTitle: document.getElementById('thermo-title'),
+  deepTitle: document.getElementById('deep-title')
+};
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+dom.oceanView.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x04182e, 0.05);
+
+const orthoCamera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 50);
+orthoCamera.position.set(0, 0, 12);
+orthoCamera.lookAt(0, 0, 0);
+
+const perspectiveCamera = new THREE.PerspectiveCamera(36, 1, 0.1, 60);
+perspectiveCamera.position.set(1.4, 0.5, 10.5);
+perspectiveCamera.lookAt(0, 0, 0);
+
+let activeCamera = orthoCamera;
+let controls = null;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xfff1bf, 1.2);
+sunLight.position.set(-3.5, 4.8, 6);
+scene.add(sunLight);
+
+const fillLight = new THREE.PointLight(0x5ecbff, 0.8, 18, 2);
+fillLight.position.set(1.8, -1.8, 2.8);
+scene.add(fillLight);
+
+const oceanGroup = new THREE.Group();
+scene.add(oceanGroup);
+
+const oceanGeometry = new THREE.BoxGeometry(OCEAN_WIDTH, OCEAN_HEIGHT, OCEAN_THICKNESS, 28, 48, 2);
+const oceanColorArray = new Float32Array(oceanGeometry.attributes.position.count * 3);
+oceanGeometry.setAttribute('color', new THREE.BufferAttribute(oceanColorArray, 3));
+
+const oceanMaterial = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.96,
+  roughness: 0.24,
+  metalness: 0.04
+});
+
+const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
+oceanMesh.position.set(0, 0, 0);
+oceanGroup.add(oceanMesh);
+
+const outline = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(OCEAN_WIDTH, OCEAN_HEIGHT, OCEAN_THICKNESS)),
+  new THREE.LineBasicMaterial({ color: 0xcaf6ff, transparent: true, opacity: 0.4 })
+);
+oceanGroup.add(outline);
+
+const surfaceGeometry = new THREE.PlaneGeometry(6.4, 0.72, 52, 6);
+const surfaceMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0x89d8ff,
+  transparent: true,
+  opacity: 0.48,
+  roughness: 0.1,
+  metalness: 0,
+  transmission: 0.35,
+  side: THREE.DoubleSide
+});
+const surfaceMesh = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
+surfaceMesh.position.set(0, HALF_HEIGHT + 0.06, 0.4);
+oceanGroup.add(surfaceMesh);
+
+const surfaceEdgeGeometry = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-3.2, HALF_HEIGHT + 0.1, 0.43),
+  new THREE.Vector3(3.2, HALF_HEIGHT + 0.1, 0.43)
+]);
+const surfaceEdge = new THREE.Line(
+  surfaceEdgeGeometry,
+  new THREE.LineBasicMaterial({ color: 0xb8f0ff, transparent: true, opacity: 0.7 })
+);
+oceanGroup.add(surfaceEdge);
+
+const surfaceBasePositions = surfaceGeometry.attributes.position.array.slice();
+
+const sunGroup = new THREE.Group();
+sunGroup.position.set(-2.55, 4.9, 0.15);
+scene.add(sunGroup);
+
+const sunCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.42, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffd25e })
+);
+sunGroup.add(sunCore);
+
+const sunGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(0.62, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffef9a, transparent: true, opacity: 0.18 })
+);
+sunGroup.add(sunGlow);
+
+const rayGeometry = new THREE.CylinderGeometry(0.04, 0.28, 1, 16, 1, true);
+const rayMaterial = new THREE.MeshBasicMaterial({
+  color: 0xfff0a8,
+  transparent: true,
+  opacity: 0.12,
+  depthWrite: false
+});
+
+const rayOffsets = [-1.65, -0.8, 0, 0.85, 1.7];
+const sunRays = rayOffsets.map((offset) => {
+  const ray = new THREE.Mesh(rayGeometry, rayMaterial.clone());
+  ray.position.set(offset, 2.8, 0.2);
+  ray.rotation.z = THREE.MathUtils.degToRad(-6 + offset * 3);
+  sunGroup.add(ray);
+  return ray;
+});
+
+const windGroup = new THREE.Group();
+scene.add(windGroup);
+
+const windArrows = [-1.6, 0, 1.6].map((x) => {
+  const arrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(x - 0.55, HALF_HEIGHT + 0.55, 0.5),
+    1.15,
+    0xffffff,
+    0.28,
+    0.14
+  );
+  windGroup.add(arrow);
+  return arrow;
+});
+
+const windLabel = createTextSprite('바람', 220, 64, '#f6fcff', '700 26px Pretendard');
+windLabel.position.set(2.2, HALF_HEIGHT + 0.88, 0.4);
+windLabel.scale.set(1.55, 0.42, 1);
+windGroup.add(windLabel);
+
+const circulationGroup = new THREE.Group();
+oceanGroup.add(circulationGroup);
+
+const circulationLoops = [-1.1, 1.05].map((x, index) => {
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(x - 0.55, 2.8, 0.3),
+    new THREE.Vector3(x - 0.25, 2.1, 0.3),
+    new THREE.Vector3(x + 0.55, 2.1, 0.3),
+    new THREE.Vector3(x + 0.2, 3.0, 0.3),
+    new THREE.Vector3(x - 0.45, 2.8, 0.3)
+  ], true);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 48, 0.04, 10, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xd5f7ff,
+      transparent: true,
+      opacity: 0.78
+    })
+  );
+  circulationGroup.add(tube);
+
+  const tip = new THREE.Mesh(
+    new THREE.ConeGeometry(0.1, 0.24, 12),
+    new THREE.MeshBasicMaterial({ color: 0xd5f7ff })
+  );
+  tip.rotation.z = index === 0 ? -1.05 : 1.1;
+  tip.position.set(x + (index === 0 ? 0.52 : -0.5), 2.92, 0.31);
+  circulationGroup.add(tip);
+
+  return { tube, tip };
+});
+
+const fishGroup = new THREE.Group();
+oceanGroup.add(fishGroup);
+
+const fishBodies = [
+  { x: -1.85, y: 2.8, color: 0xf8fbff, speed: 0.6, phase: 0.2, scale: 0.25 },
+  { x: -0.55, y: 2.15, color: 0xc7f5ff, speed: 0.9, phase: 1.2, scale: 0.22 },
+  { x: 0.7, y: 2.55, color: 0xfefefe, speed: 0.75, phase: 2.1, scale: 0.24 },
+  { x: 1.95, y: 2.1, color: 0xd8fbff, speed: 0.65, phase: 2.7, scale: 0.21 }
+].map((config) => createFish(config));
+
+fishBodies.forEach((fish) => fishGroup.add(fish.group));
+
+const deepCreatures = [
+  { x: -1.4, y: -2.8, phase: 0.2, color: 0x54f0ff },
+  { x: 1.6, y: -3.35, phase: 1.4, color: 0x7bdfff }
+].map((config) => {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 12, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0x0f1a2d,
+      emissive: config.color,
+      emissiveIntensity: 1.6,
+      roughness: 0.8
+    })
+  );
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 12, 12),
+    new THREE.MeshBasicMaterial({
+      color: config.color,
+      transparent: true,
+      opacity: 0.28
+    })
+  );
+  group.add(body, glow);
+  group.position.set(config.x, config.y, 0.34);
+  oceanGroup.add(group);
+  return { group, body, glow, ...config };
+});
+
+const boundaryMaterial = new THREE.LineDashedMaterial({
+  color: 0xffffff,
+  dashSize: 0.22,
+  gapSize: 0.11,
+  transparent: true,
+  opacity: 0.82
+});
+
+const mixedBoundaryLine = new THREE.Line(new THREE.BufferGeometry(), boundaryMaterial.clone());
+const thermoBoundaryLine = new THREE.Line(new THREE.BufferGeometry(), boundaryMaterial.clone());
+oceanGroup.add(mixedBoundaryLine, thermoBoundaryLine);
+
+const mixedBoundaryLabel = createTextSprite('', 350, 72, '#ffffff', '700 23px Pretendard');
+mixedBoundaryLabel.scale.set(2.15, 0.45, 1);
+mixedBoundaryLabel.position.set(2.25, 0, 0.42);
+oceanGroup.add(mixedBoundaryLabel);
+
+const thermoBoundaryLabel = createTextSprite('', 350, 72, '#ffffff', '700 23px Pretendard');
+thermoBoundaryLabel.scale.set(2.15, 0.45, 1);
+thermoBoundaryLabel.position.set(2.25, 0, 0.42);
+oceanGroup.add(thermoBoundaryLabel);
+
+const layerLabels = {
+  mixed: createTextSprite('', 420, 88, '#f5feff', '700 25px Pretendard'),
+  thermocline: createTextSprite('', 420, 88, '#f5feff', '700 25px Pretendard'),
+  deep: createTextSprite('', 420, 88, '#f5feff', '700 25px Pretendard')
+};
+layerLabels.mixed.scale.set(2.5, 0.56, 1);
+layerLabels.thermocline.scale.set(2.6, 0.56, 1);
+layerLabels.deep.scale.set(2.5, 0.56, 1);
+layerLabels.mixed.position.set(-2.2, 0, 0.42);
+layerLabels.thermocline.position.set(-2.1, 0, 0.42);
+layerLabels.deep.position.set(-2.2, 0, 0.42);
+oceanGroup.add(layerLabels.mixed, layerLabels.thermocline, layerLabels.deep);
+
+const currentDepthLine = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineDashedMaterial({
+    color: 0xff6b57,
+    dashSize: 0.18,
+    gapSize: 0.1,
+    transparent: true,
+    opacity: 0.95
+  })
+);
+oceanGroup.add(currentDepthLine);
+
+const currentDepthLabel = createTextSprite('', 360, 72, '#ffd2ca', '700 24px Pretendard');
+currentDepthLabel.scale.set(2.2, 0.45, 1);
+currentDepthLabel.position.set(0.6, 0, 0.43);
+oceanGroup.add(currentDepthLabel);
+
+let guideOpen = false;
+
+dom.guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  dom.guidePanel.style.display = guideOpen ? 'block' : 'none';
+});
+
+const guiState = {
+  depth: state.depth,
+  latitude: '적도',
+  season: '여름',
+  sunRays: state.showSunRays,
+  wind: state.showWind,
+  camera: '직교 카메라',
+  reset: () => resetState()
+};
+
+const gui = new GUI({ title: '해양 조절 패널', width: 292 });
+gui.domElement.style.marginTop = '48px';
+gui.add(guiState, 'depth', 0, MAX_DEPTH, 10).name('깊이 (m)').onChange((value) => {
+  state.depth = value;
+  refreshState(false);
+});
+gui.add(guiState, 'latitude', Object.keys(LATITUDE_OPTIONS)).name('위도 선택').onChange((label) => {
+  state.latitude = LATITUDE_OPTIONS[label];
+  refreshState(true);
+});
+gui.add(guiState, 'season', Object.keys(SEASON_OPTIONS)).name('계절').onChange((label) => {
+  state.season = SEASON_OPTIONS[label];
+  refreshState(true);
+});
+gui.add(guiState, 'sunRays').name('태양 광선 표시').onChange((value) => {
+  state.showSunRays = value;
+  updateSunRays(getProfile(), getDisplayMetrics(getProfile()));
+});
+gui.add(guiState, 'wind').name('바람 효과 표시').onChange((value) => {
+  state.showWind = value;
+  windGroup.visible = value;
+  circulationGroup.visible = value;
+});
+gui.add(guiState, 'camera', Object.keys(CAMERA_OPTIONS)).name('카메라 모드').onChange((label) => {
+  state.cameraMode = CAMERA_OPTIONS[label];
+  setActiveCamera();
+});
+gui.add(guiState, 'reset').name('초기화');
+if (window.innerWidth <= 960) gui.close();
+
+function createTextSprite(text, width, height, color, font) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.userData = { canvas, ctx, texture, color, font };
+  updateTextSprite(sprite, text, { color, font });
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const { canvas, ctx, texture } = sprite.userData;
+  const color = options.color || sprite.userData.color;
+  const font = options.font || sprite.userData.font;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+  ctx.shadowBlur = 8;
+
+  const lines = String(text).split('\n');
+  const lineHeight = canvas.height / (lines.length + 0.2);
+  const startY = canvas.height * 0.5 - ((lines.length - 1) * lineHeight * 0.5);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width * 0.5, startY + index * lineHeight);
+  });
+  texture.needsUpdate = true;
+}
+
+function createFish(config) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: config.color,
+    roughness: 0.55,
+    metalness: 0.02
+  });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 16), material);
+  body.scale.set(1.35, 0.72, 0.4);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.34, 12), material);
+  tail.rotation.z = -Math.PI * 0.5;
+  tail.position.set(-0.32, 0, 0);
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 10), material);
+  fin.rotation.x = Math.PI * 0.5;
+  fin.position.set(0.02, 0.16, 0);
+  group.add(body, tail, fin);
+  group.position.set(config.x, config.y, 0.36);
+  group.scale.setScalar(config.scale);
+  return { group, baseX: config.x, baseY: config.y, speed: config.speed, phase: config.phase };
+}
+
+function getProfile(latitudeKey = state.latitude, seasonKey = state.season) {
+  const preset = LATITUDE_PRESETS[latitudeKey];
+  return {
+    key: latitudeKey,
+    label: preset.label,
+    subtitle: preset.subtitle,
+    surfaceTemp: preset.surfaceTemp[seasonKey],
+    deepTemp: preset.deepTemp[seasonKey],
+    mixedDepth: preset.mixedDepth[seasonKey],
+    thermoclineDepth: preset.thermoclineDepth[seasonKey],
+    decayScale: preset.decayScale[seasonKey],
+    thermoWidth: preset.thermoWidth[seasonKey],
+    mixedDrift: preset.mixedDrift[seasonKey],
+    windNote: preset.windNote[seasonKey],
+    seasonLabel: seasonKey === 'summer' ? '여름' : '겨울'
+  };
+}
+
+function getTemperatureAtDepth(depth, latitudeKey = state.latitude, seasonKey = state.season) {
+  const profile = getProfile(latitudeKey, seasonKey);
+  const clampedDepth = THREE.MathUtils.clamp(depth, 0, MAX_DEPTH);
+
+  if (profile.key === 'polar') {
+    const slowDecay = Math.exp(-clampedDepth / profile.decayScale);
+    return profile.deepTemp + (profile.surfaceTemp - profile.deepTemp) * slowDecay;
+  }
+
+  if (clampedDepth <= profile.mixedDepth) {
+    const ratio = clampedDepth / Math.max(profile.mixedDepth, 1);
+    return profile.surfaceTemp - profile.mixedDrift * ratio;
+  }
+
+  const decay = Math.exp(-(clampedDepth - profile.mixedDepth) / profile.decayScale);
+  const center = (profile.mixedDepth + profile.thermoclineDepth) * 0.5;
+  const logistic = 1 / (1 + Math.exp((clampedDepth - center) / profile.thermoWidth));
+  const blend = 0.44 * decay + 0.56 * logistic;
+  const temp = profile.deepTemp + (profile.surfaceTemp - profile.deepTemp) * blend;
+  return Math.max(profile.deepTemp, temp);
+}
+
+function getLayerForDepth(depth, profile = getProfile()) {
+  if (depth <= profile.mixedDepth) return '혼합층';
+  if (depth <= profile.thermoclineDepth) return '수온 약층';
+  return '심해층';
+}
+
+function getDisplayMetrics(profile) {
+  const mixHeight = THREE.MathUtils.clamp(0.95 + profile.mixedDepth / 210, 1.1, 2.7);
+  const thermoHeight = THREE.MathUtils.clamp(1.3 + (profile.thermoclineDepth - profile.mixedDepth) / 600, 1.1, 3.2);
+  const deepHeight = OCEAN_HEIGHT - mixHeight - thermoHeight;
+  return {
+    top: HALF_HEIGHT,
+    bottom: -HALF_HEIGHT,
+    mixHeight,
+    thermoHeight,
+    deepHeight,
+    mixBoundary: HALF_HEIGHT - mixHeight,
+    thermoBoundary: HALF_HEIGHT - mixHeight - thermoHeight
+  };
+}
+
+function depthToY(depth, profile = getProfile(), metrics = getDisplayMetrics(profile)) {
+  const clamped = THREE.MathUtils.clamp(depth, 0, MAX_DEPTH);
+  if (clamped <= profile.mixedDepth) {
+    const ratio = clamped / Math.max(profile.mixedDepth, 1);
+    return THREE.MathUtils.lerp(metrics.top, metrics.mixBoundary, ratio);
+  }
+  if (clamped <= profile.thermoclineDepth) {
+    const ratio = (clamped - profile.mixedDepth) / Math.max(profile.thermoclineDepth - profile.mixedDepth, 1);
+    return THREE.MathUtils.lerp(metrics.mixBoundary, metrics.thermoBoundary, ratio);
+  }
+  const ratio = (clamped - profile.thermoclineDepth) / Math.max(MAX_DEPTH - profile.thermoclineDepth, 1);
+  return THREE.MathUtils.lerp(metrics.thermoBoundary, metrics.bottom, ratio);
+}
+
+function yToDepth(y, profile = getProfile(), metrics = getDisplayMetrics(profile)) {
+  if (y >= metrics.mixBoundary) {
+    const ratio = (metrics.top - y) / Math.max(metrics.top - metrics.mixBoundary, 0.0001);
+    return THREE.MathUtils.lerp(0, profile.mixedDepth, ratio);
+  }
+  if (y >= metrics.thermoBoundary) {
+    const ratio = (metrics.mixBoundary - y) / Math.max(metrics.mixBoundary - metrics.thermoBoundary, 0.0001);
+    return THREE.MathUtils.lerp(profile.mixedDepth, profile.thermoclineDepth, ratio);
+  }
+  const ratio = (metrics.thermoBoundary - y) / Math.max(metrics.thermoBoundary - metrics.bottom, 0.0001);
+  return THREE.MathUtils.lerp(profile.thermoclineDepth, MAX_DEPTH, ratio);
+}
+
+function lerpHex(colorA, colorB, t) {
+  return new THREE.Color(colorA).lerp(new THREE.Color(colorB), THREE.MathUtils.clamp(t, 0, 1));
+}
+
+function getWaterColor(depth, profile) {
+  const temperature = getTemperatureAtDepth(depth, profile.key, state.season);
+  const warmth = THREE.MathUtils.clamp((temperature - 1) / 24, 0, 1);
+  let color;
+
+  if (depth <= profile.mixedDepth) {
+    color = lerpHex(0x227fbe, 0x59c8ff, 1 - depth / Math.max(profile.mixedDepth, 1));
+  } else if (depth <= profile.thermoclineDepth) {
+    const ratio = (depth - profile.mixedDepth) / Math.max(profile.thermoclineDepth - profile.mixedDepth, 1);
+    color = lerpHex(0x156db3, 0x003f8a, ratio);
+  } else {
+    const ratio = (depth - profile.thermoclineDepth) / Math.max(MAX_DEPTH - profile.thermoclineDepth, 1);
+    color = lerpHex(0x00254d, 0x000d1e, ratio);
+  }
+
+  color.lerp(new THREE.Color(0x8fe9ff), 0.18 * warmth);
+  color.multiplyScalar(0.82 + warmth * 0.18);
+  return color;
+}
+
+function updateOceanColors(profile, metrics) {
+  const positions = oceanGeometry.attributes.position;
+  const colors = oceanGeometry.attributes.color;
+  const vector = new THREE.Vector3();
+  const color = new THREE.Color();
+
+  for (let i = 0; i < positions.count; i++) {
+    vector.fromBufferAttribute(positions, i);
+    const depth = yToDepth(vector.y, profile, metrics);
+    color.copy(getWaterColor(depth, profile));
+
+    if (vector.z < 0) {
+      color.multiplyScalar(0.72);
+    } else if (Math.abs(vector.x) > OCEAN_WIDTH * 0.47) {
+      color.multiplyScalar(0.86);
+    }
+
+    colors.setXYZ(i, color.r, color.g, color.b);
+  }
+
+  colors.needsUpdate = true;
+}
+
+function updateBoundaryLine(line, y) {
+  const points = [
+    new THREE.Vector3(-OCEAN_WIDTH * 0.5, y, OCEAN_THICKNESS * 0.5 + 0.015),
+    new THREE.Vector3(OCEAN_WIDTH * 0.5, y, OCEAN_THICKNESS * 0.5 + 0.015)
+  ];
+  line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  line.computeLineDistances();
+}
+
+function updateCurrentDepthLine(y) {
+  const points = [
+    new THREE.Vector3(-OCEAN_WIDTH * 0.54, y, OCEAN_THICKNESS * 0.5 + 0.02),
+    new THREE.Vector3(OCEAN_WIDTH * 0.54, y, OCEAN_THICKNESS * 0.5 + 0.02)
+  ];
+  currentDepthLine.geometry.dispose();
+  currentDepthLine.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  currentDepthLine.computeLineDistances();
+}
+
+function updateLabels(profile, metrics) {
+  const mixedCenter = (metrics.top + metrics.mixBoundary) * 0.5;
+  const thermoCenter = (metrics.mixBoundary + metrics.thermoBoundary) * 0.5;
+  const deepCenter = (metrics.thermoBoundary + metrics.bottom) * 0.5;
+
+  layerLabels.mixed.position.y = mixedCenter;
+  layerLabels.thermocline.position.y = thermoCenter;
+  layerLabels.deep.position.y = deepCenter;
+
+  updateTextSprite(layerLabels.mixed, `혼합층\n0~${Math.round(profile.mixedDepth)}m`);
+  updateTextSprite(layerLabels.thermocline, `수온 약층\n${Math.round(profile.mixedDepth)}~${Math.round(profile.thermoclineDepth)}m`);
+  updateTextSprite(layerLabels.deep, `심해층\n${Math.round(profile.thermoclineDepth)}m~`);
+
+  mixedBoundaryLabel.position.y = metrics.mixBoundary + 0.26;
+  thermoBoundaryLabel.position.y = metrics.thermoBoundary + 0.26;
+  updateTextSprite(mixedBoundaryLabel, `${Math.round(profile.mixedDepth)}m 경계`);
+  updateTextSprite(thermoBoundaryLabel, `${Math.round(profile.thermoclineDepth)}m 경계`);
+}
+
+function updateSunRays(profile, metrics) {
+  const endY = depthToY(profile.mixedDepth, profile, metrics);
+  const startLocalY = -0.65;
+  sunRays.forEach((ray, index) => {
+    const endLocalY = endY - sunGroup.position.y + 0.12 + index * 0.02;
+    const length = Math.max(0.72, startLocalY - endLocalY);
+    ray.scale.set(1, length, 1);
+    ray.position.set(rayOffsets[index], (startLocalY + endLocalY) * 0.5, 0.2);
+    ray.material.opacity = state.showSunRays ? 0.12 : 0;
+  });
+}
+
+function updateWindAndMixing(profile) {
+  const visible = state.showWind;
+  windGroup.visible = visible;
+  circulationGroup.visible = visible;
+
+  const y = depthToY(Math.min(profile.mixedDepth * 0.35, profile.mixedDepth), profile);
+  circulationGroup.position.y = y - 0.05;
+  circulationGroup.scale.y = THREE.MathUtils.clamp(profile.mixedDepth / 180, 0.65, 1.45);
+  circulationGroup.scale.x = THREE.MathUtils.clamp(profile.mixedDepth / 220, 0.78, 1.1);
+}
+
+function updateCreatures(profile) {
+  fishGroup.visible = profile.key !== 'polar';
+  deepCreatures.forEach((creature) => {
+    creature.group.position.y = depthToY(profile.thermoclineDepth + 700 + creature.phase * 180, profile);
+  });
+}
+
+function updateInfoPanel(profile, currentTemp, currentLayer) {
+  dom.subtitle.textContent = profile.subtitle;
+  dom.fpDepth.textContent = `${Math.round(state.depth)} m`;
+  dom.fpLayer.textContent = currentLayer;
+  dom.fpTemp.textContent = `약 ${currentTemp.toFixed(1)}°C`;
+  dom.fpLatitude.textContent = profile.label;
+  dom.fpSeason.textContent = profile.seasonLabel;
+  dom.fpMixedDepth.textContent = `0~${Math.round(profile.mixedDepth)} m`;
+  dom.fpWindNote.textContent = profile.windNote;
+  dom.mixTitle.textContent = `혼합층 (0~${Math.round(profile.mixedDepth)}m)`;
+  dom.thermoTitle.textContent = `수온 약층 (${Math.round(profile.mixedDepth)}~${Math.round(profile.thermoclineDepth)}m)`;
+  dom.deepTitle.textContent = `심해층 (${Math.round(profile.thermoclineDepth)}m~)`;
+}
+
+function drawGraph() {
+  const width = dom.graphCanvas.clientWidth;
+  const height = dom.graphCanvas.clientHeight;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+
+  dom.graphCanvas.width = Math.max(1, Math.round(width * dpr));
+  dom.graphCanvas.height = Math.max(1, Math.round(height * dpr));
+  graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphCtx.clearRect(0, 0, width, height);
+
+  const profile = getProfile();
+  const metrics = getDisplayMetrics(profile);
+  const margin = { top: 84, right: 28, bottom: 46, left: 68 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+
+  const mapX = (temp) => margin.left + (THREE.MathUtils.clamp(temp, 0, 25) / 25) * plotWidth;
+  const mapY = (depth) => margin.top + (THREE.MathUtils.clamp(depth, 0, MAX_DEPTH) / MAX_DEPTH) * plotHeight;
+
+  const yMixed = mapY(profile.mixedDepth);
+  const yThermo = mapY(profile.thermoclineDepth);
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.02)';
+  graphCtx.fillRect(margin.left, margin.top, plotWidth, plotHeight);
+
+  graphCtx.fillStyle = 'rgba(75, 190, 237, 0.14)';
+  graphCtx.fillRect(margin.left, margin.top, plotWidth, yMixed - margin.top);
+  graphCtx.fillStyle = 'rgba(17, 102, 170, 0.16)';
+  graphCtx.fillRect(margin.left, yMixed, plotWidth, yThermo - yMixed);
+  graphCtx.fillStyle = 'rgba(0, 20, 50, 0.28)';
+  graphCtx.fillRect(margin.left, yThermo, plotWidth, margin.top + plotHeight - yThermo);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.lineWidth = 1;
+  [0, 5, 10, 15, 20, 25].forEach((temp) => {
+    const x = mapX(temp);
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, margin.top);
+    graphCtx.lineTo(x, margin.top + plotHeight);
+    graphCtx.stroke();
+  });
+  [0, 200, 500, 1000, 2000, 3000, 4000].forEach((depth) => {
+    const y = mapY(depth);
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, y);
+    graphCtx.lineTo(margin.left + plotWidth, y);
+    graphCtx.stroke();
+  });
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+  graphCtx.lineWidth = 1.5;
+  graphCtx.beginPath();
+  graphCtx.moveTo(margin.left, margin.top);
+  graphCtx.lineTo(margin.left, margin.top + plotHeight);
+  graphCtx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+  graphCtx.font = '12px Pretendard';
+  graphCtx.textAlign = 'center';
+  [0, 5, 10, 15, 20, 25].forEach((temp) => {
+    graphCtx.fillText(`${temp}`, mapX(temp), margin.top + plotHeight + 22);
+  });
+  graphCtx.textAlign = 'right';
+  [0, 200, 500, 1000, 2000, 3000, 4000].forEach((depth) => {
+    graphCtx.fillText(`${depth}m`, margin.left - 8, mapY(depth) + 4);
+  });
+
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+  graphCtx.font = '600 12px Pretendard';
+  graphCtx.textAlign = 'center';
+  graphCtx.fillText('수온 (°C)', margin.left + plotWidth * 0.5, height - 14);
+  graphCtx.translate(18, margin.top + plotHeight * 0.5);
+  graphCtx.rotate(-Math.PI * 0.5);
+  graphCtx.fillText('깊이 (m)', 0, 0);
+  graphCtx.restore();
+
+  ['equator', 'midlatitude', 'polar'].forEach((key) => {
+    graphCtx.beginPath();
+    for (let depth = 0; depth <= MAX_DEPTH; depth += 20) {
+      const x = mapX(getTemperatureAtDepth(depth, key, state.season));
+      const y = mapY(depth);
+      if (depth === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.strokeStyle = PROFILE_COLORS[key];
+    graphCtx.lineWidth = key === state.latitude ? 3.4 : 2.1;
+    graphCtx.globalAlpha = key === state.latitude ? 1 : 0.38;
+    graphCtx.stroke();
+    graphCtx.globalAlpha = 1;
+  });
+
+  const currentTemp = getTemperatureAtDepth(state.depth, state.latitude, state.season);
+  const currentY = mapY(state.depth);
+  const currentX = mapX(currentTemp);
+
+  graphCtx.strokeStyle = '#ff7a59';
+  graphCtx.setLineDash([8, 6]);
+  graphCtx.lineWidth = 1.8;
+  graphCtx.beginPath();
+  graphCtx.moveTo(margin.left, currentY);
+  graphCtx.lineTo(margin.left + plotWidth, currentY);
+  graphCtx.stroke();
+  graphCtx.setLineDash([]);
+
+  graphCtx.fillStyle = '#ff7a59';
+  graphCtx.beginPath();
+  graphCtx.arc(currentX, currentY, 5, 0, Math.PI * 2);
+  graphCtx.fill();
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.86)';
+  graphCtx.font = '600 11px Pretendard';
+  graphCtx.textAlign = 'left';
+  graphCtx.fillText(`${currentTemp.toFixed(1)}°C`, currentX + 10, currentY - 10);
+
+  graphCtx.fillStyle = 'rgba(255,255,255,0.68)';
+  graphCtx.font = '11px Pretendard';
+  graphCtx.fillText(`${profile.label} · ${profile.seasonLabel}`, margin.left, 38);
+  graphCtx.fillText(`혼합층 ${Math.round(profile.mixedDepth)}m`, margin.left, 56);
+  graphCtx.fillText(`수온 약층 하한 ${Math.round(profile.thermoclineDepth)}m`, margin.left + 126, 56);
+}
+
+function refreshState(redrawGraph = true) {
+  const profile = getProfile();
+  const metrics = getDisplayMetrics(profile);
+  const currentTemp = getTemperatureAtDepth(state.depth, state.latitude, state.season);
+  const currentLayer = getLayerForDepth(state.depth, profile);
+  const depthY = depthToY(state.depth, profile, metrics);
+
+  updateOceanColors(profile, metrics);
+  updateBoundaryLine(mixedBoundaryLine, metrics.mixBoundary);
+  updateBoundaryLine(thermoBoundaryLine, metrics.thermoBoundary);
+  updateLabels(profile, metrics);
+  updateCurrentDepthLine(depthY);
+  updateSunRays(profile, metrics);
+  updateWindAndMixing(profile);
+  updateCreatures(profile);
+  updateInfoPanel(profile, currentTemp, currentLayer);
+
+  currentDepthLabel.position.y = depthY + 0.22;
+  updateTextSprite(currentDepthLabel, `${Math.round(state.depth)}m · ${currentTemp.toFixed(1)}°C`);
+
+  if (redrawGraph) drawGraph();
+  else drawGraph();
+}
+
+function updateSurfaceWave(time) {
+  const positions = surfaceGeometry.attributes.position;
+  const array = positions.array;
+  const profile = getProfile();
+  const amplitude = profile.key === 'polar' ? 0.018 : 0.03;
+
+  for (let i = 0; i < positions.count; i++) {
+    const ix = i * 3;
+    const x = surfaceBasePositions[ix];
+    const y = surfaceBasePositions[ix + 1];
+    array[ix + 2] = surfaceBasePositions[ix + 2];
+    array[ix + 1] = y + Math.sin(x * 2.1 + time * 1.8) * amplitude + Math.cos(x * 3.2 + time * 1.2) * amplitude * 0.4;
+  }
+
+  positions.needsUpdate = true;
+}
+
+function animateScene(time) {
+  const elapsed = time * 0.001;
+  updateSurfaceWave(elapsed);
+
+  sunGlow.scale.setScalar(1 + Math.sin(elapsed * 1.4) * 0.06);
+  sunRays.forEach((ray, index) => {
+    ray.material.opacity = state.showSunRays ? 0.09 + Math.sin(elapsed * 1.3 + index) * 0.025 : 0;
+  });
+
+  windArrows.forEach((arrow, index) => {
+    arrow.position.y = HALF_HEIGHT + 0.55 + Math.sin(elapsed * 1.8 + index * 0.9) * 0.06;
+  });
+  windLabel.position.y = HALF_HEIGHT + 0.88 + Math.sin(elapsed * 1.6) * 0.04;
+
+  circulationLoops.forEach((loop, index) => {
+    loop.tube.rotation.z = Math.sin(elapsed * 1.1 + index) * 0.05;
+    loop.tip.rotation.z += 0.008 * (index === 0 ? 1 : -1);
+  });
+
+  fishBodies.forEach((fish, index) => {
+    fish.group.position.x = fish.baseX + Math.sin(elapsed * fish.speed + fish.phase) * 0.22;
+    fish.group.position.y = fish.baseY + Math.cos(elapsed * fish.speed * 1.35 + fish.phase) * 0.08;
+    fish.group.rotation.y = Math.sin(elapsed * fish.speed + fish.phase) > 0 ? 0 : Math.PI;
+  });
+
+  deepCreatures.forEach((creature) => {
+    const pulse = 1.2 + Math.sin(elapsed * 1.8 + creature.phase * 3) * 0.55;
+    creature.body.material.emissiveIntensity = pulse;
+    creature.glow.material.opacity = 0.16 + pulse * 0.06;
+    creature.group.position.x = creature.x + Math.sin(elapsed * 0.65 + creature.phase) * 0.18;
+  });
+
+  if (controls) controls.update();
+  renderer.render(scene, activeCamera);
+  requestAnimationFrame(animateScene);
+}
+
+function updateRendererSize() {
+  const width = dom.oceanView.clientWidth;
+  const height = dom.oceanView.clientHeight;
+  renderer.setSize(width, height, false);
+
+  perspectiveCamera.aspect = width / Math.max(height, 1);
+  perspectiveCamera.updateProjectionMatrix();
+
+  const aspect = width / Math.max(height, 1);
+  const frustumHeight = 11;
+  orthoCamera.left = -frustumHeight * aspect * 0.5;
+  orthoCamera.right = frustumHeight * aspect * 0.5;
+  orthoCamera.top = frustumHeight * 0.5;
+  orthoCamera.bottom = -frustumHeight * 0.5;
+  orthoCamera.updateProjectionMatrix();
+
+  drawGraph();
+}
+
+function setActiveCamera() {
+  const currentTarget = controls ? controls.target.clone() : new THREE.Vector3(0, 0, 0);
+  if (controls) controls.dispose();
+
+  activeCamera = state.cameraMode === 'perspective' ? perspectiveCamera : orthoCamera;
+  controls = new OrbitControls(activeCamera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.copy(currentTarget);
+  controls.enablePan = false;
+
+  if (state.cameraMode === 'perspective') {
+    perspectiveCamera.position.set(1.4, 0.5, 10.5);
+    controls.enableRotate = true;
+    controls.minDistance = 7;
+    controls.maxDistance = 18;
+    controls.minPolarAngle = Math.PI * 0.38;
+    controls.maxPolarAngle = Math.PI * 0.62;
+  } else {
+    orthoCamera.position.set(0, 0, 12);
+    orthoCamera.zoom = 1;
+    orthoCamera.updateProjectionMatrix();
+    controls.enableRotate = false;
+    controls.minZoom = 0.8;
+    controls.maxZoom = 2.2;
+  }
+
+  controls.update();
+}
+
+function resetState() {
+  state.depth = 0;
+  state.latitude = 'equator';
+  state.season = 'summer';
+  state.showSunRays = true;
+  state.showWind = true;
+  state.cameraMode = 'orthographic';
+
+  guiState.depth = 0;
+  guiState.latitude = '적도';
+  guiState.season = '여름';
+  guiState.sunRays = true;
+  guiState.wind = true;
+  guiState.camera = '직교 카메라';
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+
+  setActiveCamera();
+  refreshState(true);
+}
+
+window.addEventListener('resize', () => {
+  updateRendererSize();
+  refreshState(true);
+});
+
+setActiveCamera();
+updateRendererSize();
+refreshState(true);
+requestAnimationFrame(animateScene);
+</script>
+</body>
+</html>

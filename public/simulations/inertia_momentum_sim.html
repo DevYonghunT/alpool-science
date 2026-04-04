@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관성과 운동량 - 3D 시뮬레이션</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --panel-bg: rgba(10, 18, 34, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.7);
+    --accent-blue: #66b6ff;
+    --accent-red: #ff7f7f;
+    --accent-yellow: #ffd166;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 214, 140, 0.16), transparent 24%),
+      radial-gradient(circle at 82% 10%, rgba(116, 182, 255, 0.18), transparent 20%),
+      linear-gradient(180deg, #edf4ff 0%, #dfe9f8 48%, #c8d5e8 100%);
+  }
+
+  canvas { display: block; }
+
+  #scene-title {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 24;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(16, 28, 42, 0.55);
+  }
+
+  #scene-title h1 {
+    margin-top: 4px;
+    font-size: 26px;
+    font-weight: 800;
+    color: rgba(14, 24, 38, 0.96);
+    text-shadow: 0 3px 18px rgba(255, 255, 255, 0.4);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 12px;
+    color: rgba(18, 30, 48, 0.68);
+  }
+
+  #status-banner {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 320px;
+    max-width: min(90vw, 760px);
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: rgba(9, 18, 35, 0.82);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 36px rgba(10, 18, 34, 0.22);
+    text-align: center;
+    z-index: 25;
+  }
+
+  #status-banner .title {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  #status-banner .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #status-banner.blue { box-shadow: 0 18px 40px rgba(69, 142, 219, 0.2); }
+  #status-banner.red { box-shadow: 0 18px 40px rgba(215, 82, 82, 0.22); }
+  #status-banner.yellow { box-shadow: 0 18px 40px rgba(219, 175, 69, 0.24); }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    padding: 9px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(7, 22, 42, 0.84);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: 78vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: rgba(6, 18, 36, 0.9);
+    color: #f5fbff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 44px rgba(6, 18, 36, 0.24);
+    z-index: 38;
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9fd0ff;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 42px rgba(7, 18, 32, 0.2);
+    z-index: 22;
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: #fff5d8;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin-bottom: 10px;
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 104px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #chart-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(560px, calc(100vw - 32px));
+    padding: 14px 16px 12px;
+    border-radius: 20px;
+    background: rgba(8, 16, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 42px rgba(7, 18, 32, 0.2);
+    z-index: 22;
+    display: none;
+  }
+
+  #chart-canvas {
+    width: 100%;
+    height: 228px;
+    border-radius: 16px;
+  }
+
+  #chart-tooltip {
+    position: fixed;
+    display: none;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(7, 18, 32, 0.92);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 60;
+    white-space: nowrap;
+  }
+
+  #focus-chip {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(8, 18, 34, 0.82);
+    color: #f6fbff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    z-index: 24;
+    font-size: 12px;
+  }
+
+  @media (max-width: 900px) {
+    #status-banner {
+      top: 78px;
+      min-width: 0;
+      width: calc(100vw - 32px);
+    }
+
+    #chart-panel {
+      right: 12px;
+      left: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      width: min(340px, calc(100vw - 24px));
+      left: 12px;
+      bottom: 256px;
+    }
+  }
+
+  @media (max-width: 680px) {
+    #scene-title h1 { font-size: 22px; }
+    #status-banner { top: 72px; }
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 248px;
+    }
+    #chart-canvas { height: 210px; }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>외부 힘이 없으면 물체는 현재 운동 상태를 유지합니다. 정지한 물체는 계속 정지하려 하고, 운동하는 물체는 계속 등속 운동하려 합니다. 이것이 <strong>관성</strong>입니다.</p>
+  <p>운동량은 <strong>질량 × 속도</strong>이며, 질량이 크고 속도가 빠를수록 운동량도 커집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>고속 열차에 안전띠가 없는 까닭은 무엇인가요?</li>
+    <li>정지한 고속 열차의 운동량은 얼마인가요?</li>
+    <li>야구공과 볼링공이 같은 속도로 날아오면 어느 쪽을 멈추기 더 어려운가요?</li>
+    <li>피겨 스케이팅 선수가 얼음을 계속 밀지 않아도 미끄러지는 까닭은 무엇인가요?</li>
+    <li>버스에서 넘어지지 않으려면 무엇을 해야 할까요?</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>안전벨트는 관성 때문에 앞으로 쏠리는 몸을 붙잡아 줍니다.</li>
+    <li>에어백은 충격을 완화해 몸에 작용하는 힘을 줄입니다.</li>
+    <li>물 미끄럼틀에서는 질량이 커질수록 운동량이 커져 더 멈추기 어렵습니다.</li>
+    <li>우주 유영에서는 외부 힘이 거의 없어서 등속 운동이 오래 유지됩니다.</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>미래엔 통합과학1 III편 p132~134</p>
+  <p>그림 III-22 관성, 그림 III-23 운동량, 그림 III-24 고속 열차와 물 미끄럼틀 사례를 시각화했습니다.</p>
+</div>
+
+<div id="scene-title">
+  <div class="eyebrow" id="scene-eyebrow">Integrated Science I</div>
+  <h1 id="scene-heading">관성과 운동량</h1>
+  <p id="scene-subtitle">관성 체험과 운동량 비교를 하나의 시뮬레이션에서 탐구합니다.</p>
+</div>
+
+<div id="status-banner" class="blue">
+  <div class="title" id="status-title">정지 중...</div>
+  <div class="body" id="status-body">버스가 정지해 있을 때 승객도 정지 상태를 유지합니다.</div>
+</div>
+
+<div id="focus-chip">현재 탭: 관성 체험</div>
+<div id="formula-panel"></div>
+
+<div id="chart-panel">
+  <canvas id="chart-canvas"></canvas>
+</div>
+<div id="chart-tooltip"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const TAB_INERTIA = '관성 체험';
+const TAB_MOMENTUM = '운동량 비교';
+const OBJECT_OPTIONS = ['야구공', '볼링공', '자전거+사람', '고속열차', '정지한 열차', '사용자 정의'];
+const MAX_REFERENCE_MOMENTUM = 24000000;
+
+const titleEl = document.getElementById('scene-heading');
+const subtitleEl = document.getElementById('scene-subtitle');
+const eyebrowEl = document.getElementById('scene-eyebrow');
+const focusChipEl = document.getElementById('focus-chip');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const statusBannerEl = document.getElementById('status-banner');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const formulaPanelEl = document.getElementById('formula-panel');
+const chartPanelEl = document.getElementById('chart-panel');
+const chartCanvasEl = document.getElementById('chart-canvas');
+const chartTooltipEl = document.getElementById('chart-tooltip');
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 240);
+camera.position.set(8.5, 5.8, 11.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxDistance = 28;
+controls.minDistance = 5.5;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.8, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.65);
+dirLight.position.set(-12, 18, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -30;
+dirLight.shadow.camera.right = 30;
+dirLight.shadow.camera.top = 30;
+dirLight.shadow.camera.bottom = -30;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 80;
+dirLight.shadow.bias = -0.00012;
+scene.add(dirLight);
+
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0xaab9d4, 0.22);
+scene.add(hemiLight);
+
+const clock = new THREE.Clock();
+
+const params = {
+  activeTab: TAB_INERTIA,
+  tiltAngle: 15,
+  busSpeed: 5,
+  selectedObject: '야구공',
+  customMass: 1,
+  customSpeed: 5,
+  compareAll: true,
+  slowMotion: 1,
+  showInertiaArrows: true
+};
+
+const customMassUi = {
+  massExponent: 0,
+  massDisplay: '1 kg'
+};
+
+const runtime = {
+  activeRoot: null,
+  activeTab: TAB_INERTIA,
+  sceneToken: 0,
+  inertia: null,
+  momentum: null,
+  chartBars: [],
+  chartHoverIndex: -1,
+  chartDpr: Math.min(window.devicePixelRatio, 2)
+};
+
+const momentumPresets = [
+  { name: '야구공', mass: 0.15, speed: 40, color: 0xff4444, kind: 'baseball' },
+  { name: '볼링공', mass: 6, speed: 5, color: 0x2244aa, kind: 'bowling' },
+  { name: '자전거+사람', mass: 80, speed: 5, color: 0x44aa44, kind: 'bicycle' },
+  { name: '고속열차', mass: 300000, speed: 80, color: 0xff8844, kind: 'train' },
+  { name: '정지한 열차', mass: 300000, speed: 0, color: 0x999999, kind: 'train' }
+];
+
+function formatNumber(value, digits = 2) {
+  if (Math.abs(value) >= 1000) {
+    return value.toLocaleString('ko-KR', { maximumFractionDigits: digits });
+  }
+  return value.toLocaleString('ko-KR', {
+    minimumFractionDigits: value < 1 && value !== 0 ? Math.min(digits, 2) : 0,
+    maximumFractionDigits: digits
+  });
+}
+
+function formatMomentum(value) {
+  if (value === 0) return '0';
+  if (value >= 1000) return value.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+  return value.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function createMaterial(color, options = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: options.roughness ?? 0.55,
+    metalness: options.metalness ?? 0.08,
+    transparent: options.transparent ?? false,
+    opacity: options.opacity ?? 1
+  });
+}
+
+function createCanvasLabel(lines, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 196;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(options.scaleX ?? 2.8, options.scaleY ?? 1.1, 1);
+
+  function roundRect(x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+  }
+
+  function draw(nextLines, nextOptions = {}) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const accent = nextOptions.accent ?? options.accent ?? '#7dd3fc';
+    const background = nextOptions.background ?? options.background ?? 'rgba(8, 18, 32, 0.84)';
+    const border = nextOptions.border ?? options.border ?? 'rgba(255,255,255,0.1)';
+    roundRect(18, 18, canvas.width - 36, canvas.height - 36, 34);
+    context.fillStyle = background;
+    context.fill();
+    context.strokeStyle = border;
+    context.lineWidth = 2;
+    context.stroke();
+    context.fillStyle = accent;
+    context.font = '700 24px Pretendard, sans-serif';
+    context.fillText(nextLines[0] ?? '', 40, 72);
+    context.fillStyle = 'rgba(255,255,255,0.88)';
+    context.font = '600 18px Pretendard, sans-serif';
+    nextLines.slice(1).forEach((line, index) => {
+      context.fillText(line, 40, 112 + index * 30);
+    });
+    texture.needsUpdate = true;
+  }
+
+  sprite.userData.redraw = draw;
+  draw(lines, options);
+  return sprite;
+}
+
+function setStatus(title, body, tone = 'blue') {
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+  statusBannerEl.className = tone;
+}
+
+function setSceneMeta(tabName) {
+  if (tabName === TAB_INERTIA) {
+    eyebrowEl.textContent = 'Integrated Science I · Figure III-22';
+    titleEl.textContent = '관성과 운동량';
+    subtitleEl.textContent = '버스의 급출발과 급정지에서 나타나는 관성을 살펴보세요.';
+    focusChipEl.textContent = '현재 탭: 관성 체험';
+  } else {
+    eyebrowEl.textContent = 'Integrated Science I · Figure III-23 / III-24';
+    titleEl.textContent = '운동량 비교';
+    subtitleEl.textContent = '질량과 속도에 따라 달라지는 운동량을 비교하고 계산해 보세요.';
+    focusChipEl.textContent = `현재 탭: 운동량 비교 · 선택: ${params.selectedObject}`;
+  }
+}
+
+function updateFormulaPanel() {
+  if (runtime.activeTab === TAB_INERTIA) {
+    const inertia = runtime.inertia;
+    const leanDegrees = THREE.MathUtils.radToDeg(inertia.currentLean);
+    formulaPanelEl.innerHTML = `
+      <div class="panel-title">🚌 관성과 운동량</div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">관성</span><span class="value">물체가 운동 상태를 유지하려는 성질</span></div>
+      <div class="line"><span class="label">버스 속도</span><span class="value mono">${formatNumber(inertia.velocity, 1)} m/s</span></div>
+      <div class="line"><span class="label">승객 기울어짐</span><span class="value mono">${formatNumber(leanDegrees, 1)}°</span></div>
+      <div class="line"><span class="label">상태</span><span class="value">${inertia.phaseLabel}</span></div>
+      <div class="highlight">
+        <div class="mono">정지 물체 → 외부 힘 없으면 → 계속 정지</div>
+        <div class="mono">운동 물체 → 외부 힘 없으면 → 계속 등속 운동</div>
+        <div style="margin-top:8px;">손잡이와 상체는 ${inertia.currentLean < -0.03 ? '뒤로' : inertia.currentLean > 0.03 ? '앞으로' : '거의 수직으로'} 기울어져 있습니다.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const current = getSelectedMomentumData();
+  const momentum = current.mass * current.speed;
+  formulaPanelEl.innerHTML = `
+    <div class="panel-title">📦 관성과 운동량</div>
+    <div class="divider"></div>
+    <div class="line"><span class="label">운동량 식</span><span class="value mono">p = m × v</span></div>
+    <div class="line"><span class="label">현재 물체</span><span class="value">${current.name}</span></div>
+    <div class="line"><span class="label">질량</span><span class="value mono">m = ${formatNumber(current.mass, 2)} kg</span></div>
+    <div class="line"><span class="label">속도</span><span class="value mono">v = ${formatNumber(current.speed, 2)} m/s</span></div>
+    <div class="line"><span class="label">운동량</span><span class="value mono">p = ${formatMomentum(momentum)} kg·m/s</span></div>
+    <div class="highlight">
+      <div>운동량 방향은 속도 방향과 같습니다.</div>
+      <div class="mono" style="margin-top:6px;">v = 0 이면 p = 0</div>
+      <div style="margin-top:8px;">${momentum === 0 ? '질량이 아무리 커도 속도가 0이면 운동량은 0입니다.' : '질량이 크거나 속도가 빠를수록 물체를 멈추기 어려워집니다.'}</div>
+    </div>
+  `;
+}
+
+function momentumTailScale(momentum) {
+  if (momentum <= 0) return 0;
+  return 0.4 + 2.8 * (Math.log10(momentum + 1) / Math.log10(MAX_REFERENCE_MOMENTUM + 1));
+}
+
+function getSelectedMomentumData() {
+  if (params.selectedObject === '사용자 정의') {
+    return {
+      name: '사용자 정의',
+      mass: params.customMass,
+      speed: params.customSpeed,
+      color: 0xffc857,
+      kind: 'custom'
+    };
+  }
+  return momentumPresets.find((item) => item.name === params.selectedObject) ?? momentumPresets[0];
+}
+
+function getChartRows() {
+  const rows = momentumPresets.map((item) => ({
+    name: item.name,
+    value: item.mass * item.speed,
+    color: item.color,
+    selected: params.selectedObject === item.name
+  }));
+  if (params.selectedObject === '사용자 정의') {
+    rows.push({
+      name: '사용자 정의',
+      value: params.customMass * params.customSpeed,
+      color: 0xffc857,
+      selected: true
+    });
+  }
+  return rows;
+}
+
+function sizeChartCanvas() {
+  const rect = chartCanvasEl.getBoundingClientRect();
+  runtime.chartDpr = Math.min(window.devicePixelRatio, 2);
+  chartCanvasEl.width = Math.max(1, Math.round(rect.width * runtime.chartDpr));
+  chartCanvasEl.height = Math.max(1, Math.round(rect.height * runtime.chartDpr));
+}
+
+function drawChart() {
+  if (runtime.activeTab !== TAB_MOMENTUM) return;
+  sizeChartCanvas();
+  const context = chartCanvasEl.getContext('2d');
+  const width = chartCanvasEl.width / runtime.chartDpr;
+  const height = chartCanvasEl.height / runtime.chartDpr;
+  context.setTransform(runtime.chartDpr, 0, 0, runtime.chartDpr, 0, 0);
+  context.clearRect(0, 0, width, height);
+
+  const rows = getChartRows();
+  const barX = 138;
+  const barWidth = width - 218;
+  const top = 54;
+  const rowGap = rows.length > 5 ? 26 : 32;
+
+  context.fillStyle = '#f7fbff';
+  context.font = '700 15px Pretendard, sans-serif';
+  context.fillText('📊 운동량 비교 (로그 스케일)', 14, 24);
+  context.fillStyle = 'rgba(247,251,255,0.66)';
+  context.font = '12px Pretendard, sans-serif';
+  context.fillText('질량이 크고 속도가 빠를수록 막대가 길어집니다.', 14, 42);
+
+  runtime.chartBars = [];
+  rows.forEach((row, index) => {
+    const y = top + index * rowGap;
+    const barHeight = 18;
+    const logValue = row.value <= 0 ? 0 : Math.log10(row.value + 1) / Math.log10(MAX_REFERENCE_MOMENTUM + 1);
+    const fillWidth = barWidth * logValue;
+    const color = `#${row.color.toString(16).padStart(6, '0')}`;
+
+    context.fillStyle = row.selected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.8)';
+    context.font = row.selected ? '700 12px Pretendard, sans-serif' : '600 12px Pretendard, sans-serif';
+    context.fillText(row.name, 14, y + 13);
+
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.beginPath();
+    context.roundRect(barX, y, barWidth, barHeight, 9);
+    context.fill();
+
+    if (fillWidth > 0) {
+      const gradient = context.createLinearGradient(barX, y, barX + fillWidth, y);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, 'rgba(255,255,255,0.92)');
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.roundRect(barX, y, fillWidth, barHeight, 9);
+      context.fill();
+    }
+
+    if (row.selected) {
+      context.strokeStyle = 'rgba(255,255,255,0.52)';
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.roundRect(barX - 2, y - 2, barWidth + 4, barHeight + 4, 11);
+      context.stroke();
+    }
+
+    context.fillStyle = 'rgba(255,255,255,0.86)';
+    context.font = '600 12px "SFMono-Regular", monospace';
+    context.textAlign = 'right';
+    const suffix = row.value === 0 ? ' ❌' : '';
+    context.fillText(`${formatMomentum(row.value)} kg·m/s${suffix}`, width - 14, y + 13);
+    context.textAlign = 'left';
+
+    runtime.chartBars.push({
+      x: barX,
+      y,
+      width: barWidth,
+      height: barHeight,
+      row
+    });
+  });
+}
+
+function disposeRoot(root) {
+  if (!root) return;
+  root.traverse((node) => {
+    if (node.geometry) node.geometry.dispose();
+    if (node.material) {
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((material) => {
+        if (material.map) material.map.dispose();
+        if (material.alphaMap) material.alphaMap.dispose();
+        if (material.emissiveMap) material.emissiveMap.dispose();
+        if (material.normalMap) material.normalMap.dispose();
+        if (material.roughnessMap) material.roughnessMap.dispose();
+        material.dispose();
+      });
+    }
+  });
+  scene.remove(root);
+}
+
+function clearActiveScene() {
+  disposeRoot(runtime.activeRoot);
+  runtime.activeRoot = null;
+  runtime.inertia = null;
+  runtime.momentum = null;
+}
+
+function setTab(nextTab) {
+  runtime.activeTab = nextTab;
+  params.activeTab = nextTab;
+  setSceneMeta(nextTab);
+  chartPanelEl.style.display = nextTab === TAB_MOMENTUM ? 'block' : 'none';
+  clearActiveScene();
+  if (nextTab === TAB_INERTIA) {
+    buildInertiaScene();
+  } else {
+    buildMomentumScene();
+  }
+  refreshGuiVisibility();
+  syncGuiDisplays();
+  updateFormulaPanel();
+  drawChart();
+}
+
+function createGround(root, width, depth, color, y = 0) {
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0 })
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = y;
+  plane.receiveShadow = true;
+  root.add(plane);
+  return plane;
+}
+
+function makeBusModel() {
+  const group = new THREE.Group();
+
+  const chassis = new THREE.Mesh(
+    new THREE.BoxGeometry(4, 1.8, 1.5),
+    createMaterial(0x4488cc, { roughness: 0.62 })
+  );
+  chassis.position.y = 1.45;
+  chassis.castShadow = true;
+  chassis.receiveShadow = true;
+  group.add(chassis);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(3.7, 0.18, 1.42),
+    createMaterial(0x5d9de0, { roughness: 0.34, metalness: 0.14 })
+  );
+  roof.position.set(0, 2.34, 0);
+  roof.castShadow = true;
+  group.add(roof);
+
+  const bumperGeometry = new THREE.BoxGeometry(0.12, 0.34, 1.54);
+  const bumperMaterial = createMaterial(0x333333, { roughness: 0.5, metalness: 0.2 });
+  const frontBumper = new THREE.Mesh(bumperGeometry, bumperMaterial);
+  frontBumper.position.set(2.06, 0.56, 0);
+  frontBumper.castShadow = true;
+  group.add(frontBumper);
+  const backBumper = frontBumper.clone();
+  backBumper.position.x = -2.06;
+  group.add(backBumper);
+
+  const windshield = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 0.8),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xaaddff,
+      transmission: 0.7,
+      transparent: true,
+      opacity: 0.88,
+      roughness: 0.05
+    })
+  );
+  windshield.position.set(2.01, 1.78, 0);
+  windshield.rotation.y = -Math.PI / 2;
+  windshield.rotation.z = -0.2;
+  group.add(windshield);
+
+  const sideWindowGeometry = new THREE.PlaneGeometry(0.6, 0.5);
+  const sideWindowMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0xaaddff,
+    transmission: 0.58,
+    transparent: true,
+    opacity: 0.84,
+    roughness: 0.08
+  });
+
+  [-0.76, 0.76].forEach((zSide) => {
+    [-1.15, -0.15, 0.85, 1.55].forEach((xPos) => {
+      const windowMesh = new THREE.Mesh(sideWindowGeometry, sideWindowMaterial);
+      windowMesh.position.set(xPos, 1.76, zSide);
+      windowMesh.rotation.y = zSide > 0 ? Math.PI : 0;
+      group.add(windowMesh);
+    });
+  });
+
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 1.2, 0.05),
+    createMaterial(0x3377aa, { roughness: 0.52 })
+  );
+  door.position.set(1.12, 1.16, -0.78);
+  door.castShadow = true;
+  group.add(door);
+
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 0.12, 1.38),
+    createMaterial(0xe8f2ff, { roughness: 0.7 })
+  );
+  floor.position.set(0, 0.65, 0);
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  const wheels = [];
+  const wheelPositions = [
+    [-1.4, 0.3, -0.85],
+    [1.4, 0.3, -0.85],
+    [-1.4, 0.3, 0.85],
+    [1.4, 0.3, 0.85]
+  ];
+
+  wheelPositions.forEach(([x, y, z]) => {
+    const wheelGroup = new THREE.Group();
+    wheelGroup.position.set(x, y, z);
+
+    const wheel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.3, 0.15, 18),
+      createMaterial(0x222222, { roughness: 0.78 })
+    );
+    wheel.rotation.x = Math.PI / 2;
+    wheel.castShadow = true;
+    wheelGroup.add(wheel);
+
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 0.16, 18),
+      createMaterial(0x888888, { roughness: 0.34, metalness: 0.44 })
+    );
+    hub.rotation.x = Math.PI / 2;
+    wheelGroup.add(hub);
+
+    wheels.push(wheelGroup);
+    group.add(wheelGroup);
+  });
+
+  const seatGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.4);
+  const seatMaterial = createMaterial(0xcc6644, { roughness: 0.88 });
+  const seatPositions = [
+    [-0.7, 0.9, -0.34],
+    [0.55, 0.9, -0.34],
+    [-0.7, 0.9, 0.34],
+    [0.55, 0.9, 0.34]
+  ];
+
+  seatPositions.forEach(([x, y, z]) => {
+    const seat = new THREE.Mesh(seatGeometry, seatMaterial);
+    seat.position.set(x, y, z);
+    seat.castShadow = true;
+    seat.receiveShadow = true;
+    group.add(seat);
+  });
+
+  const passengers = [];
+  const handlePivots = [];
+
+  function createPassenger(color) {
+    const passenger = new THREE.Group();
+    const lower = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.3, 0.15),
+      createMaterial(0x334466, { roughness: 0.78 })
+    );
+    lower.position.y = 0.15;
+    lower.castShadow = true;
+    passenger.add(lower);
+
+    const upperPivot = new THREE.Group();
+    upperPivot.position.y = 0.32;
+
+    const torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.25, 0.35, 0.15),
+      createMaterial(color, { roughness: 0.62 })
+    );
+    torso.position.y = 0.18;
+    torso.castShadow = true;
+    upperPivot.add(torso);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 18, 18),
+      createMaterial(0xffcc99, { roughness: 0.82 })
+    );
+    head.position.y = 0.47;
+    head.castShadow = true;
+    upperPivot.add(head);
+
+    [-0.16, 0.16].forEach((xArm, index) => {
+      const arm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.3, 12),
+        createMaterial(0xffcc99, { roughness: 0.82 })
+      );
+      arm.position.set(xArm, 0.17, 0);
+      arm.rotation.z = index === 0 ? 0.52 : -0.52;
+      arm.castShadow = true;
+      upperPivot.add(arm);
+    });
+
+    passenger.add(upperPivot);
+    return { passenger, upperPivot };
+  }
+
+  const passengerColors = [0x44aacc, 0xcc4444, 0x44aa44];
+  const passengerSeats = [seatPositions[0], seatPositions[1], seatPositions[2]];
+
+  passengerSeats.forEach(([x, y, z], index) => {
+    const passengerInfo = createPassenger(passengerColors[index]);
+    passengerInfo.passenger.position.set(x, y + 0.18, z);
+    group.add(passengerInfo.passenger);
+    passengers.push(passengerInfo.upperPivot);
+  });
+
+  [-0.18, 0.18].forEach((zPos) => {
+    const handlePivot = new THREE.Group();
+    handlePivot.position.set(0.45, 2.28, zPos);
+
+    const rod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 1.0, 12),
+      createMaterial(0xdddddd, { roughness: 0.32, metalness: 0.38 })
+    );
+    rod.position.y = -0.5;
+    rod.castShadow = true;
+    handlePivot.add(rod);
+
+    const loop = new THREE.Mesh(
+      new THREE.TorusGeometry(0.08, 0.018, 12, 20),
+      createMaterial(0xefefef, { roughness: 0.3, metalness: 0.28 })
+    );
+    loop.position.set(0, -1.0, 0);
+    loop.rotation.x = Math.PI / 2;
+    handlePivot.add(loop);
+
+    group.add(handlePivot);
+    handlePivots.push(handlePivot);
+  });
+
+  return { group, wheels, passengers, handlePivots };
+}
+
+function makeCoinExperiment() {
+  const group = new THREE.Group();
+
+  const tableTop = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 0.14, 1.2),
+    createMaterial(0xb9804f, { roughness: 0.9 })
+  );
+  tableTop.position.y = 0.92;
+  tableTop.receiveShadow = true;
+  tableTop.castShadow = true;
+  group.add(tableTop);
+
+  [-0.95, 0.95].forEach((x) => {
+    [-0.42, 0.42].forEach((z) => {
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.84, 0.14),
+        createMaterial(0x6f4b2c, { roughness: 0.92 })
+      );
+      leg.position.set(x, 0.45, z);
+      leg.castShadow = true;
+      group.add(leg);
+    });
+  });
+
+  const coins = [];
+  for (let index = 0; index < 5; index += 1) {
+    const coin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 0.03, 24),
+      createMaterial(0xccaa44, { roughness: 0.34, metalness: 0.52 })
+    );
+    coin.rotation.x = Math.PI / 2;
+    coin.position.set(0, 0.985 + index * 0.034, 0);
+    coin.castShadow = true;
+    group.add(coin);
+    coins.push(coin);
+  }
+
+  const ruler = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.03, 0.12),
+    createMaterial(0xf0d06b, { roughness: 0.72 })
+  );
+  ruler.position.set(-0.7, 0.995, 0.34);
+  ruler.castShadow = true;
+  group.add(ruler);
+
+  const label = createCanvasLabel(['동전 실험', '맨 아래 동전만 밀어내기'], {
+    accent: '#ffd166',
+    scaleX: 2.8,
+    scaleY: 1
+  });
+  label.position.set(0, 1.8, 0);
+  group.add(label);
+
+  return { group, coins, ruler, label };
+}
+
+function buildInertiaScene() {
+  scene.background = new THREE.Color(0xeeeeff);
+  scene.fog = new THREE.Fog(0xeeeeff, 36, 96);
+  camera.position.set(8.3, 5.6, 11.6);
+  controls.target.set(0, 1.7, 0);
+  controls.update();
+
+  const root = new THREE.Group();
+  scene.add(root);
+  runtime.activeRoot = root;
+
+  createGround(root, 160, 70, 0xe6edf8, -0.02);
+
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 5),
+    createMaterial(0x555555, { roughness: 0.96 })
+  );
+  road.rotation.x = -Math.PI / 2;
+  road.receiveShadow = true;
+  root.add(road);
+
+  const roadLines = [];
+  for (let x = -16; x <= 16; x += 3.2) {
+    const dash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.02, 0.12),
+      createMaterial(0xffffff, { roughness: 0.42 })
+    );
+    dash.position.set(x, 0.02, 0);
+    dash.userData.baseX = x;
+    roadLines.push(dash);
+    root.add(dash);
+  }
+
+  for (let index = -6; index <= 6; index += 1) {
+    const leftBuilding = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 2.6 + (index % 3) * 0.8, 1.6),
+      createMaterial(0xccbbaa, { roughness: 0.88 })
+    );
+    leftBuilding.position.set(index * 8, leftBuilding.geometry.parameters.height / 2, 7.2);
+    leftBuilding.castShadow = true;
+    leftBuilding.receiveShadow = true;
+    root.add(leftBuilding);
+
+    const rightBuilding = leftBuilding.clone();
+    rightBuilding.position.z = -7.2;
+    root.add(rightBuilding);
+  }
+
+  const bus = makeBusModel();
+  bus.group.position.set(-2.8, 0, 0);
+  root.add(bus.group);
+
+  const coinExperiment = makeCoinExperiment();
+  coinExperiment.group.position.set(-8.5, 0, 4.5);
+  root.add(coinExperiment.group);
+
+  const inertiaArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(-1, 0, 0),
+    new THREE.Vector3(0, 2.7, 0),
+    1.1,
+    0x4488ff,
+    0.28,
+    0.16
+  );
+  inertiaArrow.visible = false;
+  bus.group.add(inertiaArrow);
+
+  const inertiaLabel = createCanvasLabel(['← 관성', '정지 상태 유지'], {
+    accent: '#67b7ff',
+    scaleX: 2.3,
+    scaleY: 0.9
+  });
+  inertiaLabel.position.set(0, 3.25, 0);
+  inertiaLabel.visible = false;
+  bus.group.add(inertiaLabel);
+
+  const accelArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0.08, -1.45),
+    1.45,
+    0xffa94d,
+    0.3,
+    0.18
+  );
+  accelArrow.visible = false;
+  root.add(accelArrow);
+
+  const accelLabel = createCanvasLabel(['가속도 방향'], {
+    accent: '#ffd166',
+    scaleX: 2.1,
+    scaleY: 0.86
+  });
+  accelLabel.position.set(0, 0.9, -1.55);
+  accelLabel.visible = false;
+  root.add(accelLabel);
+
+  const highlight = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.3, 1.1),
+    new THREE.MeshBasicMaterial({
+      color: 0x4488ff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  highlight.rotation.y = Math.PI / 2;
+  highlight.position.set(-0.8, 1.45, 0);
+  highlight.visible = false;
+  bus.group.add(highlight);
+
+  runtime.inertia = {
+    root,
+    bus,
+    roadLines,
+    coinExperiment,
+    inertiaArrow,
+    inertiaLabel,
+    accelArrow,
+    accelLabel,
+    highlight,
+    currentLean: 0,
+    targetLean: 0,
+    velocity: 0,
+    phase: 'stopped',
+    phaseLabel: '정지',
+    transition: null,
+    cueTone: 'blue',
+    cueSign: 0,
+    roadOffset: 0,
+    coinState: { active: false, elapsed: 0, phase: 'idle' }
+  };
+
+  resetInertiaState();
+}
+
+function resetInertiaState() {
+  const inertia = runtime.inertia;
+  inertia.velocity = 0;
+  inertia.currentLean = 0;
+  inertia.targetLean = 0;
+  inertia.phase = 'stopped';
+  inertia.phaseLabel = '정지';
+  inertia.transition = null;
+  inertia.cueSign = 0;
+  inertia.bus.group.position.x = -2.8;
+  inertia.bus.passengers.forEach((pivot) => {
+    pivot.rotation.z = 0;
+  });
+  inertia.bus.handlePivots.forEach((pivot) => {
+    pivot.rotation.z = 0;
+  });
+  inertia.bus.wheels.forEach((wheel) => {
+    wheel.rotation.z = 0;
+  });
+  inertia.roadLines.forEach((dash, index) => {
+    dash.position.x = -16 + index * 3.2;
+  });
+  inertia.inertiaArrow.visible = false;
+  inertia.inertiaLabel.visible = false;
+  inertia.accelArrow.visible = false;
+  inertia.accelLabel.visible = false;
+  inertia.highlight.visible = false;
+  resetCoinExperiment();
+  setStatus('정지 중...', '버스가 정지해 있을 때 승객도 정지 상태를 유지합니다.', 'blue');
+}
+
+function resetCoinExperiment() {
+  const inertia = runtime.inertia;
+  inertia.coinState = { active: false, elapsed: 0, phase: 'idle' };
+  inertia.coinExperiment.coins.forEach((coin, index) => {
+    coin.position.set(0, 0.985 + index * 0.034, 0);
+    coin.rotation.set(Math.PI / 2, 0, 0);
+  });
+  inertia.coinExperiment.ruler.position.set(-0.7, 0.995, 0.34);
+}
+
+function showInertiaCue(direction) {
+  const inertia = runtime.inertia;
+  const isStart = direction === 'backward';
+  const color = isStart ? 0x4488ff : 0xff6666;
+  const arrowDirection = isStart ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
+  const accelDirection = isStart ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
+  inertia.cueSign = isStart ? -1 : 1;
+  inertia.cueTone = isStart ? 'blue' : 'red';
+
+  inertia.inertiaArrow.setDirection(arrowDirection);
+  inertia.inertiaArrow.setColor(new THREE.Color(color));
+  inertia.inertiaArrow.visible = params.showInertiaArrows;
+
+  inertia.inertiaLabel.userData.redraw(
+    [isStart ? '← 관성' : '→ 관성', isStart ? '정지 상태 유지' : '운동 상태 유지'],
+    { accent: isStart ? '#67b7ff' : '#ff8a8a' }
+  );
+  inertia.inertiaLabel.visible = params.showInertiaArrows;
+
+  inertia.accelArrow.setDirection(accelDirection);
+  inertia.accelArrow.visible = true;
+  inertia.accelLabel.visible = true;
+
+  inertia.highlight.material.color.set(color);
+  inertia.highlight.position.x = isStart ? -0.88 : 0.88;
+  inertia.highlight.visible = true;
+}
+
+function hideInertiaCue() {
+  const inertia = runtime.inertia;
+  inertia.cueSign = 0;
+  inertia.inertiaArrow.visible = false;
+  inertia.inertiaLabel.visible = false;
+  inertia.accelArrow.visible = false;
+  inertia.accelLabel.visible = false;
+  inertia.highlight.visible = false;
+}
+
+function triggerStart() {
+  if (runtime.activeTab !== TAB_INERTIA) return;
+  const inertia = runtime.inertia;
+  if (inertia.phase !== 'stopped') return;
+  inertia.transition = {
+    type: 'start',
+    elapsed: 0,
+    duration: 1,
+    from: inertia.velocity,
+    to: params.busSpeed
+  };
+  inertia.targetLean = -THREE.MathUtils.degToRad(params.tiltAngle);
+  inertia.phase = 'accelerating';
+  inertia.phaseLabel = '가속';
+  showInertiaCue('backward');
+  setStatus('급출발: 뒤로 쏠림', '정지해 있으려는 관성 때문에 몸이 뒤로 쏠립니다.', 'blue');
+}
+
+function triggerStop() {
+  if (runtime.activeTab !== TAB_INERTIA) return;
+  const inertia = runtime.inertia;
+  if (inertia.phase !== 'cruising') return;
+  inertia.transition = {
+    type: 'stop',
+    elapsed: 0,
+    duration: 0.5,
+    from: inertia.velocity,
+    to: 0
+  };
+  inertia.targetLean = THREE.MathUtils.degToRad(clamp(params.tiltAngle + 5, 5, 30));
+  inertia.phase = 'braking';
+  inertia.phaseLabel = '감속';
+  showInertiaCue('forward');
+  setStatus('급정지: 앞으로 쏠림', '운동하려는 관성 때문에 몸이 앞으로 쏠립니다.', 'red');
+}
+
+function triggerCoinExperiment() {
+  if (runtime.activeTab !== TAB_INERTIA) return;
+  resetCoinExperiment();
+  runtime.inertia.coinState = { active: true, elapsed: 0, phase: 'strike' };
+  setStatus('동전 실험', '맨 아래 동전만 빠르게 밀어내면 위 동전들은 정지하려는 관성으로 거의 제자리에 남습니다.', 'yellow');
+}
+
+function updateCoinExperiment(delta) {
+  const inertia = runtime.inertia;
+  const coinState = inertia.coinState;
+  if (!coinState.active) return;
+
+  coinState.elapsed += delta;
+  const t = coinState.elapsed;
+  const bottomCoin = inertia.coinExperiment.coins[0];
+
+  if (coinState.phase === 'strike') {
+    const progress = clamp(t / 0.22, 0, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    inertia.coinExperiment.ruler.position.x = -0.7 + eased * 1.2;
+    bottomCoin.position.x = eased * 1.95;
+    inertia.coinExperiment.coins.slice(1).forEach((coin, index) => {
+      coin.position.x = Math.sin(progress * Math.PI) * (0.02 + index * 0.01);
+    });
+    if (progress >= 1) {
+      coinState.phase = 'settle';
+      coinState.elapsed = 0;
+    }
+    return;
+  }
+
+  const settle = clamp(t / 1, 0, 1);
+  inertia.coinExperiment.ruler.position.x = 0.5 + settle * 0.1;
+  bottomCoin.position.x = 1.95 + settle * 0.2;
+  inertia.coinExperiment.coins.slice(1).forEach((coin, index) => {
+    coin.position.x *= 0.9 - index * 0.03;
+  });
+  if (settle >= 1) {
+    coinState.active = false;
+  }
+}
+
+function updateInertia(delta) {
+  const inertia = runtime.inertia;
+  const dt = delta * params.slowMotion;
+
+  if (inertia.transition) {
+    inertia.transition.elapsed += dt;
+    const transition = inertia.transition;
+    const progress = clamp(transition.elapsed / transition.duration, 0, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    inertia.velocity = THREE.MathUtils.lerp(transition.from, transition.to, eased);
+
+    if (progress >= 1) {
+      if (transition.type === 'start') {
+        inertia.phase = 'cruising';
+        inertia.phaseLabel = '등속';
+        inertia.transition = {
+          type: 'recover',
+          elapsed: 0,
+          duration: 0.5,
+          from: inertia.targetLean,
+          to: 0
+        };
+        setStatus('등속 운동 중', '버스와 승객이 같은 속도로 움직이면 다시 곧게 앉게 됩니다.', 'blue');
+      } else if (transition.type === 'stop') {
+        inertia.phase = 'stopped';
+        inertia.phaseLabel = '정지';
+        inertia.transition = {
+          type: 'recover-stop',
+          elapsed: 0,
+          duration: 0.45,
+          from: inertia.targetLean,
+          to: 0
+        };
+        inertia.velocity = 0;
+        setStatus('정지', '버스가 멈추면 승객도 다시 정지 상태로 돌아옵니다.', 'red');
+      } else {
+        inertia.targetLean = 0;
+        inertia.transition = null;
+        hideInertiaCue();
+      }
+    }
+
+    if (transition.type === 'recover' || transition.type === 'recover-stop') {
+      inertia.targetLean = THREE.MathUtils.lerp(transition.from, transition.to, progress);
+      if (progress >= 1) {
+        inertia.targetLean = 0;
+        inertia.transition = null;
+        hideInertiaCue();
+      }
+    }
+  }
+
+  inertia.currentLean = THREE.MathUtils.lerp(
+    inertia.currentLean,
+    inertia.targetLean,
+    1 - Math.exp(-8 * dt)
+  );
+
+  inertia.bus.group.position.x += inertia.velocity * dt * 0.24;
+  inertia.bus.passengers.forEach((pivot, index) => {
+    pivot.rotation.z = inertia.currentLean * (1 + index * 0.03);
+  });
+  inertia.bus.handlePivots.forEach((pivot) => {
+    pivot.rotation.z = inertia.currentLean * 0.68;
+  });
+  inertia.bus.wheels.forEach((wheel) => {
+    wheel.rotation.z -= inertia.velocity * dt / 0.3;
+  });
+
+  inertia.roadLines.forEach((dash) => {
+    dash.position.x -= inertia.velocity * dt * 0.9;
+    if (dash.position.x < -18) dash.position.x += 35;
+  });
+
+  inertia.accelArrow.position.x = inertia.bus.group.position.x;
+  inertia.accelLabel.position.x = inertia.bus.group.position.x;
+
+  if (!params.showInertiaArrows) {
+    inertia.inertiaArrow.visible = false;
+    inertia.inertiaLabel.visible = false;
+  } else if (inertia.cueSign !== 0) {
+    inertia.inertiaArrow.visible = true;
+    inertia.inertiaLabel.visible = true;
+  }
+
+  inertia.highlight.material.opacity = 0.16 + Math.abs(inertia.currentLean) * 0.45;
+  updateCoinExperiment(dt);
+}
+
+function setGhostOpacity(group, opacity) {
+  group.traverse((node) => {
+    if (!node.material) return;
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.forEach((material) => {
+      material.transparent = true;
+      material.opacity = opacity;
+    });
+  });
+}
+
+function createCylinderBetween(start, end, radius, color) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  const cylinder = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, length, 12),
+    createMaterial(color, { roughness: 0.46, metalness: 0.12 })
+  );
+  const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  cylinder.position.copy(midpoint);
+  cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+  cylinder.castShadow = true;
+  return cylinder;
+}
+
+function createMomentumObject(item) {
+  const group = new THREE.Group();
+  let top = 1.1;
+
+  if (item.kind === 'baseball') {
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 24, 24),
+      createMaterial(item.color, { roughness: 0.42 })
+    );
+    ball.castShadow = true;
+    group.add(ball);
+
+    const seam1 = new THREE.Mesh(
+      new THREE.TorusGeometry(0.17, 0.012, 8, 40, Math.PI),
+      createMaterial(0xffffff, { roughness: 0.26 })
+    );
+    seam1.rotation.y = Math.PI / 2;
+    seam1.position.z = 0.03;
+    group.add(seam1);
+
+    const seam2 = seam1.clone();
+    seam2.rotation.z = Math.PI;
+    seam2.position.z = -0.03;
+    group.add(seam2);
+    top = 0.82;
+  } else if (item.kind === 'bowling') {
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 28, 28),
+      createMaterial(item.color, { roughness: 0.34, metalness: 0.22 })
+    );
+    ball.castShadow = true;
+    group.add(ball);
+
+    [
+      new THREE.Vector3(0.12, 0.12, 0.38),
+      new THREE.Vector3(-0.02, 0.25, 0.34),
+      new THREE.Vector3(0.2, 0.26, 0.12)
+    ].forEach((position) => {
+      const hole = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 18, 18),
+        createMaterial(0x111111, { roughness: 0.92 })
+      );
+      hole.position.copy(position);
+      group.add(hole);
+    });
+    top = 1.15;
+  } else if (item.kind === 'bicycle') {
+    const wheel1 = new THREE.Mesh(
+      new THREE.TorusGeometry(0.42, 0.04, 12, 40),
+      createMaterial(0x222222, { roughness: 0.74 })
+    );
+    wheel1.position.set(-0.8, 0.45, 0);
+    wheel1.castShadow = true;
+    group.add(wheel1);
+
+    const wheel2 = wheel1.clone();
+    wheel2.position.x = 0.78;
+    group.add(wheel2);
+
+    const frameColor = item.color;
+    const framePoints = [
+      [new THREE.Vector3(-0.8, 0.45, 0), new THREE.Vector3(-0.08, 0.92, 0)],
+      [new THREE.Vector3(-0.08, 0.92, 0), new THREE.Vector3(0.35, 0.45, 0)],
+      [new THREE.Vector3(0.35, 0.45, 0), new THREE.Vector3(-0.3, 0.45, 0)],
+      [new THREE.Vector3(-0.3, 0.45, 0), new THREE.Vector3(-0.08, 0.92, 0)],
+      [new THREE.Vector3(-0.08, 0.92, 0), new THREE.Vector3(0.55, 1.05, 0)],
+      [new THREE.Vector3(0.1, 1.08, 0), new THREE.Vector3(0.42, 1.08, 0)]
+    ];
+    framePoints.forEach(([start, end]) => group.add(createCylinderBetween(start, end, 0.035, frameColor)));
+
+    const riderBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.42, 0.16),
+      createMaterial(0x2f9d4e, { roughness: 0.56 })
+    );
+    riderBody.position.set(-0.05, 1.52, 0);
+    riderBody.castShadow = true;
+    group.add(riderBody);
+
+    const riderHead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 20, 20),
+      createMaterial(0xffcc99, { roughness: 0.78 })
+    );
+    riderHead.position.set(-0.06, 1.86, 0);
+    riderHead.castShadow = true;
+    group.add(riderHead);
+
+    group.add(createCylinderBetween(new THREE.Vector3(-0.12, 1.34, 0), new THREE.Vector3(-0.45, 1.12, 0), 0.03, 0xffcc99));
+    group.add(createCylinderBetween(new THREE.Vector3(0.08, 1.34, 0), new THREE.Vector3(0.52, 1.1, 0), 0.03, 0xffcc99));
+    group.add(createCylinderBetween(new THREE.Vector3(-0.06, 1.3, 0), new THREE.Vector3(-0.38, 0.82, 0), 0.04, 0x334466));
+    group.add(createCylinderBetween(new THREE.Vector3(0.04, 1.3, 0), new THREE.Vector3(0.2, 0.83, 0), 0.04, 0x334466));
+    top = 2.45;
+  } else if (item.kind === 'train') {
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(3.1, 0.8, 0.72),
+      createMaterial(item.color, { roughness: 0.34, metalness: 0.42 })
+    );
+    body.position.set(0.25, 0.8, 0);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    group.add(body);
+
+    const nose = new THREE.Mesh(
+      new THREE.SphereGeometry(0.54, 24, 18),
+      createMaterial(item.color, { roughness: 0.34, metalness: 0.38 })
+    );
+    nose.scale.set(1.2, 0.72, 0.9);
+    nose.position.set(1.82, 0.8, 0);
+    nose.castShadow = true;
+    group.add(nose);
+
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 0.14, 0.64),
+      createMaterial(0xffad70, { roughness: 0.22, metalness: 0.44 })
+    );
+    roof.position.set(0.1, 1.24, 0);
+    roof.castShadow = true;
+    group.add(roof);
+
+    for (let index = 0; index < 4; index += 1) {
+      const windowMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.42, 0.2),
+        new THREE.MeshBasicMaterial({
+          color: 0xeff7ff,
+          transparent: true,
+          opacity: 0.86
+        })
+      );
+      windowMesh.position.set(-0.7 + index * 0.58, 0.93, 0.365);
+      group.add(windowMesh);
+
+      const mirrored = windowMesh.clone();
+      mirrored.position.z = -0.365;
+      mirrored.rotation.y = Math.PI;
+      group.add(mirrored);
+    }
+
+    [-1.0, 0.0, 1.0].forEach((x) => {
+      const bogie = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 0.16, 18),
+        createMaterial(0x444444, { roughness: 0.6 })
+      );
+      bogie.rotation.x = Math.PI / 2;
+      bogie.position.set(x, 0.28, 0.36);
+      bogie.castShadow = true;
+      group.add(bogie);
+
+      const bogie2 = bogie.clone();
+      bogie2.position.z = -0.36;
+      group.add(bogie2);
+    });
+    top = 1.95;
+  } else {
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.9, 0.9),
+      createMaterial(0xffc857, { roughness: 0.32, metalness: 0.12 })
+    );
+    base.castShadow = true;
+    base.receiveShadow = true;
+    group.add(base);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.62, 0.04, 12, 36),
+      createMaterial(0xffffff, { roughness: 0.22, metalness: 0.28 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+    top = 1.5;
+  }
+
+  group.userData.top = top;
+  return group;
+}
+
+function createTail(color) {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    0, 0, 0,
+    -1, 0.28, 0,
+    -1, -0.28, 0
+  ]);
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.computeVertexNormals();
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.28,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const tail = new THREE.Mesh(geometry, material);
+  tail.position.set(-0.05, 0.2, 0);
+  return tail;
+}
+
+function createLane(item, zPosition, startX) {
+  const lane = new THREE.Group();
+  lane.position.z = zPosition;
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(19, 0.22, 0.9),
+    createMaterial(0x888888, { roughness: 0.86 })
+  );
+  base.position.y = 0.1;
+  base.receiveShadow = true;
+  lane.add(base);
+
+  for (let x = -8.5; x <= 8.5; x += 1.8) {
+    const tie = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.08, 1.02),
+      createMaterial(0x5d6067, { roughness: 0.9 })
+    );
+    tie.position.set(x, 0.22, 0);
+    tie.receiveShadow = true;
+    lane.add(tie);
+  }
+
+  const objectGroup = createMomentumObject(item);
+  objectGroup.position.set(startX, 0.42, 0);
+  lane.add(objectGroup);
+
+  const tail = createTail(item.color);
+  objectGroup.add(tail);
+
+  const label = createCanvasLabel([
+    item.name,
+    `m=${formatNumber(item.mass, 2)}kg  v=${formatNumber(item.speed, 2)}m/s`,
+    `p=${formatMomentum(item.mass * item.speed)}kg·m/s`
+  ], {
+    accent: `#${item.color.toString(16).padStart(6, '0')}`,
+    scaleX: 3.6,
+    scaleY: 1.18
+  });
+  label.position.set(0, objectGroup.userData.top + 0.54, 0);
+  objectGroup.add(label);
+
+  const momentumValue = item.mass * item.speed;
+  if (momentumValue === 0) {
+    tail.visible = false;
+    setGhostOpacity(objectGroup, 0.32);
+  } else {
+    tail.scale.x = momentumTailScale(momentumValue);
+    tail.visible = true;
+  }
+
+  return {
+    lane,
+    objectGroup,
+    tail,
+    label,
+    name: item.name,
+    speed: item.speed,
+    momentum: momentumValue,
+    startX,
+    static: item.speed === 0,
+    kind: item.kind
+  };
+}
+
+function updateCustomLaneItem(itemState, itemData) {
+  const scale = clamp(0.55 + Math.log10(itemData.mass + 1) * 0.58, 0.55, 2.6);
+  itemState.objectGroup.scale.setScalar(scale);
+  itemState.speed = itemData.speed;
+  const momentum = itemData.mass * itemData.speed;
+  itemState.momentum = momentum;
+  itemState.tail.visible = momentum > 0;
+  itemState.tail.scale.x = momentumTailScale(momentum);
+  itemState.tail.material.color.set(itemData.color);
+  itemState.label.userData.redraw([
+    '사용자 정의',
+    `m=${formatNumber(itemData.mass, 2)}kg  v=${formatNumber(itemData.speed, 2)}m/s`,
+    `p=${formatMomentum(momentum)}kg·m/s`
+  ], {
+    accent: '#ffc857'
+  });
+}
+
+function buildMomentumScene() {
+  scene.background = new THREE.Color(0xf4f7ff);
+  scene.fog = new THREE.Fog(0xf4f7ff, 28, 80);
+  camera.position.set(11.5, 7.2, 12.8);
+  controls.target.set(0, 1.8, 0);
+  controls.update();
+
+  const root = new THREE.Group();
+  scene.add(root);
+  runtime.activeRoot = root;
+
+  createGround(root, 70, 34, 0xe6edf7, -0.02);
+
+  const railBackdrop = new THREE.Mesh(
+    new THREE.BoxGeometry(24, 0.3, 18),
+    createMaterial(0xd8e2ef, { roughness: 0.98 })
+  );
+  railBackdrop.position.set(0, -0.16, 0);
+  railBackdrop.receiveShadow = true;
+  root.add(railBackdrop);
+
+  const items = [];
+  const compareMode = params.compareAll;
+  const selected = getSelectedMomentumData();
+
+  if (compareMode) {
+    const zPositions = [6.2, 3.1, 0, -3.1, -6.2];
+    momentumPresets.forEach((preset, index) => {
+      const laneItem = createLane(preset, zPositions[index], -8 + index * 0.9);
+      items.push(laneItem);
+      root.add(laneItem.lane);
+    });
+    if (params.selectedObject === '사용자 정의') {
+      const customLane = createLane(selected, -9.5, -6.5);
+      customLane.lane.position.z = -9.2;
+      items.push(customLane);
+      root.add(customLane.lane);
+      updateCustomLaneItem(customLane, selected);
+    }
+    setStatus('운동량 전체 비교', '야구공, 볼링공, 자전거, 열차의 운동량 차이를 로그 스케일 막대와 3D 장면에서 함께 비교합니다.', 'blue');
+  } else {
+    const laneItem = createLane(selected, 0, -8);
+    items.push(laneItem);
+    root.add(laneItem.lane);
+    if (selected.name === '사용자 정의') {
+      updateCustomLaneItem(laneItem, selected);
+    }
+    const explanation = selected.speed === 0
+      ? '질량이 커도 속도가 0이면 운동량은 0입니다.'
+      : `${selected.name}의 질량과 속도를 바탕으로 운동량을 집중해서 살펴보세요.`;
+    setStatus(`${selected.name} 집중 보기`, explanation, selected.speed === 0 ? 'yellow' : 'blue');
+  }
+
+  runtime.momentum = {
+    root,
+    items,
+    customActive: params.selectedObject === '사용자 정의'
+  };
+}
+
+function updateMomentum(delta) {
+  const momentum = runtime.momentum;
+  const dt = delta * params.slowMotion;
+
+  momentum.items.forEach((itemState, index) => {
+    if (itemState.name === '사용자 정의') {
+      updateCustomLaneItem(itemState, getSelectedMomentumData());
+    }
+    if (itemState.static || itemState.speed <= 0) return;
+    itemState.objectGroup.position.x += itemState.speed * 0.05 * dt;
+    if (itemState.objectGroup.position.x > 8.8) {
+      itemState.objectGroup.position.x = -8.8 - index * 0.2;
+    }
+  });
+}
+
+function resetCurrentTab() {
+  if (runtime.activeTab === TAB_INERTIA) {
+    resetInertiaState();
+  } else {
+    params.selectedObject = '야구공';
+    params.compareAll = true;
+    params.customMass = 1;
+    params.customSpeed = 5;
+    setTab(TAB_MOMENTUM);
+  }
+  syncGuiDisplays();
+}
+
+const gui = new GUI({ title: '실험 제어', width: 312 });
+if (window.innerWidth < 768) gui.close();
+
+const commonFolder = gui.addFolder('공통');
+const tabController = commonFolder.add(params, 'activeTab', [TAB_INERTIA, TAB_MOMENTUM]).name('실험 탭');
+const slowMotionController = commonFolder.add(params, 'slowMotion', 0.2, 3, 0.1).name('슬로모션');
+const arrowController = commonFolder.add(params, 'showInertiaArrows').name('관성 화살표 표시');
+const resetController = commonFolder.add({ resetCurrentTab }, 'resetCurrentTab').name('초기화');
+commonFolder.open();
+
+const inertiaFolder = gui.addFolder('관성 탭');
+const startController = inertiaFolder.add({ triggerStart }, 'triggerStart').name('급출발');
+const stopController = inertiaFolder.add({ triggerStop }, 'triggerStop').name('급정지');
+const coinController = inertiaFolder.add({ triggerCoinExperiment }, 'triggerCoinExperiment').name('동전 실험');
+const tiltController = inertiaFolder.add(params, 'tiltAngle', 5, 30, 1).name('기울어짐 각도');
+const busSpeedController = inertiaFolder.add(params, 'busSpeed', 1, 10, 0.1).name('버스 속도');
+inertiaFolder.open();
+
+const momentumFolder = gui.addFolder('운동량 탭');
+const objectController = momentumFolder.add(params, 'selectedObject', OBJECT_OPTIONS).name('물체 선택');
+const massController = momentumFolder.add(customMassUi, 'massExponent', -2, 5, 0.01).name('질량(로그)');
+const massValueController = momentumFolder.add(customMassUi, 'massDisplay').name('질량 값');
+const speedController = momentumFolder.add(params, 'customSpeed', 0, 100, 0.1).name('속도');
+const compareController = momentumFolder.add(params, 'compareAll').name('전체 비교');
+massValueController.domElement.style.pointerEvents = 'none';
+massValueController.domElement.style.opacity = '0.75';
+
+function setControllerEnabled(controller, enabled) {
+  controller.domElement.style.pointerEvents = enabled ? '' : 'none';
+  controller.domElement.style.opacity = enabled ? '1' : '0.45';
+}
+
+function refreshGuiVisibility() {
+  const inertiaMode = runtime.activeTab === TAB_INERTIA;
+  inertiaFolder.domElement.style.display = inertiaMode ? '' : 'none';
+  momentumFolder.domElement.style.display = inertiaMode ? 'none' : '';
+  const customMode = params.selectedObject === '사용자 정의' && !inertiaMode;
+  massController.domElement.style.display = customMode ? '' : 'none';
+  massValueController.domElement.style.display = customMode ? '' : 'none';
+  speedController.domElement.style.display = customMode ? '' : 'none';
+  setControllerEnabled(stopController, inertiaMode && runtime.inertia?.phase === 'cruising');
+}
+
+function syncGuiDisplays() {
+  customMassUi.massDisplay = `${formatNumber(params.customMass, 2)} kg`;
+  customMassUi.massExponent = Math.log10(params.customMass);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+tabController.onChange((value) => {
+  setTab(value);
+});
+
+arrowController.onChange(() => {
+  if (runtime.activeTab === TAB_INERTIA) {
+    if (!params.showInertiaArrows) {
+      runtime.inertia.inertiaArrow.visible = false;
+      runtime.inertia.inertiaLabel.visible = false;
+    }
+  }
+});
+
+tiltController.onChange((value) => {
+  if (runtime.activeTab === TAB_INERTIA && runtime.inertia.cueSign !== 0) {
+    runtime.inertia.targetLean = THREE.MathUtils.degToRad(value) * runtime.inertia.cueSign;
+  }
+  updateFormulaPanel();
+});
+
+busSpeedController.onChange(() => {
+  updateFormulaPanel();
+});
+
+function rebuildMomentumIfNeeded() {
+  if (runtime.activeTab === TAB_MOMENTUM) {
+    setTab(TAB_MOMENTUM);
+  }
+}
+
+objectController.onChange(() => {
+  if (runtime.activeTab === TAB_MOMENTUM) {
+    setTab(TAB_MOMENTUM);
+  } else {
+    focusChipEl.textContent = `현재 탭: 관성 체험`;
+  }
+});
+
+compareController.onChange(() => {
+  rebuildMomentumIfNeeded();
+});
+
+massController.onChange(() => {
+  params.customMass = Number((10 ** customMassUi.massExponent).toPrecision(6));
+  syncGuiDisplays();
+  updateFormulaPanel();
+  drawChart();
+});
+
+speedController.onChange(() => {
+  updateFormulaPanel();
+  drawChart();
+});
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.style.display = guidePanelEl.style.display === 'block' ? 'none' : 'block';
+});
+
+chartCanvasEl.addEventListener('mousemove', (event) => {
+  if (runtime.activeTab !== TAB_MOMENTUM) return;
+  const rect = chartCanvasEl.getBoundingClientRect();
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+  const hovered = runtime.chartBars.find((bar) => (
+    localX >= bar.x && localX <= bar.x + bar.width &&
+    localY >= bar.y && localY <= bar.y + bar.height
+  ));
+  if (!hovered) {
+    chartTooltipEl.style.display = 'none';
+    return;
+  }
+  chartTooltipEl.style.display = 'block';
+  chartTooltipEl.style.left = `${event.clientX + 14}px`;
+  chartTooltipEl.style.top = `${event.clientY - 10}px`;
+  chartTooltipEl.textContent = `${hovered.row.name}: ${formatMomentum(hovered.row.value)} kg·m/s`;
+});
+
+chartCanvasEl.addEventListener('mouseleave', () => {
+  chartTooltipEl.style.display = 'none';
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  drawChart();
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  controls.update();
+  if (runtime.activeTab === TAB_INERTIA) {
+    updateInertia(delta);
+  } else {
+    updateMomentum(delta);
+  }
+  refreshGuiVisibility();
+  updateFormulaPanel();
+  renderer.render(scene, camera);
+}
+
+setTab(TAB_INERTIA);
+animate();
+</script>
+</body>
+</html>

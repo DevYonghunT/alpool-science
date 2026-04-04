@@ -8,6 +8,7 @@ let currentPage: Page = 'simulations'
 let activeFilter: string | null = null
 let activePlaylist: string | null = null
 let activeCategory: string | null = null
+const expandedNodes: Set<string> = new Set()
 
 export function renderApp(): void {
   const app = document.getElementById('app')!
@@ -113,10 +114,15 @@ function renderBlogSidebar(): string {
 function renderTree(nodes: TreeNode[], depth = 0): string {
   return nodes.map(node => {
     if (node.children) {
-      const isExpanded = depth < 2
+      const nodeKey = `${depth}-${node.label}`
+      // 첫 렌더링 시 depth < 2는 기본 펼침
+      if (expandedNodes.size === 0 && depth < 2) {
+        expandedNodes.add(nodeKey)
+      }
+      const isExpanded = expandedNodes.has(nodeKey)
       return `
         <div class="tree-group">
-          <div class="tree-parent ${isExpanded ? 'expanded' : ''}" data-toggle>
+          <div class="tree-parent ${isExpanded ? 'expanded' : ''}" data-toggle data-node-key="${nodeKey}">
             <span class="tree-arrow">▶</span>
             ${node.label}
           </div>
@@ -164,19 +170,33 @@ function renderSimulationsPage(): string {
 
 function getFilterLabel(filterId: string): string {
   const map: Record<string, string> = {
-    'bigbang': '1-1. 우주 초기의 원소',
-    'star-evolution': '1-2. 별의 진화와 원소',
-    'periodicity': '1-3. 원소의 주기성',
-    'chemical-bond': '1-4. 화학 결합',
+    'basic-quantities': '1. 과학의 기본량',
+    'measurement-info': '2. 측정 표준과 정보',
+    'element-creation': '1. 원소의 생성과 규칙성',
     'natural-materials': '2. 자연의 구성 물질',
-    'earth-system': '1-1. 지구시스템',
-    'plate-tectonics': '1-2. 판 구조론',
+    'earth-system': '1. 지구시스템',
     'mechanics': '2. 역학 시스템',
     'life-system': '3. 생명 시스템',
-    'chemical-change': '1. 화학 변화',
-    'biodiversity': '2. 생물 다양성',
-    'ecosystem': '1. 생태계와 환경',
-    'energy': '2. 에너지와 환경',
+    'sci2-env-bio': '1. 환경 변화와 생물다양성',
+    'sci2-change': '2. 우리 주변의 변화',
+    'sci2-ecosystem': '1. 생태계와 환경',
+    'sci2-energy': '2. 에너지',
+    'sci2-bigdata': '1. 과학의 유용성과 빅데이터',
+    'sci2-ethics': '2. 과학기술의 발전과 윤리',
+    'phys-force-motion': '1. 힘과 운동',
+    'phys-energy-heat': '2. 에너지와 열',
+    'phys-electric': '1. 전기장과 전기 에너지',
+    'phys-magnetic': '2. 전기와 자기의 상호작용',
+    'phys-light': '1. 빛과 물질의 이중성',
+    'phys-atom': '2. 원자와 에너지 준위',
+    'mech-force': '1. 힘의 합성과 운동',
+    'mech-various': '2. 여러 가지 운동',
+    'mech-gravity': '3. 중력과 에너지',
+    'mech-relativity': '4. 등가 원리와 시공간',
+    'mech-heat-transfer': '1. 열 전달과 열팽창',
+    'mech-thermo': '2. 열역학',
+    'mech-wave': '1. 진동과 파동',
+    'mech-sound': '2. 소리와 악기',
   }
   return map[filterId] || ''
 }
@@ -204,7 +224,7 @@ function renderSimCard(sim: Simulation): string {
       </div>
       <div class="sim-card-footer">
         <span class="sim-card-unit">${sim.unit}</span>
-        <span class="sim-card-action">실행 →</span>
+        <span class="sim-card-action">${sim.file ? '실행 →' : '준비 중'}</span>
       </div>
     </div>
   `
@@ -266,15 +286,16 @@ function openSimModal(simId: string): void {
   const sim = simulations.find(s => s.id === simId)
   if (!sim) return
 
+  const iframeSrc = sim.file ? `./simulations/${sim.file}` : 'about:blank'
   const overlay = document.createElement('div')
   overlay.className = 'sim-modal-overlay'
   overlay.innerHTML = `
+    <button class="sim-modal-close">← 돌아가기</button>
     <div class="sim-modal">
-      <div class="sim-modal-header">
-        <h2>${sim.icon} ${sim.title}</h2>
-        <button class="sim-modal-close">✕</button>
-      </div>
-      <iframe src="about:blank"></iframe>
+      ${sim.file
+        ? `<iframe src="${iframeSrc}"></iframe>`
+        : `<div style="display:flex;align-items:center;justify-content:center;flex:1;color:#999;font-size:1.1rem;">준비 중입니다</div>`
+      }
     </div>
   `
   document.body.appendChild(overlay)
@@ -311,9 +332,15 @@ function bindEvents(): void {
     })
   })
 
-  // 사이드바 트리 토글
+  // 사이드바 트리 토글 (상태 유지)
   document.querySelectorAll('[data-toggle]').forEach(el => {
     el.addEventListener('click', () => {
+      const nodeKey = (el as HTMLElement).dataset.nodeKey!
+      if (expandedNodes.has(nodeKey)) {
+        expandedNodes.delete(nodeKey)
+      } else {
+        expandedNodes.add(nodeKey)
+      }
       el.classList.toggle('expanded')
       const children = el.nextElementSibling as HTMLElement
       if (children) children.classList.toggle('open')

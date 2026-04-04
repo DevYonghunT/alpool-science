@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>센서와 신호 측정 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas#main-canvas { display: block; }
+
+  /* ── 실시간 그래프 패널 (우측) ── */
+  #graph-panel {
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 300px;
+    height: 220px;
+    background: rgba(15,15,30,0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px;
+    z-index: 20;
+  }
+  #graph-panel h3 {
+    font-size: 12px;
+    margin-bottom: 8px;
+    color: #7ecfff;
+  }
+  #graph-canvas {
+    width: 100%;
+    height: calc(100% - 24px);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.3);
+  }
+
+  /* ── 온도 라벨 (시나리오 C) ── */
+  .temp-label {
+    position: absolute;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    pointer-events: none;
+    z-index: 15;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+    transition: opacity 0.3s;
+  }
+
+  /* ── 수식 패널 ── */
+  #formula-panel {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    width: 310px;
+    background: rgba(15,15,30,0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    z-index: 20;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  #formula-panel h3 {
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: #7ecfff;
+  }
+  #formula-panel .row { display: flex; margin-bottom: 3px; }
+  #formula-panel .row .label {
+    width: 85px;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.5);
+    font-size: 11px;
+  }
+  #formula-panel .row .value {
+    flex: 1;
+    font-size: 12px;
+  }
+  .formula-flow {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.5;
+  }
+  .formula-flow strong { color: #ffcf7e; }
+
+  /* ── 학습 가이드 ── */
+  #guide-toggle {
+    position: fixed;
+    left: 50%;
+    top: 10px;
+    transform: translateX(-50%);
+    background: rgba(15,15,30,0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 5px 14px;
+    color: #fff;
+    font-size: 11px;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    z-index: 35;
+    transition: background 0.2s;
+  }
+  #guide-toggle:hover { background: rgba(40,40,80,0.95); }
+
+  #guide-panel {
+    position: fixed;
+    left: 50%;
+    top: 40px;
+    transform: translateX(-50%);
+    width: 440px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: rgba(15,15,30,0.95);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 18px;
+    z-index: 34;
+    font-size: 12px;
+    line-height: 1.8;
+    display: none;
+  }
+  #guide-panel h3 { font-size: 14px; margin-bottom: 8px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 12px; margin-top: 10px; margin-bottom: 4px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 16px; }
+  #guide-panel li { margin-bottom: 3px; }
+  .textbook-ref {
+    margin-top: 10px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── 반응형 ── */
+  @media (max-width: 768px) {
+    #graph-panel { width: 200px; height: 160px; right: 8px; }
+    #formula-panel { width: 240px; left: 8px; font-size: 11px; }
+    #guide-panel { width: calc(100vw - 40px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- 실시간 그래프 패널 -->
+<div id="graph-panel">
+  <h3 id="graph-title">📊 빛 세기 변화</h3>
+  <canvas id="graph-canvas"></canvas>
+</div>
+
+<!-- 온도 라벨 (시나리오 C용, JS에서 동적 생성) -->
+<div id="temp-labels"></div>
+
+<!-- 수식 패널 -->
+<div id="formula-panel">
+  <h3>📡 센서와 신호 측정</h3>
+  <div class="row"><span class="label">센서 종류:</span><span class="value" id="fp-sensor">빛 센서</span></div>
+  <div class="row"><span class="label">입력 신호:</span><span class="value" id="fp-input">빛 세기</span></div>
+  <div class="row"><span class="label">출력 신호:</span><span class="value" id="fp-output">전기 신호 (전압)</span></div>
+  <div class="row"><span class="label">현재 측정값:</span><span class="value" id="fp-value">—</span></div>
+  <div class="formula-flow">
+    <strong>🔄 신호 → 정보 흐름:</strong><br>
+    자연계 변화 → 센서(전기 신호 변환) → 측정·분석 → 유용한 정보
+  </div>
+</div>
+
+<!-- 학습 가이드 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>센서는 자연계의 신호를 받아들여 전기 신호로 바꾸어 주는 장치입니다. 신호를 측정해 분석하면 건강 상태, 날씨, 우주의 비밀 등 유용한 정보를 얻을 수 있습니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>빛 센서가 없다면 하루 동안의 빛 변화를 어떻게 기록할 수 있을까요?</li>
+    <li>열화상 카메라는 어떤 종류의 센서를 사용할까요? (힌트: 적외선)</li>
+    <li>스마트워치는 어떤 센서로 심박수를 측정할까요?</li>
+  </ul>
+
+  <h4>📋 센서 종류</h4>
+  <ul>
+    <li>빛 센서, 온도 센서, 습도 센서, 압력 센서, 가속도 센서</li>
+  </ul>
+
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>우주 망원경</strong>: 우주에서 온 빛 → 우주 생성 과정 정보</li>
+    <li><strong>열화상 카메라</strong>: 피부 온도 → 발열자 확인</li>
+    <li><strong>지진계</strong>: 지진파 → 지진 발생 위치 정보</li>
+  </ul>
+
+  <div class="textbook-ref">
+    📚 교과서 참고: 미래엔 통합과학1 I편 p32~34 — 신호의 측정과 분석, 센서, 디지털 정보와 현대 문명
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── Three.js 초기화 ───
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 5, 15);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.domElement.id = 'main-canvas';
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxDistance = 40;
+controls.minDistance = 5;
+
+// ─── 조명 (시나리오별로 조정) ───
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight);
+
+// ─── 상태 관리 ───
+const state = {
+  scenario: 'light',        // 'light' | 'temperature' | 'thermal'
+  hour: 12,                 // 시나리오 A: 0~24
+  month: 7,                 // 시나리오 B: 1~12
+  thermalView: false,       // 시나리오 C
+  temps: [36.5, 37.5, 38.5], // 시나리오 C: 3명 체온
+  autoPlaying: false,
+  autoProgress: 0,
+  sceneObjects: [],         // dispose 대상 추적
+  clock: new THREE.Clock(),
+  animationCallbacks: []
+};
+
+// ─── DOM 참조 ───
+const graphPanel = document.getElementById('graph-panel');
+const graphTitle = document.getElementById('graph-title');
+const graphCanvas = document.getElementById('graph-canvas');
+const tempLabelsDiv = document.getElementById('temp-labels');
+const fpSensor = document.getElementById('fp-sensor');
+const fpInput = document.getElementById('fp-input');
+const fpValue = document.getElementById('fp-value');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.style.display = guideOpen ? 'block' : 'none';
+});
+
+// ─── 그래프 캔버스 크기 ───
+function resizeGraphCanvas() {
+  const rect = graphCanvas.parentElement.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  graphCanvas.width = (rect.width - 28) * dpr;
+  graphCanvas.height = (rect.height - 38) * dpr;
+  graphCanvas.style.width = (rect.width - 28) + 'px';
+  graphCanvas.style.height = (rect.height - 38) + 'px';
+}
+
+// ─── 유틸: Color 보간 ───
+const _c1 = new THREE.Color();
+const _c2 = new THREE.Color();
+function lerpColor(hex1, hex2, t) {
+  _c1.set(hex1);
+  _c2.set(hex2);
+  _c1.lerp(_c2, t);
+  return _c1.getHex();
+}
+
+// ─── 유틸: 열화상 컬러맵 ───
+function thermalColor(temp) {
+  if (temp <= 35) return 0x0000ff;
+  if (temp <= 36) return lerpColor(0x0000ff, 0x00ff00, temp - 35);
+  if (temp <= 37) return lerpColor(0x00ff00, 0xffff00, temp - 36);
+  if (temp <= 38) return lerpColor(0xffff00, 0xff8800, temp - 37);
+  return lerpColor(0xff8800, 0xff0000, Math.min(temp - 38, 2) / 2);
+}
+
+// ─── 씬 정리 ───
+function disposeScene() {
+  state.animationCallbacks = [];
+  state.sceneObjects.forEach(obj => {
+    obj.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    });
+    scene.remove(obj);
+  });
+  state.sceneObjects = [];
+  tempLabelsDiv.innerHTML = '';
+}
+
+// ═══════════════════════════════════════
+//  시나리오 A: 하루의 빛 변화 + 빛 센서
+// ═══════════════════════════════════════
+
+function setupScenarioA() {
+  const group = new THREE.Group();
+
+  // 바닥 (풀밭)
+  const floorGeo = new THREE.PlaneGeometry(50, 50);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 0.8 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  // 하늘 (반구, 내부면)
+  const skyGeo = new THREE.SphereGeometry(25, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+  const skyMat = new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  group.add(sky);
+
+  // 태양
+  const sunGeo = new THREE.SphereGeometry(1, 32, 32);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  group.add(sun);
+  const sunLight = new THREE.PointLight(0xffdd00, 1, 30);
+  sun.add(sunLight);
+
+  // 빛 센서 기둥
+  const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 2, 8);
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.5 });
+  const pole = new THREE.Mesh(poleGeo, poleMat);
+  pole.position.set(0, 1, 0);
+  pole.castShadow = true;
+  group.add(pole);
+
+  // 빛 센서 본체
+  const sensorBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.2, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.3 })
+  );
+  sensorBody.position.set(0, 2.1, 0);
+  group.add(sensorBody);
+
+  // 볼록 렌즈
+  const lensGeo = new THREE.SphereGeometry(0.08, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  const lens = new THREE.Mesh(lensGeo, new THREE.MeshStandardMaterial({ color: 0x88aadd, transparent: true, opacity: 0.7 }));
+  lens.position.set(0, 2.21, 0);
+  group.add(lens);
+
+  // 전선
+  const wireCurve = new THREE.CubicBezierCurve3(
+    new THREE.Vector3(0.15, 2.05, 0),
+    new THREE.Vector3(0.5, 1.8, 0.2),
+    new THREE.Vector3(0.6, 1.2, 0),
+    new THREE.Vector3(0.5, 0.5, 0)
+  );
+  const wire = new THREE.Mesh(
+    new THREE.TubeGeometry(wireCurve, 20, 0.015, 8, false),
+    new THREE.MeshStandardMaterial({ color: 0x222222 })
+  );
+  group.add(wire);
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  // 카메라 위치
+  camera.position.set(0, 5, 12);
+  controls.target.set(0, 2, 0);
+
+  // 애니메이션 콜백: 시간에 따라 하늘/태양/조명 업데이트
+  state.animationCallbacks.push(() => {
+    const h = state.hour;
+
+    // 태양 위치 (반원 호)
+    const sunAngle = ((h - 6) / 12) * Math.PI;
+    sun.position.set(-Math.cos(sunAngle) * 15, Math.sin(sunAngle) * 15, 0);
+    sun.visible = (h >= 5 && h <= 19);
+    sunLight.intensity = sun.visible ? Math.max(0, Math.sin(sunAngle)) * 2 : 0;
+
+    // DirectionalLight를 태양 위치로
+    dirLight.position.copy(sun.position);
+    dirLight.intensity = Math.max(0, Math.sin(sunAngle)) * 1.0;
+
+    // 하늘색
+    let skyColor;
+    if (h < 5 || h > 20) skyColor = 0x0a0a2e;       // 밤
+    else if (h < 7) skyColor = lerpColor(0x0a0a2e, 0xff7744, (h - 5) / 2); // 새벽
+    else if (h < 8) skyColor = lerpColor(0xff7744, 0x87CEEB, (h - 7));      // 아침
+    else if (h < 17) skyColor = 0x87CEEB;             // 낮
+    else if (h < 19) skyColor = lerpColor(0x87CEEB, 0xff5533, (h - 17) / 2); // 저녁
+    else skyColor = lerpColor(0xff5533, 0x0a0a2e, (h - 19));  // 밤
+    skyMat.color.set(skyColor);
+
+    // AmbientLight 강도
+    const dayFactor = Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
+    ambientLight.intensity = 0.05 + dayFactor * 0.55;
+
+    // 씬 배경
+    scene.background = new THREE.Color(skyColor);
+  });
+}
+
+function getLightIntensity(hour) {
+  // 0~100%: 밤 0%, 정오 100%
+  if (hour < 5 || hour > 19) return 0;
+  const dayAngle = ((hour - 5) / 14) * Math.PI;
+  return Math.max(0, Math.sin(dayAngle)) * 100;
+}
+
+// ═══════════════════════════════════════
+//  시나리오 B: 계절 기온 변화 + 온도 센서
+// ═══════════════════════════════════════
+
+// 눈 파티클 참조
+let snowParticles = null;
+let snowPositions = null;
+
+function setupScenarioB() {
+  const group = new THREE.Group();
+
+  // 바닥
+  const floorGeo = new THREE.PlaneGeometry(50, 50);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x4a9c3f, roughness: 0.8 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  // 하늘
+  const skyMat = new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide });
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(25, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2), skyMat);
+  group.add(sky);
+
+  // 나무 줄기
+  const trunkGeo = new THREE.CylinderGeometry(0.2, 0.35, 3, 8);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.8 });
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.set(-3, 1.5, 0);
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // 나무 잎
+  const leafGeo = new THREE.SphereGeometry(1.8, 16, 16);
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.7 });
+  const leaf = new THREE.Mesh(leafGeo, leafMat);
+  leaf.position.set(-3, 4.0, 0);
+  leaf.castShadow = true;
+  group.add(leaf);
+
+  // 온도 센서 (수은 온도계)
+  // 외관: 유리관
+  const tubeGeo = new THREE.CylinderGeometry(0.06, 0.06, 3, 8);
+  const tubeMat = new THREE.MeshStandardMaterial({ color: 0xddeeff, transparent: true, opacity: 0.5, roughness: 0.05, metalness: 0.1 });
+  const tube = new THREE.Mesh(tubeGeo, tubeMat);
+  tube.position.set(2, 1.7, 0);
+  group.add(tube);
+
+  // 구부 (하단)
+  const bulbGeo = new THREE.SphereGeometry(0.12, 16, 16);
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+  bulb.position.set(2, 0.15, 0);
+  group.add(bulb);
+
+  // 수은 (높이 변하는 빨간 막대)
+  const mercuryGeo = new THREE.CylinderGeometry(0.04, 0.04, 1, 8);
+  const mercuryMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const mercury = new THREE.Mesh(mercuryGeo, mercuryMat);
+  mercury.position.set(2, 0.7, 0);
+  group.add(mercury);
+
+  // 눈금 라벨 (-20 ~ 40, 5도 간격 주요 눈금)
+  const scaleLabels = [];
+  for (let t = -20; t <= 40; t += 5) {
+    const sprite = createTextSprite(`${t}°C`, 0.25, t >= 30 ? '#ff6644' : t <= 0 ? '#4488ff' : '#ffffff');
+    const yPos = 0.2 + ((t + 20) / 60) * 2.8;
+    sprite.position.set(2.4, yPos, 0);
+    group.add(sprite);
+    scaleLabels.push(sprite);
+  }
+
+  // 눈 파티클 (겨울 전용)
+  const snowCount = 200;
+  snowPositions = new Float32Array(snowCount * 3);
+  for (let i = 0; i < snowCount; i++) {
+    snowPositions[i * 3] = (Math.random() - 0.5) * 30;
+    snowPositions[i * 3 + 1] = Math.random() * 15;
+    snowPositions[i * 3 + 2] = (Math.random() - 0.5) * 30;
+  }
+  const snowGeo = new THREE.BufferGeometry();
+  snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+  const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.8 });
+  snowParticles = new THREE.Points(snowGeo, snowMat);
+  snowParticles.visible = false;
+  group.add(snowParticles);
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  // 카메라
+  camera.position.set(0, 4, 10);
+  controls.target.set(0, 2, 0);
+
+  // 조명 복원
+  ambientLight.intensity = 0.4;
+  dirLight.position.set(5, 10, 5);
+  dirLight.intensity = 0.8;
+  scene.background = new THREE.Color(0x87CEEB);
+
+  // 애니메이션 콜백: 계절 변화
+  state.animationCallbacks.push((dt) => {
+    const m = state.month;
+    const temp = getTemperature(m);
+
+    // 나무 잎 색상/크기
+    let leafColor, leafScale;
+    if (m >= 3 && m <= 4) {
+      leafColor = lerpColor(0xffb7c5, 0x228b22, (m - 3) / 2);
+      leafScale = 0.8 + (m - 3) * 0.1;
+    } else if (m >= 5 && m <= 8) {
+      leafColor = 0x228b22;
+      leafScale = 1.0;
+    } else if (m >= 9 && m <= 11) {
+      leafColor = lerpColor(0x228b22, 0xd2691e, (m - 9) / 2);
+      leafScale = 1.0 - (m - 9) * 0.15;
+    } else {
+      // 겨울: 잎 숨김
+      leafColor = 0xd2691e;
+      leafScale = 0;
+    }
+    leafMat.color.set(leafColor);
+    leaf.scale.setScalar(Math.max(leafScale, 0.01));
+    leaf.visible = leafScale > 0.05;
+
+    // 바닥 색상
+    let groundColor;
+    if (m >= 3 && m <= 5) groundColor = lerpColor(0x7cb342, 0x4a9c3f, (m - 3) / 2);
+    else if (m >= 6 && m <= 8) groundColor = 0x4a9c3f;
+    else if (m >= 9 && m <= 11) groundColor = lerpColor(0x4a9c3f, 0xb8860b, (m - 9) / 2);
+    else groundColor = 0xdddddd;
+    floorMat.color.set(groundColor);
+
+    // 눈 파티클
+    const isWinter = m <= 2 || m === 12;
+    snowParticles.visible = isWinter;
+    if (isWinter && snowPositions) {
+      const positions = snowParticles.geometry.attributes.position.array;
+      for (let i = 0; i < 200; i++) {
+        positions[i * 3 + 1] -= dt * (0.5 + Math.random() * 0.5);
+        if (positions[i * 3 + 1] < 0) {
+          positions[i * 3 + 1] = 12 + Math.random() * 3;
+        }
+      }
+      snowParticles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // 수은 높이: -20~40 → 0~3
+    const mercuryH = Math.max(0.05, ((temp + 20) / 60) * 2.8);
+    mercury.scale.y = mercuryH;
+    mercury.position.y = 0.2 + mercuryH / 2;
+  });
+}
+
+function getTemperature(month) {
+  // 서울 평균 기온 (사인파 근사): 1월 -2, 4월 12, 7월 25, 10월 15
+  return 11.5 + 13.5 * Math.sin(((month - 4) / 12) * Math.PI * 2);
+}
+
+// ═══════════════════════════════════════
+//  시나리오 C: 열화상 카메라
+// ═══════════════════════════════════════
+
+// 사람 메시 참조
+let personMeshes = [];
+
+function setupScenarioC() {
+  const group = new THREE.Group();
+
+  // 배경
+  scene.background = new THREE.Color(0x2a2a3e);
+  ambientLight.intensity = 0.5;
+  dirLight.intensity = 0.6;
+  dirLight.position.set(3, 8, 5);
+
+  // 바닥
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.9 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  // 3명의 사람 생성
+  personMeshes = [];
+  const positions = [-3, 0, 3];
+  const defaultTemps = state.temps;
+
+  for (let i = 0; i < 3; i++) {
+    const person = createPerson();
+    person.position.set(positions[i], 0, 0);
+    group.add(person);
+    personMeshes.push(person);
+  }
+
+  scene.add(group);
+  state.sceneObjects.push(group);
+
+  // 카메라
+  camera.position.set(0, 3, 8);
+  controls.target.set(0, 1.5, 0);
+
+  // 온도 라벨 생성
+  updateTempLabels();
+
+  // 애니메이션 콜백: 열화상 뷰 업데이트
+  state.animationCallbacks.push(() => {
+    personMeshes.forEach((person, i) => {
+      const temp = state.temps[i];
+      person.traverse(child => {
+        if (child.isMesh && child.userData.isSkin) {
+          child.material.color.set(state.thermalView ? thermalColor(temp) : 0xddccbb);
+        }
+      });
+    });
+  });
+}
+
+function createPerson() {
+  const group = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xddccbb, roughness: 0.7 });
+
+  // 머리
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.35), skinMat.clone());
+  head.position.y = 2.7;
+  head.userData.isSkin = true;
+  group.add(head);
+
+  // 몸통
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 0.35), skinMat.clone());
+  torso.position.y = 1.95;
+  torso.userData.isSkin = true;
+  group.add(torso);
+
+  // 팔
+  const armGeo = new THREE.BoxGeometry(0.2, 0.9, 0.2);
+  const lArm = new THREE.Mesh(armGeo, skinMat.clone());
+  lArm.position.set(-0.55, 2.0, 0);
+  lArm.userData.isSkin = true;
+  group.add(lArm);
+  const rArm = new THREE.Mesh(armGeo, skinMat.clone());
+  rArm.position.set(0.55, 2.0, 0);
+  rArm.userData.isSkin = true;
+  group.add(rArm);
+
+  // 다리
+  const legGeo = new THREE.BoxGeometry(0.25, 1.0, 0.25);
+  const lLeg = new THREE.Mesh(legGeo, skinMat.clone());
+  lLeg.position.set(-0.2, 0.9, 0);
+  lLeg.userData.isSkin = true;
+  group.add(lLeg);
+  const rLeg = new THREE.Mesh(legGeo, skinMat.clone());
+  rLeg.position.set(0.2, 0.9, 0);
+  rLeg.userData.isSkin = true;
+  group.add(rLeg);
+
+  return group;
+}
+
+function updateTempLabels() {
+  tempLabelsDiv.innerHTML = '';
+  if (state.scenario !== 'thermal') return;
+
+  const positions = [-3, 0, 3];
+  const icons = ['', '', ''];
+
+  state.temps.forEach((temp, i) => {
+    let icon = '✅';
+    if (temp >= 38) icon = '🔴';
+    else if (temp >= 37) icon = '⚠️';
+
+    const label = document.createElement('div');
+    label.className = 'temp-label';
+    label.textContent = `${temp.toFixed(1)}°C ${icon}`;
+    label.style.color = state.thermalView ? '#fff' : '#ddd';
+
+    // 3D→스크린 좌표 변환은 animate에서 처리
+    label.dataset.personIndex = i;
+    tempLabelsDiv.appendChild(label);
+  });
+}
+
+function updateTempLabelPositions() {
+  if (state.scenario !== 'thermal') return;
+  const labels = tempLabelsDiv.querySelectorAll('.temp-label');
+  const positions = [-3, 0, 3];
+
+  labels.forEach((label, i) => {
+    const pos = new THREE.Vector3(positions[i], 3.3, 0);
+    pos.project(camera);
+    const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+    label.style.left = x + 'px';
+    label.style.top = y + 'px';
+    label.style.transform = 'translate(-50%, -50%)';
+  });
+}
+
+// ─── 텍스트 스프라이트 ───
+function createTextSprite(text, scale, color) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 256;
+  canvas.height = 64;
+  ctx.clearRect(0, 0, 256, 64);
+  ctx.font = 'bold 28px Pretendard, sans-serif';
+  ctx.fillStyle = color || '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(text, 128, 32);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale * 4, scale, 1);
+  return sprite;
+}
+
+// ─── 그래프 그리기 ───
+function drawGraph() {
+  const canvas = graphCanvas;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const dpr = w / parseFloat(canvas.style.width || 1);
+  const pad = { top: 15 * dpr, right: 10 * dpr, bottom: 20 * dpr, left: 35 * dpr };
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (state.scenario === 'thermal') return; // 시나리오 C는 그래프 없음
+
+  // 그리드
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([3 * dpr, 3 * dpr]);
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * gh;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gw, y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  if (state.scenario === 'light') {
+    // 시나리오 A: 빛 세기 그래프
+    graphTitle.textContent = '📊 빛 세기 변화';
+
+    // 축 라벨
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${8 * dpr}px Pretendard`;
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+      ctx.fillText(`${i * 6}시`, pad.left + (i / 4) * gw, h - 4 * dpr);
+    }
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      ctx.fillText(`${i * 25}%`, pad.left - 4 * dpr, pad.top + (1 - i / 4) * gh + 3 * dpr);
+    }
+
+    // 파형
+    ctx.strokeStyle = '#ffdd44';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    const steps = 200;
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * 24;
+      if (t > state.hour) break;
+      const x = pad.left + (t / 24) * gw;
+      const val = getLightIntensity(t);
+      const y = pad.top + (1 - val / 100) * gh;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 현재 위치 점
+    const cx = pad.left + (state.hour / 24) * gw;
+    const cy = pad.top + (1 - getLightIntensity(state.hour) / 100) * gh;
+    ctx.fillStyle = '#ffdd44';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (state.scenario === 'temperature') {
+    // 시나리오 B: 기온 그래프
+    graphTitle.textContent = '📊 월별 평균 기온';
+
+    // 축 라벨
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${8 * dpr}px Pretendard`;
+    ctx.textAlign = 'center';
+    for (let i = 1; i <= 12; i += 2) {
+      ctx.fillText(`${i}월`, pad.left + ((i - 1) / 11) * gw, h - 4 * dpr);
+    }
+    ctx.textAlign = 'right';
+    const yLabels = [-10, 0, 10, 20, 30];
+    yLabels.forEach(t => {
+      const y = pad.top + (1 - (t + 10) / 45) * gh;
+      ctx.fillText(`${t}°`, pad.left - 4 * dpr, y + 3 * dpr);
+    });
+
+    // 0도선
+    const zeroY = pad.top + (1 - (0 + 10) / 45) * gh;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = dpr;
+    ctx.setLineDash([4 * dpr, 4 * dpr]);
+    ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left + gw, zeroY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 파형
+    ctx.strokeStyle = '#ff6644';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    for (let m = 1; m <= state.month; m += 0.1) {
+      const x = pad.left + ((m - 1) / 11) * gw;
+      const temp = getTemperature(m);
+      const y = pad.top + (1 - (temp + 10) / 45) * gh;
+      if (m === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 현재 점
+    const cx = pad.left + ((state.month - 1) / 11) * gw;
+    const currTemp = getTemperature(state.month);
+    const cy = pad.top + (1 - (currTemp + 10) / 45) * gh;
+    ctx.fillStyle = '#ff6644';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ─── 수식 패널 업데이트 ───
+function updateFormulaPanel() {
+  if (state.scenario === 'light') {
+    fpSensor.textContent = '빛 센서';
+    fpInput.textContent = '빛 세기';
+    const lux = getLightIntensity(state.hour);
+    fpValue.textContent = `${lux.toFixed(1)}% (${(lux * 10).toFixed(0)} lux)`;
+  } else if (state.scenario === 'temperature') {
+    fpSensor.textContent = '온도 센서';
+    fpInput.textContent = '기온';
+    const temp = getTemperature(state.month);
+    fpValue.textContent = `${temp.toFixed(1)}°C`;
+  } else {
+    fpSensor.textContent = '열화상 카메라';
+    fpInput.textContent = '적외선';
+    fpValue.textContent = `${state.temps[0].toFixed(1)} / ${state.temps[1].toFixed(1)} / ${state.temps[2].toFixed(1)} °C`;
+  }
+}
+
+// ─── 시나리오 전환 ───
+function switchScenario(name) {
+  disposeScene();
+  state.autoPlaying = false;
+  personMeshes = [];
+  snowParticles = null;
+
+  state.scenario = name;
+
+  if (name === 'light') setupScenarioA();
+  else if (name === 'temperature') setupScenarioB();
+  else setupScenarioC();
+
+  graphPanel.style.display = (name === 'thermal') ? 'none' : 'block';
+  updateFormulaPanel();
+  updateGUIVisibility();
+}
+
+// ─── lil-gui 설정 ───
+const gui = new GUI({ title: '센서와 신호 측정' });
+
+const SCENARIO_NAMES = {
+  light: '빛 센서 (하루)',
+  temperature: '온도 센서 (계절)',
+  thermal: '열화상 카메라'
+};
+
+const params = {
+  시나리오: 'light',
+  시각: 12,
+  월: 7,
+  자동재생: () => startAutoPlay(),
+  열화상뷰: false,
+  사람1체온: 36.5,
+  사람2체온: 37.5,
+  사람3체온: 38.5,
+  초기화: () => resetAll()
+};
+
+gui.add(params, '시나리오', SCENARIO_NAMES).name('시나리오 선택').onChange(val => {
+  switchScenario(val);
+});
+
+// 시나리오 A 전용
+const folderA = gui.addFolder('빛 센서 설정');
+const hourController = folderA.add(params, '시각', 0, 24, 0.5).name('시각 (시)').onChange(val => {
+  state.hour = val;
+  updateFormulaPanel();
+});
+folderA.add(params, '자동재생').name('▶ 자동 재생');
+
+// 시나리오 B 전용
+const folderB = gui.addFolder('온도 센서 설정');
+const monthController = folderB.add(params, '월', 1, 12, 1).name('월').onChange(val => {
+  state.month = val;
+  updateFormulaPanel();
+});
+folderB.add(params, '자동재생').name('▶ 자동 재생');
+
+// 시나리오 C 전용
+const folderC = gui.addFolder('열화상 카메라 설정');
+folderC.add(params, '열화상뷰').name('열화상 뷰').onChange(val => {
+  state.thermalView = val;
+  updateTempLabels();
+});
+folderC.add(params, '사람1체온', 35.0, 40.0, 0.1).name('사람 1 체온').onChange(val => {
+  state.temps[0] = val; updateTempLabels(); updateFormulaPanel();
+});
+folderC.add(params, '사람2체온', 35.0, 40.0, 0.1).name('사람 2 체온').onChange(val => {
+  state.temps[1] = val; updateTempLabels(); updateFormulaPanel();
+});
+folderC.add(params, '사람3체온', 35.0, 40.0, 0.1).name('사람 3 체온').onChange(val => {
+  state.temps[2] = val; updateTempLabels(); updateFormulaPanel();
+});
+
+gui.add(params, '초기화').name('↩ 초기화');
+
+if (window.innerWidth < 768) gui.close();
+
+function updateGUIVisibility() {
+  folderA.domElement.style.display = state.scenario === 'light' ? '' : 'none';
+  folderB.domElement.style.display = state.scenario === 'temperature' ? '' : 'none';
+  folderC.domElement.style.display = state.scenario === 'thermal' ? '' : 'none';
+
+  // 기본값으로 열기
+  if (state.scenario === 'light') { folderA.open(); folderB.close(); folderC.close(); }
+  else if (state.scenario === 'temperature') { folderA.close(); folderB.open(); folderC.close(); }
+  else { folderA.close(); folderB.close(); folderC.open(); }
+
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 자동 재생 ───
+function startAutoPlay() {
+  if (state.autoPlaying) return;
+  state.autoPlaying = true;
+  state.autoProgress = 0;
+}
+
+function updateAutoPlay(dt) {
+  if (!state.autoPlaying) return;
+
+  if (state.scenario === 'light') {
+    state.autoProgress += dt / 10; // 10초 동안 0→1
+    state.hour = state.autoProgress * 24;
+    params.시각 = state.hour;
+    if (state.hour >= 24) {
+      state.hour = 24;
+      state.autoPlaying = false;
+    }
+  } else if (state.scenario === 'temperature') {
+    state.autoProgress += dt / 12; // 12초 동안 0→1
+    state.month = 1 + state.autoProgress * 11;
+    params.월 = Math.round(state.month);
+    if (state.month >= 12) {
+      state.month = 12;
+      state.autoPlaying = false;
+    }
+  }
+
+  updateFormulaPanel();
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 초기화 ───
+function resetAll() {
+  state.hour = 12;
+  state.month = 7;
+  state.thermalView = false;
+  state.temps = [36.5, 37.5, 38.5];
+  state.autoPlaying = false;
+
+  params.시각 = 12;
+  params.월 = 7;
+  params.열화상뷰 = false;
+  params.사람1체온 = 36.5;
+  params.사람2체온 = 37.5;
+  params.사람3체온 = 38.5;
+
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+
+  if (state.scenario === 'thermal') {
+    updateTempLabels();
+  }
+  updateFormulaPanel();
+}
+
+// ─── 애니메이션 루프 ───
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(state.clock.getDelta(), 0.1);
+
+  // 자동 재생 업데이트
+  updateAutoPlay(dt);
+
+  // 시나리오 애니메이션 콜백
+  state.animationCallbacks.forEach(fn => fn(dt));
+
+  // 온도 라벨 위치 업데이트
+  if (state.scenario === 'thermal') updateTempLabelPositions();
+
+  // 그래프 그리기
+  drawGraph();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─── 리사이즈 ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  resizeGraphCanvas();
+  if (window.innerWidth < 768) gui.close();
+});
+
+// ─── 시작 ───
+resizeGraphCanvas();
+switchScenario('light');
+animate();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전기장과 전기력선 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-1: #050714;
+    --bg-2: #0a0a20;
+    --panel-bg: rgba(10, 15, 35, 0.78);
+    --panel-border: rgba(163, 196, 255, 0.14);
+    --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+    --text-main: #f5f9ff;
+    --text-dim: rgba(225, 235, 255, 0.68);
+    --text-soft: rgba(225, 235, 255, 0.52);
+    --accent-green: #66ffb0;
+    --accent-blue: #66a8ff;
+    --accent-red: #ff7878;
+    --accent-yellow: #ffe36c;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 16%, rgba(69, 111, 255, 0.12), transparent 20%),
+      radial-gradient(circle at 82% 12%, rgba(255, 87, 87, 0.09), transparent 18%),
+      linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 48%, #04060f 100%);
+    font-family: "SUIT Variable", "Pretendard Variable", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 20;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #title-card {
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px;
+    max-width: min(92vw, 620px);
+    padding: 12px 20px 14px;
+    border-radius: 999px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 32;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(11, 17, 39, 0.86);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    top: 56px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+    z-index: 31;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #d9f1ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 11px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffe7a0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  .guide-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  #mode-panel {
+    top: 86px;
+    right: 14px;
+    width: min(360px, calc(100vw - 28px));
+    padding: 15px;
+    border-radius: 24px;
+  }
+
+  #mode-panel h2 {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  #mode-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  #mode-cards {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mode-card {
+    padding: 11px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .mode-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(139, 199, 255, 0.26);
+  }
+
+  .mode-card.active {
+    background: rgba(102, 255, 176, 0.12);
+    border-color: rgba(102, 255, 176, 0.38);
+  }
+
+  .mode-card strong {
+    display: block;
+    font-size: 12px;
+  }
+
+  .mode-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  #status-pill {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(6, 12, 28, 0.78);
+    border: 1px solid rgba(141, 180, 255, 0.16);
+    font-size: 12px;
+    color: rgba(235, 242, 255, 0.88);
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+  }
+
+  #status-pill.active {
+    border-color: rgba(255, 227, 108, 0.38);
+    color: #fff4b5;
+  }
+
+  #formula-panel {
+    left: 14px;
+    bottom: 14px;
+    width: min(390px, calc(100vw - 28px));
+    padding: 18px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 17px;
+    margin-bottom: 10px;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(119, 168, 255, 0.55), rgba(119, 168, 255, 0));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 5px;
+  }
+
+  .info-row .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: var(--text-soft);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(245, 249, 255, 0.97);
+    word-break: keep-all;
+  }
+
+  .formula-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-box strong {
+    color: #d8eeff;
+  }
+
+  .formula-box .mono,
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #hint-card {
+    right: 14px;
+    bottom: 14px;
+    width: min(330px, calc(100vw - 28px));
+    padding: 14px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    line-height: 1.68;
+  }
+
+  #hint-card strong {
+    color: #cde8ff;
+  }
+
+  .hint-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    margin-right: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-dim);
+  }
+
+  .lil-gui {
+    z-index: 40 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 920px) {
+    #status-pill {
+      top: 126px;
+      max-width: calc(100vw - 24px);
+      text-align: center;
+    }
+
+    #mode-panel {
+      top: auto;
+      bottom: 196px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      min-width: 0;
+      max-width: calc(100vw - 134px);
+      padding: 10px 16px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 19px;
+    }
+
+    #guide-panel,
+    #mode-panel,
+    #formula-panel,
+    #hint-card {
+      width: calc(100vw - 20px);
+      left: 10px;
+      right: 10px;
+    }
+
+    #guide-panel {
+      top: 56px;
+    }
+
+    #mode-panel {
+      bottom: 216px;
+    }
+
+    #formula-panel {
+      bottom: 86px;
+      font-size: 11px;
+    }
+
+    #hint-card {
+      bottom: 10px;
+      font-size: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="overlay">
+  <div class="eyebrow">Physics II</div>
+  <h1>전기장과 전기력선</h1>
+  <p>점전하 배치를 바꾸며 전기장의 방향, 세기, 전기력선의 패턴을 비교해 보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="overlay">
+  <h3>핵심 원리</h3>
+  <p>전하를 띤 물체는 주위 공간에 전기장을 형성합니다. 전기장은 양전하가 받는 전기력의 방향으로 정의하며, 전기력선은 양전하에서 나와 음전하로 들어갑니다. 전기력선의 밀도가 높을수록 전기장이 강합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>양전하와 음전하 주변에서 전기력선의 화살표 방향은 어떻게 다를까요?</li>
+    <li>같은 부호의 두 전하 사이에 전기장이 약한 영역이 생기는 이유는 무엇일까요?</li>
+    <li>전기력선이 조밀한 곳에 시험 전하를 놓으면 어떤 일이 일어날까요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>풍선을 머리카락에 문질렀을 때 생기는 정전기</li>
+    <li>구름과 지표 사이 전하 분리로 일어나는 번개</li>
+    <li>복사기와 프린터에서 활용되는 정전기</li>
+  </ul>
+
+  <div class="guide-card">
+    전기장 벡터는 공간의 각 점에서 양전하가 받을 힘의 방향을 뜻합니다. 전기력선은 그 방향을 연속적으로 연결한 시각화입니다.
+  </div>
+
+  <div class="guide-card">교과서 연계: 물리학 II편 p76~81 — 전기장, 전기력선, 쿨롱의 법칙</div>
+</div>
+
+<div id="mode-panel" class="overlay">
+  <h2 id="mode-heading">배치 비교</h2>
+  <p id="mode-summary">양전하, 음전하, 같은 부호, 다른 부호 배치를 바꾸며 전기력선 모양을 비교합니다.</p>
+  <div id="mode-cards">
+    <button class="mode-card active" data-mode="양전하 1개">
+      <strong>양전하 1개</strong>
+      <span>전기력선이 바깥으로 방사형으로 퍼지며, 가까울수록 전기장이 강합니다.</span>
+    </button>
+    <button class="mode-card" data-mode="음전하 1개">
+      <strong>음전하 1개</strong>
+      <span>전기력선이 바깥에서 모여들며 화살표는 음전하를 향합니다.</span>
+    </button>
+    <button class="mode-card" data-mode="같은 부호 2개">
+      <strong>같은 부호 2개</strong>
+      <span>두 전하가 서로 밀어내며, 가운데에는 전기장이 약해지는 영역이 생깁니다.</span>
+    </button>
+    <button class="mode-card" data-mode="다른 부호 2개">
+      <strong>다른 부호 2개</strong>
+      <span>쌍극자 패턴이 만들어지며 전기력선이 +q에서 -q로 이어집니다.</span>
+    </button>
+  </div>
+</div>
+
+<div id="status-pill">드래그로 전하 위치 이동 · 캔버스 클릭으로 전기장 측정</div>
+
+<div id="formula-panel" class="overlay">
+  <h3>⚡ 전기장과 전기력선</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">배치</span><span class="value" id="fp-mode">양전하 1개</span></div>
+  <div class="info-row"><span class="label">전하량</span><span class="value" id="fp-charge">q₁ = 2 C, q₂ = —</span></div>
+  <div class="info-row"><span class="label">전하 간 거리</span><span class="value" id="fp-distance">—</span></div>
+  <div class="info-row"><span class="label">측정 위치</span><span class="value mono" id="fp-point">(2.80, 1.40, 0.00) m</span></div>
+  <div class="info-row"><span class="label">전기장 세기</span><span class="value mono" id="fp-field">0.00e+0 N/C</span></div>
+  <div class="info-row"><span class="label">전기장 방향</span><span class="value mono" id="fp-direction">(1.00, 0.00, 0.00)</span></div>
+
+  <div class="formula-box">
+    <strong>전기장 공식</strong><br>
+    <span class="mono">E = kq / r²</span><br>
+    <span class="mono">k = 9 × 10⁹ N·m²/C²</span>
+  </div>
+
+  <div class="formula-box">
+    <strong>전기력선 규칙</strong><br>
+    • 양전하에서 나와 음전하로 들어감<br>
+    • 전기력선의 밀도는 전기장 세기에 비례<br>
+    • 전기력선끼리 교차하지 않음<br>
+    • 같은 부호는 척력, 다른 부호는 인력
+  </div>
+</div>
+
+<div id="hint-card" class="overlay">
+  <strong>관찰 포인트</strong><br>
+  전기력선은 전기장의 방향을, 화살표 크기는 전기장의 세기를 보여줍니다. 시험 전하는 항상 양전하라고 가정합니다.
+  <div>
+    <span class="hint-chip">드래그: 전하 이동</span>
+    <span class="hint-chip">클릭: 측정 / 시험 전하 배치</span>
+    <span class="hint-chip">2D: 단면 패턴 비교</span>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a20);
+scene.fog = new THREE.Fog(0x0a0a20, 16, 28);
+
+const canvas = document.getElementById('scene-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(5.8, 3.4, 10.6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 5.5;
+controls.maxDistance = 18;
+controls.target.set(0, 0, 0);
+controls.maxPolarAngle = Math.PI * 0.9;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+const pointLight = new THREE.PointLight(0xffffff, 0.5, 40);
+pointLight.position.set(4.5, 5.2, 7.4);
+scene.add(pointLight);
+
+const rimLight = new THREE.PointLight(0x6699ff, 0.38, 36);
+rimLight.position.set(-6.5, -2.4, 5.8);
+scene.add(rimLight);
+
+const starGeometry = new THREE.BufferGeometry();
+const starPositions = [];
+for (let i = 0; i < 420; i += 1) {
+  const radius = 18 + Math.random() * 10;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPositions.push(
+    radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi)
+  );
+}
+starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+const stars = new THREE.Points(
+  starGeometry,
+  new THREE.PointsMaterial({
+    color: 0x8bb9ff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+  })
+);
+scene.add(stars);
+
+const planeDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(7.2, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x0d1533,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide,
+  })
+);
+scene.add(planeDisc);
+
+const grid = new THREE.GridHelper(14, 14, 0x365fcf, 0x19335f);
+grid.rotation.x = Math.PI / 2;
+grid.material.transparent = true;
+grid.material.opacity = 0.28;
+scene.add(grid);
+
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(4.2, 4.28, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x2f64ff,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.DoubleSide,
+  })
+);
+scene.add(ring);
+
+const chargeGroup = new THREE.Group();
+const fieldLineGroup = new THREE.Group();
+const vectorGroup = new THREE.Group();
+const helperGroup = new THREE.Group();
+const sampleGroup = new THREE.Group();
+const testChargeGroup = new THREE.Group();
+scene.add(chargeGroup, fieldLineGroup, vectorGroup, helperGroup, sampleGroup, testChargeGroup);
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const modeHeading = document.getElementById('mode-heading');
+const modeSummary = document.getElementById('mode-summary');
+const statusPill = document.getElementById('status-pill');
+const modeCards = [...document.querySelectorAll('.mode-card')];
+
+const fpMode = document.getElementById('fp-mode');
+const fpCharge = document.getElementById('fp-charge');
+const fpDistance = document.getElementById('fp-distance');
+const fpPoint = document.getElementById('fp-point');
+const fpField = document.getElementById('fp-field');
+const fpDirection = document.getElementById('fp-direction');
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+const arrangementInfo = {
+  '양전하 1개': {
+    summary: '양전하 주변에서 전기력선은 바깥으로 퍼지고, 가까울수록 화살표와 밀도가 강해집니다.',
+  },
+  '음전하 1개': {
+    summary: '음전하 주변에서는 전기력선이 안쪽으로 모이고, 화살표는 항상 음전하를 향합니다.',
+  },
+  '같은 부호 2개': {
+    summary: '서로 미는 두 전하 사이에서는 전기장이 서로 상쇄되어 약한 영역이 만들어집니다.',
+  },
+  '다른 부호 2개': {
+    summary: '전기 쌍극자에서는 +q에서 나온 전기력선이 -q로 연결되며 곡선 패턴이 나타납니다.',
+  },
+};
+
+const state = {
+  arrangement: '양전하 1개',
+  q1: 2,
+  q2: 2,
+  separation: 4,
+  showFieldLines: true,
+  showVectorField: false,
+  section2D: false,
+  placingTestCharge: false,
+};
+
+const constants = {
+  k: 9e9,
+  fieldCap: 0.14,
+  lineBudget: 32,
+  boundary: 7.3,
+  minDistanceSq: 0.16,
+};
+
+const controllers = {};
+const actionState = {
+  placeTestCharge: () => beginTestChargePlacement(),
+  reset: () => resetScene(),
+};
+
+const gui = new GUI({ title: '제어 패널' });
+controllers.arrangement = gui
+  .add(state, 'arrangement', ['양전하 1개', '음전하 1개', '같은 부호 2개', '다른 부호 2개'])
+  .name('배치')
+  .onChange((value) => applyArrangement(value));
+controllers.q1 = gui
+  .add(state, 'q1', 1, 5, 1)
+  .name('전하량 q₁')
+  .onChange(() => {
+    updateChargeMagnitudes();
+    markDirty();
+  });
+controllers.q2 = gui
+  .add(state, 'q2', 1, 5, 1)
+  .name('전하량 q₂')
+  .onChange(() => {
+    updateChargeMagnitudes();
+    markDirty();
+  });
+controllers.separation = gui
+  .add(state, 'separation', 1, 8, 0.1)
+  .name('전하 간 거리')
+  .onChange(() => {
+    updateChargeSeparation();
+    markDirty();
+  });
+controllers.showFieldLines = gui
+  .add(state, 'showFieldLines')
+  .name('전기력선 표시')
+  .onChange(() => markDirty());
+controllers.showVectorField = gui
+  .add(state, 'showVectorField')
+  .name('벡터장 표시')
+  .onChange(() => markDirty());
+controllers.placeTestCharge = gui
+  .add(actionState, 'placeTestCharge')
+  .name('시험 전하 놓기');
+controllers.section2D = gui
+  .add(state, 'section2D')
+  .name('2D 단면 모드')
+  .onChange(() => {
+    handleSectionMode();
+    markDirty();
+  });
+controllers.reset = gui
+  .add(actionState, 'reset')
+  .name('초기화');
+
+function syncGUI() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function updateControllerVisibility() {
+  const showPairControls = state.arrangement === '같은 부호 2개' || state.arrangement === '다른 부호 2개';
+  controllers.q2.domElement.style.display = showPairControls ? '' : 'none';
+  controllers.separation.domElement.style.display = showPairControls ? '' : 'none';
+}
+
+function setStatus(message, active = false) {
+  statusPill.textContent = message;
+  statusPill.classList.toggle('active', active);
+}
+
+const tempVector = new THREE.Vector3();
+const samplePoint = new THREE.Vector3(2.8, 1.4, 0);
+const sampleMarker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 18, 18),
+  new THREE.MeshBasicMaterial({ color: 0xffef77 })
+);
+const sampleArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), samplePoint, 0.9, 0xffef77, 0.22, 0.12);
+const sampleLabel = createTextSprite('측정점', {
+  fontSize: 36,
+  paddingX: 18,
+  paddingY: 10,
+  background: 'rgba(255, 239, 119, 0.18)',
+  border: 'rgba(255, 239, 119, 0.5)',
+  color: '#fff8cd',
+  scale: 0.68,
+});
+sampleLabel.position.set(0, 0.38, 0);
+sampleGroup.add(sampleMarker, sampleArrow, sampleLabel);
+
+const testCharge = {
+  mesh: null,
+  label: null,
+  trail: null,
+  trailPoints: [],
+  velocity: new THREE.Vector3(),
+  active: false,
+};
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const pointerState = {
+  dragCharge: null,
+  moved: false,
+  downX: 0,
+  downY: 0,
+};
+
+let charges = [];
+let sceneDirty = true;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatVec(vec) {
+  return `(${vec.x.toFixed(2)}, ${vec.y.toFixed(2)}, ${vec.z.toFixed(2)})`;
+}
+
+function formatField(value) {
+  if (!Number.isFinite(value)) return '∞';
+  return `${value.toExponential(2)} N/C`;
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    fontSize = 54,
+    fontFamily = '"SUIT Variable", "Pretendard Variable", "Noto Sans KR", sans-serif',
+    paddingX = 22,
+    paddingY = 18,
+    color = '#ffffff',
+    background = 'rgba(10, 15, 35, 0.9)',
+    border = 'rgba(255, 255, 255, 0.18)',
+    scale = 0.8,
+  } = options;
+
+  const canvasEl = document.createElement('canvas');
+  const context = canvasEl.getContext('2d');
+  context.font = `700 ${fontSize}px ${fontFamily}`;
+  const metrics = context.measureText(text);
+  const width = Math.ceil(metrics.width + paddingX * 2);
+  const height = Math.ceil(fontSize + paddingY * 2);
+  canvasEl.width = width;
+  canvasEl.height = height;
+
+  context.font = `700 ${fontSize}px ${fontFamily}`;
+  context.fillStyle = background;
+  context.strokeStyle = border;
+  context.lineWidth = 4;
+  roundRect(context, 2, 2, width - 4, height - 4, Math.min(28, height * 0.34));
+  context.fill();
+  context.stroke();
+  context.fillStyle = color;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, width / 2, height / 2 + 2);
+
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+    })
+  );
+  sprite.scale.set((width / 190) * scale, (height / 190) * scale, 1);
+  return sprite;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.material?.map) child.material.map.dispose();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
+      else child.material.dispose();
+    }
+  });
+}
+
+function clearGroup(group) {
+  while (group.children.length) {
+    const child = group.children[0];
+    group.remove(child);
+    disposeObject(child);
+  }
+}
+
+function markDirty() {
+  sceneDirty = true;
+}
+
+function getChargeRadius(magnitude) {
+  return 0.22 + magnitude * 0.04;
+}
+
+function createCharge(id, sign, position, magnitude) {
+  const color = sign > 0 ? 0xff4444 : 0x4444ff;
+  const emissive = sign > 0 ? 0x641313 : 0x142b7a;
+  const group = new THREE.Group();
+  group.position.copy(position);
+
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(getChargeRadius(magnitude), 24, 24),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive,
+      emissiveIntensity: 0.95,
+      roughness: 0.32,
+      metalness: 0.08,
+    })
+  );
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(getChargeRadius(magnitude) * 1.7, 20, 20),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.BackSide,
+      depthWrite: false,
+    })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(getChargeRadius(magnitude) * 1.5, 0.03, 8, 48),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34,
+    })
+  );
+  halo.rotation.x = Math.PI / 2;
+
+  const label = createTextSprite(sign > 0 ? '+' : '−', {
+    fontSize: 64,
+    paddingX: 20,
+    paddingY: 14,
+    background: sign > 0 ? 'rgba(255, 86, 86, 0.18)' : 'rgba(86, 124, 255, 0.18)',
+    border: sign > 0 ? 'rgba(255, 160, 160, 0.46)' : 'rgba(152, 183, 255, 0.46)',
+    color: '#ffffff',
+    scale: 0.72,
+  });
+  label.position.set(0, 0, getChargeRadius(magnitude) * 1.45);
+
+  group.add(glow, sphere, halo, label);
+  chargeGroup.add(group);
+
+  const charge = { id, sign, magnitude, group, sphere, glow, halo, label };
+  sphere.userData.chargeRef = charge;
+  updateChargeVisual(charge);
+  return charge;
+}
+
+function updateChargeVisual(charge) {
+  const radius = getChargeRadius(charge.magnitude);
+  charge.sphere.geometry.dispose();
+  charge.glow.geometry.dispose();
+  charge.halo.geometry.dispose();
+  charge.sphere.geometry = new THREE.SphereGeometry(radius, 24, 24);
+  charge.glow.geometry = new THREE.SphereGeometry(radius * 1.7, 20, 20);
+  charge.halo.geometry = new THREE.TorusGeometry(radius * 1.5, 0.03, 8, 48);
+  charge.halo.rotation.x = Math.PI / 2;
+  charge.label.position.set(0, 0, radius * 1.45);
+}
+
+function rebuildCharges() {
+  clearGroup(chargeGroup);
+  charges = [];
+
+  if (state.arrangement === '양전하 1개') {
+    charges.push(createCharge('q1', 1, new THREE.Vector3(0, 0, 0), state.q1));
+  } else if (state.arrangement === '음전하 1개') {
+    charges.push(createCharge('q1', -1, new THREE.Vector3(0, 0, 0), state.q1));
+  } else if (state.arrangement === '같은 부호 2개') {
+    const half = state.separation / 2;
+    charges.push(createCharge('q1', 1, new THREE.Vector3(-half, 0, 0), state.q1));
+    charges.push(createCharge('q2', 1, new THREE.Vector3(half, 0, 0), state.q2));
+  } else {
+    const half = state.separation / 2;
+    charges.push(createCharge('q1', 1, new THREE.Vector3(-half, 0, 0), state.q1));
+    charges.push(createCharge('q2', -1, new THREE.Vector3(half, 0, 0), state.q2));
+  }
+}
+
+function updateChargeMagnitudes() {
+  charges.forEach((charge, index) => {
+    charge.magnitude = index === 0 ? state.q1 : state.q2;
+    updateChargeVisual(charge);
+  });
+  updateFormulaPanel();
+}
+
+function updateChargeSeparation() {
+  if (charges.length !== 2) return;
+  const half = state.separation / 2;
+  charges[0].group.position.set(-half, 0, 0);
+  charges[1].group.position.set(half, 0, 0);
+  updateFormulaPanel();
+}
+
+function applyArrangement(mode) {
+  state.arrangement = mode;
+  rebuildCharges();
+  clearTestCharge();
+  ensureSamplePointSafe();
+  updateControllerVisibility();
+  updateModeUI();
+  syncGUI();
+  setStatus('드래그로 전하 위치 이동 · 캔버스 클릭으로 전기장 측정');
+  markDirty();
+}
+
+function handleSectionMode() {
+  if (state.section2D) {
+    camera.position.set(0, 0, 10.5);
+    controls.target.set(0, 0, 0);
+    controls.enableRotate = false;
+    planeDisc.material.opacity = 0.28;
+    grid.material.opacity = 0.38;
+    ring.material.opacity = 0.32;
+  } else {
+    camera.position.set(5.8, 3.4, 10.6);
+    controls.target.set(0, 0, 0);
+    controls.enableRotate = true;
+    planeDisc.material.opacity = 0.16;
+    grid.material.opacity = 0.28;
+    ring.material.opacity = 0.22;
+  }
+  controls.update();
+}
+
+function updateModeUI() {
+  modeHeading.textContent = state.arrangement;
+  modeSummary.textContent = arrangementInfo[state.arrangement].summary;
+  fpMode.textContent = state.arrangement;
+  modeCards.forEach((card) => {
+    card.classList.toggle('active', card.dataset.mode === state.arrangement);
+  });
+}
+
+modeCards.forEach((card) => {
+  card.addEventListener('click', () => {
+    state.arrangement = card.dataset.mode;
+    applyArrangement(state.arrangement);
+  });
+});
+
+function ensureSamplePointSafe() {
+  for (const charge of charges) {
+    if (samplePoint.distanceTo(charge.group.position) < getChargeRadius(charge.magnitude) + 0.75) {
+      samplePoint.set(2.8, 1.4, 0);
+      return;
+    }
+  }
+}
+
+function computeFieldVectorAt(point, target = new THREE.Vector3()) {
+  target.set(0, 0, 0);
+  for (const charge of charges) {
+    const dx = point.x - charge.group.position.x;
+    const dy = point.y - charge.group.position.y;
+    const dz = point.z - charge.group.position.z;
+    let distSq = dx * dx + dy * dy + dz * dz;
+    distSq = Math.max(distSq, constants.minDistanceSq);
+    const invDist = 1 / Math.sqrt(distSq);
+    const factor = charge.sign * charge.magnitude * invDist * invDist * invDist;
+    target.x += dx * factor;
+    target.y += dy * factor;
+    target.z += dz * factor;
+  }
+  return target;
+}
+
+function buildFieldLines() {
+  clearGroup(fieldLineGroup);
+  if (!state.showFieldLines || charges.length === 0) return;
+
+  const positiveCharges = charges.filter((charge) => charge.sign > 0);
+  const negativeCharges = charges.filter((charge) => charge.sign < 0);
+  const emitters = positiveCharges.length ? positiveCharges : negativeCharges;
+  const reverseForNegativeOnly = positiveCharges.length === 0;
+  const targetSign = positiveCharges.length && negativeCharges.length ? -1 : 0;
+
+  const requestedTotal = emitters.reduce((sum, charge) => sum + charge.magnitude * 8, 0);
+  const totalLines = Math.min(constants.lineBudget, requestedTotal);
+  const totalMagnitude = emitters.reduce((sum, charge) => sum + charge.magnitude, 0);
+  let assigned = 0;
+
+  emitters.forEach((emitter, emitterIndex) => {
+    let count;
+    if (emitterIndex === emitters.length - 1) {
+      count = totalLines - assigned;
+    } else {
+      count = Math.max(4, Math.round((totalLines * emitter.magnitude) / totalMagnitude));
+      assigned += count;
+    }
+    if (count <= 0) return;
+
+    const directions = state.section2D
+      ? createCircleDirections(count, emitterIndex * (Math.PI / Math.max(count, 1)))
+      : createFibonacciDirections(count, emitterIndex);
+
+    directions.forEach((direction) => {
+      const start = emitter.group.position.clone().addScaledVector(
+        direction,
+        getChargeRadius(emitter.magnitude) + 0.14
+      );
+      if (state.section2D) start.z = 0;
+
+      let points = integrateFieldLine(start, reverseForNegativeOnly ? -1 : 1, targetSign);
+      if (reverseForNegativeOnly) points = points.reverse();
+      if (points.length < 3) return;
+
+      const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, Math.min(48, points.length * 2), state.section2D ? 0.03 : 0.028, 6, false),
+        new THREE.MeshBasicMaterial({
+          color: 0x44ff88,
+          transparent: true,
+          opacity: 0.9,
+        })
+      );
+      fieldLineGroup.add(tube);
+
+      const arrowT = Math.min(0.96, points.length > 8 ? 0.92 : 0.82);
+      const arrowPos = curve.getPoint(arrowT);
+      const tangent = curve.getTangent(arrowT).normalize();
+      const arrowHead = new THREE.Mesh(
+        new THREE.ConeGeometry(0.11, 0.28, 10),
+        new THREE.MeshBasicMaterial({ color: 0x9affc4 })
+      );
+      arrowHead.position.copy(arrowPos);
+      arrowHead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+      fieldLineGroup.add(arrowHead);
+    });
+  });
+}
+
+function createFibonacciDirections(count, seed = 0) {
+  const directions = [];
+  const offset = 2 / count;
+  const increment = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < count; i += 1) {
+    const y = i * offset - 1 + offset / 2;
+    const radius = Math.sqrt(Math.max(0, 1 - y * y));
+    const phi = (i + seed * 0.35) * increment;
+    directions.push(new THREE.Vector3(Math.cos(phi) * radius, y, Math.sin(phi) * radius).normalize());
+  }
+  return directions;
+}
+
+function createCircleDirections(count, phase = 0) {
+  const directions = [];
+  for (let i = 0; i < count; i += 1) {
+    const angle = (i / count) * Math.PI * 2 + phase;
+    directions.push(new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0));
+  }
+  return directions;
+}
+
+function integrateFieldLine(startPoint, directionSign, targetSign) {
+  const points = [startPoint.clone()];
+  const point = startPoint.clone();
+  const field = new THREE.Vector3();
+
+  for (let i = 0; i < 50; i += 1) {
+    computeFieldVectorAt(point, field);
+    const fieldStrength = field.length();
+    if (fieldStrength < 1e-4) break;
+
+    field.multiplyScalar(1 / fieldStrength);
+    if (directionSign < 0) field.multiplyScalar(-1);
+    if (state.section2D) {
+      field.z = 0;
+      if (field.lengthSq() < 1e-6) break;
+      field.normalize();
+    }
+
+    const step = state.section2D ? 0.22 : 0.27;
+    point.addScaledVector(field, step);
+    if (state.section2D) point.z = 0;
+    points.push(point.clone());
+
+    if (
+      Math.abs(point.x) > constants.boundary ||
+      Math.abs(point.y) > constants.boundary ||
+      Math.abs(point.z) > constants.boundary
+    ) {
+      break;
+    }
+
+    if (targetSign !== 0) {
+      for (const charge of charges) {
+        if (charge.sign !== targetSign) continue;
+        const captureRadius = getChargeRadius(charge.magnitude) + 0.18;
+        if (point.distanceTo(charge.group.position) < captureRadius) {
+          points.push(charge.group.position.clone().addScaledVector(field, 0.02));
+          return points;
+        }
+      }
+    }
+  }
+
+  return points;
+}
+
+function buildVectorField() {
+  clearGroup(vectorGroup);
+  if (!state.showVectorField || charges.length === 0) return;
+
+  const positions = [];
+  if (state.section2D) {
+    for (let x = -4.8; x <= 4.81; x += 1.6) {
+      for (let y = -3.8; y <= 3.81; y += 1.6) {
+        positions.push(new THREE.Vector3(x, y, 0));
+      }
+    }
+  } else {
+    const zLevels = [-2.4, 0, 2.4];
+    for (const z of zLevels) {
+      for (let x = -4.6; x <= 4.61; x += 2.3) {
+        for (let y = -3.4; y <= 3.41; y += 1.7) {
+          positions.push(new THREE.Vector3(x, y, z));
+        }
+      }
+    }
+  }
+
+  for (const origin of positions) {
+    const tooClose = charges.some(
+      (charge) => origin.distanceTo(charge.group.position) < getChargeRadius(charge.magnitude) + 0.45
+    );
+    if (tooClose) continue;
+
+    const field = computeFieldVectorAt(origin, tempVector);
+    const strength = field.length();
+    if (strength < 1e-4) continue;
+    field.normalize();
+
+    const normalized = clamp(strength / 2.6, 0, 1);
+    const color = new THREE.Color().setHSL(0.62 * (1 - normalized), 0.95, 0.58);
+    const length = 0.22 + normalized * 0.9;
+    const arrow = new THREE.ArrowHelper(field.clone(), origin, length, color.getHex(), 0.22, 0.1);
+    vectorGroup.add(arrow);
+  }
+}
+
+function buildInteractionArrows() {
+  clearGroup(helperGroup);
+  if (charges.length !== 2) return;
+
+  const [chargeA, chargeB] = charges;
+  const axis = chargeB.group.position.clone().sub(chargeA.group.position);
+  const distance = axis.length();
+  if (distance < 0.4) return;
+  axis.normalize();
+
+  if (chargeA.sign === chargeB.sign) {
+    const origin = chargeA.group.position.clone().add(chargeB.group.position).multiplyScalar(0.5);
+    origin.y -= 0.85;
+    helperGroup.add(new THREE.ArrowHelper(axis.clone().negate(), origin, 0.9, 0xff6666, 0.28, 0.12));
+    helperGroup.add(new THREE.ArrowHelper(axis.clone(), origin, 0.9, 0xff6666, 0.28, 0.12));
+  } else {
+    const offset = axis.clone().multiplyScalar(0.55);
+    const baseA = chargeA.group.position.clone().add(new THREE.Vector3(0, -0.82, 0));
+    const baseB = chargeB.group.position.clone().add(new THREE.Vector3(0, -0.82, 0));
+    helperGroup.add(
+      new THREE.ArrowHelper(axis.clone(), baseA, Math.max(0.5, distance - 1.1), 0x66ff99, 0.28, 0.12)
+    );
+    helperGroup.add(
+      new THREE.ArrowHelper(axis.clone().negate(), baseB, Math.max(0.5, distance - 1.1), 0x66ff99, 0.28, 0.12)
+    );
+  }
+}
+
+function updateSampleMarker() {
+  const field = computeFieldVectorAt(samplePoint, tempVector);
+  const magnitude = field.length();
+  const direction = magnitude > 1e-8 ? field.clone().normalize() : new THREE.Vector3(1, 0, 0);
+
+  sampleMarker.position.copy(samplePoint);
+  sampleArrow.position.copy(samplePoint);
+  sampleArrow.setDirection(direction);
+  sampleArrow.setLength(0.5 + clamp(magnitude * 0.4, 0, 0.95), 0.22, 0.12);
+  sampleArrow.setColor(new THREE.Color(0xffef77));
+  sampleLabel.position.set(samplePoint.x, samplePoint.y + 0.42, samplePoint.z);
+}
+
+function updateFormulaPanel() {
+  fpMode.textContent = state.arrangement;
+  fpCharge.textContent =
+    charges.length === 1
+      ? `q₁ = ${state.q1.toFixed(0)} C, q₂ = —`
+      : `q₁ = ${state.q1.toFixed(0)} C, q₂ = ${state.q2.toFixed(0)} C`;
+
+  if (charges.length === 2) {
+    fpDistance.textContent = `${charges[0].group.position.distanceTo(charges[1].group.position).toFixed(2)} m`;
+  } else {
+    fpDistance.textContent = '—';
+  }
+
+  const field = computeFieldVectorAt(samplePoint, tempVector);
+  const magnitude = field.length() * constants.k;
+  const direction = field.length() > 1e-8 ? field.clone().normalize() : new THREE.Vector3(1, 0, 0);
+
+  fpPoint.textContent = `${formatVec(samplePoint)} m`;
+  fpField.textContent = formatField(magnitude);
+  fpDirection.textContent = formatVec(direction);
+}
+
+function rebuildVisuals() {
+  buildFieldLines();
+  buildVectorField();
+  buildInteractionArrows();
+  updateSampleMarker();
+  updateFormulaPanel();
+  sceneDirty = false;
+}
+
+function beginTestChargePlacement() {
+  state.placingTestCharge = true;
+  setStatus('시험 전하를 놓을 위치를 캔버스에서 클릭하세요.', true);
+}
+
+function clearTestCharge() {
+  clearGroup(testChargeGroup);
+  testCharge.mesh = null;
+  testCharge.label = null;
+  testCharge.trail = null;
+  testCharge.trailPoints = [];
+  testCharge.velocity.set(0, 0, 0);
+  testCharge.active = false;
+  state.placingTestCharge = false;
+}
+
+function placeTestCharge(position) {
+  clearTestCharge();
+
+  testCharge.mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffff44 })
+  );
+  testCharge.mesh.position.copy(position);
+
+  testCharge.label = createTextSprite('시험 +', {
+    fontSize: 32,
+    paddingX: 16,
+    paddingY: 10,
+    background: 'rgba(255, 240, 90, 0.16)',
+    border: 'rgba(255, 240, 90, 0.46)',
+    color: '#fff9c8',
+    scale: 0.6,
+  });
+  testCharge.label.position.copy(position).add(new THREE.Vector3(0, 0.34, 0));
+
+  testCharge.trail = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([position.clone(), position.clone().add(new THREE.Vector3(0.001, 0, 0))]),
+    new THREE.LineDashedMaterial({
+      color: 0xfff17d,
+      dashSize: 0.18,
+      gapSize: 0.1,
+      transparent: true,
+      opacity: 0.92,
+    })
+  );
+  testCharge.trail.computeLineDistances();
+  testCharge.trailPoints = [position.clone()];
+  testCharge.active = true;
+  testChargeGroup.add(testCharge.trail, testCharge.mesh, testCharge.label);
+  state.placingTestCharge = false;
+  setStatus('시험 전하가 전기장 방향으로 이동합니다.');
+}
+
+function updateTestCharge(delta) {
+  if (!testCharge.active || !testCharge.mesh) return;
+
+  const field = computeFieldVectorAt(testCharge.mesh.position, tempVector);
+  const strength = field.length();
+  if (strength < 1e-5) return;
+
+  field.normalize().multiplyScalar(clamp(strength, 0.08, constants.fieldCap));
+  testCharge.velocity.addScaledVector(field, delta * 1.8);
+  testCharge.velocity.multiplyScalar(0.988);
+  if (testCharge.velocity.length() > 2.6) testCharge.velocity.setLength(2.6);
+  testCharge.mesh.position.addScaledVector(testCharge.velocity, delta * 2.5);
+
+  if (state.section2D) testCharge.mesh.position.z = 0;
+  testCharge.label.position.copy(testCharge.mesh.position).add(new THREE.Vector3(0, 0.34, 0));
+
+  if (
+    Math.abs(testCharge.mesh.position.x) > constants.boundary ||
+    Math.abs(testCharge.mesh.position.y) > constants.boundary ||
+    Math.abs(testCharge.mesh.position.z) > constants.boundary
+  ) {
+    testCharge.active = false;
+  }
+
+  for (const charge of charges) {
+    if (testCharge.mesh.position.distanceTo(charge.group.position) < getChargeRadius(charge.magnitude) + 0.14) {
+      testCharge.active = false;
+    }
+  }
+
+  if (
+    testCharge.trailPoints.length === 0 ||
+    testCharge.trailPoints[testCharge.trailPoints.length - 1].distanceTo(testCharge.mesh.position) > 0.08
+  ) {
+    testCharge.trailPoints.push(testCharge.mesh.position.clone());
+    if (testCharge.trailPoints.length > 200) testCharge.trailPoints.shift();
+    testCharge.trail.geometry.dispose();
+    testCharge.trail.geometry = new THREE.BufferGeometry().setFromPoints(testCharge.trailPoints);
+    testCharge.trail.computeLineDistances();
+  }
+}
+
+function resetScene() {
+  state.arrangement = '양전하 1개';
+  state.q1 = 2;
+  state.q2 = 2;
+  state.separation = 4;
+  state.showFieldLines = true;
+  state.showVectorField = false;
+  state.section2D = false;
+  samplePoint.set(2.8, 1.4, 0);
+  clearTestCharge();
+  handleSectionMode();
+  rebuildCharges();
+  updateControllerVisibility();
+  updateModeUI();
+  syncGUI();
+  setStatus('드래그로 전하 위치 이동 · 캔버스 클릭으로 전기장 측정');
+  markDirty();
+}
+
+function updatePointer(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+}
+
+function getPlaneIntersection(event) {
+  updatePointer(event);
+  const point = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(interactionPlane, point) ? point : null;
+}
+
+function onPointerDown(event) {
+  pointerState.dragCharge = null;
+  pointerState.moved = false;
+  pointerState.downX = event.clientX;
+  pointerState.downY = event.clientY;
+
+  updatePointer(event);
+  const hits = raycaster.intersectObjects(charges.map((charge) => charge.sphere), false);
+  if (hits.length) {
+    pointerState.dragCharge = hits[0].object.userData.chargeRef;
+    controls.enabled = false;
+  }
+}
+
+function onPointerMove(event) {
+  if (!pointerState.dragCharge) return;
+
+  const dx = event.clientX - pointerState.downX;
+  const dy = event.clientY - pointerState.downY;
+  if (Math.hypot(dx, dy) > 4) pointerState.moved = true;
+
+  const point = getPlaneIntersection(event);
+  if (!point) return;
+  point.z = 0;
+  point.x = clamp(point.x, -5.2, 5.2);
+  point.y = clamp(point.y, -3.8, 3.8);
+
+  const dragged = pointerState.dragCharge;
+  if (charges.length === 2) {
+    const other = charges.find((charge) => charge !== dragged);
+    const minDistance = 0.9;
+    if (other && point.distanceTo(other.group.position) < minDistance) {
+      point.sub(other.group.position).setLength(minDistance).add(other.group.position);
+    }
+  }
+
+  dragged.group.position.copy(point);
+  if (charges.length === 2) {
+    state.separation = clamp(charges[0].group.position.distanceTo(charges[1].group.position), 1, 8);
+    syncGUI();
+  }
+  ensureSamplePointSafe();
+  markDirty();
+}
+
+function onPointerUp(event) {
+  if (pointerState.dragCharge) {
+    controls.enabled = true;
+    pointerState.dragCharge = null;
+    return;
+  }
+
+  if (Math.hypot(event.clientX - pointerState.downX, event.clientY - pointerState.downY) > 4) return;
+
+  const point = getPlaneIntersection(event);
+  if (!point) return;
+  if (state.section2D) point.z = 0;
+
+  if (state.placingTestCharge) {
+    placeTestCharge(point);
+  } else {
+    samplePoint.copy(point);
+    updateSampleMarker();
+    updateFormulaPanel();
+    setStatus('측정점을 갱신했습니다. 전하를 움직이면 전기장도 함께 바뀝니다.');
+  }
+  markDirty();
+}
+
+renderer.domElement.addEventListener('pointerdown', onPointerDown);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let previousTime = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(0.032, (now - previousTime) / 1000);
+  previousTime = now;
+
+  stars.rotation.y += delta * 0.02;
+  ring.rotation.z += delta * 0.08;
+
+  charges.forEach((charge, index) => {
+    charge.halo.rotation.z += delta * (index % 2 === 0 ? 0.7 : -0.7);
+    const pulse = 1 + Math.sin(now * 0.0028 + index * 1.7) * 0.02;
+    charge.glow.scale.setScalar(pulse);
+  });
+
+  if (sceneDirty) rebuildVisuals();
+  updateTestCharge(delta);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+applyArrangement(state.arrangement);
+handleSectionMode();
+updateControllerVisibility();
+updateModeUI();
+updateSampleMarker();
+updateFormulaPanel();
+syncGUI();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

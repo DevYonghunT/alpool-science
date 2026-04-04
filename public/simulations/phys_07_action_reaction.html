@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>작용 반작용 법칙 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef0f5;
+    --panel-bg: rgba(255, 255, 255, 0.82);
+    --panel-border: rgba(34, 52, 84, 0.12);
+    --panel-shadow: 0 18px 40px rgba(32, 52, 88, 0.12);
+    --text-main: #18263f;
+    --text-soft: rgba(24, 38, 63, 0.7);
+    --accent-red: #e45757;
+    --accent-blue: #3678ff;
+    --accent-gold: #d49d2a;
+    --accent-green: #16945f;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 12%, rgba(255, 197, 124, 0.22), transparent 22%),
+      radial-gradient(circle at 84% 10%, rgba(98, 146, 255, 0.18), transparent 18%),
+      linear-gradient(180deg, #f7f8fb 0%, #eef0f5 50%, #e8edf7 100%);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .overlay-card {
+    position: fixed;
+    z-index: 20;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  #title-pill {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 32;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(34, 52, 84, 0.1);
+    box-shadow: 0 10px 24px rgba(35, 56, 89, 0.08);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 34;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(34, 52, 84, 0.12);
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(35, 56, 89, 0.08);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    right: 14px;
+    z-index: 33;
+    display: none;
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(72vh, 760px);
+    overflow-y: auto;
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(34, 52, 84, 0.12);
+    box-shadow: 0 22px 48px rgba(34, 52, 84, 0.15);
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    color: #23447f;
+    font-size: 15px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    color: #8e6420;
+    font-size: 12px;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .guide-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(43, 77, 138, 0.06);
+  }
+
+  #case-tabs {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    z-index: 31;
+    display: flex;
+    gap: 8px;
+    transform: translateX(-50%);
+    padding: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid rgba(34, 52, 84, 0.1);
+    box-shadow: 0 12px 28px rgba(35, 56, 89, 0.08);
+    backdrop-filter: blur(14px);
+  }
+
+  .case-tab {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: transparent;
+    color: rgba(24, 38, 63, 0.76);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .case-tab:hover,
+  .case-tab:focus-visible {
+    background: rgba(66, 101, 182, 0.08);
+    color: var(--text-main);
+    outline: none;
+  }
+
+  .case-tab.active {
+    background: linear-gradient(135deg, rgba(53, 120, 255, 0.94), rgba(97, 154, 255, 0.94));
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(70, 117, 222, 0.2);
+  }
+
+  #status-banner {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    z-index: 27;
+    transform: translateX(-50%);
+    min-width: 320px;
+    max-width: min(86vw, 760px);
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(34, 52, 84, 0.12);
+    box-shadow: 0 18px 34px rgba(35, 56, 89, 0.1);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #status-body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-soft);
+  }
+
+  #scene-note {
+    top: 152px;
+    right: 16px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+  }
+
+  #scene-note .eyebrow {
+    color: rgba(24, 38, 63, 0.55);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  #scene-note h2 {
+    margin-top: 5px;
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  #scene-note p {
+    margin-top: 7px;
+    color: var(--text-soft);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #scene-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .metric-chip {
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(30, 58, 110, 0.05);
+    border: 1px solid rgba(34, 52, 84, 0.06);
+  }
+
+  .metric-chip .label {
+    display: block;
+    color: rgba(24, 38, 63, 0.58);
+    font-size: 10px;
+  }
+
+  .metric-chip .value {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(400px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #243a69;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(40, 73, 132, 0.38), rgba(40, 73, 132, 0));
+  }
+
+  #formula-panel .row {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 100px;
+    flex-shrink: 0;
+    color: rgba(24, 38, 63, 0.6);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  }
+
+  #formula-panel .highlight-box,
+  #formula-panel .law-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(25, 48, 92, 0.05);
+  }
+
+  #formula-panel .law-box {
+    background: rgba(210, 155, 42, 0.08);
+  }
+
+  #comparison-panel {
+    right: 16px;
+    bottom: 16px;
+    width: min(430px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    font-size: 12px;
+  }
+
+  #comparison-panel.hidden {
+    display: none;
+  }
+
+  #comparison-panel h3 {
+    font-size: 16px;
+    color: #243a69;
+  }
+
+  #comparison-panel table {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  #comparison-panel th,
+  #comparison-panel td {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(24, 38, 63, 0.08);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  #comparison-panel th {
+    color: rgba(24, 38, 63, 0.58);
+    font-weight: 700;
+  }
+
+  #comparison-panel .note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(27, 147, 93, 0.08);
+    color: rgba(24, 38, 63, 0.88);
+    line-height: 1.68;
+  }
+
+  .lil-gui {
+    --width: 300px;
+    z-index: 40 !important;
+  }
+
+  @media (max-width: 1120px) {
+    #scene-note {
+      top: 178px;
+      width: min(340px, calc(100vw - 32px));
+    }
+
+    #scene-metrics {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 920px) {
+    #case-tabs {
+      top: 60px;
+      width: calc(100vw - 24px);
+      justify-content: center;
+      flex-wrap: wrap;
+      border-radius: 22px;
+    }
+
+    .case-tab {
+      flex: 1 1 calc(50% - 8px);
+      min-width: 120px;
+    }
+
+    #status-banner {
+      top: 134px;
+      min-width: 0;
+      width: calc(100vw - 24px);
+    }
+
+    #scene-note {
+      top: 226px;
+      left: 12px;
+      right: 12px;
+      width: auto;
+    }
+
+    #formula-panel {
+      bottom: 226px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #comparison-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-pill,
+    #guide-toggle {
+      top: 10px;
+    }
+
+    #title-pill {
+      left: 10px;
+      max-width: calc(100vw - 130px);
+    }
+
+    #guide-toggle {
+      right: 10px;
+    }
+
+    #case-tabs {
+      top: 52px;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .case-tab {
+      font-size: 11px;
+      padding: 9px 10px;
+    }
+
+    #status-banner {
+      top: 122px;
+      padding: 12px 14px;
+    }
+
+    #status-title {
+      font-size: 14px;
+    }
+
+    #scene-note {
+      top: 214px;
+      padding: 14px;
+    }
+
+    #scene-note h2 {
+      font-size: 18px;
+    }
+
+    #formula-panel {
+      bottom: 246px;
+      font-size: 11px;
+      padding: 15px 14px 13px;
+    }
+
+    #comparison-panel {
+      padding: 14px;
+      font-size: 11px;
+    }
+
+    #guide-panel {
+      top: 48px;
+      right: 10px;
+      width: calc(100vw - 20px);
+    }
+  }
+</style>
+</head>
+<body>
+<div id="title-pill">물리학 I · 작용 반작용과 운동량 보존</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<section id="guide-panel" aria-hidden="true">
+  <h3>핵심 원리</h3>
+  <p>물체 A가 물체 B에 힘을 작용하면, B도 A에 크기가 같고 방향이 반대인 힘을 작용합니다. 이 두 힘은 <strong>동시에</strong> 작용하고, <strong>서로 다른 물체</strong>에 작용하므로 상쇄되지 않습니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>로켓이 우주 공간에서도 추진할 수 있는 까닭을 작용 반작용 법칙으로 설명해 보세요.</li>
+    <li>작용 반작용 관계의 두 힘과 힘의 평형 관계의 두 힘은 무엇이 다른가요?</li>
+    <li>스케이트를 탄 두 사람이 서로 밀 때 가벼운 사람이 더 많이 밀려나는 까닭은 무엇인가요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>걷기: 발이 지면을 뒤로 밀면 지면이 발을 앞으로 밀어 줍니다.</li>
+    <li>수영: 손이 물을 뒤로 밀면 물이 몸을 앞으로 밀어 줍니다.</li>
+    <li>총 반동: 탄환이 앞으로 나가면 총은 뒤로 밀립니다.</li>
+  </ul>
+
+  <div class="guide-box">
+    <strong>교과서 연계</strong><br>
+    물리학 I편 p38~41<br>
+    작용 반작용 법칙, 힘 센서 탐구, 로켓 추진 원리를 한 화면에서 비교합니다.
+  </div>
+</section>
+
+<div id="case-tabs" role="tablist" aria-label="작용 반작용 사례 선택">
+  <button class="case-tab active" data-case="wall" role="tab" aria-selected="true">벽 밀기</button>
+  <button class="case-tab" data-case="skate" role="tab" aria-selected="false">스케이트 밀기</button>
+  <button class="case-tab" data-case="rocket" role="tab" aria-selected="false">로켓 추진</button>
+  <button class="case-tab" data-case="sensor" role="tab" aria-selected="false">힘 센서 실험</button>
+</div>
+
+<section id="status-banner">
+  <div id="status-title">두 힘은 서로 다른 물체에 작용합니다.</div>
+  <div id="status-body">그래서 크기가 같고 방향이 반대여도 서로 상쇄되지 않습니다.</div>
+</section>
+
+<section id="scene-note" class="overlay-card">
+  <div class="eyebrow">CURRENT CASE</div>
+  <h2 id="scene-note-title">손으로 벽 밀기</h2>
+  <p id="scene-note-body">손이 벽을 오른쪽으로 밀면, 벽도 손을 왼쪽으로 같은 크기로 미는 장면입니다.</p>
+  <div id="scene-metrics"></div>
+</section>
+
+<section id="formula-panel" class="overlay-card" aria-live="polite"></section>
+
+<section id="comparison-panel" class="overlay-card">
+  <h3>작용·반작용 vs 힘의 평형</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>구분</th>
+        <th>작용·반작용</th>
+        <th>힘의 평형</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>작용 대상</th>
+        <td>서로 다른 두 물체</td>
+        <td>같은 하나의 물체</td>
+      </tr>
+      <tr>
+        <th>크기</th>
+        <td>항상 같음</td>
+        <td>같음</td>
+      </tr>
+      <tr>
+        <th>방향</th>
+        <td>반대</td>
+        <td>반대</td>
+      </tr>
+      <tr>
+        <th>상쇄 여부</th>
+        <td>상쇄 안 됨</td>
+        <td>상쇄됨</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">핵심은 <strong>어느 물체에 작용하느냐</strong>입니다. 같은 물체에 작용해야 힘의 평형이 되고, 서로 다른 물체에 작용하면 작용·반작용입니다.</div>
+</section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const CASES = {
+  wall: {
+    label: '벽 밀기',
+    title: '손으로 벽 밀기',
+    directions: { action: '오른쪽 →', reaction: '왼쪽 ←' }
+  },
+  skate: {
+    label: '스케이트 밀기',
+    title: '두 사람이 스케이트에서 밀기',
+    directions: { action: 'A가 B를 오른쪽으로 →', reaction: 'B가 A를 왼쪽으로 ←' }
+  },
+  rocket: {
+    label: '로켓 추진',
+    title: '로켓 추진',
+    directions: { action: '로켓이 가스를 아래로 ↓', reaction: '가스가 로켓을 위로 ↑' }
+  },
+  sensor: {
+    label: '힘 센서 실험',
+    title: '힘 센서 실험',
+    directions: { action: '센서 A가 B를 오른쪽으로 →', reaction: '센서 B가 A를 왼쪽으로 ←' }
+  }
+};
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  caseTabs: Array.from(document.querySelectorAll('.case-tab')),
+  sceneTitle: document.getElementById('scene-note-title'),
+  sceneBody: document.getElementById('scene-note-body'),
+  sceneMetrics: document.getElementById('scene-metrics'),
+  statusTitle: document.getElementById('status-title'),
+  statusBody: document.getElementById('status-body'),
+  formulaPanel: document.getElementById('formula-panel'),
+  comparisonPanel: document.getElementById('comparison-panel')
+};
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(6.8, 4.4, 10.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xeef0f5, 1);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 4.8;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.7, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(9, 14, 8);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -20;
+dirLight.shadow.camera.right = 20;
+dirLight.shadow.camera.top = 20;
+dirLight.shadow.camera.bottom = -20;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 50;
+dirLight.shadow.bias = -0.00008;
+scene.add(dirLight);
+
+const clock = new THREE.Clock();
+
+const params = {
+  caseLabel: CASES.wall.label,
+  forceMagnitude: 10,
+  massA: 60,
+  massB: 80,
+  gasExhaust: 5,
+  showForceArrows: true,
+  showComparison: true,
+  startSimulation: () => startActiveCase(),
+  reset: () => resetActiveCase()
+};
+
+const runtime = {
+  activeKey: 'wall',
+  activeCase: null,
+  uiCache: {
+    formula: '',
+    sceneTitle: '',
+    sceneBody: '',
+    sceneMetrics: '',
+    statusTitle: '',
+    statusBody: ''
+  }
+};
+
+const gui = new GUI({ title: '작용·반작용 컨트롤' });
+const controllers = {
+  case: gui.add(params, 'caseLabel', Object.values(CASES).map((entry) => entry.label)).name('사례'),
+  force: gui.add(params, 'forceMagnitude', 1, 20, 1).name('힘의 크기'),
+  massA: gui.add(params, 'massA', 40, 100, 1).name('사람 A 질량'),
+  massB: gui.add(params, 'massB', 40, 100, 1).name('사람 B 질량'),
+  gas: gui.add(params, 'gasExhaust', 1, 10, 0.5).name('가스 분출량')
+};
+gui.add(params, 'startSimulation').name('시뮬레이션 시작');
+gui.add(params, 'showForceArrows').name('힘 화살표 표시');
+gui.add(params, 'showComparison').name('비교 표 표시');
+gui.add(params, 'reset').name('초기화');
+
+controllers.case.onChange((label) => setCase(findCaseKey(label)));
+controllers.force.onChange(() => {
+  runtime.activeCase?.refresh?.();
+  updateUi();
+});
+controllers.massA.onChange(() => {
+  if (runtime.activeKey === 'skate') {
+    setCase('skate');
+  } else {
+    updateUi();
+  }
+});
+controllers.massB.onChange(() => {
+  if (runtime.activeKey === 'skate') {
+    setCase('skate');
+  } else {
+    updateUi();
+  }
+});
+controllers.gas.onChange(() => {
+  runtime.activeCase?.refresh?.();
+  updateUi();
+});
+
+gui.onChange(() => {
+  runtime.activeCase?.applyArrowVisibility?.();
+  updateComparisonVisibility();
+  updateUi();
+});
+
+dom.guideToggle.addEventListener('click', () => {
+  const nextOpen = !dom.guidePanel.classList.contains('open');
+  dom.guidePanel.classList.toggle('open', nextOpen);
+  dom.guidePanel.setAttribute('aria-hidden', String(!nextOpen));
+});
+
+dom.caseTabs.forEach((button) => {
+  button.addEventListener('click', () => {
+    const nextKey = button.dataset.case;
+    if (nextKey) setCase(nextKey);
+  });
+});
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function formatNumber(value, digits = 1) {
+  return value.toLocaleString('ko-KR', {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : Math.min(1, digits),
+    maximumFractionDigits: digits
+  });
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = options.width ?? 320;
+  canvas.height = options.height ?? 100;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.renderOrder = 50;
+  sprite.scale.set(options.scaleX ?? 2.2, options.scaleY ?? 0.7, 1);
+  sprite.userData = {
+    canvas,
+    context,
+    texture,
+    options: {
+      color: options.color ?? '#ffffff',
+      background: options.background ?? 'rgba(17, 29, 53, 0.82)',
+      border: options.border ?? 'rgba(255,255,255,0.18)',
+      fontSize: options.fontSize ?? 28,
+      fontWeight: options.fontWeight ?? 700,
+      padding: options.padding ?? 18
+    }
+  };
+  updateTextSprite(sprite, text, options);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, nextOptions = {}) {
+  const data = sprite.userData;
+  const canvas = data.canvas;
+  const context = data.context;
+  const texture = data.texture;
+  const options = {
+    ...data.options,
+    ...nextOptions
+  };
+  data.options = options;
+
+  const lines = String(text).split('\n');
+  const fontSize = options.fontSize;
+  const lineHeight = fontSize * 1.18;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (options.background) {
+    roundedRect(context, 6, 6, canvas.width - 12, canvas.height - 12, 24);
+    context.fillStyle = options.background;
+    context.fill();
+    if (options.border) {
+      context.lineWidth = 2;
+      context.strokeStyle = options.border;
+      context.stroke();
+    }
+  }
+
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = options.color;
+  context.font = `${options.fontWeight} ${fontSize}px Pretendard, sans-serif`;
+  context.shadowColor = 'rgba(0, 0, 0, 0.18)';
+  context.shadowBlur = 8;
+
+  const totalHeight = (lines.length - 1) * lineHeight;
+  lines.forEach((line, index) => {
+    const y = canvas.height * 0.5 - totalHeight * 0.5 + index * lineHeight;
+    context.fillText(line, canvas.width * 0.5, y);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function disposeMaterial(material, disposedTextures) {
+  ['map', 'alphaMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap'].forEach((key) => {
+    const texture = material[key];
+    if (texture && !disposedTextures.has(texture)) {
+      disposedTextures.add(texture);
+      texture.dispose();
+    }
+  });
+  material.dispose();
+}
+
+function disposeHierarchy(root) {
+  if (!root) return;
+  const disposedTextures = new Set();
+  const disposedGeometries = new Set();
+
+  root.traverse((object) => {
+    if (object.geometry && !disposedGeometries.has(object.geometry)) {
+      disposedGeometries.add(object.geometry);
+      object.geometry.dispose();
+    }
+
+    if (object.material) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => disposeMaterial(material, disposedTextures));
+    }
+
+    const spriteTexture = object.userData?.texture;
+    if (spriteTexture && !disposedTextures.has(spriteTexture)) {
+      disposedTextures.add(spriteTexture);
+      spriteTexture.dispose();
+    }
+  });
+
+  root.removeFromParent();
+}
+
+function createStandardMaterial(color, options = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: options.roughness ?? 0.58,
+    metalness: options.metalness ?? 0.08,
+    transparent: options.transparent ?? false,
+    opacity: options.opacity ?? 1
+  });
+}
+
+function createGround(width, depth, color, withGrid = true) {
+  const group = new THREE.Group();
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth),
+    createStandardMaterial(color, { roughness: 0.94, metalness: 0.02 })
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.receiveShadow = true;
+  group.add(plane);
+
+  if (withGrid) {
+    const grid = new THREE.GridHelper(width, Math.max(8, Math.round(width)), 0x9bb0d6, 0xc7d2e6);
+    grid.position.y = 0.01;
+    grid.material.opacity = 0.22;
+    grid.material.transparent = true;
+    group.add(grid);
+  }
+
+  return group;
+}
+
+function createForceArrow(color, labelColor = '#ffffff') {
+  const group = new THREE.Group();
+  const arrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(),
+    1,
+    color,
+    0.28,
+    0.14
+  );
+  group.add(arrow);
+  const label = createTextSprite('', {
+    width: 360,
+    height: 86,
+    scaleX: 2.3,
+    scaleY: 0.55,
+    color: labelColor,
+    fontSize: 24,
+    background: 'rgba(15, 24, 43, 0.84)',
+    border: 'rgba(255,255,255,0.12)'
+  });
+  group.add(label);
+  group.userData = { arrow, label };
+  return group;
+}
+
+function updateForceArrow(bundle, origin, direction, length, label, labelOffset = new THREE.Vector3(0, 0.5, 0)) {
+  const arrow = bundle.userData.arrow;
+  const labelSprite = bundle.userData.label;
+  const unit = direction.clone().normalize();
+  arrow.position.copy(origin);
+  arrow.setDirection(unit);
+  arrow.setLength(Math.max(0.001, length), Math.max(0.22, length * 0.22), Math.max(0.12, length * 0.12));
+  updateTextSprite(labelSprite, label);
+  labelSprite.position.copy(origin.clone().add(unit.clone().multiplyScalar(length * 0.58)).add(labelOffset));
+}
+
+function forceToArrowLength(value) {
+  return 0.55 + value * 0.11;
+}
+
+function findCaseKey(label) {
+  return Object.entries(CASES).find(([, entry]) => entry.label === label)?.[0] ?? 'wall';
+}
+
+function createPersonFigure(color) {
+  const group = new THREE.Group();
+  const bodyMaterial = createStandardMaterial(color, { roughness: 0.66 });
+  const detailMaterial = createStandardMaterial(0x344157, { roughness: 0.74 });
+  const skinMaterial = createStandardMaterial(0xf0cfb4, { roughness: 0.86 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.86, 0.28), bodyMaterial);
+  torso.position.y = 1.2;
+  torso.castShadow = true;
+  group.add(torso);
+
+  const hips = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 0.24), detailMaterial);
+  hips.position.y = 0.67;
+  hips.castShadow = true;
+  group.add(hips);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 20), skinMaterial);
+  head.position.y = 1.82;
+  head.castShadow = true;
+  group.add(head);
+
+  const leftArmPivot = new THREE.Group();
+  leftArmPivot.position.set(-0.33, 1.45, 0);
+  const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.68, 0.18), bodyMaterial);
+  leftArm.position.y = -0.32;
+  leftArm.castShadow = true;
+  leftArmPivot.add(leftArm);
+  group.add(leftArmPivot);
+
+  const rightArmPivot = new THREE.Group();
+  rightArmPivot.position.set(0.33, 1.45, 0);
+  const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.68, 0.18), bodyMaterial);
+  rightArm.position.y = -0.32;
+  rightArm.castShadow = true;
+  rightArmPivot.add(rightArm);
+  group.add(rightArmPivot);
+
+  const leftLegPivot = new THREE.Group();
+  leftLegPivot.position.set(-0.15, 0.54, 0);
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.74, 0.18), detailMaterial);
+  leftLeg.position.y = -0.38;
+  leftLeg.castShadow = true;
+  leftLegPivot.add(leftLeg);
+  group.add(leftLegPivot);
+
+  const rightLegPivot = new THREE.Group();
+  rightLegPivot.position.set(0.15, 0.54, 0);
+  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.74, 0.18), detailMaterial);
+  rightLeg.position.y = -0.38;
+  rightLeg.castShadow = true;
+  rightLegPivot.add(rightLeg);
+  group.add(rightLegPivot);
+
+  const leftSkate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.14), createStandardMaterial(0x6d7f98));
+  leftSkate.position.set(-0.15, 0.02, 0);
+  leftSkate.castShadow = true;
+  group.add(leftSkate);
+
+  const rightSkate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 0.14), createStandardMaterial(0x6d7f98));
+  rightSkate.position.set(0.15, 0.02, 0);
+  rightSkate.castShadow = true;
+  group.add(rightSkate);
+
+  group.userData = { leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot, torso };
+  return group;
+}
+
+function createArmRig() {
+  const group = new THREE.Group();
+  const sleeveMaterial = createStandardMaterial(0x5b7ab7, { roughness: 0.64 });
+  const skinMaterial = createStandardMaterial(0xddccbb, { roughness: 0.84 });
+
+  const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.5), sleeveMaterial);
+  shoulder.castShadow = true;
+  group.add(shoulder);
+
+  const upperArm = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.28, 0.36), sleeveMaterial);
+  upperArm.position.x = 0.68;
+  upperArm.castShadow = true;
+  group.add(upperArm);
+
+  const foreArm = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.24, 0.32), skinMaterial);
+  foreArm.position.x = 1.56;
+  foreArm.castShadow = true;
+  group.add(foreArm);
+
+  const palm = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, 0.62), skinMaterial);
+  palm.position.x = 2.11;
+  palm.castShadow = true;
+  group.add(palm);
+
+  group.userData = { palm };
+  return group;
+}
+
+function createRocket() {
+  const group = new THREE.Group();
+  const silver = createStandardMaterial(0xdddddd, { roughness: 0.34, metalness: 0.48 });
+  const accent = createStandardMaterial(0xe55f4d, { roughness: 0.46, metalness: 0.24 });
+  const dark = createStandardMaterial(0x42526d, { roughness: 0.58 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 2.7, 28), silver);
+  body.castShadow = true;
+  group.add(body);
+
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 28), silver);
+  nose.position.y = 1.85;
+  nose.castShadow = true;
+  group.add(nose);
+
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.05, 12, 24), accent);
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.55;
+  group.add(band);
+
+  const windowFrame = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.04, 20), dark);
+  windowFrame.rotation.x = Math.PI / 2;
+  windowFrame.position.set(0, 0.2, 0.48);
+  group.add(windowFrame);
+
+  const windowGlass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.14, 0.08, 20),
+    createStandardMaterial(0x85d7ff, { roughness: 0.16, metalness: 0.22, transparent: true, opacity: 0.85 })
+  );
+  windowGlass.rotation.x = Math.PI / 2;
+  windowGlass.position.set(0, 0.2, 0.5);
+  group.add(windowGlass);
+
+  for (let i = 0; i < 3; i += 1) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.68, 0.38), accent);
+    const angle = i * (Math.PI * 2 / 3);
+    fin.position.set(Math.cos(angle) * 0.42, -1.05, Math.sin(angle) * 0.42);
+    fin.lookAt(fin.position.clone().multiplyScalar(2));
+    fin.castShadow = true;
+    group.add(fin);
+  }
+
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.34, 18), dark);
+  nozzle.position.y = -1.52;
+  nozzle.castShadow = true;
+  group.add(nozzle);
+
+  group.userData = {
+    nozzleY: -1.66
+  };
+  return group;
+}
+
+function createSensorBlock(name, valueText) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.42, 0.48),
+    createStandardMaterial(0x44aa44, { roughness: 0.58, metalness: 0.14 })
+  );
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const pad = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.24, 0.24),
+    createStandardMaterial(0x27402d, { roughness: 0.68 })
+  );
+  pad.position.x = 0.52;
+  pad.castShadow = true;
+  group.add(pad);
+
+  const label = createTextSprite(`${name}\n${valueText}`, {
+    width: 350,
+    height: 120,
+    scaleX: 1.9,
+    scaleY: 0.68,
+    fontSize: 24,
+    color: '#8effb3',
+    background: 'rgba(8, 24, 16, 0.92)',
+    border: 'rgba(142,255,179,0.35)'
+  });
+  label.position.set(0, 0, 0.34);
+  group.add(label);
+
+  group.userData = { label, pad, body };
+  return group;
+}
+
+function createWallCase() {
+  const root = new THREE.Group();
+  root.add(createGround(14, 8, 0xf2f4f8, false));
+
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 3, 3),
+    createStandardMaterial(0x888888, { roughness: 0.92, metalness: 0.06 })
+  );
+  wall.position.set(3.15, 1.5, 0);
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  root.add(wall);
+
+  const wallBase = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.18, 3.4),
+    createStandardMaterial(0x9ca7b8, { roughness: 0.9 })
+  );
+  wallBase.position.set(3.15, 0.09, 0);
+  wallBase.receiveShadow = true;
+  root.add(wallBase);
+
+  const armRig = createArmRig();
+  armRig.position.set(0.35, 1.28, 0);
+  root.add(armRig);
+
+  const handLabel = createTextSprite('손', {
+    width: 190,
+    height: 72,
+    scaleX: 1.1,
+    scaleY: 0.42,
+    fontSize: 24,
+    background: 'rgba(255,255,255,0.88)',
+    border: 'rgba(24,38,63,0.12)',
+    color: '#243a69'
+  });
+  handLabel.position.set(1.8, 2.35, 0.9);
+  root.add(handLabel);
+
+  const wallLabel = createTextSprite('벽', {
+    width: 190,
+    height: 72,
+    scaleX: 1.1,
+    scaleY: 0.42,
+    fontSize: 24,
+    background: 'rgba(255,255,255,0.88)',
+    border: 'rgba(24,38,63,0.12)',
+    color: '#243a69'
+  });
+  wallLabel.position.set(3.15, 3.2, 0.95);
+  root.add(wallLabel);
+
+  const actionArrow = createForceArrow(0xe45757);
+  const reactionArrow = createForceArrow(0x3678ff);
+  root.add(actionArrow, reactionArrow);
+
+  const cameraState = {
+    position: new THREE.Vector3(6.6, 3.8, 8.8),
+    target: new THREE.Vector3(2.2, 1.5, 0)
+  };
+
+  const state = {
+    animating: false,
+    elapsed: 0,
+    pushOffset: 0
+  };
+
+  function updateArrows() {
+    const length = forceToArrowLength(params.forceMagnitude);
+    updateForceArrow(
+      actionArrow,
+      new THREE.Vector3(2.25 + state.pushOffset * 0.3, 1.52, 0.42),
+      new THREE.Vector3(1, 0, 0),
+      length,
+      `F₁ 작용 ${formatNumber(params.forceMagnitude, 0)}N`
+    );
+    updateForceArrow(
+      reactionArrow,
+      new THREE.Vector3(2.95, 1.1, -0.42),
+      new THREE.Vector3(-1, 0, 0),
+      length,
+      `F₂ 반작용 ${formatNumber(params.forceMagnitude, 0)}N`,
+      new THREE.Vector3(0, 0.44, 0)
+    );
+    actionArrow.visible = params.showForceArrows;
+    reactionArrow.visible = params.showForceArrows;
+  }
+
+  function reset() {
+    state.animating = false;
+    state.elapsed = 0;
+    state.pushOffset = 0;
+    armRig.position.x = 0.35;
+    armRig.rotation.z = 0;
+    updateArrows();
+  }
+
+  return {
+    root,
+    cameraState,
+    refresh: updateArrows,
+    applyArrowVisibility: updateArrows,
+    start() {
+      reset();
+      state.animating = true;
+    },
+    reset,
+    update(dt) {
+      if (state.animating) {
+        state.elapsed += dt;
+        const progress = Math.min(1, state.elapsed / 1.35);
+        const pulse = Math.sin(progress * Math.PI);
+        state.pushOffset = pulse * 0.28;
+        armRig.position.x = 0.35 + state.pushOffset;
+        armRig.rotation.z = -pulse * 0.05;
+        if (progress >= 1) {
+          state.animating = false;
+        }
+      } else {
+        state.pushOffset = lerp(state.pushOffset, 0, Math.min(1, dt * 6));
+        armRig.position.x = lerp(armRig.position.x, 0.35, Math.min(1, dt * 6));
+        armRig.rotation.z = lerp(armRig.rotation.z, 0, Math.min(1, dt * 6));
+      }
+      updateArrows();
+    },
+    getUi() {
+      return {
+        sceneTitle: '손으로 벽 밀기',
+        sceneBody: '손이 벽을 밀어도 두 힘은 서로 다른 물체에 작용하므로 상쇄되지 않습니다.',
+        sceneMetrics: [
+          ['작용', `${formatNumber(params.forceMagnitude, 0)} N →`],
+          ['반작용', `${formatNumber(params.forceMagnitude, 0)} N ←`],
+          ['작용 대상', '손 / 벽'],
+          ['핵심', '서로 다른 물체']
+        ],
+        statusTitle: '손과 벽에 작용하는 두 힘은 동시에 생깁니다.',
+        statusBody: '손이 벽을 오른쪽으로 밀면, 벽도 손을 왼쪽으로 같은 크기로 미는 힘을 작용합니다.',
+        formula: `
+          <div class="panel-title">↔️ 작용 반작용 법칙 (뉴턴 제3법칙)</div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">현재 사례</span><span class="value">손으로 벽 밀기</span></div>
+          <div class="row"><span class="label">작용</span><span class="value mono">F₁ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.wall.directions.action})</span></div>
+          <div class="row"><span class="label">반작용</span><span class="value mono">F₂ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.wall.directions.reaction})</span></div>
+          <div class="row"><span class="label">검증</span><span class="value mono">|F₁| = |F₂| ✅</span></div>
+          <div class="law-box">
+            <div><strong>뉴턴 제3법칙</strong></div>
+            <div>물체 A가 B에 힘을 작용하면 B도 A에 크기가 같고 방향이 반대인 힘을 작용합니다.</div>
+          </div>
+          <div class="highlight-box">
+            <div><strong>핵심 강조</strong></div>
+            <div>손에 작용하는 힘과 벽에 작용하는 힘은 서로 다른 물체에 작용하므로 상쇄되지 않습니다.</div>
+          </div>
+        `
+      };
+    }
+  };
+}
+
+function createSkateCase() {
+  const root = new THREE.Group();
+  const ice = createGround(15, 8, 0xccddee, false);
+  root.add(ice);
+
+  const rink = new THREE.Mesh(
+    new THREE.BoxGeometry(15.2, 0.08, 8.2),
+    createStandardMaterial(0xdbeef7, { roughness: 0.18, metalness: 0.12, transparent: true, opacity: 0.84 })
+  );
+  rink.position.y = 0.02;
+  rink.receiveShadow = true;
+  root.add(rink);
+
+  const skaterA = createPersonFigure(0xff6644);
+  const skaterB = createPersonFigure(0x4466ff);
+  skaterA.rotation.y = Math.PI * 0.5;
+  skaterB.rotation.y = -Math.PI * 0.5;
+  root.add(skaterA, skaterB);
+
+  const labelA = createTextSprite(`A\n${formatNumber(params.massA, 0)} kg`, {
+    width: 230,
+    height: 120,
+    scaleX: 1.35,
+    scaleY: 0.62,
+    fontSize: 24,
+    color: '#ffffff',
+    background: 'rgba(228,87,87,0.88)',
+    border: 'rgba(255,255,255,0.18)'
+  });
+  root.add(labelA);
+
+  const labelB = createTextSprite(`B\n${formatNumber(params.massB, 0)} kg`, {
+    width: 230,
+    height: 120,
+    scaleX: 1.35,
+    scaleY: 0.62,
+    fontSize: 24,
+    color: '#ffffff',
+    background: 'rgba(54,120,255,0.88)',
+    border: 'rgba(255,255,255,0.18)'
+  });
+  root.add(labelB);
+
+  const actionArrow = createForceArrow(0xe45757);
+  const reactionArrow = createForceArrow(0x3678ff);
+  root.add(actionArrow, reactionArrow);
+
+  const state = {
+    phase: 'idle',
+    elapsed: 0,
+    posA: -0.95,
+    posB: 0.95,
+    velA: 0,
+    velB: 0
+  };
+
+  const cameraState = {
+    position: new THREE.Vector3(0.4, 4.8, 12.2),
+    target: new THREE.Vector3(0, 1.2, 0)
+  };
+
+  function accelerationA() {
+    return params.forceMagnitude / params.massA;
+  }
+
+  function accelerationB() {
+    return params.forceMagnitude / params.massB;
+  }
+
+  function updateSceneObjects() {
+    skaterA.position.set(state.posA, 0, 0.3);
+    skaterB.position.set(state.posB, 0, -0.3);
+
+    const leanAmountA = state.phase === 'push' ? 0.14 : 0.04;
+    const leanAmountB = state.phase === 'push' ? -0.1 : -0.03;
+    skaterA.rotation.z = leanAmountA;
+    skaterB.rotation.z = leanAmountB;
+
+    skaterA.userData.rightArmPivot.rotation.z = -0.92;
+    skaterB.userData.leftArmPivot.rotation.z = 0.92;
+    skaterA.userData.leftArmPivot.rotation.z = 0.16;
+    skaterB.userData.rightArmPivot.rotation.z = -0.16;
+
+    skaterA.userData.leftLegPivot.rotation.x = 0.1;
+    skaterA.userData.rightLegPivot.rotation.x = -0.06;
+    skaterB.userData.leftLegPivot.rotation.x = -0.06;
+    skaterB.userData.rightLegPivot.rotation.x = 0.1;
+
+    labelA.position.set(state.posA, 2.55, 0.9);
+    labelB.position.set(state.posB, 2.55, -0.9);
+
+    const forceLength = forceToArrowLength(params.forceMagnitude);
+    const actionOrigin = new THREE.Vector3((state.posA + state.posB) * 0.5 - 0.35, 1.55, 0.18);
+    const reactionOrigin = new THREE.Vector3((state.posA + state.posB) * 0.5 + 0.35, 1.35, -0.18);
+    updateForceArrow(actionArrow, actionOrigin, new THREE.Vector3(1, 0, 0), forceLength, `A→B ${formatNumber(params.forceMagnitude, 0)}N`);
+    updateForceArrow(reactionArrow, reactionOrigin, new THREE.Vector3(-1, 0, 0), forceLength, `B→A ${formatNumber(params.forceMagnitude, 0)}N`);
+    actionArrow.visible = params.showForceArrows;
+    reactionArrow.visible = params.showForceArrows;
+  }
+
+  function reset() {
+    state.phase = 'idle';
+    state.elapsed = 0;
+    state.posA = -0.95;
+    state.posB = 0.95;
+    state.velA = 0;
+    state.velB = 0;
+    updateTextSprite(labelA, `A\n${formatNumber(params.massA, 0)} kg`);
+    updateTextSprite(labelB, `B\n${formatNumber(params.massB, 0)} kg`);
+    updateSceneObjects();
+  }
+
+  return {
+    root,
+    cameraState,
+    refresh: updateSceneObjects,
+    applyArrowVisibility: updateSceneObjects,
+    start() {
+      reset();
+      state.phase = 'push';
+    },
+    reset,
+    update(dt) {
+      if (state.phase === 'push') {
+        state.elapsed += dt;
+        const scaledAccelA = accelerationA() * 2.8;
+        const scaledAccelB = accelerationB() * 2.8;
+        state.velA -= scaledAccelA * dt;
+        state.velB += scaledAccelB * dt;
+        state.posA += state.velA * dt;
+        state.posB += state.velB * dt;
+        if (state.elapsed >= 0.95) {
+          state.phase = 'glide';
+        }
+      } else if (state.phase === 'glide') {
+        state.posA += state.velA * dt;
+        state.posB += state.velB * dt;
+        state.velA *= Math.pow(0.998, dt * 60);
+        state.velB *= Math.pow(0.998, dt * 60);
+        state.posA = Math.max(-5.2, state.posA);
+        state.posB = Math.min(5.2, state.posB);
+      }
+      updateSceneObjects();
+    },
+    getUi() {
+      const aA = accelerationA();
+      const aB = accelerationB();
+      return {
+        sceneTitle: '두 사람이 스케이트 위에서 서로 밀기',
+        sceneBody: '작용과 반작용의 힘은 같지만, 가속도는 질량에 따라 달라집니다. 가벼운 A가 더 크게 움직입니다.',
+        sceneMetrics: [
+          ['사람 A', `${formatNumber(params.massA, 0)} kg`],
+          ['사람 B', `${formatNumber(params.massB, 0)} kg`],
+          ['aₐ', `${formatNumber(aA, 3)} m/s²`],
+          ['aᵦ', `${formatNumber(aB, 3)} m/s²`]
+        ],
+        statusTitle: '같은 힘이 작용해도 질량이 다르면 가속도가 달라집니다.',
+        statusBody: `${params.massA < params.massB ? '가벼운 A' : params.massA > params.massB ? '가벼운 B' : '두 사람'}가 더 큰 가속도를 가져 더 많이 밀려납니다.`,
+        formula: `
+          <div class="panel-title">↔️ 작용 반작용 법칙 (뉴턴 제3법칙)</div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">현재 사례</span><span class="value">스케이트 밀기</span></div>
+          <div class="row"><span class="label">작용</span><span class="value mono">F₁ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.skate.directions.action})</span></div>
+          <div class="row"><span class="label">반작용</span><span class="value mono">F₂ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.skate.directions.reaction})</span></div>
+          <div class="row"><span class="label">검증</span><span class="value mono">|F₁| = |F₂| ✅</span></div>
+          <div class="highlight-box">
+            <div class="mono">aₐ = F / mₐ = ${formatNumber(params.forceMagnitude, 0)} / ${formatNumber(params.massA, 0)} = ${formatNumber(aA, 3)} m/s²</div>
+            <div class="mono">aᵦ = F / mᵦ = ${formatNumber(params.forceMagnitude, 0)} / ${formatNumber(params.massB, 0)} = ${formatNumber(aB, 3)} m/s²</div>
+            <div style="margin-top:8px;">${aA > aB ? 'A가 더 큰 가속도를 가져 더 많이 뒤로 밀려납니다.' : aA < aB ? 'B가 더 큰 가속도를 가져 더 많이 밀려납니다.' : '질량이 같으면 두 사람의 가속도도 같습니다.'}</div>
+          </div>
+          <div class="law-box">
+            <div><strong>핵심</strong></div>
+            <div>두 힘은 서로 다른 사람에게 작용하고, 질량 차이 때문에 움직임의 크기는 달라질 수 있습니다.</div>
+          </div>
+        `
+      };
+    }
+  };
+}
+
+function createRocketCase() {
+  const root = new THREE.Group();
+  root.add(createGround(12, 8, 0xf1f4f8, false));
+
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.5, 0.28, 36),
+    createStandardMaterial(0x7d8795, { roughness: 0.88, metalness: 0.12 })
+  );
+  pad.position.y = 0.14;
+  pad.receiveShadow = true;
+  root.add(pad);
+
+  const support = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.1, 2.8, 12),
+    createStandardMaterial(0x556273, { roughness: 0.78 })
+  );
+  support.position.set(-0.78, 1.55, 0);
+  support.castShadow = true;
+  root.add(support);
+
+  const rocket = createRocket();
+  rocket.position.y = 1.7;
+  root.add(rocket);
+
+  const rocketLabel = createTextSprite('로켓', {
+    width: 180,
+    height: 70,
+    scaleX: 1.04,
+    scaleY: 0.4,
+    fontSize: 24,
+    background: 'rgba(255,255,255,0.9)',
+    border: 'rgba(24,38,63,0.12)',
+    color: '#243a69'
+  });
+  rocketLabel.position.set(0, 4.2, 0.9);
+  root.add(rocketLabel);
+
+  const actionArrow = createForceArrow(0xe45757);
+  const reactionArrow = createForceArrow(0x3678ff);
+  root.add(actionArrow, reactionArrow);
+
+  const particleCount = 200;
+  const positions = new Float32Array(particleCount * 3);
+  const velocities = Array.from({ length: particleCount }, () => new THREE.Vector3());
+  const lifetimes = new Float32Array(particleCount);
+  positions.fill(999);
+  const particleGeometry = new THREE.BufferGeometry();
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMaterial = new THREE.PointsMaterial({
+    color: 0xff6600,
+    size: 0.18,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const particles = new THREE.Points(particleGeometry, particleMaterial);
+  root.add(particles);
+
+  const state = {
+    burning: false,
+    burnTime: 0,
+    emitterCarry: 0,
+    height: 1.7,
+    velocity: 0,
+    acceleration: 0,
+    plumeIntensity: 0
+  };
+
+  const cameraState = {
+    position: new THREE.Vector3(7.2, 6.2, 11.6),
+    target: new THREE.Vector3(0, 2.6, 0)
+  };
+
+  function currentForce() {
+    return params.gasExhaust * 2;
+  }
+
+  function resetParticles() {
+    positions.fill(999);
+    lifetimes.fill(0);
+    particleGeometry.attributes.position.needsUpdate = true;
+  }
+
+  function spawnParticle(index) {
+    positions[index * 3] = rocket.position.x + (Math.random() - 0.5) * 0.28;
+    positions[index * 3 + 1] = rocket.position.y + rocket.userData.nozzleY;
+    positions[index * 3 + 2] = (Math.random() - 0.5) * 0.22;
+    velocities[index].set(
+      (Math.random() - 0.5) * 0.45,
+      -(1.6 + Math.random() * 2 + params.gasExhaust * 0.18),
+      (Math.random() - 0.5) * 0.36
+    );
+    lifetimes[index] = 0.35 + Math.random() * 0.6;
+  }
+
+  function updateParticles(dt) {
+    const emissionPerSecond = state.burning ? 50 + params.gasExhaust * 12 : state.plumeIntensity * 14;
+    state.emitterCarry += emissionPerSecond * dt;
+
+    for (let i = 0; i < particleCount; i += 1) {
+      if (lifetimes[i] > 0) {
+        positions[i * 3] += velocities[i].x * dt;
+        positions[i * 3 + 1] += velocities[i].y * dt;
+        positions[i * 3 + 2] += velocities[i].z * dt;
+        velocities[i].y -= 2.8 * dt;
+        lifetimes[i] -= dt;
+        if (lifetimes[i] <= 0) {
+          positions[i * 3] = 999;
+          positions[i * 3 + 1] = 999;
+          positions[i * 3 + 2] = 999;
+        }
+      } else if (state.emitterCarry >= 1) {
+        spawnParticle(i);
+        state.emitterCarry -= 1;
+      }
+    }
+
+    particleMaterial.opacity = 0.15 + state.plumeIntensity * 0.7;
+    particleGeometry.attributes.position.needsUpdate = true;
+  }
+
+  function updateScene() {
+    rocket.position.y = state.height;
+    rocket.rotation.z = Math.sin(state.burnTime * 5.2) * 0.015 * state.plumeIntensity;
+    rocketLabel.position.y = state.height + 2.5;
+
+    const forceLength = forceToArrowLength(currentForce());
+    updateForceArrow(
+      actionArrow,
+      new THREE.Vector3(0.65, state.height - 0.2, 0),
+      new THREE.Vector3(0, -1, 0),
+      forceLength,
+      `로켓→가스 ${formatNumber(currentForce(), 1)}N`,
+      new THREE.Vector3(0.65, 0, 0)
+    );
+    updateForceArrow(
+      reactionArrow,
+      new THREE.Vector3(-0.65, state.height - 0.8, 0),
+      new THREE.Vector3(0, 1, 0),
+      forceLength,
+      `가스→로켓 ${formatNumber(currentForce(), 1)}N`,
+      new THREE.Vector3(-0.65, 0, 0)
+    );
+    actionArrow.visible = params.showForceArrows;
+    reactionArrow.visible = params.showForceArrows;
+  }
+
+  function reset() {
+    state.burning = false;
+    state.burnTime = 0;
+    state.emitterCarry = 0;
+    state.height = 1.7;
+    state.velocity = 0;
+    state.acceleration = 0;
+    state.plumeIntensity = 0;
+    resetParticles();
+    updateScene();
+  }
+
+  return {
+    root,
+    cameraState,
+    refresh: updateScene,
+    applyArrowVisibility: updateScene,
+    start() {
+      reset();
+      state.burning = true;
+    },
+    reset,
+    update(dt) {
+      if (state.burning) {
+        state.burnTime += dt;
+        const ramp = clamp(state.burnTime / 0.65, 0, 1);
+        state.acceleration = params.gasExhaust * 0.72 * easeInOutCubic(ramp);
+        state.velocity += state.acceleration * dt;
+        state.height += state.velocity * dt;
+        state.plumeIntensity = lerp(state.plumeIntensity, 1, Math.min(1, dt * 4));
+        if (state.burnTime >= 4.6) {
+          state.burning = false;
+        }
+      } else {
+        state.acceleration = 0;
+        state.velocity = Math.max(0, state.velocity - 0.22 * dt);
+        state.height += state.velocity * dt;
+        state.plumeIntensity = lerp(state.plumeIntensity, 0, Math.min(1, dt * 3));
+      }
+
+      state.height = clamp(state.height, 1.7, 8.6);
+      if (state.height === 8.6) state.velocity *= 0.86;
+      updateParticles(dt);
+      updateScene();
+    },
+    getUi() {
+      return {
+        sceneTitle: '로켓 추진',
+        sceneBody: '로켓이 가스를 아래로 밀어내면, 가스는 로켓을 위로 미는 반작용 힘을 작용합니다. 이것이 추진력입니다.',
+        sceneMetrics: [
+          ['가스 분출량', `${formatNumber(params.gasExhaust, 1)}`],
+          ['추진력', `${formatNumber(currentForce(), 1)} N`],
+          ['로켓 높이', `${formatNumber(state.height, 2)} m(모형)`],
+          ['상태', state.burning ? '연소 중' : '대기']
+        ],
+        statusTitle: '가스를 아래로 밀수록 로켓은 위로 더 크게 가속됩니다.',
+        statusBody: '진공에서도 주변 공기를 미는 것이 아니라, 배기가스를 뒤로 내보내는 작용 반작용으로 추진할 수 있습니다.',
+        formula: `
+          <div class="panel-title">↔️ 작용 반작용 법칙 (뉴턴 제3법칙)</div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">현재 사례</span><span class="value">로켓 추진</span></div>
+          <div class="row"><span class="label">작용</span><span class="value mono">F₁ = ${formatNumber(currentForce(), 1)}N (${CASES.rocket.directions.action})</span></div>
+          <div class="row"><span class="label">반작용</span><span class="value mono">F₂ = ${formatNumber(currentForce(), 1)}N (${CASES.rocket.directions.reaction})</span></div>
+          <div class="row"><span class="label">검증</span><span class="value mono">|F₁| = |F₂| ✅</span></div>
+          <div class="highlight-box">
+            <div>가스 분출량이 커질수록 추진력도 커져 로켓의 가속도가 커집니다.</div>
+            <div class="mono" style="margin-top:6px;">현재 높이 = ${formatNumber(state.height, 2)} m(모형)</div>
+          </div>
+          <div class="law-box">
+            <div><strong>핵심</strong></div>
+            <div>로켓은 공기를 밀어 올라가는 것이 아니라, 배기가스를 아래로 밀어내고 그 반작용으로 위로 올라갑니다.</div>
+          </div>
+        `
+      };
+    }
+  };
+}
+
+function createSensorCase() {
+  const root = new THREE.Group();
+  root.add(createGround(10, 6, 0xf4f6fa, false));
+
+  const bench = new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 0.24, 1.6),
+    createStandardMaterial(0xadb8c8, { roughness: 0.88 })
+  );
+  bench.position.y = 0.12;
+  bench.receiveShadow = true;
+  root.add(bench);
+
+  const sensorA = createSensorBlock('센서 A', `F₁ = ${formatNumber(params.forceMagnitude, 0)}N`);
+  const sensorB = createSensorBlock('센서 B', `F₂ = ${formatNumber(params.forceMagnitude, 0)}N`);
+  sensorA.position.set(-0.98, 0.45, 0);
+  sensorB.position.set(0.98, 0.45, 0);
+  sensorB.rotation.y = Math.PI;
+  root.add(sensorA, sensorB);
+
+  const actionArrow = createForceArrow(0xe45757);
+  const reactionArrow = createForceArrow(0x3678ff);
+  root.add(actionArrow, reactionArrow);
+
+  const state = {
+    animating: false,
+    elapsed: 0,
+    press: 0
+  };
+
+  const cameraState = {
+    position: new THREE.Vector3(5.4, 3.5, 8.6),
+    target: new THREE.Vector3(0, 1, 0)
+  };
+
+  function updateScene() {
+    sensorA.position.x = -0.98 + state.press * 0.18;
+    sensorB.position.x = 0.98 + state.press * 0.04;
+
+    const intensity = 0.1 + state.press * 0.4;
+    sensorA.userData.body.material.emissive = new THREE.Color(0x092e17).multiplyScalar(intensity);
+    sensorB.userData.body.material.emissive = new THREE.Color(0x092e17).multiplyScalar(intensity);
+
+    updateTextSprite(sensorA.userData.label, `센서 A\nF₁ = ${formatNumber(params.forceMagnitude, 0)}N`);
+    updateTextSprite(sensorB.userData.label, `센서 B\nF₂ = ${formatNumber(params.forceMagnitude, 0)}N`);
+
+    const length = forceToArrowLength(params.forceMagnitude);
+    updateForceArrow(
+      actionArrow,
+      new THREE.Vector3(-0.25 + state.press * 0.08, 1.2, 0.22),
+      new THREE.Vector3(1, 0, 0),
+      length,
+      `F₁ ${formatNumber(params.forceMagnitude, 0)}N`
+    );
+    updateForceArrow(
+      reactionArrow,
+      new THREE.Vector3(0.25 + state.press * 0.02, 0.92, -0.22),
+      new THREE.Vector3(-1, 0, 0),
+      length,
+      `F₂ ${formatNumber(params.forceMagnitude, 0)}N`
+    );
+    actionArrow.visible = params.showForceArrows;
+    reactionArrow.visible = params.showForceArrows;
+  }
+
+  function reset() {
+    state.animating = false;
+    state.elapsed = 0;
+    state.press = 0;
+    updateScene();
+  }
+
+  return {
+    root,
+    cameraState,
+    refresh: updateScene,
+    applyArrowVisibility: updateScene,
+    start() {
+      reset();
+      state.animating = true;
+    },
+    reset,
+    update(dt) {
+      if (state.animating) {
+        state.elapsed += dt;
+        const progress = Math.min(1, state.elapsed / 1.3);
+        state.press = Math.sin(progress * Math.PI);
+        if (progress >= 1) {
+          state.animating = false;
+        }
+      } else {
+        state.press = lerp(state.press, 0, Math.min(1, dt * 6));
+      }
+      updateScene();
+    },
+    getUi() {
+      return {
+        sceneTitle: '힘 센서 실험',
+        sceneBody: '두 센서가 서로 미는 순간, 양쪽 센서는 항상 같은 크기의 힘을 기록합니다. 작용 = 반작용을 실험으로 확인하는 장면입니다.',
+        sceneMetrics: [
+          ['센서 A', `${formatNumber(params.forceMagnitude, 0)} N`],
+          ['센서 B', `${formatNumber(params.forceMagnitude, 0)} N`],
+          ['검증', 'F₁ = F₂'],
+          ['핵심', '동시에 측정']
+        ],
+        statusTitle: '두 힘 센서는 항상 같은 크기의 힘을 읽습니다.',
+        statusBody: '한쪽을 밀어도 반대쪽 센서가 같은 값을 보여 주므로 작용 반작용 법칙을 실험적으로 확인할 수 있습니다.',
+        formula: `
+          <div class="panel-title">↔️ 작용 반작용 법칙 (뉴턴 제3법칙)</div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">현재 사례</span><span class="value">힘 센서 실험</span></div>
+          <div class="row"><span class="label">작용</span><span class="value mono">F₁ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.sensor.directions.action})</span></div>
+          <div class="row"><span class="label">반작용</span><span class="value mono">F₂ = ${formatNumber(params.forceMagnitude, 0)}N (${CASES.sensor.directions.reaction})</span></div>
+          <div class="row"><span class="label">검증</span><span class="value mono">F₁ = F₂ = ${formatNumber(params.forceMagnitude, 0)}N ✅</span></div>
+          <div class="highlight-box">
+            <div>센서 A 디지털 표시: <span class="mono">${formatNumber(params.forceMagnitude, 0)}N</span></div>
+            <div>센서 B 디지털 표시: <span class="mono">${formatNumber(params.forceMagnitude, 0)}N</span></div>
+          </div>
+          <div class="law-box">
+            <div><strong>핵심</strong></div>
+            <div>한쪽만 민 것처럼 보여도 두 센서에는 동시에 같은 크기의 힘이 기록됩니다.</div>
+          </div>
+        `
+      };
+    }
+  };
+}
+
+const CASE_BUILDERS = {
+  wall: createWallCase,
+  skate: createSkateCase,
+  rocket: createRocketCase,
+  sensor: createSensorCase
+};
+
+function setCamera(cameraState) {
+  camera.position.copy(cameraState.position);
+  controls.target.copy(cameraState.target);
+  controls.update();
+}
+
+function updateCaseTabs() {
+  dom.caseTabs.forEach((button) => {
+    const active = button.dataset.case === runtime.activeKey;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+}
+
+function updateComparisonVisibility() {
+  dom.comparisonPanel.classList.toggle('hidden', !params.showComparison);
+}
+
+function metricsToHtml(metrics) {
+  return metrics.map(([label, value]) => `
+    <div class="metric-chip">
+      <span class="label">${label}</span>
+      <span class="value">${value}</span>
+    </div>
+  `).join('');
+}
+
+function renderFormula(html) {
+  if (runtime.uiCache.formula !== html) {
+    runtime.uiCache.formula = html;
+    dom.formulaPanel.innerHTML = html;
+  }
+}
+
+function renderSceneInfo(title, body, metricsHtml) {
+  if (runtime.uiCache.sceneTitle !== title) {
+    runtime.uiCache.sceneTitle = title;
+    dom.sceneTitle.textContent = title;
+  }
+  if (runtime.uiCache.sceneBody !== body) {
+    runtime.uiCache.sceneBody = body;
+    dom.sceneBody.textContent = body;
+  }
+  if (runtime.uiCache.sceneMetrics !== metricsHtml) {
+    runtime.uiCache.sceneMetrics = metricsHtml;
+    dom.sceneMetrics.innerHTML = metricsHtml;
+  }
+}
+
+function renderStatus(title, body) {
+  if (runtime.uiCache.statusTitle !== title) {
+    runtime.uiCache.statusTitle = title;
+    dom.statusTitle.textContent = title;
+  }
+  if (runtime.uiCache.statusBody !== body) {
+    runtime.uiCache.statusBody = body;
+    dom.statusBody.textContent = body;
+  }
+}
+
+function updateUi() {
+  if (!runtime.activeCase) return;
+  const ui = runtime.activeCase.getUi();
+  renderSceneInfo(ui.sceneTitle, ui.sceneBody, metricsToHtml(ui.sceneMetrics));
+  renderStatus(ui.statusTitle, ui.statusBody);
+  renderFormula(ui.formula);
+  updateComparisonVisibility();
+}
+
+function setCase(nextKey) {
+  if (!CASE_BUILDERS[nextKey]) return;
+
+  if (runtime.activeCase?.root) {
+    disposeHierarchy(runtime.activeCase.root);
+  }
+
+  runtime.activeKey = nextKey;
+  params.caseLabel = CASES[nextKey].label;
+  runtime.activeCase = CASE_BUILDERS[nextKey]();
+  scene.add(runtime.activeCase.root);
+  setCamera(runtime.activeCase.cameraState);
+  runtime.activeCase.applyArrowVisibility?.();
+  updateCaseTabs();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  updateUi();
+}
+
+function startActiveCase() {
+  runtime.activeCase?.start?.();
+  updateUi();
+}
+
+function resetActiveCase() {
+  setCase(runtime.activeKey);
+}
+
+function handleResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+}
+
+window.addEventListener('resize', handleResize);
+
+setCase('wall');
+handleResize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+  runtime.activeCase?.update?.(dt);
+  updateUi();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현악기와 관악기의 원리 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-deep: #1a1a2e;
+    --panel: rgba(12, 18, 36, 0.82);
+    --panel-soft: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.12);
+    --text-main: #f5f8ff;
+    --text-dim: rgba(245, 248, 255, 0.7);
+    --text-soft: rgba(245, 248, 255, 0.52);
+    --accent-blue: #8fd6ff;
+    --accent-gold: #ffd478;
+    --accent-green: #86f7ba;
+    --accent-orange: #ff9b83;
+    --shadow: 0 24px 54px rgba(0, 0, 0, 0.28);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(145, 214, 255, 0.1), transparent 24%),
+      radial-gradient(circle at 84% 9%, rgba(255, 210, 120, 0.08), transparent 22%),
+      linear-gradient(180deg, #1b1e37 0%, #16182c 42%, #0d1121 100%);
+    color: var(--text-main);
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.52fr) minmax(360px, 0.98fr);
+  }
+
+  #scene-panel,
+  #sidebar {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 20%, rgba(110, 162, 255, 0.16), transparent 20%),
+      radial-gradient(circle at 88% 12%, rgba(255, 214, 130, 0.12), transparent 16%),
+      linear-gradient(180deg, rgba(26, 26, 46, 0.98) 0%, rgba(17, 20, 34, 1) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #sidebar {
+    overflow-y: auto;
+    padding: 22px 20px 22px;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(147, 214, 255, 0.12), transparent 20%),
+      radial-gradient(circle at 84% 12%, rgba(255, 210, 120, 0.1), transparent 18%),
+      linear-gradient(180deg, #121b37 0%, #0d1326 56%, #090d18 100%);
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 42;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(9, 14, 28, 0.9);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-toggle:hover {
+    background: rgba(14, 22, 42, 0.94);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 60px;
+    left: 16px;
+    z-index: 41;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(74vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    display: none;
+    line-height: 1.75;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    color: #c1e2ff;
+    font-size: 15px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: rgba(245, 248, 255, 0.9);
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    padding-left: 18px;
+  }
+
+  #guide-panel .textbook {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(245, 248, 255, 0.74);
+    font-size: 12px;
+  }
+
+  #title-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    width: min(720px, calc(100% - 124px));
+    padding: 16px 22px;
+    border-radius: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow,
+  #sidebar-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p,
+  #sidebar-head p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #status-pill {
+    position: absolute;
+    top: 112px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 29;
+    width: min(760px, calc(100% - 36px));
+    padding: 14px 18px;
+    border-radius: 22px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255, 248, 227, 0.95);
+    pointer-events: none;
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 28;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(44vh, 380px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #bfe2ff;
+  }
+
+  #formula-panel p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #formula-text {
+    margin-top: 14px;
+    white-space: pre-wrap;
+    font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(244, 248, 255, 0.95);
+  }
+
+  #scene-note {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 28;
+    width: min(340px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(242, 247, 255, 0.88);
+  }
+
+  #scene-note strong {
+    color: #ffffff;
+  }
+
+  #sidebar-head {
+    padding: 4px 2px 14px;
+  }
+
+  #sidebar-head h2 {
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .chart-card {
+    position: relative;
+    margin-top: 16px;
+    padding: 16px 16px 14px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18);
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .card-head h3 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .card-head span {
+    max-width: 220px;
+    text-align: right;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-soft);
+  }
+
+  .chart-canvas {
+    width: 100%;
+    display: block;
+  }
+
+  #spectrum-canvas {
+    height: 260px;
+    margin-top: 10px;
+  }
+
+  #waveform-canvas {
+    height: 220px;
+    margin-top: 10px;
+  }
+
+  #analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .metric-card {
+    padding: 12px 12px 11px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .metric-card .label {
+    display: block;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .analysis-note {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(143, 214, 255, 0.08);
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(236, 247, 255, 0.86);
+  }
+
+  .lil-gui {
+    --width: 316px;
+    z-index: 46 !important;
+  }
+
+  @media (max-width: 920px) {
+    body {
+      overflow-y: auto;
+    }
+
+    #layout {
+      position: relative;
+      min-height: 100%;
+      display: block;
+    }
+
+    #scene-panel {
+      height: 56vh;
+      min-height: 460px;
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #sidebar {
+      min-height: 44vh;
+      padding-bottom: 32px;
+    }
+
+    #title-card {
+      width: calc(100% - 116px);
+    }
+
+    #status-pill {
+      top: 126px;
+      font-size: 12px;
+      width: calc(100% - 24px);
+    }
+
+    #formula-panel,
+    #scene-note {
+      width: calc(100% - 24px);
+      left: 12px;
+      right: auto;
+    }
+
+    #formula-panel {
+      bottom: 12px;
+      max-height: 40vh;
+    }
+
+    #scene-note {
+      display: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #analysis-grid {
+      grid-template-columns: 1fr;
+    }
+
+    #spectrum-canvas {
+      height: 220px;
+    }
+
+    #waveform-canvas {
+      height: 200px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <button id="guide-toggle" aria-expanded="false">학습 가이드</button>
+
+    <div id="guide-panel" class="glass">
+      <h3>핵심 원리</h3>
+      <p>현악기는 현의 정상파로, 관악기는 공기 기둥의 정상파로 소리를 냅니다. 현의 기본 진동수는 <strong>f₁=(1/2L)√(T/μ)</strong>이고, 줄 길이를 줄이거나 장력을 높이거나 선밀도를 낮추면 높은 음이 납니다. 플루트 같은 열린 관은 모든 배음을, 클라리넷 같은 닫힌 관은 홀수 배음을 주로 만들어 서로 다른 음색을 냅니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ol>
+        <li>기타의 12번 프렛을 누르면 유효 현 길이가 절반이 됩니다. 기본 진동수는 어떻게 변할까요?</li>
+        <li>플루트와 클라리넷의 음색 차이를 배음 구조로 설명할 수 있을까요?</li>
+        <li>관악기에서 가장 가까운 열린 키가 새로운 열린 끝 역할을 하는 까닭은 무엇일까요?</li>
+      </ol>
+
+      <h3>실생활 연결</h3>
+      <ul>
+        <li>기타 조율은 줄의 장력 <strong>T</strong>를 바꾸어 기본 진동수를 맞추는 과정입니다.</li>
+        <li>가느다란 현은 선밀도 <strong>μ</strong>가 작아 높은 음을 내기 쉽습니다.</li>
+        <li>플루트와 클라리넷은 키를 열고 닫아 유효 관 길이를 바꾸어 음높이를 조절합니다.</li>
+      </ul>
+
+      <div class="textbook">교과서 연계: 역학과 에너지 III편 p120~127, 정상파와 악기</div>
+    </div>
+
+    <div id="title-card" class="glass">
+      <div class="eyebrow">Mechanics &amp; Energy</div>
+      <h1>현악기와 관악기의 원리</h1>
+      <p>기타의 현 정상파와 플루트·클라리넷의 공기 기둥 정상파를 비교하고, 우측 그래프에서 배음 구조와 합성 파형을 함께 확인해 보세요.</p>
+    </div>
+
+    <div id="status-pill" class="glass"></div>
+
+    <div id="formula-panel" class="glass">
+      <h2>수식 패널</h2>
+      <p>현 길이, 장력, 선밀도, 관의 경계 조건이 기본 진동수와 배음을 어떻게 바꾸는지 실시간으로 계산합니다.</p>
+      <div id="formula-text"></div>
+    </div>
+
+    <div id="scene-note" class="glass"></div>
+  </section>
+
+  <aside id="sidebar">
+    <div id="sidebar-head">
+      <div class="eyebrow">Harmonic Explorer</div>
+      <h2>배음 스펙트럼과 파형</h2>
+      <p id="sidebar-subtitle">기본음과 배음의 조합이 악기마다 어떻게 다른 음색을 만드는지 확인합니다.</p>
+    </div>
+
+    <section class="chart-card">
+      <div class="card-head">
+        <h3>진동수 스펙트럼</h3>
+        <span id="spectrum-note">현재 악기의 배음 구조를 막대로 비교합니다.</span>
+      </div>
+      <canvas id="spectrum-canvas" class="chart-canvas"></canvas>
+    </section>
+
+    <section class="chart-card">
+      <div class="card-head">
+        <h3>합성 파형</h3>
+        <span id="wave-note">기본음과 배음을 합치면 악기 특유의 파형이 됩니다.</span>
+      </div>
+      <canvas id="waveform-canvas" class="chart-canvas"></canvas>
+    </section>
+
+    <section class="chart-card">
+      <div class="card-head">
+        <h3>실시간 해석</h3>
+        <span id="key-hint">관악기 모드에서는 관의 키를 클릭할 수 있습니다.</span>
+      </div>
+      <div id="analysis-grid"></div>
+      <div id="analysis-note" class="analysis-note"></div>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const SOUND_SPEED = 340;
+const STRING_POINTS = 160;
+const PIPE_POINTS = 220;
+const STRING_SCENE_PER_M = 6.2;
+const PIPE_SCENE_PER_M = 5.4;
+const STRING_Z = [-0.5, -0.31, -0.12, 0.12, 0.31, 0.5];
+const STRING_COLORS = [0xdddddd, 0xd7d7d7, 0xd8c29f, 0xcfb17f, 0xc9a062, 0xb88c4a];
+const KEY_STOPS = [0.28, 0.39, 0.5, 0.62, 0.74, 0.86];
+const DEFAULT_KEY_STATES = [false, false, false, false, false, false];
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const statusPillEl = document.getElementById('status-pill');
+const formulaTextEl = document.getElementById('formula-text');
+const sceneNoteEl = document.getElementById('scene-note');
+const sidebarSubtitleEl = document.getElementById('sidebar-subtitle');
+const spectrumNoteEl = document.getElementById('spectrum-note');
+const waveNoteEl = document.getElementById('wave-note');
+const analysisGridEl = document.getElementById('analysis-grid');
+const analysisNoteEl = document.getElementById('analysis-note');
+const keyHintEl = document.getElementById('key-hint');
+const scenePanel = document.getElementById('scene-panel');
+const spectrumCanvas = document.getElementById('spectrum-canvas');
+const waveformCanvas = document.getElementById('waveform-canvas');
+
+const defaultSettings = {
+  instrument: '기타',
+  length: 0.65,
+  tension: 100,
+  density: 0.004,
+  harmonic: 1,
+  fret: 0,
+  stringIndex: 1,
+  waveKind: '변위',
+  sound: false,
+  overtone2: 48,
+  overtone3: 28,
+  overtone4: 18,
+  overtone5: 10
+};
+
+const settings = {
+  ...defaultSettings,
+  reset: () => resetSettings()
+};
+
+const state = {
+  keyStates: [...DEFAULT_KEY_STATES],
+  instrumentRoot: null,
+  guitar: null,
+  wind: null,
+  metrics: null,
+  hoveredKey: null,
+  pointerDown: null
+};
+
+const audioState = {
+  context: null,
+  master: null,
+  oscillators: [],
+  gains: []
+};
+
+let guiInstance = null;
+const guiControllers = {};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 12, 28);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+camera.position.set(2.8, 2.5, 8.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.id = 'scene-canvas';
+renderer.domElement.style.cursor = 'grab';
+scenePanel.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 4.5;
+controls.maxDistance = 16;
+controls.target.set(0, 0.3, 0);
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+buildEnvironment();
+setupGUI();
+setupEvents();
+buildInstrument();
+resize();
+requestAnimationFrame(animate);
+
+function buildEnvironment() {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.46));
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.72);
+  keyLight.position.set(6, 8, 5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(1024, 1024);
+  keyLight.shadow.camera.near = 1;
+  keyLight.shadow.camera.far = 30;
+  keyLight.shadow.camera.left = -10;
+  keyLight.shadow.camera.right = 10;
+  keyLight.shadow.camera.top = 10;
+  keyLight.shadow.camera.bottom = -10;
+  scene.add(keyLight);
+
+  const coolLight = new THREE.PointLight(0x8fd6ff, 0.7, 18);
+  coolLight.position.set(-5, 3, 5);
+  scene.add(coolLight);
+  const warmLight = new THREE.PointLight(0xffd478, 0.45, 16);
+  warmLight.position.set(4, 4, -3);
+  scene.add(warmLight);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(8.8, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0x171c31,
+      roughness: 0.92,
+      metalness: 0.04
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.08;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const glowRing = new THREE.Mesh(
+    new THREE.RingGeometry(5.2, 7.2, 96),
+    new THREE.MeshBasicMaterial({
+      color: 0x27498a,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide
+    })
+  );
+  glowRing.rotation.x = -Math.PI / 2;
+  glowRing.position.y = -1.06;
+  scene.add(glowRing);
+
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(28, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0x202645,
+      transparent: true,
+      opacity: 0.72
+    })
+  );
+  backdrop.position.set(0, 4.8, -7.4);
+  scene.add(backdrop);
+}
+
+function setupGUI() {
+  guiInstance = new GUI({ title: '악기 컨트롤' });
+
+  guiControllers.instrument = guiInstance.add(settings, 'instrument', ['기타', '플루트', '클라리넷']).name('악기');
+  guiControllers.length = guiInstance.add(settings, 'length', 0.3, 1.5, 0.01).name('현/관 길이 L');
+  guiControllers.tension = guiInstance.add(settings, 'tension', 50, 200, 1).name('장력 T');
+  guiControllers.density = guiInstance.add(settings, 'density', 0.001, 0.01, 0.0001).name('선밀도 μ');
+  guiControllers.stringIndex = guiInstance.add(settings, 'stringIndex', 1, 6, 1).name('줄 선택');
+  guiControllers.harmonic = guiInstance.add(settings, 'harmonic', 1, 5, 1).name('고조파 n');
+  guiControllers.fret = guiInstance.add(settings, 'fret', 0, 12, 1).name('프렛 위치');
+  guiControllers.waveKind = guiInstance.add(settings, 'waveKind', ['변위', '압력']).name('변위/압력 정상파');
+
+  const overtoneFolder = guiInstance.addFolder('배음 세기');
+  guiControllers.overtone2 = overtoneFolder.add(settings, 'overtone2', 0, 100, 1).name('2차/3차 성분');
+  guiControllers.overtone3 = overtoneFolder.add(settings, 'overtone3', 0, 100, 1).name('3차/5차 성분');
+  guiControllers.overtone4 = overtoneFolder.add(settings, 'overtone4', 0, 100, 1).name('4차/7차 성분');
+  guiControllers.overtone5 = overtoneFolder.add(settings, 'overtone5', 0, 100, 1).name('5차/9차 성분');
+
+  guiControllers.sound = guiInstance.add(settings, 'sound').name('소리 재생');
+  guiInstance.add(settings, 'reset').name('초기화');
+
+  guiControllers.instrument.onChange(() => buildInstrument());
+  guiControllers.length.onChange(() => buildInstrument());
+  guiControllers.tension.onChange(() => handleParamChange());
+  guiControllers.density.onChange(() => handleParamChange());
+  guiControllers.stringIndex.onChange(() => handleParamChange());
+  guiControllers.harmonic.onChange(() => handleParamChange());
+  guiControllers.fret.onChange(() => handleParamChange());
+  guiControllers.waveKind.onChange(() => handleParamChange());
+  guiControllers.overtone2.onChange(() => handleParamChange());
+  guiControllers.overtone3.onChange(() => handleParamChange());
+  guiControllers.overtone4.onChange(() => handleParamChange());
+  guiControllers.overtone5.onChange(() => handleParamChange());
+  guiControllers.sound.onChange(async (value) => {
+    if (value) await ensureAudio();
+    updateAudio();
+  });
+
+  overtoneFolder.open();
+  guiInstance.close();
+  updateControllerVisibility();
+}
+
+function setupEvents() {
+  guideToggle.addEventListener('click', () => {
+    const open = guidePanel.classList.toggle('open');
+    guideToggle.setAttribute('aria-expanded', String(open));
+  });
+
+  window.addEventListener('resize', resize);
+
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    state.pointerDown = { x: event.clientX, y: event.clientY };
+  });
+
+  renderer.domElement.addEventListener('pointerup', (event) => {
+    if (!state.wind || settings.instrument === '기타' || !state.pointerDown) return;
+    const moved = Math.hypot(event.clientX - state.pointerDown.x, event.clientY - state.pointerDown.y);
+    state.pointerDown = null;
+    if (moved > 6) return;
+
+    const hit = pickWindKey(event);
+    if (!hit) return;
+    const keyIndex = hit.object.userData.keyIndex;
+    state.keyStates[keyIndex] = !state.keyStates[keyIndex];
+    handleParamChange();
+  });
+
+  renderer.domElement.addEventListener('pointermove', (event) => {
+    const hit = settings.instrument === '기타' ? null : pickWindKey(event);
+    state.hoveredKey = hit ? hit.object.userData.keyIndex : null;
+    renderer.domElement.style.cursor = hit ? 'pointer' : 'grab';
+  });
+
+  renderer.domElement.addEventListener('pointerleave', () => {
+    state.hoveredKey = null;
+    renderer.domElement.style.cursor = 'grab';
+  });
+
+  window.addEventListener('pointerdown', async () => {
+    if (audioState.context && audioState.context.state === 'suspended') {
+      await audioState.context.resume();
+    }
+  }, { once: false });
+}
+
+function buildInstrument() {
+  disposeInstrument();
+
+  if (settings.instrument === '기타') {
+    buildGuitar();
+  } else {
+    buildWind();
+  }
+
+  updateControllerVisibility();
+  updateCameraPreset();
+  handleParamChange();
+}
+
+function buildGuitar() {
+  const group = new THREE.Group();
+  group.position.y = -0.05;
+  scene.add(group);
+  state.instrumentRoot = group;
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(3.4, 0.42, 2.25),
+    new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.62, metalness: 0.08 })
+  );
+  body.position.set(-1.45, -0.06, 0);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const bodyCap = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.04, 1.18, 0.44, 48),
+    new THREE.MeshStandardMaterial({ color: 0x915e30, roughness: 0.58, metalness: 0.05 })
+  );
+  bodyCap.rotation.z = Math.PI / 2;
+  bodyCap.position.set(-2.25, -0.04, 0);
+  bodyCap.castShadow = true;
+  bodyCap.receiveShadow = true;
+  group.add(bodyCap);
+
+  const soundHole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.3, 0.08, 36),
+    new THREE.MeshStandardMaterial({ color: 0x1f140a, roughness: 1 })
+  );
+  soundHole.rotation.z = Math.PI / 2;
+  soundHole.position.set(-1.48, 0.12, 0);
+  group.add(soundHole);
+
+  const fullLengthScene = settings.length * STRING_SCENE_PER_M;
+  const bridgeX = -2.2;
+  const nutX = bridgeX + fullLengthScene;
+  const neckLength = fullLengthScene + 0.9;
+
+  const neck = new THREE.Mesh(
+    new THREE.BoxGeometry(neckLength, 0.28, 0.62),
+    new THREE.MeshStandardMaterial({ color: 0x7b4b2a, roughness: 0.74, metalness: 0.08 })
+  );
+  neck.position.set((bridgeX + nutX) / 2 + 0.42, 0.02, 0);
+  neck.castShadow = true;
+  neck.receiveShadow = true;
+  group.add(neck);
+
+  const fretboard = new THREE.Mesh(
+    new THREE.BoxGeometry(neckLength - 0.2, 0.04, 0.74),
+    new THREE.MeshStandardMaterial({ color: 0x372012, roughness: 0.84 })
+  );
+  fretboard.position.set((bridgeX + nutX) / 2 + 0.42, 0.17, 0);
+  fretboard.castShadow = true;
+  fretboard.receiveShadow = true;
+  group.add(fretboard);
+
+  const bridge = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.18, 1.12),
+    new THREE.MeshStandardMaterial({ color: 0xeeeedd, roughness: 0.46 })
+  );
+  bridge.position.set(bridgeX, 0.2, 0);
+  bridge.castShadow = true;
+  group.add(bridge);
+
+  const nut = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.16, 0.86),
+    new THREE.MeshStandardMaterial({ color: 0xf2efe1, roughness: 0.42 })
+  );
+  nut.position.set(nutX, 0.2, 0);
+  nut.castShadow = true;
+  group.add(nut);
+
+  const headstock = new THREE.Mesh(
+    new THREE.BoxGeometry(0.78, 0.22, 0.92),
+    new THREE.MeshStandardMaterial({ color: 0x6d3f22, roughness: 0.72 })
+  );
+  headstock.position.set(nutX + 0.56, 0.08, 0);
+  headstock.rotation.z = -0.08;
+  headstock.castShadow = true;
+  group.add(headstock);
+
+  for (let i = 1; i <= 12; i += 1) {
+    const fretX = bridgeX + fullLengthScene * Math.pow(2, -i / 12);
+    const fret = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.06, 0.86),
+      new THREE.MeshStandardMaterial({ color: 0xe5e8ef, metalness: 0.78, roughness: 0.18 })
+    );
+    fret.position.set(fretX, 0.2, 0);
+    fret.castShadow = true;
+    group.add(fret);
+  }
+
+  const tuningPegs = new THREE.Group();
+  for (let i = 0; i < 6; i += 1) {
+    const peg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.18, 16),
+      new THREE.MeshStandardMaterial({ color: 0xd7dce9, metalness: 0.78, roughness: 0.24 })
+    );
+    peg.rotation.x = Math.PI / 2;
+    peg.position.set(nutX + 0.88, 0.08, THREE.MathUtils.lerp(-0.34, 0.34, i / 5));
+    tuningPegs.add(peg);
+  }
+  group.add(tuningPegs);
+
+  const strings = [];
+  for (let i = 0; i < 6; i += 1) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(STRING_POINTS * 3), 3));
+    const material = new THREE.LineBasicMaterial({ color: STRING_COLORS[i], transparent: true, opacity: 0.94 });
+    const line = new THREE.Line(geometry, material);
+    line.position.y = 0.2;
+    group.add(line);
+    strings.push({ geometry, material, z: STRING_Z[i] });
+  }
+
+  const fingerMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 22, 22),
+    new THREE.MeshStandardMaterial({ color: 0x86f7ba, emissive: 0x244932, roughness: 0.4 })
+  );
+  fingerMarker.visible = false;
+  group.add(fingerMarker);
+
+  const activeBeam = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.04, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0x8fd6ff, transparent: true, opacity: 0.34 })
+  );
+  activeBeam.position.y = 0.15;
+  group.add(activeBeam);
+
+  state.guitar = { group, bridgeX, fullLengthScene, strings, fingerMarker, activeBeam };
+}
+
+function buildWind() {
+  const group = new THREE.Group();
+  group.position.y = -0.06;
+  scene.add(group);
+  state.instrumentRoot = group;
+
+  const pipeLength = settings.length * PIPE_SCENE_PER_M;
+  const pipeStart = -pipeLength / 2;
+  const pipeEnd = pipeLength / 2;
+  const isFlute = settings.instrument === '플루트';
+
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(isFlute ? 0.17 : 0.12, isFlute ? 0.17 : 0.16, pipeLength, 48, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: isFlute ? 0xdadfe8 : 0x202024,
+      metalness: isFlute ? 0.84 : 0.22,
+      roughness: isFlute ? 0.22 : 0.62,
+      transparent: true,
+      opacity: 0.6,
+      transmission: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  tube.rotation.z = Math.PI / 2;
+  tube.castShadow = true;
+  group.add(tube);
+
+  const innerGlow = new THREE.Mesh(
+    new THREE.CylinderGeometry(isFlute ? 0.08 : 0.07, isFlute ? 0.08 : 0.09, pipeLength - 0.08, 32),
+    new THREE.MeshBasicMaterial({ color: isFlute ? 0x79cfff : 0xffb067, transparent: true, opacity: 0.08 })
+  );
+  innerGlow.rotation.z = Math.PI / 2;
+  group.add(innerGlow);
+
+  if (isFlute) {
+    const embouchure = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.03, 18, 34),
+      new THREE.MeshStandardMaterial({ color: 0xbfc7d6, metalness: 0.76, roughness: 0.2 })
+    );
+    embouchure.rotation.y = Math.PI / 2;
+    embouchure.position.set(pipeStart + 0.42, 0.18, 0);
+    group.add(embouchure);
+  } else {
+    const mouthpiece = new THREE.Mesh(
+      new THREE.ConeGeometry(0.14, 0.62, 26),
+      new THREE.MeshStandardMaterial({ color: 0x30231a, roughness: 0.62 })
+    );
+    mouthpiece.rotation.z = -Math.PI / 2;
+    mouthpiece.position.set(pipeStart - 0.34, 0, 0);
+    group.add(mouthpiece);
+
+    const bell = new THREE.Mesh(
+      new THREE.ConeGeometry(0.24, 0.58, 28, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x151519, roughness: 0.48, metalness: 0.14 })
+    );
+    bell.rotation.z = Math.PI / 2;
+    bell.position.set(pipeEnd + 0.28, 0, 0);
+    group.add(bell);
+  }
+
+  const keyCaps = [];
+  const keyRings = [];
+  for (let i = 0; i < KEY_STOPS.length; i += 1) {
+    const x = THREE.MathUtils.lerp(pipeStart, pipeEnd, KEY_STOPS[i]);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.08, 0.018, 18, 32),
+      new THREE.MeshStandardMaterial({
+        color: isFlute ? 0xe1e6ef : 0xc79f5a,
+        metalness: 0.8,
+        roughness: 0.24
+      })
+    );
+    ring.rotation.y = Math.PI / 2;
+    ring.position.set(x, 0.12, 0);
+    group.add(ring);
+    keyRings.push(ring);
+
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 0.045, 28),
+      new THREE.MeshStandardMaterial({
+        color: isFlute ? 0xc9d5e8 : 0x3a2f24,
+        metalness: isFlute ? 0.78 : 0.24,
+        roughness: 0.26
+      })
+    );
+    cap.rotation.z = Math.PI / 2;
+    cap.position.set(x, 0.12, 0);
+    cap.userData.keyIndex = i;
+    group.add(cap);
+    keyCaps.push(cap);
+  }
+
+  const waveGeometry = new THREE.BufferGeometry();
+  waveGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(PIPE_POINTS * 3), 3));
+  const waveMaterial = new THREE.LineBasicMaterial({ color: 0x8fd6ff, transparent: true, opacity: 0.96 });
+  const waveLine = new THREE.Line(waveGeometry, waveMaterial);
+  group.add(waveLine);
+
+  const pressureGlow = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.03, 0.03),
+    new THREE.MeshBasicMaterial({ color: 0xff9b83, transparent: true, opacity: 0.28 })
+  );
+  group.add(pressureGlow);
+
+  const endMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 22, 22),
+    new THREE.MeshStandardMaterial({ color: 0x86f7ba, emissive: 0x23462c, roughness: 0.34 })
+  );
+  group.add(endMarker);
+
+  const particles = [];
+  for (let i = 0; i < 30; i += 1) {
+    const particle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.03, 12, 12),
+      new THREE.MeshStandardMaterial({
+        color: isFlute ? 0x8fd6ff : 0xffb067,
+        emissive: 0x102338,
+        roughness: 0.28
+      })
+    );
+    group.add(particle);
+    particles.push(particle);
+  }
+
+  state.wind = { group, pipeStart, pipeLength, keyCaps, keyRings, waveGeometry, waveMaterial, endMarker, pressureGlow, particles };
+}
+
+function disposeInstrument() {
+  if (!state.instrumentRoot) {
+    state.guitar = null;
+    state.wind = null;
+    return;
+  }
+
+  state.instrumentRoot.traverse((object) => {
+    if (object.geometry) object.geometry.dispose();
+    if (object.material) {
+      if (Array.isArray(object.material)) {
+        object.material.forEach((material) => material.dispose());
+      } else {
+        object.material.dispose();
+      }
+    }
+  });
+
+  scene.remove(state.instrumentRoot);
+  state.instrumentRoot = null;
+  state.guitar = null;
+  state.wind = null;
+}
+
+function handleParamChange() {
+  updateControllerVisibility();
+  updateOverlay();
+  updateAudio();
+}
+
+function updateControllerVisibility() {
+  const isGuitar = settings.instrument === '기타';
+  toggleController(guiControllers.tension, isGuitar);
+  toggleController(guiControllers.density, isGuitar);
+  toggleController(guiControllers.stringIndex, isGuitar);
+  toggleController(guiControllers.fret, isGuitar);
+  toggleController(guiControllers.waveKind, !isGuitar);
+}
+
+function toggleController(controller, visible) {
+  const row = controller.domElement && controller.domElement.parentElement;
+  if (row) row.style.display = visible ? '' : 'none';
+}
+
+function updateCameraPreset() {
+  if (settings.instrument === '기타') {
+    const span = state.guitar ? state.guitar.fullLengthScene : settings.length * STRING_SCENE_PER_M;
+    const targetX = -1.6 + span * 0.5;
+    camera.position.set(targetX + 1.4, 2.6, 6.8 + span * 0.28);
+    controls.target.set(targetX, 0.18, 0);
+  } else {
+    camera.position.set(0.2, 2.0, 6.2 + settings.length * 1.1);
+    controls.target.set(0, 0.05, 0);
+  }
+  controls.update();
+}
+
+function getWindEffectiveLength() {
+  const firstOpenIndex = state.keyStates.findIndex(Boolean);
+  const ratio = firstOpenIndex === -1 ? 1 : KEY_STOPS[firstOpenIndex];
+  return settings.length * ratio;
+}
+
+function getMetrics() {
+  if (settings.instrument === '기타') {
+    const effectiveLength = settings.length * Math.pow(2, -settings.fret / 12);
+    const fundamental = (1 / (2 * effectiveLength)) * Math.sqrt(settings.tension / settings.density);
+    return {
+      instrument: '기타',
+      effectiveLength,
+      fundamental,
+      selectedModeFrequency: settings.harmonic * fundamental,
+      modeMultiple: settings.harmonic,
+      modeLabel: `${settings.harmonic}차 고조파`,
+      noteName: frequencyToNoteName(fundamental),
+      openKeys: [],
+      seriesLabel: '모든 정수 배음'
+    };
+  }
+
+  const effectiveLength = getWindEffectiveLength();
+  const isFlute = settings.instrument === '플루트';
+  const fundamental = isFlute ? SOUND_SPEED / (2 * effectiveLength) : SOUND_SPEED / (4 * effectiveLength);
+  const modeMultiple = isFlute ? settings.harmonic : settings.harmonic * 2 - 1;
+  const openKeys = state.keyStates.map((open, index) => (open ? index + 1 : null)).filter(Boolean);
+
+  return {
+    instrument: settings.instrument,
+    effectiveLength,
+    fundamental,
+    selectedModeFrequency: modeMultiple * fundamental,
+    modeMultiple,
+    modeLabel: isFlute ? `${settings.harmonic}번째 공명` : `${settings.harmonic}번째 공명 (${modeMultiple}f₁)`,
+    noteName: frequencyToNoteName(fundamental),
+    openKeys,
+    seriesLabel: isFlute ? '모든 정수 배음' : '홀수 배음만'
+  };
+}
+
+function getPartials(metrics) {
+  const sliderValues = [
+    settings.overtone2 / 100,
+    settings.overtone3 / 100,
+    settings.overtone4 / 100,
+    settings.overtone5 / 100
+  ];
+
+  if (metrics.instrument === '기타') {
+    const brightness = [1.12, 1.08, 1.0, 0.94, 0.88, 0.82][settings.stringIndex - 1];
+    const bases = [1, 0.54 * brightness, 0.34 * brightness, 0.21 * brightness, 0.14 * brightness];
+    return [
+      { multiple: 1, amplitude: bases[0] },
+      { multiple: 2, amplitude: bases[1] * sliderValues[0] },
+      { multiple: 3, amplitude: bases[2] * sliderValues[1] },
+      { multiple: 4, amplitude: bases[3] * sliderValues[2] },
+      { multiple: 5, amplitude: bases[4] * sliderValues[3] }
+    ];
+  }
+
+  if (metrics.instrument === '플루트') {
+    const bases = [1, 0.18, 0.09, 0.05, 0.03];
+    return [
+      { multiple: 1, amplitude: bases[0] },
+      { multiple: 2, amplitude: bases[1] * sliderValues[0] },
+      { multiple: 3, amplitude: bases[2] * sliderValues[1] },
+      { multiple: 4, amplitude: bases[3] * sliderValues[2] },
+      { multiple: 5, amplitude: bases[4] * sliderValues[3] }
+    ];
+  }
+
+  const bases = [1, 0.58, 0.39, 0.24, 0.16];
+  return [
+    { multiple: 1, amplitude: bases[0] },
+    { multiple: 3, amplitude: bases[1] * sliderValues[0] },
+    { multiple: 5, amplitude: bases[2] * sliderValues[1] },
+    { multiple: 7, amplitude: bases[3] * sliderValues[2] },
+    { multiple: 9, amplitude: bases[4] * sliderValues[3] }
+  ];
+}
+
+function updateOverlay() {
+  const metrics = getMetrics();
+  state.metrics = metrics;
+
+  const fretText = settings.instrument === '기타'
+    ? `프렛 ${settings.fret}에서 유효 길이가 ${formatNumber(metrics.effectiveLength, 3)} m로 변했습니다.`
+    : metrics.openKeys.length
+      ? `${metrics.openKeys[0]}번 키가 첫 번째 열린 끝이 되어 유효 길이가 ${formatNumber(metrics.effectiveLength, 3)} m가 됩니다.`
+      : `모든 키가 닫혀 있어 관 전체 길이 ${formatNumber(metrics.effectiveLength, 3)} m가 진동에 참여합니다.`;
+
+  statusPillEl.innerHTML = `
+    <strong>${metrics.instrument}</strong> 모드 · 기본음 <strong>${formatNumber(metrics.fundamental, 1)} Hz</strong> (${metrics.noteName}) ·
+    선택 모드 <strong>${metrics.modeLabel}</strong> = <strong>${formatNumber(metrics.selectedModeFrequency, 1)} Hz</strong><br>
+    ${fretText}
+  `;
+
+  formulaTextEl.textContent = makeFormulaText(metrics);
+
+  sceneNoteEl.innerHTML = settings.instrument === '기타'
+    ? `<strong>현악기 관찰</strong><br>${settings.stringIndex}번 줄이 선택되어 있습니다. 장력 T를 높이거나 프렛을 올리면 높은 음이 되고, 선밀도 μ를 줄이면 더 가는 줄처럼 높은 음이 납니다.`
+    : settings.instrument === '플루트'
+      ? `<strong>열린 관 관찰</strong><br>은색 키를 클릭하면 가장 가까운 열린 위치가 새로운 열린 끝이 됩니다. 플루트는 양 끝이 열린 관이라 모든 정수 배음이 가능합니다.`
+      : `<strong>닫힌 관 관찰</strong><br>검은 키를 클릭해 유효 길이를 줄여 보세요. 클라리넷은 왼쪽이 닫힌 관이라 짝수 배음이 빠지고 홀수 배음이 음색을 만듭니다.`;
+
+  sidebarSubtitleEl.textContent = settings.instrument === '기타'
+    ? '현의 길이, 장력, 선밀도가 기본음과 배음 구조를 바꾸는 과정을 확인합니다.'
+    : settings.instrument === '플루트'
+      ? '열린 관에서는 모든 배음이 가능하므로 스펙트럼이 고르게 이어집니다.'
+      : '닫힌 관에서는 홀수 배음만 살아남아 같은 높이라도 더 어둡고 강한 음색이 됩니다.';
+
+  spectrumNoteEl.textContent = settings.instrument === '클라리넷'
+    ? '짝수 배음 자리는 비어 있고 홀수 배음만 막대로 강조됩니다.'
+    : settings.instrument === '기타'
+      ? '선택한 줄의 음색을 기본음과 배음의 비율로 해석합니다.'
+      : '플루트는 열린 관이라 1, 2, 3, 4, 5배 주파수가 자연스럽게 이어집니다.';
+
+  waveNoteEl.textContent = `${metrics.modeLabel} 위에 실제 배음 세기를 겹쳐 합성한 파형입니다.`;
+  keyHintEl.textContent = settings.instrument === '기타'
+    ? '기타는 줄 선택과 프렛 슬라이더로 길이를 조절합니다.'
+    : '관악기 모드에서는 관의 키를 직접 클릭해 보세요.';
+
+  analysisGridEl.innerHTML = `
+    <div class="metric-card">
+      <span class="label">기본 진동수 f₁</span>
+      <strong>${formatNumber(metrics.fundamental, 1)} Hz</strong>
+      <p>음이름: ${metrics.noteName}</p>
+    </div>
+    <div class="metric-card">
+      <span class="label">유효 길이</span>
+      <strong>${formatNumber(metrics.effectiveLength, 3)} m</strong>
+      <p>${settings.instrument === '기타' ? '프렛이 길이를 줄입니다.' : '열린 키가 새로운 끝이 됩니다.'}</p>
+    </div>
+    <div class="metric-card">
+      <span class="label">선택 모드</span>
+      <strong>${metrics.modeMultiple} × f₁</strong>
+      <p>${formatNumber(metrics.selectedModeFrequency, 1)} Hz</p>
+    </div>
+    <div class="metric-card">
+      <span class="label">배음 규칙</span>
+      <strong>${metrics.seriesLabel}</strong>
+      <p>${settings.instrument === '기타' ? '줄의 위치와 재질이 음색을 바꿉니다.' : settings.instrument === '플루트' ? '열린 끝이 두 개라 모든 n이 가능합니다.' : '닫힌 끝 때문에 홀수 n만 공명합니다.'}</p>
+    </div>
+  `;
+
+  analysisNoteEl.textContent = settings.instrument === '기타'
+    ? `현재 ${settings.stringIndex}번 줄, ${settings.harmonic}차 고조파를 관찰 중입니다. 장력 ${formatNumber(settings.tension, 0)} N, 선밀도 ${formatNumber(settings.density, 4)} kg/m 조건에서 ${metrics.noteName} 부근의 기본음이 만들어집니다.`
+    : metrics.openKeys.length
+      ? `열린 키: ${metrics.openKeys.join(', ')}번. 가장 왼쪽의 열린 키가 유효 관 길이를 결정하므로 더 왼쪽 키를 열수록 높은 음이 납니다.`
+      : `현재 열린 키가 없어 관 전체가 공명합니다. ${settings.instrument === '플루트' ? '양 끝이 모두 열린 상태' : '왼쪽은 닫히고 오른쪽만 열린 상태'}에서 기본음이 형성됩니다.`;
+}
+
+function makeFormulaText(metrics) {
+  const lines = [
+    '🎸🎵 현악기와 관악기의 원리',
+    '━━━━━━━━━━━━━━━━━━',
+    `악기: ${metrics.instrument}`,
+    ''
+  ];
+
+  if (metrics.instrument === '기타') {
+    lines.push('현악기 (현의 정상파):');
+    lines.push('  f₁ = (1 / 2L)√(T / μ)');
+    lines.push(`  L = ${formatNumber(settings.length, 3)} m, T = ${formatNumber(settings.tension, 0)} N, μ = ${formatNumber(settings.density, 4)} kg/m`);
+    lines.push(`  L_eff = ${formatNumber(metrics.effectiveLength, 3)} m (프렛 ${settings.fret})`);
+    lines.push(`  f₁ = ${formatNumber(metrics.fundamental, 1)} Hz (음: ${metrics.noteName})`);
+    lines.push(`  fₙ = n f₁, 현재 n = ${settings.harmonic} → ${formatNumber(metrics.selectedModeFrequency, 1)} Hz`);
+    lines.push('');
+    lines.push('관악기:');
+    lines.push('  열린 관: fₙ = nv / (2L)');
+    lines.push('  닫힌 관: fₙ = nv / (4L) (홀수 배음)');
+  } else {
+    lines.push('현악기 (현의 정상파):');
+    lines.push('  f₁ = (1 / 2L)√(T / μ)');
+    lines.push('  프렛을 누르면 L이 줄고 f₁가 커진다.');
+    lines.push('');
+    lines.push('관악기:');
+    lines.push(`  ${metrics.instrument === '플루트' ? '열린 관' : '닫힌 관'} 조건`);
+    lines.push(`  v = ${SOUND_SPEED} m/s, L_eff = ${formatNumber(metrics.effectiveLength, 3)} m`);
+    lines.push(metrics.instrument === '플루트'
+      ? '  열린 관: fₙ = nv / (2L) (모든 n)'
+      : '  닫힌 관: fₙ = nv / (4L) (홀수 n)');
+    lines.push(`  f₁ = ${formatNumber(metrics.fundamental, 1)} Hz (음: ${metrics.noteName})`);
+    lines.push(`  현재 모드: ${metrics.modeLabel} → ${formatNumber(metrics.selectedModeFrequency, 1)} Hz`);
+  }
+
+  lines.push('');
+  lines.push('음색 = 기본음 + 배음의 조합');
+  return lines.join('\n');
+}
+
+function updateGuitarAnimation(time) {
+  if (!state.guitar || !state.metrics) return;
+
+  const { strings, bridgeX, fullLengthScene, fingerMarker, activeBeam } = state.guitar;
+  const activeIndex = settings.stringIndex - 1;
+  const effectiveLengthScene = state.metrics.effectiveLength * STRING_SCENE_PER_M;
+  const fingerX = bridgeX + effectiveLengthScene;
+  const idleMotion = Math.cos(time * 2.2) * 0.008;
+
+  fingerMarker.visible = settings.fret > 0;
+  fingerMarker.position.set(fingerX, 0.38, STRING_Z[activeIndex]);
+
+  activeBeam.scale.x = Math.max(effectiveLengthScene, 0.1);
+  activeBeam.position.set(bridgeX + effectiveLengthScene / 2, 0.14, STRING_Z[activeIndex]);
+
+  strings.forEach((stringData, index) => {
+    const positions = stringData.geometry.attributes.position.array;
+    const isActive = index === activeIndex;
+    const amplitude = (0.12 - index * 0.009) * (0.95 + 0.08 * Math.sin(time * 0.9));
+    const phase = Math.cos(time * 5.2);
+
+    for (let i = 0; i < STRING_POINTS; i += 1) {
+      const t = i / (STRING_POINTS - 1);
+      const x = bridgeX + fullLengthScene * t;
+      const local = x - bridgeX;
+      let y = 0;
+
+      if (isActive && local <= effectiveLengthScene) {
+        const modeT = effectiveLengthScene <= 0.0001 ? 0 : local / effectiveLengthScene;
+        y = amplitude * Math.sin(Math.PI * settings.harmonic * modeT) * phase;
+      } else if (!isActive) {
+        y = idleMotion * Math.sin(Math.PI * t + index * 0.4);
+      }
+
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = stringData.z;
+    }
+
+    stringData.geometry.attributes.position.needsUpdate = true;
+    stringData.material.color.setHex(isActive ? 0x8fd6ff : STRING_COLORS[index]);
+    stringData.material.opacity = isActive ? 1 : 0.78;
+  });
+}
+
+function updateWindAnimation(time) {
+  if (!state.wind || !state.metrics) return;
+
+  const { pipeStart, pipeLength, waveGeometry, waveMaterial, endMarker, pressureGlow, particles, keyCaps, keyRings } = state.wind;
+  const effectiveLengthScene = state.metrics.effectiveLength * PIPE_SCENE_PER_M;
+  const isFlute = settings.instrument === '플루트';
+  const actualMultiple = state.metrics.modeMultiple;
+  const positions = waveGeometry.attributes.position.array;
+  const phase = settings.waveKind === '변위' ? Math.cos(time * 4.4) : Math.sin(time * 4.4);
+  const amplitude = settings.waveKind === '변위' ? 0.36 : 0.28;
+
+  waveMaterial.color.set(settings.waveKind === '변위' ? 0x8fd6ff : 0xff9b83);
+
+  for (let i = 0; i < PIPE_POINTS; i += 1) {
+    const t = i / (PIPE_POINTS - 1);
+    const x = pipeStart + pipeLength * t;
+    const local = x - pipeStart;
+    let y = 0;
+
+    if (local <= effectiveLengthScene) {
+      let envelope;
+      if (settings.waveKind === '변위') {
+        envelope = isFlute
+          ? Math.cos(actualMultiple * Math.PI * local / effectiveLengthScene)
+          : Math.sin(actualMultiple * Math.PI * local / (2 * effectiveLengthScene));
+      } else {
+        envelope = isFlute
+          ? Math.sin(actualMultiple * Math.PI * local / effectiveLengthScene)
+          : Math.cos(actualMultiple * Math.PI * local / (2 * effectiveLengthScene));
+      }
+      y = amplitude * envelope * phase;
+    }
+
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = 0;
+  }
+
+  waveGeometry.attributes.position.needsUpdate = true;
+  endMarker.position.set(pipeStart + effectiveLengthScene, settings.waveKind === '변위' ? 0.02 : 0.22, 0);
+
+  pressureGlow.scale.x = Math.max(effectiveLengthScene, 0.1);
+  pressureGlow.position.set(pipeStart + effectiveLengthScene / 2, settings.waveKind === '변위' ? -0.18 : 0.24, 0);
+  pressureGlow.material.opacity = settings.waveKind === '변위' ? 0.18 : 0.32;
+
+  particles.forEach((particle, index) => {
+    const t = index / (particles.length - 1);
+    const x = pipeStart + effectiveLengthScene * t;
+    let envelope;
+    if (settings.waveKind === '변위') {
+      envelope = isFlute ? Math.cos(actualMultiple * Math.PI * t) : Math.sin(actualMultiple * Math.PI * t / 2);
+      particle.position.set(x, envelope * phase * 0.22, Math.sin(index * 0.8 + time * 1.2) * 0.04);
+      particle.scale.setScalar(1);
+    } else {
+      envelope = isFlute ? Math.sin(actualMultiple * Math.PI * t) : Math.cos(actualMultiple * Math.PI * t / 2);
+      particle.position.set(x, envelope * phase * 0.08, Math.cos(index * 0.7 + time) * 0.04);
+      particle.scale.setScalar(0.7 + Math.abs(envelope * phase) * 1.2);
+    }
+  });
+
+  keyCaps.forEach((cap, index) => {
+    const isOpen = state.keyStates[index];
+    const hovered = state.hoveredKey === index;
+    cap.position.y = isOpen ? 0.24 : 0.12;
+    cap.material.color.set(isOpen ? 0x86f7ba : settings.instrument === '플루트' ? 0xc9d5e8 : 0x3a2f24);
+    cap.material.emissive.set(hovered ? 0x153040 : 0x000000);
+    keyRings[index].material.color.set(hovered ? 0x8fd6ff : settings.instrument === '플루트' ? 0xe1e6ef : 0xc79f5a);
+  });
+}
+
+function pickWindKey(event) {
+  if (!state.wind) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster.intersectObjects(state.wind.keyCaps, false)[0] || null;
+}
+
+function resize() {
+  const width = scenePanel.clientWidth;
+  const height = scenePanel.clientHeight;
+  camera.aspect = width / Math.max(height, 1);
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
+}
+
+function animate(now) {
+  const time = now * 0.001;
+
+  if (settings.instrument === '기타') updateGuitarAnimation(time);
+  else updateWindAnimation(time);
+
+  drawSpectrum(time);
+  drawWaveform(time);
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+function drawSpectrum(time) {
+  const metrics = state.metrics || getMetrics();
+  const ctx = fitCanvasContext(spectrumCanvas);
+  if (!ctx) return;
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const w = ctx.canvas.width / dpr;
+  const h = ctx.canvas.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, 'rgba(255,255,255,0.06)');
+  bg.addColorStop(1, 'rgba(255,255,255,0.02)');
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, w, h, 18);
+  ctx.fill();
+
+  const partials = getPartials(metrics);
+  const bins = Array.from({ length: 9 }, (_, index) => index + 1);
+  const partialMap = new Map(partials.map((partial) => [partial.multiple, partial.amplitude]));
+  const left = 28;
+  const right = w - 16;
+  const top = 18;
+  const bottom = h - 34;
+  const chartHeight = bottom - top;
+  const step = (right - left) / bins.length;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i += 1) {
+    const y = top + (chartHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+  }
+
+  bins.forEach((bin, index) => {
+    const x = left + index * step + step * 0.14;
+    const barWidth = step * 0.7;
+    const amp = partialMap.get(bin) || 0;
+    const animatedAmp = amp * (0.88 + 0.12 * Math.sin(time * 2.4 + bin));
+    const barHeight = chartHeight * THREE.MathUtils.clamp(animatedAmp, 0, 1);
+    const y = bottom - barHeight;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    roundRect(ctx, x, top, barWidth, chartHeight, 14);
+    ctx.fill();
+
+    if (amp > 0.0001) {
+      const grad = ctx.createLinearGradient(0, y, 0, bottom);
+      grad.addColorStop(0, metrics.instrument === '기타' ? '#ffd478' : metrics.instrument === '플루트' ? '#8fd6ff' : '#ff9b83');
+      grad.addColorStop(1, metrics.instrument === '기타' ? 'rgba(255,212,120,0.24)' : metrics.instrument === '플루트' ? 'rgba(143,214,255,0.24)' : 'rgba(255,155,131,0.24)');
+      ctx.fillStyle = grad;
+      roundRect(ctx, x, y, barWidth, barHeight, 14);
+      ctx.fill();
+    } else if (metrics.instrument === '클라리넷' && bin % 2 === 0) {
+      ctx.strokeStyle = 'rgba(255,155,131,0.36)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, bottom - 16);
+      ctx.lineTo(x + barWidth - 6, top + 12);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.74)';
+    ctx.font = '11px Pretendard';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${bin}f₁`, x + barWidth / 2, h - 10);
+  });
+}
+
+function drawWaveform(time) {
+  const metrics = state.metrics || getMetrics();
+  const ctx = fitCanvasContext(waveformCanvas);
+  if (!ctx) return;
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const w = ctx.canvas.width / dpr;
+  const h = ctx.canvas.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, 'rgba(255,255,255,0.05)');
+  bg.addColorStop(1, 'rgba(255,255,255,0.015)');
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, w, h, 18);
+  ctx.fill();
+
+  const partials = getPartials(metrics);
+  const totalAmplitude = partials.reduce((sum, partial) => sum + partial.amplitude, 0) || 1;
+  const left = 20;
+  const right = w - 20;
+  const midY = h / 2;
+  const amp = h * 0.28;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i += 1) {
+    const y = (h / 4) * i + 12;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i += 1) {
+    const t = i / 240;
+    const x = THREE.MathUtils.lerp(left, right, t);
+    const y = midY + amp * 0.56 * Math.sin(Math.PI * 2 * t - time * 2.4);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(143,214,255,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  for (let i = 0; i <= 320; i += 1) {
+    const t = i / 320;
+    const x = THREE.MathUtils.lerp(left, right, t);
+    let wave = 0;
+    partials.forEach((partial) => {
+      wave += partial.amplitude * Math.sin(Math.PI * 2 * partial.multiple * t - time * 2.8);
+    });
+    const y = midY + (wave / totalAmplitude) * amp;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = metrics.instrument === '기타' ? '#ffd478' : metrics.instrument === '플루트' ? '#86f7ba' : '#ff9b83';
+  ctx.lineWidth = 2.8;
+  ctx.stroke();
+}
+
+function fitCanvasContext(canvas) {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  return canvas.getContext('2d');
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function frequencyToNoteName(freq) {
+  if (!Number.isFinite(freq) || freq <= 0) return '-';
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const name = names[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${name}${octave}`;
+}
+
+function formatNumber(value, digits) {
+  return Number(value).toFixed(digits);
+}
+
+function resetSettings() {
+  Object.assign(settings, defaultSettings);
+  state.keyStates = [...DEFAULT_KEY_STATES];
+  buildInstrument();
+  guiInstance.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+async function ensureAudio() {
+  if (!audioState.context) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = new AudioContextClass();
+    const master = context.createGain();
+    master.gain.value = 0;
+    master.connect(context.destination);
+    audioState.context = context;
+    audioState.master = master;
+
+    for (let i = 0; i < 5; i += 1) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      gain.gain.value = 0;
+      oscillator.connect(gain);
+      gain.connect(master);
+      oscillator.start();
+      audioState.oscillators.push(oscillator);
+      audioState.gains.push(gain);
+    }
+  }
+
+  if (audioState.context.state === 'suspended') {
+    await audioState.context.resume();
+  }
+}
+
+function updateAudio() {
+  if (!audioState.context || !state.metrics) return;
+
+  const partials = getPartials(state.metrics);
+  const now = audioState.context.currentTime;
+  const type = settings.instrument === '플루트' ? 'sine' : settings.instrument === '기타' ? 'triangle' : 'square';
+
+  audioState.master.gain.cancelScheduledValues(now);
+  audioState.master.gain.setTargetAtTime(settings.sound ? 0.08 : 0, now, 0.08);
+
+  for (let i = 0; i < audioState.oscillators.length; i += 1) {
+    const partial = partials[i];
+    const oscillator = audioState.oscillators[i];
+    const gain = audioState.gains[i];
+    oscillator.type = type;
+    oscillator.frequency.setTargetAtTime((partial ? partial.multiple : 1) * state.metrics.fundamental, now, 0.05);
+    gain.gain.setTargetAtTime(settings.sound && partial ? (partial.amplitude / partials.length) * 0.12 : 0, now, 0.05);
+  }
+}
+</script>
+</body>
+</html>

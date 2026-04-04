@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>규산염 사면체와 광물 구조 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-a: #1a1a2e;
+    --bg-b: #101626;
+    --panel: rgba(10, 14, 28, 0.76);
+    --panel-line: rgba(255, 255, 255, 0.12);
+    --text-main: #edf4ff;
+    --text-soft: rgba(237, 244, 255, 0.72);
+    --accent: #ffdd44;
+    --cyan: #9fdcff;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 15% 12%, rgba(104, 143, 255, 0.16), transparent 24%),
+      radial-gradient(circle at 86% 14%, rgba(255, 201, 88, 0.08), transparent 20%),
+      radial-gradient(circle at 50% 80%, rgba(53, 112, 226, 0.08), transparent 30%),
+      linear-gradient(160deg, var(--bg-a), var(--bg-b) 58%, #0b111d);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { position: relative; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
+  }
+  #scene-title {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(700px, calc(100vw - 180px));
+    padding: 16px 22px 14px;
+    border-radius: 24px;
+    pointer-events: auto;
+  }
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+    font-weight: 700;
+  }
+  #scene-title h1 {
+    margin-top: 6px;
+    font-size: clamp(24px, 2.9vw, 34px);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+  }
+  #scene-title p {
+    margin-top: 8px;
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  #status-ribbon {
+    margin-top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+  #guide-toggle {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    border: none;
+    border-radius: 16px;
+    padding: 10px 16px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f1730;
+    background: linear-gradient(135deg, rgba(255, 221, 68, 0.96), rgba(255, 181, 74, 0.96));
+    box-shadow: 0 14px 26px rgba(255, 196, 65, 0.24);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  #guide-panel {
+    position: fixed;
+    top: 62px;
+    left: 18px;
+    width: min(420px, calc(100vw - 36px));
+    max-height: min(72vh, 780px);
+    overflow-y: auto;
+    border-radius: 24px;
+    padding: 20px 22px;
+    display: none;
+    pointer-events: auto;
+  }
+  #guide-panel h3 {
+    margin-top: 14px;
+    margin-bottom: 7px;
+    font-size: 15px;
+    color: var(--cyan);
+  }
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel p, #guide-panel li {
+    color: rgba(237, 244, 255, 0.84);
+    font-size: 13px;
+    line-height: 1.72;
+  }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+  #formula-panel {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    width: min(360px, calc(100vw - 36px));
+    padding: 20px 22px;
+    border-radius: 24px;
+  }
+  .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+  .panel-divider {
+    margin: 10px 0 14px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.26), rgba(255,255,255,0));
+  }
+  .formula-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(237, 244, 255, 0.88);
+  }
+  .formula-grid .label { color: rgba(237, 244, 255, 0.58); }
+  .formula-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(237, 244, 255, 0.74);
+  }
+  #comparison-panel {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: min(430px, calc(100vw - 36px));
+    padding: 20px 22px;
+    border-radius: 24px;
+  }
+  .compare-row {
+    display: grid;
+    grid-template-columns: 74px 72px 92px 58px;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    color: rgba(237, 244, 255, 0.74);
+  }
+  .compare-row.header {
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    padding-top: 0;
+  }
+  .compare-row.active {
+    background: linear-gradient(90deg, rgba(255, 221, 68, 0.22), rgba(255, 221, 68, 0.08));
+    color: #fff6bf;
+    border: 1px solid rgba(255, 221, 68, 0.18);
+  }
+  .compare-summary {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.74);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  #floating-help {
+    position: fixed;
+    right: 18px;
+    top: 18px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.82);
+  }
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  .floating-label {
+    position: fixed;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(7, 10, 20, 0.82);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    transform: translate(-50%, -50%);
+  }
+  .floating-label.atom {
+    padding: 4px 8px;
+    font-size: 11px;
+    background: rgba(16, 22, 40, 0.86);
+  }
+  .floating-label.structure {
+    background: rgba(255, 221, 68, 0.16);
+    color: #fff4aa;
+    border-color: rgba(255, 221, 68, 0.26);
+    font-weight: 700;
+  }
+  @media (max-width: 860px) {
+    #scene-title {
+      left: 16px;
+      right: 16px;
+      transform: none;
+      width: auto;
+      top: 68px;
+    }
+    #floating-help {
+      top: auto;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      text-align: center;
+    }
+    #formula-panel {
+      left: 16px;
+      right: 16px;
+      width: auto;
+      bottom: 132px;
+    }
+    #comparison-panel {
+      left: 16px;
+      right: 16px;
+      width: auto;
+      bottom: 16px;
+    }
+  }
+  @media (max-width: 640px) {
+    #scene-title { top: 70px; padding: 15px 16px 14px; border-radius: 20px; }
+    #guide-panel { width: calc(100vw - 32px); max-height: 58vh; }
+    #formula-panel { padding: 16px; border-radius: 20px; bottom: 180px; }
+    #comparison-panel { padding: 16px; border-radius: 20px; }
+    .compare-row { grid-template-columns: 1fr 1fr 1.2fr 0.8fr; gap: 6px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="hud">
+  <button id="guide-toggle">📖 학습 가이드</button>
+  <div id="guide-panel" class="glass">
+    <h3>🔬 핵심 원리</h3>
+    <p>지각을 구성하는 암석의 대부분은 규산염 광물로 이루어져 있습니다. 규산염 사면체(SiO₄)가 산소를 공유하며 결합하는 방식에 따라 다양한 광물이 형성됩니다.</p>
+    <h3>❓ 탐구 질문</h3>
+    <ul>
+      <li>규산염 사면체끼리 연결할 때 어느 원자를 공유하나요? 힌트: 꼭짓점에 있는 원자입니다.</li>
+      <li>석영은 사면체의 산소 4개를 모두 공유합니다. 이때 왜 Si:O 비가 1:2가 될까요?</li>
+      <li>흑운모가 얇게 벗겨지는 성질은 어떤 결합 구조와 관련이 있을까요?</li>
+    </ul>
+    <h3>🌍 실생활 예시</h3>
+    <ul>
+      <li><strong>화강암</strong>은 석영, 장석, 운모가 함께 들어 있는 대표적인 암석입니다.</li>
+      <li><strong>현무암</strong>에는 휘석과 감람석 같은 규산염 광물이 흔히 포함됩니다.</li>
+      <li><strong>석영 시계</strong>는 석영의 규칙적인 결정 구조를 이용합니다.</li>
+      <li><strong>운모판</strong>은 판상 구조 덕분에 얇게 벗겨지고 절연재로도 쓰입니다.</li>
+    </ul>
+    <h3>📚 교과서 연계</h3>
+    <p>미래엔 통합과학1 II편 p80~81, 그림 II-27 규산염 사면체와 그림 II-28 규산염 광물 구조를 바탕으로 구성했습니다.</p>
+  </div>
+
+  <div id="scene-title" class="glass">
+    <div class="eyebrow">Integrated Science 1 · Minerals</div>
+    <h1>규산염 사면체와 광물 구조</h1>
+    <p>중심의 규소 1개와 꼭짓점의 산소 4개가 만드는 SiO₄ 사면체가 어떻게 연결되는지 관찰해 보세요. 광물 선택을 바꾸면 독립형에서 입체 그물형까지 구조가 점진적으로 재배열됩니다.</p>
+    <div id="status-ribbon">현재 구조를 준비하는 중입니다.</div>
+  </div>
+
+  <div id="floating-help" class="glass">드래그로 회전 · 휠/핀치로 확대 · 우측 컨트롤 패널에서 구조를 바꿔 보세요.</div>
+
+  <div id="formula-panel" class="glass">
+    <div class="panel-title">💎 규산염 사면체와 광물</div>
+    <div class="panel-divider"></div>
+    <div id="formula-content"></div>
+  </div>
+
+  <div id="comparison-panel" class="glass">
+    <div class="panel-title">📊 규산염 광물의 산소 공유 비교</div>
+    <div class="panel-divider"></div>
+    <div id="comparison-table"></div>
+    <div class="compare-summary">공유 산소 수가 많아질수록 사면체들이 더 강하게 이어지고, 구조는 독립형에서 사슬형, 판상형, 입체 그물형으로 확장됩니다.</div>
+  </div>
+
+  <div id="label-layer"></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const localVertices = [
+  new THREE.Vector3(0.8, 0.8, 0.8),
+  new THREE.Vector3(0.8, -0.8, -0.8),
+  new THREE.Vector3(-0.8, 0.8, -0.8),
+  new THREE.Vector3(-0.8, -0.8, 0.8)
+];
+
+const comparisonRows = [
+  { key: 'olivine', name: '감람석', shared: '0개', kind: '독립형', ratio: '1:4' },
+  { key: 'pyroxene', name: '휘석', shared: '1개', kind: '단사슬', ratio: '1:3' },
+  { key: 'amphibole', name: '각섬석', shared: '1.5개', kind: '이중사슬', ratio: '4:11' },
+  { key: 'biotite', name: '흑운모', shared: '3개', kind: '판상형', ratio: '2:5' },
+  { key: 'quartz', name: '석영', shared: '4개', kind: '입체 그물', ratio: '1:2' }
+];
+
+const minerals = {
+  basic: { name: '기본 사면체', dropdown: '기본 사면체', label: 'SiO₄ 규산염 사면체', kind: '기본 단위체', shared: '0개', ratio: '1:4', displayFormula: 'SiO₄⁴⁻', note: '중심의 Si와 네 꼭짓점 O가 만드는 규산염 사면체입니다.' },
+  olivine: { name: '감람석', dropdown: '감람석(독립)', label: '감람석 — 독립형: 사면체가 개별 존재', kind: '독립형', shared: '0개', ratio: '1:4', displayFormula: '(SiO₄) 독립', note: '양이온(Mg²⁺, Fe²⁺) 사이에 규산염 사면체가 각각 떨어져 존재합니다.' },
+  pyroxene: { name: '휘석', dropdown: '휘석(단사슬)', label: '휘석 — 단사슬: 사면체가 한 줄로 연결', kind: '단사슬형', shared: '1개', ratio: '1:3', displayFormula: '(SiO₃)n', note: '이웃한 사면체가 산소 1개를 공유하며 긴 단사슬을 이룹니다.' },
+  amphibole: { name: '각섬석', dropdown: '각섬석(이중사슬)', label: '각섬석 — 이중사슬: 사면체가 두 줄로 연결', kind: '이중사슬형', shared: '1.5개', ratio: '4:11', displayFormula: 'Si₄O₁₁', note: '두 개의 단사슬이 추가 산소 공유로 묶여 더 두꺼운 사슬 구조를 만듭니다.' },
+  biotite: { name: '흑운모', dropdown: '흑운모(판상)', label: '흑운모 — 판상형: 사면체가 평면으로 연결', kind: '판상형', shared: '3개', ratio: '2:5', displayFormula: 'Si₂O₅', note: '사면체 3개의 산소를 이웃과 공유해 판을 만들고, 판 사이 결합이 약해 얇게 벗겨집니다.' },
+  quartz: { name: '석영', dropdown: '석영(입체 그물)', label: '석영 — 입체 그물형: 모든 방향으로 연결', kind: '입체 그물형', shared: '4개', ratio: '1:2', displayFormula: 'SiO₂', note: '모든 산소가 공유되어 3차원 그물형 결정 구조와 높은 안정성을 보입니다.' }
+};
+
+const dropdownToKey = Object.fromEntries(Object.entries(minerals).map(([key, item]) => [item.dropdown, key]));
+
+const state = { mineralKey: 'basic', highlightShared: true, showFaces: true, showLabels: true, compare: false, autoRotate: true, micaExpanded: false };
+const guiState = {
+  '광물 선택': minerals.basic.dropdown,
+  '공유 산소 강조': true,
+  '사면체 면 표시': true,
+  '원자 라벨': true,
+  '구조 비교': false,
+  '자동 회전': true,
+  '판 분리': () => toggleMicaLayers(),
+  '초기화': () => resetScene()
+};
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const formulaContent = document.getElementById('formula-content');
+const comparisonTable = document.getElementById('comparison-table');
+const statusRibbon = document.getElementById('status-ribbon');
+const labelLayer = document.getElementById('label-layer');
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.style.display = guidePanel.style.display === 'block' ? 'none' : 'block';
+});
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 22, 42);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(10.8, 8.1, 12.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(document.getElementById('hud'));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.075;
+controls.minDistance = 4.5;
+controls.maxDistance = 30;
+controls.target.set(0, 0.8, 0);
+controls.enablePan = false;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const mainLight = new THREE.DirectionalLight(0xffffff, 0.72);
+mainLight.position.set(8, 12, 7);
+mainLight.castShadow = true;
+mainLight.shadow.mapSize.set(2048, 2048);
+mainLight.shadow.camera.left = -14;
+mainLight.shadow.camera.right = 14;
+mainLight.shadow.camera.top = 14;
+mainLight.shadow.camera.bottom = -14;
+mainLight.shadow.camera.far = 36;
+mainLight.shadow.bias = -0.00015;
+scene.add(mainLight);
+const fillLight = new THREE.DirectionalLight(0x8cb7ff, 0.28);
+fillLight.position.set(-10, 6, -8);
+scene.add(fillLight);
+const rimLight = new THREE.PointLight(0xffd87d, 0.55, 20, 2);
+rimLight.position.set(0, 3, 6);
+scene.add(rimLight);
+
+const shadowFloor = new THREE.Mesh(new THREE.CircleGeometry(18, 80), new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.18 }));
+shadowFloor.rotation.x = -Math.PI / 2;
+shadowFloor.position.y = -4.1;
+shadowFloor.receiveShadow = true;
+scene.add(shadowFloor);
+
+const stageRing = new THREE.Mesh(
+  new THREE.RingGeometry(7.6, 8.2, 96),
+  new THREE.MeshBasicMaterial({ color: 0x7f9eff, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false })
+);
+stageRing.rotation.x = -Math.PI / 2;
+stageRing.position.y = -3.98;
+scene.add(stageRing);
+
+const stageRingInner = new THREE.Mesh(
+  new THREE.RingGeometry(4.4, 4.6, 96),
+  new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false })
+);
+stageRingInner.rotation.x = -Math.PI / 2;
+stageRingInner.position.y = -3.97;
+scene.add(stageRingInner);
+
+createBackgroundPoints();
+
+const worldGroup = new THREE.Group();
+worldGroup.position.y = 0.6;
+scene.add(worldGroup);
+
+const mainStructureGroup = new THREE.Group();
+worldGroup.add(mainStructureGroup);
+const decorationGroup = new THREE.Group();
+mainStructureGroup.add(decorationGroup);
+const tetraRoot = new THREE.Group();
+mainStructureGroup.add(tetraRoot);
+const referenceGroup = new THREE.Group();
+worldGroup.add(referenceGroup);
+
+const siGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+const oxygenGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+const bondGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 18, 1, false);
+const cationGeometry = new THREE.SphereGeometry(0.2, 20, 20);
+const sharedGeometry = new THREE.SphereGeometry(0.45, 24, 24);
+
+const faceGeometry = new THREE.BufferGeometry();
+faceGeometry.setAttribute('position', new THREE.Float32BufferAttribute(localVertices.flatMap((v) => [v.x, v.y, v.z]), 3));
+faceGeometry.setIndex([0,1,2, 0,1,3, 0,2,3, 1,2,3]);
+faceGeometry.computeVertexNormals();
+
+const edgeGeometry = new THREE.BufferGeometry();
+edgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
+  localVertices[0].x, localVertices[0].y, localVertices[0].z, localVertices[1].x, localVertices[1].y, localVertices[1].z,
+  localVertices[0].x, localVertices[0].y, localVertices[0].z, localVertices[2].x, localVertices[2].y, localVertices[2].z,
+  localVertices[0].x, localVertices[0].y, localVertices[0].z, localVertices[3].x, localVertices[3].y, localVertices[3].z,
+  localVertices[1].x, localVertices[1].y, localVertices[1].z, localVertices[2].x, localVertices[2].y, localVertices[2].z,
+  localVertices[1].x, localVertices[1].y, localVertices[1].z, localVertices[3].x, localVertices[3].y, localVertices[3].z,
+  localVertices[2].x, localVertices[2].y, localVertices[2].z, localVertices[3].x, localVertices[3].y, localVertices[3].z
+], 3));
+
+const siMaterial = new THREE.MeshStandardMaterial({ color: 0x8888cc, roughness: 0.28, metalness: 0.14, emissive: 0x1b1434, emissiveIntensity: 0.4 });
+const oxygenMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.18, metalness: 0.05, emissive: 0x390606, emissiveIntensity: 0.22 });
+const bondMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.64, metalness: 0.22 });
+const faceMaterial = new THREE.MeshBasicMaterial({ color: 0x6688aa, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
+const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x4466aa, transparent: true, opacity: 0.4 });
+
+function createTetrahedron(parent = tetraRoot) {
+  const group = new THREE.Group();
+  group.visible = false;
+
+  const faces = new THREE.Mesh(faceGeometry, faceMaterial);
+  group.add(faces);
+  const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+  group.add(edges);
+
+  const silicon = new THREE.Mesh(siGeometry, siMaterial);
+  silicon.castShadow = true;
+  silicon.receiveShadow = true;
+  group.add(silicon);
+
+  const oxygenMeshes = [];
+  for (const vertex of localVertices) {
+    const oxygen = new THREE.Mesh(oxygenGeometry, oxygenMaterial);
+    oxygen.position.copy(vertex);
+    oxygen.castShadow = true;
+    oxygen.receiveShadow = true;
+    group.add(oxygen);
+    oxygenMeshes.push(oxygen);
+
+    const bond = new THREE.Mesh(bondGeometry, bondMaterial);
+    const direction = vertex.clone();
+    const length = direction.length();
+    bond.position.copy(direction.multiplyScalar(0.5));
+    bond.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+    bond.scale.y = length;
+    bond.castShadow = true;
+    bond.receiveShadow = true;
+    group.add(bond);
+  }
+
+  group.userData.oxygenMeshes = oxygenMeshes;
+  group.userData.hiddenVertices = [];
+  group.scale.setScalar(0.001);
+  parent.add(group);
+  return { group, faces, oxygenMeshes };
+}
+
+const tetraPool = Array.from({ length: 40 }, () => createTetrahedron());
+const referenceTetra = createTetrahedron(referenceGroup);
+referenceTetra.group.scale.setScalar(1.16);
+referenceTetra.group.rotation.set(0.32, 0.56, 0.08);
+
+function createLabel(type) {
+  const element = document.createElement('div');
+  element.className = `floating-label ${type}`;
+  element.style.display = 'none';
+  labelLayer.appendChild(element);
+  return element;
+}
+
+const floatingLabels = {
+  structure: createLabel('structure'),
+  si: createLabel('atom'),
+  refStructure: createLabel('structure'),
+  refSi: createLabel('atom'),
+  o: [createLabel('atom'), createLabel('atom'), createLabel('atom'), createLabel('atom')],
+  refO: [createLabel('atom'), createLabel('atom'), createLabel('atom'), createLabel('atom')]
+};
+floatingLabels.si.textContent = 'Si';
+floatingLabels.refSi.textContent = 'Si';
+floatingLabels.refStructure.textContent = '비교: 기본 사면체';
+floatingLabels.o.forEach((label) => { label.textContent = 'O'; });
+floatingLabels.refO.forEach((label) => { label.textContent = 'O'; });
+
+const gui = new GUI({ title: '광물 구조 컨트롤', width: 292 });
+const mineralController = gui.add(guiState, '광물 선택', Object.keys(dropdownToKey)).name('광물 선택');
+const sharedController = gui.add(guiState, '공유 산소 강조').name('공유 산소 강조');
+const faceController = gui.add(guiState, '사면체 면 표시').name('사면체 면 표시');
+const labelController = gui.add(guiState, '원자 라벨').name('원자 라벨');
+const compareController = gui.add(guiState, '구조 비교').name('구조 비교');
+const autoRotateController = gui.add(guiState, '자동 회전').name('자동 회전');
+const micaButtonController = gui.add(guiState, '판 분리').name('판 분리');
+gui.add(guiState, '초기화').name('초기화');
+if (window.innerWidth < 900) gui.close();
+
+mineralController.onChange((value) => {
+  state.mineralKey = dropdownToKey[value];
+  if (state.mineralKey !== 'biotite') state.micaExpanded = false;
+  requestStructureUpdate();
+});
+sharedController.onChange((value) => { state.highlightShared = value; updateSharedMarkerAppearance(); });
+faceController.onChange((value) => { state.showFaces = value; updateTetraFaceVisibility(); });
+labelController.onChange((value) => { state.showLabels = value; });
+compareController.onChange((value) => { state.compare = value; requestStructureUpdate(); });
+autoRotateController.onChange((value) => { state.autoRotate = value; });
+
+function updateMicaButtonState() {
+  const active = state.mineralKey === 'biotite';
+  micaButtonController.domElement.style.opacity = active ? '1' : '0.35';
+  micaButtonController.domElement.style.pointerEvents = active ? 'auto' : 'none';
+}
+
+let activeLayout = null;
+let sharedMarkerMeshes = [];
+let decorationFade = 1;
+let transition = null;
+let referenceScale = 0;
+let referenceTargetX = 0;
+const targetControlPoint = new THREE.Vector3(0, 0.8, 0);
+
+function vectorFrom(values) {
+  return new THREE.Vector3(values[0], values[1], values[2]);
+}
+
+function createLayout(key, compare, micaExpanded) {
+  const layout = { slots: [], sharedMarkers: [], cations: [], shells: [], labelPosition: new THREE.Vector3(0, 3.2, 0), referenceVisible: compare && key !== 'basic', cameraTargetY: key === 'biotite' && micaExpanded ? 1.1 : 0.8 };
+  const offsetX = compare && key !== 'basic' ? -5.1 : 0;
+
+  if (key === 'basic') {
+    layout.slots.push({ position: new THREE.Vector3(0, 0, 0), rotation: new THREE.Vector3(0.32, 0.56, 0.08), scale: 1, hiddenVertices: [] });
+    layout.labelPosition.set(0, 2.85, 0);
+    return layout;
+  }
+
+  if (key === 'olivine') {
+    const positions = [[-3.6, 0.55, -1.3], [-1.2, -0.2, 1.4], [1.1, 0.4, -1.25], [3.55, -0.3, 1.3], [-2.25, 1.85, 0.95], [2.2, 1.65, -0.75]];
+    const rotations = [[0.38, 0.28, 0.12], [-0.34, -0.48, 0.42], [0.22, 0.72, -0.34], [-0.28, -0.24, -0.4], [0.58, 0.12, 0.28], [-0.4, 0.56, -0.18]];
+    positions.forEach((item, index) => {
+      layout.slots.push({ position: vectorFrom(item).add(new THREE.Vector3(offsetX, 0, 0)), rotation: vectorFrom(rotations[index]), scale: 1, hiddenVertices: [] });
+    });
+    [[-2.4, 0.5, 0], [0, 0.18, 0.1], [2.35, 0.35, 0], [-0.45, 1.28, 0.94], [0.65, 1.1, -0.82], [3.0, 0.95, 0.42]].forEach((item) => {
+      layout.cations.push({ position: vectorFrom(item).add(new THREE.Vector3(offsetX, 0, 0)), color: 0x44aa44 });
+    });
+    layout.shells.push({ type: 'sphere', position: new THREE.Vector3(offsetX, 0.8, 0), scale: new THREE.Vector3(4.35, 4.35, 4.35), color: 0x667744, opacity: 0.14 });
+    layout.labelPosition.set(offsetX, 4.25, 0);
+    return layout;
+  }
+
+  if (key === 'pyroxene') {
+    for (let i = 0; i < 9; i += 1) {
+      const x = (i - 4) * 1.45;
+      layout.slots.push({
+        position: new THREE.Vector3(x + offsetX, i % 2 === 0 ? 0.5 : -0.48, i % 2 === 0 ? -0.18 : 0.18),
+        rotation: new THREE.Vector3(0.22, i % 2 === 0 ? 0.84 : -0.84, i % 2 === 0 ? 0.16 : -0.16),
+        scale: 1,
+        hiddenVertices: [i % 2 === 0 ? 0 : 1]
+      });
+    }
+    for (let i = 0; i < 8; i += 1) {
+      layout.sharedMarkers.push({ position: new THREE.Vector3(((i - 3.5) * 1.45) + offsetX, 0, 0), scale: 1 });
+    }
+    layout.shells.push({ type: 'cylinder', position: new THREE.Vector3(offsetX, 0, 0), scale: new THREE.Vector3(1.55, 7.05, 1.55), rotation: new THREE.Vector3(0, 0, Math.PI / 2), color: 0x556644, opacity: 0.1, radialSegments: 28 });
+    layout.labelPosition.set(offsetX, 3.3, 0);
+    return layout;
+  }
+
+  if (key === 'amphibole') {
+    for (let row = 0; row < 2; row += 1) {
+      for (let i = 0; i < 9; i += 1) {
+        const x = (i - 4) * 1.35 + (row === 1 ? 0.68 : 0);
+        const y = row === 0 ? 0.92 : -0.92;
+        const z = (i % 2 === 0 ? -0.32 : 0.32) * (row === 0 ? 1 : -1);
+        layout.slots.push({
+          position: new THREE.Vector3(x + offsetX, y, z),
+          rotation: new THREE.Vector3(row === 0 ? 0.18 : -0.18, row === 0 ? 0.72 : -0.72, (i % 2 === 0 ? 0.18 : -0.18) + (row === 0 ? 0 : 0.12)),
+          scale: 1,
+          hiddenVertices: [i % 2 === 0 ? 0 : 1]
+        });
+      }
+    }
+    for (let row = 0; row < 2; row += 1) {
+      for (let i = 0; i < 8; i += 1) {
+        const x = ((i - 3.5) * 1.35) + (row === 1 ? 0.68 : 0) + offsetX;
+        const y = row === 0 ? 0.92 : -0.92;
+        layout.sharedMarkers.push({ position: new THREE.Vector3(x, y * 0.5, 0), scale: 0.98 });
+      }
+    }
+    for (let i = 0; i < 8; i += 2) {
+      layout.sharedMarkers.push({ position: new THREE.Vector3(((i - 3.5) * 1.35) + 0.34 + offsetX, 0, 0), scale: 1.08 });
+    }
+    layout.shells.push({ type: 'cylinder', position: new THREE.Vector3(offsetX + 0.35, 0, 0), scale: new THREE.Vector3(2.18, 6.9, 2.18), rotation: new THREE.Vector3(0, 0, Math.PI / 2), color: 0x556644, opacity: 0.12, radialSegments: 28 });
+    layout.labelPosition.set(offsetX, 3.8, 0);
+    return layout;
+  }
+
+  if (key === 'biotite') {
+    const spacing = 2.25;
+    const layerGap = micaExpanded ? 4.0 : 1.5;
+    const ys = [-layerGap, 0, layerGap];
+    ys.forEach((y, layerIndex) => {
+      [-1, 0, 1].forEach((gx) => {
+        [-1, 0, 1].forEach((gz) => {
+          layout.slots.push({
+            position: new THREE.Vector3(gx * spacing + offsetX, y, gz * spacing),
+            rotation: new THREE.Vector3(-0.95, (gx + gz + layerIndex) * 0.35, layerIndex % 2 === 0 ? 0.08 : -0.08),
+            scale: 0.98,
+            hiddenVertices: [0, 1, 2]
+          });
+        });
+      });
+    });
+    ys.forEach((y) => {
+      for (let x = -1; x <= 1; x += 1) {
+        for (let z = -1; z <= 1; z += 1) {
+          layout.sharedMarkers.push({ position: new THREE.Vector3(x * spacing + offsetX, y + 0.34, z * spacing), scale: 0.9 });
+        }
+      }
+      layout.shells.push({ type: 'plane', position: new THREE.Vector3(offsetX, y - 0.18, 0), scale: new THREE.Vector3(7.6, 7.6, 1), rotation: new THREE.Vector3(-Math.PI / 2, 0, 0), color: 0x443322, opacity: 0.08 });
+    });
+    layout.labelPosition.set(offsetX, layerGap + 2.5, 0);
+    return layout;
+  }
+
+  if (key === 'quartz') {
+    const xs = [-2.85, -0.95, 0.95, 2.85];
+    const ys = [-1.8, 0, 1.8];
+    const zs = [-1.8, 0, 1.8];
+    xs.forEach((x, xi) => {
+      ys.forEach((y, yi) => {
+        zs.forEach((z, zi) => {
+          layout.slots.push({
+            position: new THREE.Vector3(x + offsetX, y, z),
+            rotation: new THREE.Vector3((xi + zi) % 2 === 0 ? 0.34 : -0.34, yi * 0.32 + (zi % 2 === 0 ? 0.58 : -0.58), xi % 2 === 0 ? 0.16 : -0.16),
+            scale: 0.9,
+            hiddenVertices: [0, 1, 2, 3]
+          });
+        });
+      });
+    });
+    for (let xi = 0; xi < xs.length - 1; xi += 1) ys.forEach((y) => zs.forEach((z) => layout.sharedMarkers.push({ position: new THREE.Vector3((xs[xi] + xs[xi + 1]) * 0.5 + offsetX, y, z), scale: 0.82 })));
+    xs.forEach((x) => { for (let yi = 0; yi < ys.length - 1; yi += 1) zs.forEach((z) => layout.sharedMarkers.push({ position: new THREE.Vector3(x + offsetX, (ys[yi] + ys[yi + 1]) * 0.5, z), scale: 0.76 })); });
+    xs.forEach((x) => ys.forEach((y) => { for (let zi = 0; zi < zs.length - 1; zi += 1) layout.sharedMarkers.push({ position: new THREE.Vector3(x + offsetX, y, (zs[zi] + zs[zi + 1]) * 0.5), scale: 0.76 }); }));
+    layout.shells.push({ type: 'prism', position: new THREE.Vector3(offsetX, 0, 0), scale: new THREE.Vector3(3.7, 4.2, 3.7), rotation: new THREE.Vector3(0, Math.PI / 6, 0), color: 0xeeeeff, opacity: 0.1 });
+    layout.shells.push({ type: 'cone', position: new THREE.Vector3(offsetX, 4.7, 0), scale: new THREE.Vector3(2.5, 1.9, 2.5), rotation: new THREE.Vector3(0, Math.PI / 6, 0), color: 0xeeeeff, opacity: 0.08 });
+    layout.shells.push({ type: 'cone', position: new THREE.Vector3(offsetX, -4.7, 0), scale: new THREE.Vector3(2.5, 1.9, 2.5), rotation: new THREE.Vector3(Math.PI, Math.PI / 6, 0), color: 0xeeeeff, opacity: 0.08 });
+    layout.labelPosition.set(offsetX, 4.95, 0);
+  }
+
+  return layout;
+}
+
+function createDecorationMesh(descriptor) {
+  let geometry = null;
+  if (descriptor.type === 'sphere') geometry = new THREE.SphereGeometry(1, 48, 48);
+  if (descriptor.type === 'cylinder') geometry = new THREE.CylinderGeometry(1, 1, 1, descriptor.radialSegments || 24, 1, true);
+  if (descriptor.type === 'plane') geometry = new THREE.PlaneGeometry(1, 1);
+  if (descriptor.type === 'prism') geometry = new THREE.CylinderGeometry(1, 0.86, 2, 6, 1, true);
+  if (descriptor.type === 'cone') geometry = new THREE.ConeGeometry(1, 1, 6, 1, true);
+  if (!geometry) return null;
+  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    color: descriptor.color,
+    transparent: true,
+    opacity: descriptor.opacity,
+    roughness: 0.12,
+    metalness: descriptor.type === 'plane' ? 0.04 : 0.18,
+    side: THREE.DoubleSide,
+    emissive: new THREE.Color(descriptor.color).multiplyScalar(0.08)
+  }));
+}
+
+function clearDecorationGroup() {
+  while (decorationGroup.children.length > 0) {
+    const child = decorationGroup.children.pop();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+    decorationGroup.remove(child);
+  }
+}
+
+function rebuildDecorations(layout) {
+  clearDecorationGroup();
+  sharedMarkerMeshes = [];
+  decorationFade = 0;
+
+  layout.shells.forEach((shell) => {
+    const mesh = createDecorationMesh(shell);
+    if (!mesh) return;
+    mesh.position.copy(shell.position);
+    mesh.rotation.set(shell.rotation?.x || 0, shell.rotation?.y || 0, shell.rotation?.z || 0);
+    mesh.scale.copy(shell.scale);
+    mesh.userData.baseOpacity = shell.opacity;
+    decorationGroup.add(mesh);
+  });
+
+  layout.cations.forEach((cation) => {
+    const mesh = new THREE.Mesh(cationGeometry, new THREE.MeshStandardMaterial({
+      color: cation.color,
+      roughness: 0.24,
+      metalness: 0.08,
+      emissive: 0x0a320a,
+      emissiveIntensity: 0.45,
+      transparent: true,
+      opacity: 0.94
+    }));
+    mesh.position.copy(cation.position);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.baseOpacity = 0.94;
+    decorationGroup.add(mesh);
+  });
+
+  layout.sharedMarkers.forEach((marker) => {
+    const mesh = new THREE.Mesh(sharedGeometry, new THREE.MeshStandardMaterial({
+      color: 0xffdd44,
+      roughness: 0.2,
+      metalness: 0.05,
+      emissive: 0xffbb00,
+      emissiveIntensity: 0.9,
+      transparent: true,
+      opacity: 0.92
+    }));
+    mesh.position.copy(marker.position);
+    mesh.scale.setScalar(marker.scale);
+    mesh.userData.baseOpacity = 0.92;
+    decorationGroup.add(mesh);
+    sharedMarkerMeshes.push(mesh);
+  });
+
+  updateSharedMarkerAppearance();
+}
+
+function updateSharedMarkerAppearance() {
+  sharedMarkerMeshes.forEach((mesh) => {
+    const material = mesh.material;
+    if (state.highlightShared) {
+      material.color.setHex(0xffdd44);
+      material.emissive.setHex(0xffbb00);
+      material.emissiveIntensity = 0.9;
+    } else {
+      material.color.setHex(0xff4444);
+      material.emissive.setHex(0x380606);
+      material.emissiveIntensity = 0.18;
+    }
+  });
+}
+
+function updateTetraFaceVisibility() {
+  tetraPool.forEach((tetra) => { tetra.faces.visible = state.showFaces; });
+  referenceTetra.faces.visible = state.showFaces;
+}
+
+function updateFormulaPanel() {
+  const info = minerals[state.mineralKey];
+  const micaText = state.mineralKey === 'biotite'
+    ? `<div class="label">판 간격</div><div class="value"><strong>${state.micaExpanded ? '4.0' : '1.5'}</strong> (Y축 간격)</div>`
+    : '';
+  formulaContent.innerHTML = `
+    <div class="formula-grid">
+      <div class="label">선택 광물</div><div class="value"><strong>${info.name}</strong></div>
+      <div class="label">결합 형태</div><div class="value">${info.kind}</div>
+      <div class="label">공유 산소 수</div><div class="value">${info.shared} / 사면체</div>
+      <div class="label">Si:O 비</div><div class="value">${info.ratio}</div>
+      <div class="label">현재 화학식</div><div class="value">${info.displayFormula}</div>
+      ${micaText}
+      <div class="label">기본 단위체</div><div class="value"><strong>SiO₄⁴⁻</strong></div>
+      <div class="label">구성 원자</div><div class="value">중심 Si 1개, 꼭짓점 O 4개</div>
+      <div class="label">형태</div><div class="value">정사면체</div>
+      <div class="label">지각 비율</div><div class="value">산소 약 46%, 규소 약 28%</div>
+    </div>
+    <div class="formula-note">${info.note}</div>
+  `;
+}
+
+function updateComparisonPanel() {
+  comparisonTable.innerHTML = `
+    <div class="compare-row header">
+      <div>광물</div><div>공유 O 수</div><div>결합 형태</div><div>Si:O</div>
+    </div>
+    ${comparisonRows.map((row) => `
+      <div class="compare-row ${row.key === state.mineralKey ? 'active' : ''}">
+        <div>${row.name}</div><div>${row.shared}</div><div>${row.kind}</div><div>${row.ratio}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function updateStatusRibbon() {
+  const info = minerals[state.mineralKey];
+  const compareText = state.compare && state.mineralKey !== 'basic' ? ' · 기본 사면체 비교 중' : '';
+  const splitText = state.mineralKey === 'biotite' ? ` · 판 간격 ${state.micaExpanded ? '확대됨' : '기본 상태'}` : '';
+  statusRibbon.textContent = `${info.label}${compareText}${splitText}`;
+}
+
+function startTetraTransition(layout) {
+  transition = {
+    start: performance.now(),
+    duration: 1500,
+    steps: tetraPool.map((tetra, index) => {
+      const slot = layout.slots[index];
+      const targetScale = slot ? slot.scale : 0.001;
+      tetra.group.visible = true;
+      tetra.group.userData.oxygenMeshes.forEach((mesh, meshIndex) => {
+        mesh.visible = !(slot && slot.hiddenVertices.includes(meshIndex));
+      });
+      return {
+        tetra,
+        startPosition: tetra.group.position.clone(),
+        targetPosition: slot ? slot.position.clone() : new THREE.Vector3(0, -2.2, 0),
+        startQuaternion: tetra.group.quaternion.clone(),
+        targetQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(slot ? slot.rotation.x : 0, slot ? slot.rotation.y : 0, slot ? slot.rotation.z : 0)),
+        startScale: tetra.group.scale.clone(),
+        targetScale: new THREE.Vector3(targetScale, targetScale, targetScale)
+      };
+    })
+  };
+  referenceTargetX = layout.referenceVisible ? 5.8 : 0;
+  targetControlPoint.set(layout.referenceVisible ? 0.5 : 0, layout.cameraTargetY, 0);
+}
+
+function requestStructureUpdate() {
+  activeLayout = createLayout(state.mineralKey, state.compare, state.micaExpanded);
+  startTetraTransition(activeLayout);
+  rebuildDecorations(activeLayout);
+  updateFormulaPanel();
+  updateComparisonPanel();
+  updateStatusRibbon();
+  updateMicaButtonState();
+}
+
+function toggleMicaLayers() {
+  if (state.mineralKey !== 'biotite') return;
+  state.micaExpanded = !state.micaExpanded;
+  requestStructureUpdate();
+}
+
+function resetScene() {
+  state.mineralKey = 'basic';
+  state.highlightShared = true;
+  state.showFaces = true;
+  state.showLabels = true;
+  state.compare = false;
+  state.autoRotate = true;
+  state.micaExpanded = false;
+  guiState['광물 선택'] = minerals.basic.dropdown;
+  guiState['공유 산소 강조'] = true;
+  guiState['사면체 면 표시'] = true;
+  guiState['원자 라벨'] = true;
+  guiState['구조 비교'] = false;
+  guiState['자동 회전'] = true;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  camera.position.set(10.8, 8.1, 12.2);
+  controls.target.set(0, 0.8, 0);
+  controls.update();
+  requestStructureUpdate();
+}
+
+const tempVector = new THREE.Vector3();
+const projected = new THREE.Vector3();
+
+function projectLabel(element, worldPosition, visible) {
+  if (!visible) {
+    element.style.display = 'none';
+    return;
+  }
+  projected.copy(worldPosition).project(camera);
+  const x = (projected.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+  if (projected.z >= 1 || x < -120 || x > window.innerWidth + 120 || y < -120 || y > window.innerHeight + 120) {
+    element.style.display = 'none';
+    return;
+  }
+  element.style.display = 'block';
+  element.style.left = `${x}px`;
+  element.style.top = `${y}px`;
+}
+
+function projectLocalLabel(element, group, localPosition, visible) {
+  tempVector.copy(localPosition);
+  group.localToWorld(tempVector);
+  projectLabel(element, tempVector, visible);
+}
+
+function hideAllLabels() {
+  Object.values(floatingLabels).forEach((value) => {
+    if (Array.isArray(value)) value.forEach((element) => { element.style.display = 'none'; });
+    else value.style.display = 'none';
+  });
+}
+
+function updateLabels() {
+  const primaryTetra = tetraPool.find((item) => item.group.visible);
+  if (!state.showLabels || !activeLayout || !primaryTetra) {
+    hideAllLabels();
+    return;
+  }
+  floatingLabels.structure.textContent = minerals[state.mineralKey].label;
+  projectLabel(floatingLabels.structure, activeLayout.labelPosition, true);
+  projectLocalLabel(floatingLabels.si, primaryTetra.group, new THREE.Vector3(0, 0, 0), true);
+  localVertices.forEach((vertex, index) => projectLocalLabel(floatingLabels.o[index], primaryTetra.group, vertex, true));
+
+  if (activeLayout.referenceVisible && referenceScale > 0.1) {
+    projectLabel(floatingLabels.refStructure, new THREE.Vector3(referenceGroup.position.x, 3.15, 0), true);
+    projectLocalLabel(floatingLabels.refSi, referenceTetra.group, new THREE.Vector3(0, 0, 0), true);
+    localVertices.forEach((vertex, index) => projectLocalLabel(floatingLabels.refO[index], referenceTetra.group, vertex, true));
+  } else {
+    floatingLabels.refStructure.style.display = 'none';
+    floatingLabels.refSi.style.display = 'none';
+    floatingLabels.refO.forEach((label) => { label.style.display = 'none'; });
+  }
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+renderer.setAnimationLoop((time) => {
+  if (transition) {
+    const rawT = Math.min((time - transition.start) / transition.duration, 1);
+    const eased = easeInOutCubic(rawT);
+    transition.steps.forEach((step) => {
+      step.tetra.group.position.lerpVectors(step.startPosition, step.targetPosition, eased);
+      step.tetra.group.quaternion.slerpQuaternions(step.startQuaternion, step.targetQuaternion, eased);
+      step.tetra.group.scale.lerpVectors(step.startScale, step.targetScale, eased);
+      step.tetra.group.visible = step.tetra.group.scale.x > 0.01;
+    });
+    if (rawT >= 1) {
+      transition.steps.forEach((step) => { if (step.targetScale.x <= 0.01) step.tetra.group.visible = false; });
+      transition = null;
+    }
+  }
+
+  decorationFade = Math.min(decorationFade + 0.032, 1);
+  decorationGroup.children.forEach((child) => {
+    if (child.material) child.material.opacity = (child.userData.baseOpacity || 1) * decorationFade;
+  });
+
+  if (state.autoRotate) worldGroup.rotation.y += 0.0024;
+  controls.target.lerp(targetControlPoint, 0.08);
+  controls.update();
+
+  referenceScale = THREE.MathUtils.lerp(referenceScale, activeLayout?.referenceVisible ? 1 : 0, 0.09);
+  referenceGroup.visible = referenceScale > 0.01;
+  referenceGroup.position.x = THREE.MathUtils.lerp(referenceGroup.position.x, referenceTargetX, 0.09);
+  referenceGroup.scale.setScalar(Math.max(referenceScale, 0.001));
+  updateLabels();
+  renderer.render(scene, camera);
+});
+
+function createBackgroundPoints() {
+  const count = 320;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const colorA = new THREE.Color(0x7398ff);
+  const colorB = new THREE.Color(0xffdb7b);
+  for (let i = 0; i < count; i += 1) {
+    const radius = 12 + Math.random() * 18;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i * 3 + 0] = radius * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = radius * Math.cos(phi) * 0.8;
+    positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+    const mixed = colorA.clone().lerp(colorB, Math.random() * 0.42);
+    colors[i * 3 + 0] = mixed.r;
+    colors[i * 3 + 1] = mixed.g;
+    colors[i * 3 + 2] = mixed.b;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({ size: 0.16, vertexColors: true, transparent: true, opacity: 0.75, sizeAttenuation: true, depthWrite: false });
+  scene.add(new THREE.Points(geometry, material));
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener('beforeunload', () => {
+  renderer.setAnimationLoop(null);
+  controls.dispose();
+  clearDecorationGroup();
+  siGeometry.dispose();
+  oxygenGeometry.dispose();
+  bondGeometry.dispose();
+  cationGeometry.dispose();
+  sharedGeometry.dispose();
+  faceGeometry.dispose();
+  edgeGeometry.dispose();
+  siMaterial.dispose();
+  oxygenMaterial.dispose();
+  bondMaterial.dispose();
+  faceMaterial.dispose();
+  edgeMaterial.dispose();
+  shadowFloor.geometry.dispose();
+  shadowFloor.material.dispose();
+  stageRing.geometry.dispose();
+  stageRing.material.dispose();
+  stageRingInner.geometry.dispose();
+  stageRingInner.material.dispose();
+  renderer.dispose();
+});
+
+updateTetraFaceVisibility();
+updateSharedMarkerAppearance();
+updateMicaButtonState();
+requestStructureUpdate();
+</script>
+</body>
+</html>

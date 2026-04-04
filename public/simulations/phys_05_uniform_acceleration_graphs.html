@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>등가속도 직선 운동 그래프 - 3D 시뮬레이션</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg: #eef0f5;
+    --scene-glass: rgba(255, 255, 255, 0.68);
+    --graph-bg: rgba(8, 17, 30, 0.98);
+    --graph-panel: rgba(14, 27, 44, 0.92);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f5f9ff;
+    --text-dim: rgba(245, 249, 255, 0.66);
+    --scene-text: #18334f;
+    --scene-dim: rgba(24, 51, 79, 0.72);
+    --accent-s: #ffb86a;
+    --accent-v: #73b5ff;
+    --accent-a: #7df0b4;
+    --accent-guide: #d7ecff;
+    --danger: #ff8f8f;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 232, 172, 0.26), transparent 22%),
+      linear-gradient(180deg, #f4f6fb 0%, var(--bg) 48%, #e8edf6 100%);
+    color: var(--text-main);
+    font-family: "SUIT Variable", "Pretendard Variable", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(420px, 3fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    border-right: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+      radial-gradient(circle at 20% 18%, rgba(255, 241, 191, 0.34), transparent 18%),
+      linear-gradient(180deg, rgba(246, 249, 255, 0.96) 0%, rgba(232, 238, 246, 0.92) 100%);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 16% 14%, rgba(94, 176, 255, 0.18), transparent 22%),
+      linear-gradient(180deg, #0f1b2e 0%, #060d18 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-info {
+    position: absolute;
+    top: 16px;
+    left: 18px;
+    max-width: min(440px, calc(100% - 36px));
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: var(--scene-glass);
+    border: 1px solid rgba(255, 255, 255, 0.56);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 42px rgba(98, 114, 138, 0.12);
+    color: var(--scene-text);
+    z-index: 10;
+  }
+
+  #scene-info .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(24, 51, 79, 0.62);
+  }
+
+  #scene-info h1 {
+    margin-top: 5px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #scene-info p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--scene-dim);
+  }
+
+  #scene-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(24, 51, 79, 0.08);
+    color: rgba(18, 43, 70, 0.92);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .badge[data-tone="ready"] {
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .badge[data-tone="running"] {
+    background: rgba(117, 244, 178, 0.24);
+    color: #0f5b37;
+  }
+
+  .badge[data-tone="paused"] {
+    background: rgba(255, 212, 128, 0.28);
+    color: #7a5412;
+  }
+
+  .badge[data-tone="done"] {
+    background: rgba(120, 196, 255, 0.24);
+    color: #124e7a;
+  }
+
+  #scene-note {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    width: min(360px, calc(100% - 36px));
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: rgba(16, 30, 48, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 16px 36px rgba(10, 18, 30, 0.18);
+    z-index: 10;
+  }
+
+  #scene-note strong {
+    display: block;
+    font-size: 12px;
+    color: #fff1c0;
+  }
+
+  #scene-note p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.75;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+    gap: 16px;
+    pointer-events: none;
+  }
+
+  #graph-head h2 {
+    font-size: 23px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #graph-links {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .link-card {
+    min-height: 88px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .link-card .label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .link-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .link-card p {
+    margin-top: 6px;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  #graph-tooltip {
+    position: absolute;
+    display: none;
+    min-width: 160px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(6, 14, 24, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f7fbff;
+    font-size: 11px;
+    line-height: 1.6;
+    pointer-events: none;
+    transform: translate(12px, -12px);
+    z-index: 18;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+  }
+
+  #metric-strip {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 18px;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .metric-card {
+    min-height: 88px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 18px;
+  }
+
+  .metric-card p {
+    margin-top: 5px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    width: min(372px, calc(100vw - 36px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(9, 18, 31, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(14px);
+    color: #f5f9ff;
+    z-index: 24;
+    font-size: 11px;
+    line-height: 1.75;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #d7ecff;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .formula-row .label {
+    width: 88px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .formula-row .value {
+    flex: 1;
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: #fff1c0;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(9, 18, 31, 0.88);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    width: min(410px, calc(100vw - 28px));
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(7, 17, 29, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+    color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(14px);
+    display: none;
+    z-index: 39;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: var(--accent-guide);
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #fff1c0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .guide-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(8, 17, 30, 0.88);
+    --widget-color: rgba(255, 255, 255, 0.06);
+    --text-color: #f5f9ff;
+    --title-background-color: rgba(115, 181, 255, 0.16);
+    --title-text-color: #ffffff;
+    --focus-color: rgba(115, 181, 255, 0.36);
+    position: fixed !important;
+    top: 14px;
+    right: 14px;
+    z-index: 35;
+    backdrop-filter: blur(14px);
+  }
+
+  @media (max-width: 1180px) {
+    #graph-head {
+      grid-template-columns: 1fr;
+    }
+
+    #metric-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.04fr) minmax(360px, 0.96fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    #formula-panel {
+      width: calc(100vw - 28px);
+      max-width: 560px;
+      bottom: 10px;
+    }
+  }
+
+  @media (max-width: 680px) {
+    #scene-info,
+    #scene-note {
+      left: 10px;
+      width: calc(100% - 20px);
+    }
+
+    #scene-info {
+      top: 56px;
+    }
+
+    #scene-info h1 {
+      font-size: 21px;
+    }
+
+    #graph-head,
+    #metric-strip {
+      left: 12px;
+      right: 12px;
+    }
+
+    #graph-head {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    #graph-links {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    #graph-links,
+    #metric-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .link-card {
+      min-height: 0;
+      padding: 10px 12px;
+    }
+
+    .link-card strong {
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    .link-card p {
+      display: none;
+    }
+
+    #formula-panel {
+      left: 10px;
+      width: calc(100vw - 20px);
+      font-size: 10px;
+      padding: 14px 14px 12px;
+    }
+
+    .lil-gui.root {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+      max-height: 46vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+      <div id="scene-info">
+        <div class="eyebrow">Physics I</div>
+        <h1>등가속도 직선 운동 그래프</h1>
+        <p id="scene-summary">자동차의 운동과 위치-시간, 속도-시간, 가속도-시간 그래프를 한 화면에서 연결해 보세요.</p>
+        <div id="scene-badges">
+          <span class="badge" id="badge-scenario">정지→가속</span>
+          <span class="badge" id="badge-status" data-tone="ready">준비됨</span>
+        </div>
+      </div>
+      <div id="scene-note">
+        <strong>관찰 포인트</strong>
+        <p id="scene-note-text">속도 벡터 길이는 현재 속력을, 가속도 벡터는 가속도의 방향과 크기를 보여 줍니다.</p>
+      </div>
+    </section>
+
+    <section id="graph-panel">
+      <div id="graph-head">
+        <div>
+          <h2>그래프 연동 분석</h2>
+          <p id="graph-summary">세로 점선이 현재 시각입니다. 같은 시각에서 s-t 값, v-t 기울기, v-t 면적, a-t 면적을 함께 읽어 보세요.</p>
+        </div>
+        <div id="graph-links">
+          <div class="link-card">
+            <span class="label">v-t 기울기</span>
+            <strong id="link-slope">2.00 m/s²</strong>
+            <p>직선의 기울기가 가속도입니다.</p>
+          </div>
+          <div class="link-card">
+            <span class="label">v-t 면적</span>
+            <strong id="link-displacement">0.00 m</strong>
+            <p>누적 면적이 변위와 같습니다.</p>
+          </div>
+          <div class="link-card">
+            <span class="label">a-t 면적</span>
+            <strong id="link-delta-v">0.00 m/s</strong>
+            <p>면적이 속도 변화량입니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-tooltip"></div>
+
+      <div id="metric-strip">
+        <div class="metric-card">
+          <span class="label">경과 시간</span>
+          <strong id="metric-time">0.00 s</strong>
+          <p id="metric-time-desc">현재 시각을 세로 점선으로 표시합니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">위치 / 변위</span>
+          <strong id="metric-position">0.00 m</strong>
+          <p id="metric-position-desc">v-t 그래프 아래 면적과 같은 값입니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">현재 속도</span>
+          <strong id="metric-velocity">0.00 m/s</strong>
+          <p id="metric-velocity-desc">s-t 그래프 접선의 기울기와 연결됩니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">가속도</span>
+          <strong id="metric-acceleration">2.00 m/s²</strong>
+          <p id="metric-acceleration-desc">등가속도 운동에서는 일정한 값을 유지합니다.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section id="formula-panel" aria-live="polite">
+    <h3>📈 등가속도 직선 운동 그래프</h3>
+    <div class="formula-row"><span class="label">시나리오</span><span class="value" id="formula-scenario">정지 상태에서 출발</span></div>
+    <div class="formula-row"><span class="label">조건</span><span class="value" id="formula-conditions">v₀ = 0.00 m/s, a = 2.00 m/s²</span></div>
+    <div class="formula-row"><span class="label">현재 시각</span><span class="value" id="formula-time">t = 0.00 s</span></div>
+    <div class="formula-block">
+      <div class="formula-row"><span class="label">위치</span><span class="value" id="formula-position">s = v₀t + 1/2at² = 0.00 m</span></div>
+      <div class="formula-row"><span class="label">속도</span><span class="value" id="formula-velocity">v = v₀ + at = 0.00 m/s</span></div>
+      <div class="formula-row"><span class="label">가속도</span><span class="value" id="formula-acceleration">a = 2.00 m/s² (일정)</span></div>
+    </div>
+    <div class="formula-block">
+      <strong>관계식</strong><br>
+      <span id="formula-equations">v = v₀ + at<br>s = v₀t + 1/2at²<br>v² = v₀² + 2as</span>
+    </div>
+    <div class="formula-block">
+      <strong>그래프 관계</strong><br>
+      <span id="formula-relations">v-t 기울기 = 가속도 · v-t 면적 = 변위 · a-t 면적 = 속도 변화량</span>
+    </div>
+  </section>
+
+  <button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+  <aside id="guide-panel" aria-hidden="true">
+    <h3>학습 가이드</h3>
+    <h4>핵심 원리</h4>
+    <p>등가속도 운동에서는 가속도가 일정하므로 속도-시간 그래프는 직선이 됩니다. 이 직선의 기울기는 가속도이고, 그래프 아래 면적은 변위입니다. 위치-시간 그래프는 포물선이 되어 세 그래프가 서로 연결됩니다.</p>
+
+    <div class="guide-card">
+      <h4>탐구 질문</h4>
+      <ul>
+        <li>v-t 그래프에서 직선의 기울기가 의미하는 물리량은 무엇인가요?</li>
+        <li>v-t 그래프 아래의 면적이 변위와 같다는 것을 수학적으로 설명할 수 있나요?</li>
+        <li>자동차가 제동할 때 v-t 그래프와 s-t 그래프는 각각 어떤 모양이 되나요?</li>
+      </ul>
+    </div>
+
+    <div class="guide-card">
+      <h4>실생활 예시</h4>
+      <ul>
+        <li>자동차의 출발과 제동</li>
+        <li>엘리베이터의 출발과 정지</li>
+        <li>자유 낙하와 수직 운동</li>
+        <li>롤러코스터가 급가속하는 구간</li>
+      </ul>
+    </div>
+
+    <div class="guide-card">
+      <h4>교과서 연계</h4>
+      <p>물리학 I편 p30~35의 등가속도 직선 운동 그래프와 관계식을 3D 장면과 실시간 그래프로 재구성했습니다.</p>
+    </div>
+  </aside>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const GRAPH_TIME_MAX = 10;
+const ROAD_WORLD_MIN = -9.2;
+const ROAD_WORLD_MAX = 9.2;
+const ROAD_WORLD_LENGTH = ROAD_WORLD_MAX - ROAD_WORLD_MIN;
+const FALL_WORLD_HEIGHT = 10;
+const TRAIL_INTERVAL = 0.34;
+const MAX_TRAILS = 18;
+
+const COLORS = {
+  s: '#ffb86a',
+  v: '#73b5ff',
+  a: '#7df0b4',
+  graphLine: 'rgba(255,255,255,0.16)',
+  graphText: 'rgba(245,249,255,0.82)',
+  graphDim: 'rgba(245,249,255,0.48)',
+  guide: '#d7ecff',
+};
+
+const SCENARIOS = {
+  '등속': {
+    label: '등속 운동',
+    v0: 5,
+    a: 0,
+    duration: 10,
+    mode: 'road',
+    summary: '가속도가 0이면 v-t 그래프는 수평 직선, s-t 그래프는 기울어진 직선이 됩니다.',
+    note: '가속도 화살표가 사라지고, 차의 속도 벡터 길이는 일정하게 유지됩니다.',
+  },
+  '정지→가속': {
+    label: '정지 상태에서 출발',
+    v0: 0,
+    a: 2,
+    duration: 7,
+    mode: 'road',
+    summary: '원점에서 출발한 자동차의 속도가 일정한 비율로 증가하며 s-t 그래프는 위로 휘어집니다.',
+    note: '처음에는 짧던 속도 벡터가 시간이 갈수록 길어지는지 살펴보세요.',
+  },
+  '초속도+가속': {
+    label: '초기 속도가 있는 가속',
+    v0: 3,
+    a: 1.5,
+    duration: 6,
+    mode: 'road',
+    summary: '초기 속도가 있으면 v-t 직선의 y절편이 생기고, s-t 그래프는 더 가파르게 증가합니다.',
+    note: '같은 가속도라도 초기 속도가 있으면 그래프의 시작점이 달라집니다.',
+  },
+  '감속': {
+    label: '감속 운동',
+    v0: 10,
+    a: -2,
+    duration: 10,
+    mode: 'road',
+    summary: '감속할 때는 v-t 그래프가 아래로 내려가고, 속도가 0이 되면 운동이 멈춥니다.',
+    note: '감속 시나리오에서는 속력이 0이 되는 순간 시뮬레이션이 멈춥니다.',
+  },
+  '자유낙하': {
+    label: '자유 낙하',
+    v0: 0,
+    a: 9.8,
+    duration: 3.2,
+    mode: 'fall',
+    summary: '가속도가 중력가속도일 때 속도는 직선적으로 증가하고, 낙하 거리는 시간의 제곱에 비례합니다.',
+    note: '수직 낙하 장면으로 바뀌며 속도 벡터와 가속도 벡터가 아래 방향을 가리킵니다.',
+  },
+};
+
+const controlState = {
+  scenario: '정지→가속',
+  initialVelocity: 0,
+  acceleration: 2,
+  showTrail: true,
+  showVectors: true,
+  highlightArea: true,
+  start() {
+    startSimulation();
+  },
+  pause() {
+    togglePause();
+  },
+  reset() {
+    resetSimulation();
+  },
+};
+
+const dom = {
+  sceneCanvas: document.getElementById('scene-canvas'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  sceneSummary: document.getElementById('scene-summary'),
+  sceneNote: document.getElementById('scene-note-text'),
+  badgeScenario: document.getElementById('badge-scenario'),
+  badgeStatus: document.getElementById('badge-status'),
+  graphSummary: document.getElementById('graph-summary'),
+  graphTooltip: document.getElementById('graph-tooltip'),
+  linkSlope: document.getElementById('link-slope'),
+  linkDisplacement: document.getElementById('link-displacement'),
+  linkDeltaV: document.getElementById('link-delta-v'),
+  metricTime: document.getElementById('metric-time'),
+  metricPosition: document.getElementById('metric-position'),
+  metricVelocity: document.getElementById('metric-velocity'),
+  metricAcceleration: document.getElementById('metric-acceleration'),
+  metricTimeDesc: document.getElementById('metric-time-desc'),
+  metricPositionDesc: document.getElementById('metric-position-desc'),
+  metricVelocityDesc: document.getElementById('metric-velocity-desc'),
+  metricAccelerationDesc: document.getElementById('metric-acceleration-desc'),
+  formulaScenario: document.getElementById('formula-scenario'),
+  formulaConditions: document.getElementById('formula-conditions'),
+  formulaTime: document.getElementById('formula-time'),
+  formulaPosition: document.getElementById('formula-position'),
+  formulaVelocity: document.getElementById('formula-velocity'),
+  formulaAcceleration: document.getElementById('formula-acceleration'),
+  formulaRelations: document.getElementById('formula-relations'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+};
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+
+const simulation = {
+  time: 0,
+  running: false,
+  paused: false,
+  completed: false,
+  lastFrame: performance.now(),
+  trailAccumulator: 0,
+  roadVisualX: null,
+  fallVisualY: null,
+  graphAreas: [],
+  hoverTime: null,
+  hoverActive: false,
+};
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+camera.position.set(9.4, 5.8, 8.9);
+
+const controls = new OrbitControls(camera, dom.sceneCanvas);
+controls.enableDamping = true;
+controls.target.set(0, 1.2, 0);
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.minDistance = 5;
+controls.maxDistance = 22;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(8, 12, 6);
+scene.add(directionalLight);
+
+const roadGroup = new THREE.Group();
+const fallGroup = new THREE.Group();
+const trailGroup = new THREE.Group();
+scene.add(roadGroup, fallGroup, trailGroup);
+
+function makeLabelSprite(text, options = {}) {
+  const {
+    width = 256,
+    height = 128,
+    background = 'rgba(255,255,255,0)',
+    color = '#29435f',
+    fontSize = 40,
+    fontWeight = 700,
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = color;
+  ctx.font = `${fontWeight} ${fontSize}px "SUIT Variable", "Pretendard Variable", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, width / 2, height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.9, 0.45, 1);
+  return sprite;
+}
+
+function buildRoadScene() {
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(20, 0.05, 3),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.88 })
+  );
+  road.position.set(0, 0.03, 0);
+  roadGroup.add(road);
+
+  const shoulder = new THREE.Mesh(
+    new THREE.BoxGeometry(20.8, 0.02, 3.8),
+    new THREE.MeshStandardMaterial({ color: 0xcfd5de, roughness: 0.95 })
+  );
+  shoulder.position.set(0, -0.02, 0);
+  roadGroup.add(shoulder);
+
+  for (let i = 0; i < 10; i += 1) {
+    const dash = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.06, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0x554200 })
+    );
+    dash.position.set(-8.9 + i * 2, 0.065, 0);
+    roadGroup.add(dash);
+  }
+
+  const sideLineMaterial = new THREE.MeshStandardMaterial({ color: 0xe5eef8 });
+  for (const z of [-1.42, 1.42]) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(20, 0.04, 0.05), sideLineMaterial);
+    line.position.set(0, 0.055, z);
+    roadGroup.add(line);
+  }
+
+  for (let meter = 0; meter <= 20; meter += 2) {
+    const x = ROAD_WORLD_MIN + (meter / 20) * ROAD_WORLD_LENGTH;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.35, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0x77879d })
+    );
+    tick.position.set(x, 0.18, -1.7);
+    roadGroup.add(tick);
+
+    const label = makeLabelSprite(`${meter}m`, {
+      color: '#27425f',
+      fontSize: 34,
+      fontWeight: 700,
+    });
+    label.position.set(x, 0.72, -1.75);
+    roadGroup.add(label);
+  }
+}
+
+function createCar(opacity = 1) {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff4444,
+    roughness: 0.42,
+    metalness: 0.18,
+    transparent: opacity < 1,
+    opacity,
+  });
+  const cabinMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcc3333,
+    roughness: 0.34,
+    metalness: 0.14,
+    transparent: opacity < 1,
+    opacity,
+  });
+  const windowMaterial = new THREE.MeshStandardMaterial({
+    color: 0xaec7ea,
+    roughness: 0.18,
+    metalness: 0.22,
+    transparent: true,
+    opacity: opacity * 0.76,
+  });
+  const wheelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x333333,
+    roughness: 0.92,
+    metalness: 0.1,
+    transparent: opacity < 1,
+    opacity,
+  });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.7), bodyMaterial);
+  body.position.y = 0.34;
+  group.add(body);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.65), cabinMaterial);
+  cabin.position.set(-0.04, 0.68, 0);
+  group.add(cabin);
+
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.18, 0.62), windowMaterial);
+  windshield.position.set(0.1, 0.68, 0);
+  group.add(windshield);
+
+  const wheelGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.08, 24);
+  const wheelOffsets = [
+    [-0.38, 0.13, -0.36],
+    [0.38, 0.13, -0.36],
+    [-0.38, 0.13, 0.36],
+    [0.38, 0.13, 0.36],
+  ];
+  const wheels = [];
+  for (const [x, y, z] of wheelOffsets) {
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(x, y, z);
+    group.add(wheel);
+    wheels.push(wheel);
+  }
+
+  const axle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.82, 0.04, 0.04),
+    new THREE.MeshStandardMaterial({
+      color: 0x555b66,
+      transparent: opacity < 1,
+      opacity,
+    })
+  );
+  axle.position.set(0, 0.18, 0);
+  group.add(axle);
+
+  group.userData.wheels = wheels;
+  return group;
+}
+
+function cloneGhost(source, opacity) {
+  const clone = source.clone(true);
+  clone.traverse((object) => {
+    if (object.isMesh) {
+      object.material = object.material.clone();
+      object.material.transparent = true;
+      object.material.opacity = opacity;
+      object.material.depthWrite = false;
+    }
+  });
+  return clone;
+}
+
+function clearTrails() {
+  while (trailGroup.children.length) {
+    const child = trailGroup.children[0];
+    trailGroup.remove(child);
+    child.traverse((object) => {
+      if (object.isMesh && object.material) {
+        if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        } else {
+          object.material.dispose();
+        }
+      }
+    });
+  }
+}
+
+function buildFallScene() {
+  const ground = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.8, 3.2, 0.2, 48),
+    new THREE.MeshStandardMaterial({ color: 0xc9d3df, roughness: 0.95 })
+  );
+  ground.position.set(0, -0.12, 0);
+  fallGroup.add(ground);
+
+  const pole = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, FALL_WORLD_HEIGHT, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0x7f8da1, roughness: 0.72 })
+  );
+  pole.position.set(-1.8, FALL_WORLD_HEIGHT / 2, 0);
+  fallGroup.add(pole);
+
+  for (let meter = 0; meter <= 50; meter += 10) {
+    const y = (meter / 50) * FALL_WORLD_HEIGHT;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.04, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x5d738f })
+    );
+    tick.position.set(-1.8, y, 0);
+    fallGroup.add(tick);
+
+    const label = makeLabelSprite(`${meter}m`, {
+      color: '#24405f',
+      fontSize: 34,
+      fontWeight: 700,
+    });
+    label.position.set(-2.3, y + 0.2, 0);
+    label.scale.set(0.88, 0.42, 1);
+    fallGroup.add(label);
+  }
+
+  const startPlatform = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.12, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0x8ea0b5, roughness: 0.72 })
+  );
+  startPlatform.position.set(0.12, FALL_WORLD_HEIGHT + 0.06, 0);
+  fallGroup.add(startPlatform);
+}
+
+buildRoadScene();
+buildFallScene();
+
+const car = createCar(1);
+roadGroup.add(car);
+
+const fallObject = new THREE.Mesh(
+  new THREE.SphereGeometry(0.36, 28, 28),
+  new THREE.MeshStandardMaterial({
+    color: 0x4f87ff,
+    roughness: 0.26,
+    metalness: 0.06,
+  })
+);
+fallGroup.add(fallObject);
+
+const velocityArrow = new THREE.ArrowHelper(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(),
+  1,
+  0x4f9cff,
+  0.3,
+  0.18
+);
+scene.add(velocityArrow);
+
+const accelerationArrow = new THREE.ArrowHelper(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(),
+  1,
+  0x4bd387,
+  0.3,
+  0.18
+);
+scene.add(accelerationArrow);
+
+function formatNumber(value, digits = 2) {
+  const rounded = Number(value.toFixed(digits));
+  return rounded.toLocaleString('ko-KR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatSigned(value, digits = 2) {
+  return `${value < 0 ? '-' : ''}${formatNumber(Math.abs(value), digits)}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function getScenario() {
+  return SCENARIOS[controlState.scenario];
+}
+
+function getDuration() {
+  const scenario = getScenario();
+  let duration = Math.min(GRAPH_TIME_MAX, scenario.duration);
+
+  if (controlState.acceleration < 0 && controlState.initialVelocity > 0) {
+    const stopTime = -controlState.initialVelocity / controlState.acceleration;
+    if (Number.isFinite(stopTime) && stopTime > 0) {
+      duration = Math.min(duration, stopTime);
+    }
+  }
+
+  return Math.max(0.8, duration);
+}
+
+function evaluateMotion(time) {
+  const t = clamp(time, 0, getDuration());
+  const s = controlState.initialVelocity * t + 0.5 * controlState.acceleration * t * t;
+  const v = controlState.initialVelocity + controlState.acceleration * t;
+  return {
+    t,
+    s,
+    v,
+    a: controlState.acceleration,
+    deltaV: v - controlState.initialVelocity,
+  };
+}
+
+function buildSamples(sampleCount = 160) {
+  const duration = getDuration();
+  const samples = [];
+  for (let index = 0; index <= sampleCount; index += 1) {
+    const t = duration * (index / sampleCount);
+    samples.push(evaluateMotion(t));
+  }
+  return samples;
+}
+
+function niceStep(span, tickCount = 4) {
+  const rough = span / Math.max(1, tickCount);
+  const exponent = Math.floor(Math.log10(Math.max(rough, 1e-6)));
+  const base = 10 ** exponent;
+  const candidates = [1, 2, 5, 10];
+  let step = base;
+  for (const candidate of candidates) {
+    if (rough <= candidate * base) {
+      step = candidate * base;
+      break;
+    }
+  }
+  return step;
+}
+
+function niceRange(min, max, options = {}) {
+  const { includeZero = false, minimumSpan = 1 } = options;
+  let rangeMin = Number.isFinite(min) ? min : 0;
+  let rangeMax = Number.isFinite(max) ? max : 1;
+
+  if (includeZero) {
+    rangeMin = Math.min(rangeMin, 0);
+    rangeMax = Math.max(rangeMax, 0);
+  }
+
+  if (Math.abs(rangeMax - rangeMin) < 1e-6) {
+    rangeMax += minimumSpan / 2;
+    rangeMin -= minimumSpan / 2;
+  }
+
+  const rawSpan = Math.max(rangeMax - rangeMin, minimumSpan);
+  const step = niceStep(rawSpan);
+  const paddedMin = Math.floor((rangeMin - rawSpan * 0.08) / step) * step;
+  const paddedMax = Math.ceil((rangeMax + rawSpan * 0.08) / step) * step;
+  return { min: paddedMin, max: paddedMax, step };
+}
+
+function getGraphRanges(samples) {
+  const sValues = samples.map((sample) => sample.s);
+  const vValues = samples.map((sample) => sample.v);
+  const aValues = samples.map((sample) => sample.a);
+
+  const sRange = niceRange(Math.min(...sValues, 0), Math.max(...sValues, 0), {
+    includeZero: true,
+    minimumSpan: 5,
+  });
+  const vRange = niceRange(Math.min(...vValues, 0), Math.max(...vValues, 0), {
+    includeZero: true,
+    minimumSpan: 4,
+  });
+  const aRange = niceRange(Math.min(...aValues, 0), Math.max(...aValues, 0), {
+    includeZero: true,
+    minimumSpan: 4,
+  });
+
+  return { sRange, vRange, aRange };
+}
+
+function syncScenarioText() {
+  const scenario = getScenario();
+  dom.sceneSummary.textContent = scenario.summary;
+  dom.sceneNote.textContent = scenario.note;
+  dom.badgeScenario.textContent = scenario.label;
+  dom.graphSummary.textContent = '세로 점선이 현재 시각입니다. 같은 시각에서 s-t 값, v-t 기울기, v-t 면적, a-t 면적을 함께 읽어 보세요.';
+}
+
+function setStatus(text, tone) {
+  dom.badgeStatus.textContent = text;
+  dom.badgeStatus.dataset.tone = tone;
+}
+
+function updateFormulaPanels(motion) {
+  const scenario = getScenario();
+  const descriptor = scenario.mode === 'fall' ? '낙하 거리' : '위치';
+
+  dom.formulaScenario.textContent = scenario.label;
+  dom.formulaConditions.textContent = `v₀ = ${formatSigned(controlState.initialVelocity)} m/s, a = ${formatSigned(controlState.acceleration)} m/s²`;
+  dom.formulaTime.textContent = `t = ${formatNumber(motion.t)} s`;
+  dom.formulaPosition.textContent = `s = v₀t + 1/2at² = ${formatSigned(motion.s)} m (${descriptor})`;
+  dom.formulaVelocity.textContent = `v = v₀ + at = ${formatSigned(motion.v)} m/s`;
+  dom.formulaAcceleration.textContent = `a = ${formatSigned(controlState.acceleration)} m/s² ${Math.abs(controlState.acceleration) < 1e-6 ? '(0)' : '(일정)'}`;
+  dom.formulaRelations.innerHTML = `v-t 기울기 = ${formatSigned(controlState.acceleration)} m/s²<br>v-t 면적 = ${formatSigned(motion.s)} m<br>a-t 면적 = Δv = ${formatSigned(motion.deltaV)} m/s`;
+
+  dom.linkSlope.textContent = `${formatSigned(controlState.acceleration)} m/s²`;
+  dom.linkDisplacement.textContent = `${formatSigned(motion.s)} m`;
+  dom.linkDeltaV.textContent = `${formatSigned(motion.deltaV)} m/s`;
+
+  dom.metricTime.textContent = `${formatNumber(motion.t)} s`;
+  dom.metricPosition.textContent = `${formatSigned(motion.s)} m`;
+  dom.metricVelocity.textContent = `${formatSigned(motion.v)} m/s`;
+  dom.metricAcceleration.textContent = `${formatSigned(controlState.acceleration)} m/s²`;
+
+  dom.metricTimeDesc.textContent = simulation.running && !simulation.paused ? '세로 점선이 현재 시각을 따라 이동합니다.' : '정지된 시각의 그래프 관계를 천천히 읽어 보세요.';
+  dom.metricPositionDesc.textContent = `현재 변위는 v-t 면적과 같아 ${formatSigned(motion.s)} m입니다.`;
+  dom.metricVelocityDesc.textContent = `s-t 접선의 기울기는 ${formatSigned(motion.v)} m/s입니다.`;
+  dom.metricAccelerationDesc.textContent = `v-t 직선의 기울기는 ${formatSigned(controlState.acceleration)} m/s²입니다.`;
+}
+
+function updateModeVisibility() {
+  const scenario = getScenario();
+  const roadMode = scenario.mode === 'road';
+  roadGroup.visible = roadMode;
+  car.visible = roadMode;
+  fallGroup.visible = !roadMode;
+
+  if (roadMode) {
+    camera.position.set(9.4, 5.8, 8.9);
+    controls.target.set(0, 0.9, 0);
+  } else {
+    camera.position.set(8.5, 7.2, 8.9);
+    controls.target.set(-0.3, 4.7, 0);
+  }
+  controls.update();
+}
+
+function getMotionExtents() {
+  const samples = buildSamples();
+  const positions = samples.map((sample) => sample.s);
+  return {
+    min: Math.min(...positions),
+    max: Math.max(...positions),
+  };
+}
+
+function addTrailGhost(motion) {
+  if (!controlState.showTrail) return;
+
+  const scenario = getScenario();
+  if (scenario.mode === 'road') {
+    const ghost = cloneGhost(car, 0.12 + trailGroup.children.length * 0.02);
+    ghost.position.copy(car.position);
+    ghost.rotation.copy(car.rotation);
+    trailGroup.add(ghost);
+  } else {
+    const ghost = new THREE.Mesh(
+      fallObject.geometry,
+      new THREE.MeshStandardMaterial({
+        color: 0x6ca0ff,
+        transparent: true,
+        opacity: 0.12 + trailGroup.children.length * 0.02,
+        roughness: 0.32,
+      })
+    );
+    ghost.position.copy(fallObject.position);
+    trailGroup.add(ghost);
+  }
+
+  if (trailGroup.children.length > MAX_TRAILS) {
+    const oldest = trailGroup.children[0];
+    trailGroup.remove(oldest);
+    oldest.traverse((object) => {
+      if (object.isMesh && object.material) {
+        object.material.dispose();
+      }
+    });
+  }
+}
+
+function updateSceneVisuals(deltaTime) {
+  const scenario = getScenario();
+  const motion = evaluateMotion(simulation.time);
+
+  if (scenario.mode === 'road') {
+    const extents = getMotionExtents();
+    const span = Math.max(extents.max - extents.min, 1);
+    const ratio = (motion.s - extents.min) / span;
+    const worldX = lerp(ROAD_WORLD_MIN, ROAD_WORLD_MAX, ratio);
+
+    car.position.set(worldX, 0.02, 0);
+    car.position.y = 0;
+
+    if (simulation.roadVisualX !== null) {
+      const deltaX = worldX - simulation.roadVisualX;
+      const wheelRotation = deltaX / 0.15;
+      for (const wheel of car.userData.wheels) {
+        wheel.rotation.z -= wheelRotation;
+      }
+    }
+    simulation.roadVisualX = worldX;
+
+    velocityArrow.position.set(worldX, 1.28, 0);
+    const vDirection = motion.v >= 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
+    velocityArrow.setDirection(vDirection);
+    velocityArrow.setLength(0.8 + Math.min(Math.abs(motion.v) * 0.22, 3.1), 0.34, 0.22);
+
+    accelerationArrow.position.set(worldX, 0.2, 0);
+    if (Math.abs(controlState.acceleration) > 1e-6) {
+      const aDirection = controlState.acceleration >= 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
+      accelerationArrow.setDirection(aDirection);
+      accelerationArrow.setLength(0.9 + Math.min(Math.abs(controlState.acceleration) * 0.25, 2.1), 0.32, 0.18);
+    }
+  } else {
+    const maxDrop = Math.max(Math.abs(getMotionExtents().min), Math.abs(getMotionExtents().max), 1);
+    const ratio = clamp(motion.s / maxDrop, -0.2, 1.1);
+    const worldY = lerp(FALL_WORLD_HEIGHT + 0.28, 0.35, ratio);
+    fallObject.position.set(0.18, worldY, 0);
+
+    if (simulation.fallVisualY !== null) {
+      fallObject.rotation.z += deltaTime * (1.2 + Math.abs(motion.v) * 0.08);
+    }
+    simulation.fallVisualY = worldY;
+
+    const vDirection = motion.v >= 0 ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 1, 0);
+    velocityArrow.position.set(0.72, worldY, 0);
+    velocityArrow.setDirection(vDirection);
+    velocityArrow.setLength(0.9 + Math.min(Math.abs(motion.v) * 0.16, 2.8), 0.3, 0.18);
+
+    const aDirection = controlState.acceleration >= 0 ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 1, 0);
+    accelerationArrow.position.set(-0.42, worldY, 0);
+    accelerationArrow.setDirection(aDirection);
+    accelerationArrow.setLength(0.9 + Math.min(Math.abs(controlState.acceleration) * 0.15, 1.8), 0.3, 0.18);
+  }
+
+  velocityArrow.visible = controlState.showVectors;
+  accelerationArrow.visible = controlState.showVectors && Math.abs(controlState.acceleration) > 1e-6;
+
+  updateFormulaPanels(motion);
+  return motion;
+}
+
+function resizeCanvases() {
+  const sceneRect = dom.sceneCanvas.getBoundingClientRect();
+  camera.aspect = sceneRect.width / sceneRect.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(sceneRect.width, sceneRect.height, false);
+
+  const graphRect = dom.graphCanvas.getBoundingClientRect();
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  dom.graphCanvas.width = Math.round(graphRect.width * ratio);
+  dom.graphCanvas.height = Math.round(graphRect.height * ratio);
+  graphCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+
+function mapX(area, time) {
+  return area.plotX + (time / GRAPH_TIME_MAX) * area.plotWidth;
+}
+
+function mapY(area, value, range) {
+  return area.plotY + area.plotHeight - ((value - range.min) / (range.max - range.min)) * area.plotHeight;
+}
+
+function drawPanelAxes(area, range, title, color) {
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.04)';
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.lineWidth = 1;
+  graphCtx.beginPath();
+  graphCtx.roundRect(area.x, area.y, area.width, area.height, 18);
+  graphCtx.fill();
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = COLORS.graphText;
+  graphCtx.font = '700 13px "SUIT Variable", "Pretendard Variable", sans-serif';
+  graphCtx.fillText(title, area.x + 14, area.y + 20);
+
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+  graphCtx.beginPath();
+  graphCtx.moveTo(area.plotX, area.plotY);
+  graphCtx.lineTo(area.plotX, area.plotY + area.plotHeight);
+  graphCtx.lineTo(area.plotX + area.plotWidth, area.plotY + area.plotHeight);
+  graphCtx.stroke();
+
+  const xTicks = [0, 2, 4, 6, 8, 10];
+  graphCtx.font = '11px "SUIT Variable", "Pretendard Variable", sans-serif';
+  graphCtx.fillStyle = COLORS.graphDim;
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+
+  for (const tick of xTicks) {
+    const x = mapX(area, tick);
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, area.plotY);
+    graphCtx.lineTo(x, area.plotY + area.plotHeight);
+    graphCtx.stroke();
+    graphCtx.fillText(`${tick}`, x - 3, area.plotY + area.plotHeight + 16);
+  }
+  graphCtx.fillText('t(s)', area.plotX + area.plotWidth - 24, area.plotY + area.plotHeight + 16);
+
+  const ticks = [];
+  for (let value = range.min; value <= range.max + range.step * 0.5; value += range.step) {
+    ticks.push(Number(value.toFixed(6)));
+  }
+  for (const tick of ticks) {
+    const y = mapY(area, tick, range);
+    graphCtx.strokeStyle = Math.abs(tick) < 1e-6 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)';
+    graphCtx.beginPath();
+    graphCtx.moveTo(area.plotX, y);
+    graphCtx.lineTo(area.plotX + area.plotWidth, y);
+    graphCtx.stroke();
+    graphCtx.fillStyle = COLORS.graphDim;
+    graphCtx.fillText(formatNumber(tick, Math.abs(tick) >= 10 ? 0 : 1), area.x + 8, y + 4);
+  }
+
+  graphCtx.strokeStyle = color;
+  graphCtx.lineWidth = 2;
+  graphCtx.beginPath();
+  graphCtx.moveTo(area.x + 14, area.y + 28);
+  graphCtx.lineTo(area.x + 54, area.y + 28);
+  graphCtx.stroke();
+  graphCtx.restore();
+}
+
+function drawCurve(area, range, samples, key, color, currentTime, options = {}) {
+  const { fillToZero = false, dash = false } = options;
+  const duration = getDuration();
+  const currentClamped = clamp(currentTime, 0, duration);
+  const futurePath = samples.filter((sample) => sample.t <= duration + 1e-6);
+
+  if (fillToZero && controlState.highlightArea) {
+    const relevant = futurePath.filter((sample) => sample.t <= currentClamped + 1e-6);
+    if (relevant.length > 1) {
+      const zeroY = mapY(area, 0, range);
+      graphCtx.save();
+      graphCtx.fillStyle = `${color}30`;
+      graphCtx.beginPath();
+      graphCtx.moveTo(mapX(area, relevant[0].t), zeroY);
+      for (const sample of relevant) {
+        graphCtx.lineTo(mapX(area, sample.t), mapY(area, sample[key], range));
+      }
+      const last = relevant[relevant.length - 1];
+      graphCtx.lineTo(mapX(area, last.t), zeroY);
+      graphCtx.closePath();
+      graphCtx.fill();
+      graphCtx.restore();
+    }
+  }
+
+  graphCtx.save();
+  graphCtx.strokeStyle = `${color}55`;
+  graphCtx.lineWidth = 2;
+  if (dash) graphCtx.setLineDash([7, 6]);
+  graphCtx.beginPath();
+  for (let index = 0; index < futurePath.length; index += 1) {
+    const sample = futurePath[index];
+    const x = mapX(area, sample.t);
+    const y = mapY(area, sample[key], range);
+    if (index === 0) graphCtx.moveTo(x, y);
+    else graphCtx.lineTo(x, y);
+  }
+  graphCtx.stroke();
+  graphCtx.restore();
+
+  const visited = futurePath.filter((sample) => sample.t <= currentClamped + 1e-6);
+  if (visited.length > 1) {
+    graphCtx.save();
+    graphCtx.strokeStyle = color;
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let index = 0; index < visited.length; index += 1) {
+      const sample = visited[index];
+      const x = mapX(area, sample.t);
+      const y = mapY(area, sample[key], range);
+      if (index === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+    graphCtx.restore();
+  }
+
+  const current = evaluateMotion(currentClamped);
+  const currentX = mapX(area, current.t);
+  const currentY = mapY(area, current[key], range);
+  graphCtx.save();
+  graphCtx.fillStyle = color;
+  graphCtx.beginPath();
+  graphCtx.arc(currentX, currentY, 4.5, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.restore();
+}
+
+function drawCurrentTimeLine(area, time) {
+  const x = mapX(area, clamp(time, 0, GRAPH_TIME_MAX));
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.72)';
+  graphCtx.lineWidth = 1.5;
+  graphCtx.setLineDash([6, 6]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(x, area.plotY);
+  graphCtx.lineTo(x, area.plotY + area.plotHeight);
+  graphCtx.stroke();
+  graphCtx.restore();
+}
+
+function drawVelocitySlope(area, range, currentTime) {
+  const duration = getDuration();
+  const anchorTime = clamp(currentTime > 0.1 ? currentTime : Math.min(duration, 1.4), 0, duration);
+  const span = Math.min(1.5, Math.max(0.6, duration * 0.35));
+  const t1 = clamp(anchorTime - span * 0.55, 0, duration);
+  const t2 = clamp(t1 + span, 0.2, duration);
+  const point1 = evaluateMotion(t1);
+  const point2 = evaluateMotion(t2);
+
+  const x1 = mapX(area, point1.t);
+  const x2 = mapX(area, point2.t);
+  const y1 = mapY(area, point1.v, range);
+  const y2 = mapY(area, point2.v, range);
+
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.82)';
+  graphCtx.setLineDash([5, 4]);
+  graphCtx.lineWidth = 1.4;
+  graphCtx.beginPath();
+  graphCtx.moveTo(x1, y1);
+  graphCtx.lineTo(x2, y2);
+  graphCtx.lineTo(x2, y1);
+  graphCtx.closePath();
+  graphCtx.stroke();
+  graphCtx.restore();
+
+  graphCtx.save();
+  graphCtx.fillStyle = 'rgba(255,255,255,0.88)';
+  graphCtx.font = '11px "SUIT Variable", "Pretendard Variable", sans-serif';
+  graphCtx.fillText(`Δv / Δt = ${formatSigned(controlState.acceleration)} m/s²`, x1 + 8, Math.min(y1, y2) - 8);
+  graphCtx.restore();
+}
+
+function drawHoverTangent(area, range) {
+  if (!simulation.hoverActive || simulation.hoverTime === null) return;
+  const duration = getDuration();
+  const hoverTime = clamp(simulation.hoverTime, 0, duration);
+  const motion = evaluateMotion(hoverTime);
+  const tangentHalfSpan = Math.min(1.1, Math.max(0.45, duration * 0.12));
+  const t1 = clamp(hoverTime - tangentHalfSpan, 0, duration);
+  const t2 = clamp(hoverTime + tangentHalfSpan, 0, duration);
+  const s1 = motion.s + motion.v * (t1 - hoverTime);
+  const s2 = motion.s + motion.v * (t2 - hoverTime);
+
+  const x1 = mapX(area, t1);
+  const x2 = mapX(area, t2);
+  const y1 = mapY(area, s1, range);
+  const y2 = mapY(area, s2, range);
+  const x = mapX(area, hoverTime);
+  const y = mapY(area, motion.s, range);
+
+  graphCtx.save();
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.92)';
+  graphCtx.lineWidth = 1.6;
+  graphCtx.setLineDash([4, 4]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(x1, y1);
+  graphCtx.lineTo(x2, y2);
+  graphCtx.stroke();
+
+  graphCtx.fillStyle = '#ffffff';
+  graphCtx.beginPath();
+  graphCtx.arc(x, y, 4, 0, Math.PI * 2);
+  graphCtx.fill();
+  graphCtx.restore();
+}
+
+function drawGraphs() {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  graphCtx.clearRect(0, 0, width, height);
+
+  const topOffset = 132;
+  const sidePadding = 20;
+  const bottomPadding = 116;
+  const gap = 16;
+  const panelWidth = width - sidePadding * 2;
+  const panelHeight = (height - topOffset - bottomPadding - gap * 2) / 3;
+  const plotInset = { left: 52, right: 18, top: 34, bottom: 28 };
+
+  const samples = buildSamples();
+  const { sRange, vRange, aRange } = getGraphRanges(samples);
+  const motion = evaluateMotion(simulation.time);
+
+  const areas = ['s', 'v', 'a'].map((key, index) => {
+    const area = {
+      key,
+      x: sidePadding,
+      y: topOffset + index * (panelHeight + gap),
+      width: panelWidth,
+      height: panelHeight,
+    };
+    area.plotX = area.x + plotInset.left;
+    area.plotY = area.y + plotInset.top;
+    area.plotWidth = area.width - plotInset.left - plotInset.right;
+    area.plotHeight = area.height - plotInset.top - plotInset.bottom;
+    return area;
+  });
+  simulation.graphAreas = areas;
+
+  drawPanelAxes(areas[0], sRange, '위치-시간 그래프  s-t', COLORS.s);
+  drawPanelAxes(areas[1], vRange, '속도-시간 그래프  v-t', COLORS.v);
+  drawPanelAxes(areas[2], aRange, '가속도-시간 그래프  a-t', COLORS.a);
+
+  drawCurve(areas[0], sRange, samples, 's', COLORS.s, motion.t);
+  drawCurve(areas[1], vRange, samples, 'v', COLORS.v, motion.t, { fillToZero: true });
+  drawCurve(areas[2], aRange, samples, 'a', COLORS.a, motion.t, { fillToZero: true, dash: true });
+
+  drawCurrentTimeLine(areas[0], motion.t);
+  drawCurrentTimeLine(areas[1], motion.t);
+  drawCurrentTimeLine(areas[2], motion.t);
+  drawVelocitySlope(areas[1], vRange, motion.t);
+  drawHoverTangent(areas[0], sRange);
+
+  graphCtx.save();
+  graphCtx.fillStyle = COLORS.graphText;
+  graphCtx.font = '11px "SUIT Variable", "Pretendard Variable", sans-serif';
+  graphCtx.fillText(`면적 = ${formatSigned(motion.s)} m`, areas[1].plotX + areas[1].plotWidth - 110, areas[1].plotY + 18);
+  graphCtx.fillText(`면적 = Δv = ${formatSigned(motion.deltaV)} m/s`, areas[2].plotX + areas[2].plotWidth - 140, areas[2].plotY + 18);
+  graphCtx.restore();
+}
+
+function resetSimulation() {
+  simulation.time = 0;
+  simulation.running = false;
+  simulation.paused = false;
+  simulation.completed = false;
+  simulation.trailAccumulator = 0;
+  simulation.roadVisualX = null;
+  simulation.fallVisualY = null;
+  clearTrails();
+  setStatus('준비됨', 'ready');
+  updateModeVisibility();
+  updateSceneVisuals(0);
+  drawGraphs();
+}
+
+function startSimulation() {
+  if (simulation.completed || simulation.time >= getDuration() - 1e-6) {
+    resetSimulation();
+  }
+
+  simulation.running = true;
+  simulation.paused = false;
+  simulation.completed = false;
+  setStatus('재생 중', 'running');
+}
+
+function togglePause() {
+  if (!simulation.running && !simulation.completed) {
+    startSimulation();
+    return;
+  }
+
+  if (simulation.completed) return;
+
+  simulation.paused = !simulation.paused;
+  setStatus(simulation.paused ? '일시 정지' : '재생 중', simulation.paused ? 'paused' : 'running');
+}
+
+function applyScenario(name) {
+  const scenario = SCENARIOS[name];
+  controlState.scenario = name;
+  controlState.initialVelocity = scenario.v0;
+  controlState.acceleration = scenario.a;
+  syncScenarioText();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  resetSimulation();
+}
+
+function handleParameterChange() {
+  resetSimulation();
+}
+
+const gui = new GUI({ title: '등가속도 운동 제어', width: 306 });
+gui.add(controlState, 'scenario', Object.keys(SCENARIOS)).name('시나리오').onChange(applyScenario);
+gui.add(controlState, 'initialVelocity', -10, 10, 0.5).name('초기 속도 v₀').onChange(handleParameterChange);
+gui.add(controlState, 'acceleration', -5, 10, 0.5).name('가속도 a').onChange(handleParameterChange);
+gui.add(controlState, 'start').name('시뮬레이션 시작');
+gui.add(controlState, 'pause').name('일시 정지');
+gui.add(controlState, 'showTrail').name('잔상 표시').onChange((value) => {
+  if (!value) clearTrails();
+});
+gui.add(controlState, 'showVectors').name('벡터 표시').onChange(() => {
+  updateSceneVisuals(0);
+});
+gui.add(controlState, 'highlightArea').name('그래프 면적 강조').onChange(() => {
+  drawGraphs();
+});
+gui.add(controlState, 'reset').name('초기화');
+
+function handleGuideToggle() {
+  const isOpen = !dom.guidePanel.classList.contains('open');
+  dom.guidePanel.classList.toggle('open', isOpen);
+  dom.guidePanel.setAttribute('aria-hidden', String(!isOpen));
+  dom.guideToggle.setAttribute('aria-expanded', String(isOpen));
+}
+
+dom.guideToggle.addEventListener('click', handleGuideToggle);
+
+function handleGraphPointer(event) {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const positionArea = simulation.graphAreas[0];
+
+  if (
+    positionArea &&
+    x >= positionArea.plotX &&
+    x <= positionArea.plotX + positionArea.plotWidth &&
+    y >= positionArea.plotY &&
+    y <= positionArea.plotY + positionArea.plotHeight
+  ) {
+    const hoverTime = clamp(((x - positionArea.plotX) / positionArea.plotWidth) * GRAPH_TIME_MAX, 0, getDuration());
+    const motion = evaluateMotion(hoverTime);
+    simulation.hoverActive = true;
+    simulation.hoverTime = hoverTime;
+
+    dom.graphTooltip.style.display = 'block';
+    dom.graphTooltip.style.left = `${x}px`;
+    dom.graphTooltip.style.top = `${y}px`;
+    dom.graphTooltip.innerHTML = `접선 시각 <strong>${formatNumber(hoverTime)} s</strong><br>위치 ${formatSigned(motion.s)} m<br>순간 속도 ${formatSigned(motion.v)} m/s`;
+  } else {
+    simulation.hoverActive = false;
+    simulation.hoverTime = null;
+    dom.graphTooltip.style.display = 'none';
+  }
+}
+
+dom.graphCanvas.addEventListener('mousemove', handleGraphPointer);
+dom.graphCanvas.addEventListener('mouseleave', () => {
+  simulation.hoverActive = false;
+  simulation.hoverTime = null;
+  dom.graphTooltip.style.display = 'none';
+});
+
+window.addEventListener('resize', () => {
+  resizeCanvases();
+  drawGraphs();
+});
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const deltaTime = Math.min((now - simulation.lastFrame) / 1000, 0.04);
+  simulation.lastFrame = now;
+
+  if (simulation.running && !simulation.paused) {
+    simulation.time += deltaTime;
+    simulation.trailAccumulator += deltaTime;
+
+    if (simulation.trailAccumulator >= TRAIL_INTERVAL) {
+      addTrailGhost(evaluateMotion(simulation.time));
+      simulation.trailAccumulator = 0;
+    }
+
+    if (simulation.time >= getDuration()) {
+      simulation.time = getDuration();
+      simulation.running = false;
+      simulation.completed = true;
+      setStatus('완료', 'done');
+    }
+  }
+
+  if (!controlState.showTrail && trailGroup.children.length) {
+    clearTrails();
+  }
+
+  updateSceneVisuals(deltaTime);
+  drawGraphs();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+syncScenarioText();
+updateModeVisibility();
+resizeCanvases();
+resetSimulation();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

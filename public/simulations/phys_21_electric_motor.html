@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전동기 원리 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel-bg: rgba(16, 19, 36, 0.8);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-main: #f6f7ff;
+    --shadow: 0 18px 48px rgba(7, 9, 22, 0.34);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 18%, rgba(102, 184, 255, 0.16), transparent 22%),
+      radial-gradient(circle at 78% 14%, rgba(255, 123, 123, 0.18), transparent 20%),
+      linear-gradient(180deg, #21253f 0%, #181a2e 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px;
+    max-width: min(92vw, 620px);
+    padding: 12px 20px 14px;
+    border-radius: 22px;
+    text-align: center;
+    z-index: 24;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: rgba(246, 247, 255, 0.55);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(246, 247, 255, 0.64);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(14, 18, 35, 0.92);
+    color: #ffffff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(6, 8, 18, 0.28);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 14px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: 76vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    z-index: 39;
+    display: none;
+    line-height: 1.76;
+    font-size: 12px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #ffffff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #a8d8ff;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(246, 247, 255, 0.62);
+    font-size: 11px;
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 320px;
+    max-width: min(88vw, 780px);
+    padding: 12px 18px;
+    border-radius: 20px;
+    z-index: 23;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  #status-chip .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(246, 247, 255, 0.76);
+  }
+
+  #mode-panel {
+    position: fixed;
+    top: 144px;
+    right: 14px;
+    width: min(330px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 22px;
+    z-index: 22;
+    pointer-events: none;
+  }
+
+  #mode-panel h2 {
+    font-size: 15px;
+    color: #ffffff;
+  }
+
+  #mode-panel .subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(246, 247, 255, 0.72);
+  }
+
+  #mode-cards {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mode-card {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .mode-card.active {
+    transform: translateX(-4px);
+    background: rgba(102, 184, 255, 0.14);
+    border-color: rgba(102, 184, 255, 0.44);
+  }
+
+  .mode-card strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .mode-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(246, 247, 255, 0.68);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(388px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    z-index: 24;
+    font-size: 12px;
+    line-height: 1.74;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 106px;
+    flex-shrink: 0;
+    color: rgba(246, 247, 255, 0.58);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(246, 247, 255, 0.98);
+  }
+
+  .concept-box {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(246, 247, 255, 0.84);
+  }
+
+  .concept-box strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #ffffff;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #energy-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    width: min(392px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 24px;
+    z-index: 24;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #energy-panel.hidden {
+    display: none;
+  }
+
+  #energy-panel h3 {
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  #energy-chain {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 214, 92, 0.12);
+    color: #ffe7a6;
+    font-weight: 700;
+  }
+
+  #energy-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(116, 224, 184, 0.12);
+    color: rgba(238, 255, 248, 0.9);
+  }
+
+  #applications {
+    margin-top: 12px;
+  }
+
+  #applications.hidden {
+    display: none;
+  }
+
+  #applications h4 {
+    font-size: 13px;
+    color: #ffffff;
+  }
+
+  #application-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .app-card {
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .app-card.active {
+    background: rgba(255, 123, 123, 0.13);
+    border-color: rgba(255, 123, 123, 0.4);
+    transform: translateY(-2px);
+  }
+
+  .app-card strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .app-card span {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: rgba(246, 247, 255, 0.72);
+  }
+
+  .lil-gui {
+    z-index: 50 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 980px) {
+    #mode-panel {
+      top: auto;
+      bottom: 224px;
+      width: calc(100vw - 28px);
+    }
+
+    #energy-panel {
+      left: 14px;
+      width: calc(100vw - 28px);
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      max-width: calc(100vw - 124px);
+      min-width: 0;
+      padding: 10px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #status-chip {
+      min-width: 0;
+      width: calc(100vw - 36px);
+    }
+
+    #application-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui {
+      max-height: 42vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Physics II</div>
+  <h1>전동기 원리</h1>
+  <p>물리학 II · II. 전기와 자기 · 전류가 자기장에서 받는 힘과 에너지 전환</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>자기장 속에서 전류가 흐르는 도선은 힘을 받습니다. 전동기는 이 원리를 이용하여 코일이 회전하도록 하며, 정류자가 반 바퀴마다 전류 방향을 바꿔 연속 회전을 가능하게 합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>전동기에서 정류자의 역할은 무엇인가요? 정류자가 없으면 코일은 어떻게 움직일까요?</li>
+    <li>전동기의 회전 속도를 빠르게 하려면 전류와 자기장 중 어떤 물리량을 키워야 할까요?</li>
+    <li>전동기와 발전기는 에너지 전환 방향이 서로 반대입니다. 두 장치를 비교해 설명해 보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li><strong>선풍기</strong>: 회전하는 날개로 공기를 밀어 바람을 만듭니다.</li>
+    <li><strong>전기차</strong>: 배터리 전기 에너지를 바퀴의 회전 운동으로 바꿉니다.</li>
+    <li><strong>세탁기</strong>: 모터가 드럼을 회전시켜 세탁물을 움직입니다.</li>
+    <li><strong>엘리베이터</strong>: 권상기를 돌려 케이블과 도르래를 움직입니다.</li>
+    <li><strong>전동 드릴</strong>: 빠른 회전으로 나사를 조이거나 구멍을 뚫습니다.</li>
+  </ul>
+
+  <h4>관찰 포인트</h4>
+  <ul>
+    <li>직선 도선 모드에서는 전류 방향을 바꾸면 힘의 방향도 즉시 바뀝니다.</li>
+    <li>전동기 모드에서는 코일 양쪽에 반대 방향 힘이 작용해 돌림힘이 생깁니다.</li>
+    <li>정류자는 반 바퀴마다 코일 내부 전류 방향을 바꿔 계속 같은 방향 회전을 유지하게 합니다.</li>
+  </ul>
+
+  <div class="textbook-ref">교과서 연계: 물리학 II p104~111 — 전류가 자기장에서 받는 힘, 플레밍 왼손 법칙, 전동기의 원리</div>
+</div>
+
+<div id="status-chip" class="glass">
+  <div class="title" id="status-title">직선 도선이 자기장에서 힘을 받는 중</div>
+  <div class="body" id="status-body">자기장 방향과 전류 방향이 수직이면, 도선은 두 방향 모두에 수직인 방향으로 밀립니다.</div>
+</div>
+
+<div id="mode-panel" class="glass">
+  <h2>모드 개요</h2>
+  <div class="subtitle" id="mode-summary">직선 도선의 힘과 DC 모터의 연속 회전을 한 장면에서 비교하세요.</div>
+  <div id="mode-cards">
+    <div class="mode-card active" data-mode="직선 도선의 힘">
+      <strong>직선 도선의 힘</strong>
+      <span>균일 자기장 속 직선 도선에서 전류 방향과 힘 방향의 관계를 직접 확인합니다.</span>
+    </div>
+    <div class="mode-card" data-mode="전동기(DC모터)">
+      <strong>전동기(DC모터)</strong>
+      <span>코일, 정류자, 브러시가 함께 작동하며 전기 에너지가 회전 운동으로 바뀝니다.</span>
+    </div>
+  </div>
+</div>
+
+<div id="formula-panel" class="glass">
+  <h3>⚙️ 전동기 원리</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 모드</span><span class="value" id="fp-mode">직선 도선의 힘</span></div>
+  <div class="info-row"><span class="label">전류 I</span><span class="value mono" id="fp-current">2.0 A</span></div>
+  <div class="info-row"><span class="label">자기장 B</span><span class="value mono" id="fp-field">0.50 T</span></div>
+  <div class="info-row"><span class="label">힘 F = BIL</span><span class="value mono" id="fp-force">1.80 N</span></div>
+  <div class="info-row"><span class="label">힘 방향</span><span class="value" id="fp-direction">화면 안쪽</span></div>
+  <div class="info-row"><span class="label">운동 상태</span><span class="value" id="fp-motion">도선이 힘 방향으로 이동</span></div>
+
+  <div class="concept-box" id="fp-concept">
+    <strong>플레밍 왼손 법칙</strong>
+    검지는 자기장 B, 중지는 전류 I, 엄지는 힘 F의 방향을 나타냅니다.
+  </div>
+
+  <div class="concept-box" id="fp-energy-text">
+    <strong>에너지 전환</strong>
+    전기 에너지 → 도선의 운동 에너지
+  </div>
+</div>
+
+<div id="energy-panel" class="glass">
+  <h3>에너지 전환 경로</h3>
+  <div id="energy-chain">전기 에너지 → 자기장 속 힘 → 코일 회전 → 운동 에너지 + 열에너지(마찰)</div>
+  <div id="energy-note">정류자가 반 바퀴마다 전류 방향을 바꾸기 때문에 코일은 같은 방향으로 계속 회전할 수 있습니다.</div>
+
+  <div id="applications" class="hidden">
+    <h4>실생활 전동기 응용</h4>
+    <div id="application-grid">
+      <div class="app-card" data-app="fan">
+        <strong>선풍기</strong>
+        <span>전동기 축이 날개를 돌려 공기를 밀어냅니다.</span>
+      </div>
+      <div class="app-card" data-app="ev">
+        <strong>전기차</strong>
+        <span>배터리 전기가 바퀴의 회전 운동으로 전환됩니다.</span>
+      </div>
+      <div class="app-card" data-app="washer">
+        <strong>세탁기</strong>
+        <span>드럼을 반복 회전시켜 세탁물을 섞어 줍니다.</span>
+      </div>
+      <div class="app-card" data-app="elevator">
+        <strong>엘리베이터</strong>
+        <span>권상기를 회전시켜 케이블과 도르래를 움직입니다.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MODES = {
+  WIRE: '직선 도선의 힘',
+  MOTOR: '전동기(DC모터)'
+};
+
+const CURRENT_DIRECTIONS = ['정방향', '역방향'];
+const WIRE_LENGTH_METERS = 1.8;
+
+const canvas = document.getElementById('scene-canvas');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const modeSummaryEl = document.getElementById('mode-summary');
+const formulaModeEl = document.getElementById('fp-mode');
+const formulaCurrentEl = document.getElementById('fp-current');
+const formulaFieldEl = document.getElementById('fp-field');
+const formulaForceEl = document.getElementById('fp-force');
+const formulaDirectionEl = document.getElementById('fp-direction');
+const formulaMotionEl = document.getElementById('fp-motion');
+const formulaConceptEl = document.getElementById('fp-concept');
+const formulaEnergyEl = document.getElementById('fp-energy-text');
+const energyPanelEl = document.getElementById('energy-panel');
+const energyChainEl = document.getElementById('energy-chain');
+const energyNoteEl = document.getElementById('energy-note');
+const applicationsEl = document.getElementById('applications');
+const appCards = [...document.querySelectorAll('.app-card')];
+const modeCards = [...document.querySelectorAll('.mode-card')];
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(10.4, 6.2, 11.6);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0.4, 0);
+controls.minDistance = 7;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(6, 9, 8);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -16;
+directionalLight.shadow.camera.right = 16;
+directionalLight.shadow.camera.top = 16;
+directionalLight.shadow.camera.bottom = -16;
+directionalLight.shadow.camera.near = 1;
+directionalLight.shadow.camera.far = 40;
+directionalLight.shadow.bias = -0.00005;
+scene.add(directionalLight);
+
+const rimLight = new THREE.PointLight(0x5b8cff, 0.7, 22);
+rimLight.position.set(-7, 3, 6);
+scene.add(rimLight);
+
+const copperMaterial = new THREE.MeshStandardMaterial({
+  color: 0xd28645,
+  roughness: 0.32,
+  metalness: 0.55
+});
+
+const materials = {
+  floor: new THREE.MeshStandardMaterial({ color: 0x242640, roughness: 0.95, metalness: 0.03 }),
+  stand: new THREE.MeshStandardMaterial({ color: 0x2b3158, roughness: 0.65, metalness: 0.2 }),
+  leftMagnet: new THREE.MeshStandardMaterial({ color: 0xff6f7f, roughness: 0.35, metalness: 0.12 }),
+  rightMagnet: new THREE.MeshStandardMaterial({ color: 0x4ea4ff, roughness: 0.35, metalness: 0.12 }),
+  pole: new THREE.MeshStandardMaterial({ color: 0xd8dde7, roughness: 0.18, metalness: 0.86 }),
+  wire: copperMaterial,
+  shaft: new THREE.MeshStandardMaterial({ color: 0xaeb5c6, roughness: 0.26, metalness: 0.78 }),
+  brush: new THREE.MeshStandardMaterial({ color: 0x2d2f39, roughness: 0.82, metalness: 0.08 }),
+  battery: new THREE.MeshStandardMaterial({ color: 0x434a6f, roughness: 0.52, metalness: 0.15 }),
+  batteryCap: new THREE.MeshStandardMaterial({ color: 0xe8edf7, roughness: 0.2, metalness: 0.72 }),
+  positiveCap: new THREE.MeshStandardMaterial({ color: 0xff7b7b, roughness: 0.2, metalness: 0.7 }),
+  negativeCap: new THREE.MeshStandardMaterial({ color: 0x6aaeff, roughness: 0.2, metalness: 0.7 }),
+  currentParticle: new THREE.MeshStandardMaterial({
+    color: 0xffd65c,
+    emissive: 0xffd65c,
+    emissiveIntensity: 0.7,
+    roughness: 0.25,
+    metalness: 0.05
+  }),
+  commutator: new THREE.MeshStandardMaterial({
+    color: 0xf0bf61,
+    emissive: 0x5e3d00,
+    emissiveIntensity: 0.08,
+    roughness: 0.28,
+    metalness: 0.72
+  }),
+  glass: new THREE.MeshStandardMaterial({
+    color: 0x6ac8ff,
+    transparent: true,
+    opacity: 0.12,
+    roughness: 0.1,
+    metalness: 0.02
+  })
+};
+
+const sharedMaterials = new Set(Object.values(materials));
+let guiInstance = null;
+
+const params = {
+  mode: MODES.WIRE,
+  current: 2,
+  field: 0.5,
+  currentDirection: '정방향',
+  speed: 1,
+  showLeftHand: true,
+  showEnergy: true,
+  showApplications: false,
+  reset: () => resetSimulation()
+};
+
+const state = {
+  guideOpen: false,
+  elapsed: 0,
+  enteredModeAt: 0,
+  wireOffset: 0,
+  motorAngle: 0,
+  modeRoot: null,
+  modeData: null
+};
+
+const clock = new THREE.Clock();
+
+buildStaticScene();
+buildGui();
+rebuildModeScene();
+updateOverlay();
+updateVisibility();
+animate();
+
+guideToggleEl.addEventListener('click', () => {
+  state.guideOpen = !state.guideOpen;
+  guidePanelEl.classList.toggle('open', state.guideOpen);
+  guideToggleEl.textContent = state.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+window.addEventListener('resize', onResize);
+
+function buildStaticScene() {
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), materials.floor);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -4;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 7.2, 0.44, 56), materials.stand);
+  base.position.set(0, -3.78, 0);
+  base.receiveShadow = true;
+  scene.add(base);
+
+  const baseRing = new THREE.Mesh(
+    new THREE.TorusGeometry(5.6, 0.06, 14, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0x4b5e9b,
+      emissive: 0x22315d,
+      emissiveIntensity: 0.35,
+      roughness: 0.22,
+      metalness: 0.12
+    })
+  );
+  baseRing.rotation.x = Math.PI / 2;
+  baseRing.position.y = -3.54;
+  scene.add(baseRing);
+
+  const grid = new THREE.GridHelper(20, 20, 0x48507d, 0x2d3257);
+  grid.position.y = -3.99;
+  (Array.isArray(grid.material) ? grid.material : [grid.material]).forEach((material) => {
+    material.opacity = 0.25;
+    material.transparent = true;
+  });
+  scene.add(grid);
+
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(5.1, 48), materials.glass);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = -3.75;
+  scene.add(glow);
+}
+
+function buildGui() {
+  const gui = new GUI({ title: '컨트롤' });
+  guiInstance = gui;
+  gui.add(params, 'mode', Object.values(MODES)).name('모드').onChange(() => {
+    rebuildModeScene();
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  });
+  gui.add(params, 'current', 0.5, 5, 0.1).name('전류 I (A)');
+  gui.add(params, 'field', 0.1, 1, 0.05).name('자기장 B (T)');
+  gui.add(params, 'currentDirection', CURRENT_DIRECTIONS).name('전류 방향').onChange(() => {
+    if (params.mode === MODES.MOTOR) {
+      state.enteredModeAt = state.elapsed;
+    }
+  });
+  gui.add(params, 'speed', 0.5, 3, 0.1).name('재생 속도');
+  gui.add(params, 'showLeftHand').name('왼손 법칙 안내').onChange(() => updateVisibility());
+  gui.add(params, 'showEnergy').name('에너지 전환 표시').onChange(() => updateVisibility());
+  gui.add(params, 'showApplications').name('실생활 응용').onChange(() => updateVisibility());
+  gui.add(params, 'reset').name('초기화');
+  gui.close();
+}
+
+function rebuildModeScene() {
+  if (state.modeRoot) {
+    disposeHierarchy(state.modeRoot);
+    scene.remove(state.modeRoot);
+  }
+
+  state.enteredModeAt = state.elapsed;
+  state.wireOffset = 0;
+  state.motorAngle = 0;
+
+  const root = new THREE.Group();
+  scene.add(root);
+  state.modeRoot = root;
+  state.modeData = params.mode === MODES.WIRE ? buildWireMode(root) : buildMotorMode(root);
+
+  modeCards.forEach((card) => {
+    card.classList.toggle('active', card.dataset.mode === params.mode);
+  });
+
+  updateVisibility();
+  updateOverlay();
+}
+
+function buildWireMode(root) {
+  const data = {
+    kind: 'wire',
+    fieldArrows: [],
+    particles: [],
+    wireCarrier: new THREE.Group(),
+    forceArrow: new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 1, 0xff7b7b, 0.22, 0.14),
+    leftHand: null,
+    motionGuide: null
+  };
+
+  const leftMagnet = createMagnet({
+    material: materials.leftMagnet,
+    label: 'N',
+    position: [-4.35, 0.1, 0]
+  });
+  const rightMagnet = createMagnet({
+    material: materials.rightMagnet,
+    label: 'S',
+    position: [4.35, 0.1, 0]
+  });
+  root.add(leftMagnet, rightMagnet);
+
+  [-1.25, -0.45, 0.35, 1.15].forEach((y) => {
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(-2.2, y, 0), 3.9, 0x66b8ff, 0.22, 0.12);
+    root.add(arrow);
+    data.fieldArrows.push(arrow);
+  });
+
+  const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.8, 28), materials.wire);
+  wire.castShadow = true;
+  wire.receiveShadow = true;
+  data.wireCarrier.add(wire);
+
+  const wireLabel = createTextSprite('직선 도선', {
+    textColor: '#fff2d0',
+    background: 'rgba(26, 26, 46, 0.72)',
+    border: 'rgba(255, 214, 92, 0.28)',
+    scale: [1.3, 0.38]
+  });
+  wireLabel.position.set(0.88, 2.3, 0);
+  data.wireCarrier.add(wireLabel);
+
+  const particleGeometry = new THREE.SphereGeometry(0.09, 18, 18);
+  for (let index = 0; index < 9; index += 1) {
+    const particle = new THREE.Mesh(particleGeometry, materials.currentParticle.clone());
+    particle.castShadow = true;
+    data.wireCarrier.add(particle);
+    data.particles.push(particle);
+  }
+
+  data.wireCarrier.add(data.forceArrow);
+  root.add(data.wireCarrier);
+
+  const leftHand = createLeftHandGuide();
+  leftHand.position.set(-5.2, -1.95, 2.1);
+  leftHand.rotation.y = Math.PI * 0.06;
+  root.add(leftHand);
+  data.leftHand = leftHand;
+
+  const motionGuide = createArrowBridge('힘 방향', 0xff7b7b);
+  motionGuide.position.set(0, 0, 2.2);
+  root.add(motionGuide);
+  data.motionGuide = motionGuide;
+
+  return data;
+}
+
+function buildMotorMode(root) {
+  const data = {
+    kind: 'motor',
+    fieldArrows: [],
+    rotorPivot: new THREE.Group(),
+    commutatorParts: [],
+    currentParticles: [],
+    forceArrows: {
+      left: new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 1, 0xff7b7b, 0.22, 0.14),
+      right: new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), new THREE.Vector3(), 1, 0xff7b7b, 0.22, 0.14)
+    },
+    leftSideRadius: 1.55,
+    coilDepth: 1.2,
+    brushLeft: new THREE.Vector3(-0.72, 0, 2.42),
+    brushRight: new THREE.Vector3(0.72, 0, 2.42),
+    batteryLeft: new THREE.Vector3(-0.85, -3.0, 1.4),
+    batteryRight: new THREE.Vector3(0.85, -3.0, 1.4)
+  };
+
+  const leftMagnet = createMotorMagnet({
+    position: [-4.2, 0, 0],
+    mainMaterial: materials.leftMagnet,
+    poleOffset: 1.55,
+    label: 'N'
+  });
+  const rightMagnet = createMotorMagnet({
+    position: [4.2, 0, 0],
+    mainMaterial: materials.rightMagnet,
+    poleOffset: -1.55,
+    label: 'S'
+  });
+  root.add(leftMagnet, rightMagnet);
+
+  [-1.5, -0.55, 0.55, 1.5].forEach((y) => {
+    [-0.55, 0.55].forEach((z) => {
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(-2.35, y, z), 4.5, 0x66b8ff, 0.22, 0.12);
+      root.add(arrow);
+      data.fieldArrows.push(arrow);
+    });
+  });
+
+  const brushGeometry = new THREE.BoxGeometry(0.24, 0.48, 0.26);
+  const brushLeftMesh = new THREE.Mesh(brushGeometry, materials.brush);
+  brushLeftMesh.position.copy(data.brushLeft);
+  brushLeftMesh.castShadow = true;
+  const brushRightMesh = brushLeftMesh.clone();
+  brushRightMesh.position.copy(data.brushRight);
+  root.add(brushLeftMesh, brushRightMesh);
+
+  const brushLeftLabel = createTextSprite('브러시', {
+    textColor: '#ffffff',
+    background: 'rgba(28, 32, 52, 0.74)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.95, 0.3]
+  });
+  brushLeftLabel.position.copy(data.brushLeft).add(new THREE.Vector3(0, 0.55, 0));
+  root.add(brushLeftLabel);
+
+  const battery = buildBattery();
+  battery.position.set(0, -3.05, 1.3);
+  root.add(battery);
+
+  const leftLead = buildLeadTube([
+    data.batteryLeft,
+    new THREE.Vector3(-1.42, -2.2, 1.75),
+    new THREE.Vector3(-1.16, -0.9, 2.1),
+    data.brushLeft
+  ]);
+  const rightLead = buildLeadTube([
+    data.brushRight,
+    new THREE.Vector3(1.18, -0.9, 2.1),
+    new THREE.Vector3(1.42, -2.2, 1.75),
+    data.batteryRight
+  ]);
+  root.add(leftLead, rightLead);
+
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.8, 28), materials.shaft);
+  axle.rotation.x = Math.PI / 2;
+  axle.castShadow = true;
+  axle.receiveShadow = true;
+  data.rotorPivot.add(axle);
+
+  const leftSide = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.4, 18), materials.wire);
+  leftSide.rotation.x = Math.PI / 2;
+  leftSide.position.set(-data.leftSideRadius, 0, 0);
+  leftSide.castShadow = true;
+  data.rotorPivot.add(leftSide);
+
+  const rightSide = leftSide.clone();
+  rightSide.position.x = data.leftSideRadius;
+  data.rotorPivot.add(rightSide);
+
+  const frontConnector = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, data.leftSideRadius * 2, 18), materials.wire);
+  frontConnector.rotation.z = Math.PI / 2;
+  frontConnector.position.set(0, 0, data.coilDepth);
+  frontConnector.castShadow = true;
+  data.rotorPivot.add(frontConnector);
+
+  const backConnector = frontConnector.clone();
+  backConnector.position.z = -data.coilDepth;
+  data.rotorPivot.add(backConnector);
+
+  const rotorLabel = createTextSprite('회전 코일', {
+    textColor: '#fff2d0',
+    background: 'rgba(28, 32, 52, 0.74)',
+    border: 'rgba(255, 214, 92, 0.18)',
+    scale: [1.2, 0.34]
+  });
+  rotorLabel.position.set(0, 2.05, 0);
+  data.rotorPivot.add(rotorLabel);
+
+  const commutatorA = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.38, 0.38, 0.52, 32, 1, false, 0.22, Math.PI - 0.44),
+    materials.commutator.clone()
+  );
+  commutatorA.rotation.x = Math.PI / 2;
+  commutatorA.position.z = 2.32;
+  data.rotorPivot.add(commutatorA);
+
+  const commutatorB = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.38, 0.38, 0.52, 32, 1, false, Math.PI + 0.22, Math.PI - 0.44),
+    materials.commutator.clone()
+  );
+  commutatorB.rotation.x = Math.PI / 2;
+  commutatorB.position.z = 2.32;
+  data.rotorPivot.add(commutatorB);
+  data.commutatorParts.push(commutatorA, commutatorB);
+
+  const commutatorLabel = createTextSprite('정류자', {
+    textColor: '#ffffff',
+    background: 'rgba(28, 32, 52, 0.74)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.9, 0.3]
+  });
+  commutatorLabel.position.set(0, -0.8, 2.55);
+  data.rotorPivot.add(commutatorLabel);
+
+  const particleGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+  for (let index = 0; index < 12; index += 1) {
+    const particle = new THREE.Mesh(particleGeometry, materials.currentParticle.clone());
+    particle.castShadow = true;
+    root.add(particle);
+    data.currentParticles.push(particle);
+  }
+
+  root.add(data.rotorPivot);
+  root.add(data.forceArrows.left, data.forceArrows.right);
+  return data;
+}
+
+function createMagnet({ material, label, position }) {
+  const group = new THREE.Group();
+  group.position.set(...position);
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 3.8, 2), material);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const pole = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.8, 1.3), materials.pole);
+  pole.position.x = position[0] < 0 ? 1.15 : -1.15;
+  pole.castShadow = true;
+  pole.receiveShadow = true;
+  group.add(pole);
+
+  const labelSprite = createTextSprite(label, {
+    textColor: '#ffffff',
+    background: position[0] < 0 ? 'rgba(255,111,127,0.68)' : 'rgba(78,164,255,0.7)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.68, 0.4]
+  });
+  labelSprite.position.set(position[0] < 0 ? 0.76 : -0.76, 1.55, 1.08);
+  group.add(labelSprite);
+  return group;
+}
+
+function createMotorMagnet({ position, mainMaterial, poleOffset, label }) {
+  const group = new THREE.Group();
+  group.position.set(...position);
+
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(1.55, 4.4, 3.2), mainMaterial);
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  group.add(shell);
+
+  const pole = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.2, 2.2), materials.pole);
+  pole.position.x = poleOffset;
+  pole.castShadow = true;
+  group.add(pole);
+
+  const labelSprite = createTextSprite(label, {
+    textColor: '#ffffff',
+    background: label === 'N' ? 'rgba(255,111,127,0.7)' : 'rgba(78,164,255,0.7)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.72, 0.42]
+  });
+  labelSprite.position.set(poleOffset, 1.84, 1.45);
+  group.add(labelSprite);
+  return group;
+}
+
+function buildBattery() {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.95, 0.9), materials.battery);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.12, 0.98), materials.batteryCap);
+  cap.position.y = 0.54;
+  cap.castShadow = true;
+  group.add(cap);
+
+  const plusCap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.14, 18), materials.positiveCap);
+  plusCap.position.set(-0.8, 0.68, 0);
+  group.add(plusCap);
+
+  const minusCap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.08, 18), materials.negativeCap);
+  minusCap.position.set(0.8, 0.65, 0);
+  group.add(minusCap);
+
+  const plusLabel = createTextSprite('+', {
+    textColor: '#fff',
+    background: 'rgba(255,123,123,0.72)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.44, 0.28]
+  });
+  plusLabel.position.set(-0.8, 1.05, 0.44);
+  group.add(plusLabel);
+
+  const minusLabel = createTextSprite('-', {
+    textColor: '#fff',
+    background: 'rgba(102,184,255,0.72)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.44, 0.28]
+  });
+  minusLabel.position.set(0.8, 1.05, 0.44);
+  group.add(minusLabel);
+
+  return group;
+}
+
+function buildLeadTube(points) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geometry = new THREE.TubeGeometry(curve, 48, 0.045, 10, false);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x8a90aa,
+    roughness: 0.52,
+    metalness: 0.18
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function createLeftHandGuide() {
+  const group = new THREE.Group();
+
+  const palm = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xeac29b,
+      roughness: 0.7,
+      metalness: 0.02
+    })
+  );
+  palm.scale.set(1.1, 0.95, 0.7);
+  group.add(palm);
+
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.18, 0.76),
+    new THREE.MeshStandardMaterial({
+      color: 0x223056,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.35,
+      metalness: 0.04
+    })
+  );
+  plate.position.set(0, -0.42, 0);
+  group.add(plate);
+
+  const indexArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 1.15, 0x66b8ff, 0.18, 0.12);
+  const middleArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 1.15, 0xffd65c, 0.18, 0.12);
+  const thumbArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 1.15, 0xff7b7b, 0.18, 0.12);
+  group.add(indexArrow, middleArrow, thumbArrow);
+
+  const indexLabel = createTextSprite('B', {
+    textColor: '#ffffff',
+    background: 'rgba(102,184,255,0.78)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.38, 0.28]
+  });
+  const middleLabel = createTextSprite('I', {
+    textColor: '#ffffff',
+    background: 'rgba(255,214,92,0.82)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.38, 0.28]
+  });
+  const thumbLabel = createTextSprite('F', {
+    textColor: '#ffffff',
+    background: 'rgba(255,123,123,0.8)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.38, 0.28]
+  });
+  group.add(indexLabel, middleLabel, thumbLabel);
+
+  group.userData = {
+    indexArrow,
+    middleArrow,
+    thumbArrow,
+    indexLabel,
+    middleLabel,
+    thumbLabel
+  };
+
+  return group;
+}
+
+function createArrowBridge(label, color) {
+  const group = new THREE.Group();
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 1, color, 0.22, 0.14);
+  group.add(arrow);
+
+  const labelSprite = createTextSprite(label, {
+    textColor: '#ffffff',
+    background: 'rgba(26, 26, 46, 0.72)',
+    border: 'rgba(255,255,255,0.16)',
+    scale: [0.95, 0.3]
+  });
+  labelSprite.position.set(0.7, 0.3, 0);
+  group.add(labelSprite);
+  group.userData = { arrow };
+  return group;
+}
+
+function updateWireMode(data, delta) {
+  const currentSign = params.currentDirection === '정방향' ? 1 : -1;
+  const forceSign = currentSign === 1 ? -1 : 1;
+  const force = params.field * params.current * WIRE_LENGTH_METERS;
+  const targetOffset = THREE.MathUtils.clamp(force * 0.28, 0, 1.5) * forceSign;
+
+  state.wireOffset = THREE.MathUtils.lerp(state.wireOffset, targetOffset, 1 - Math.exp(-delta * 4.2));
+  data.wireCarrier.position.z = state.wireOffset;
+
+  const arrowLength = 0.65 + force * 0.4;
+  data.forceArrow.setDirection(new THREE.Vector3(0, 0, forceSign));
+  data.forceArrow.setLength(arrowLength, 0.24, 0.14);
+
+  data.motionGuide.userData.arrow.setDirection(new THREE.Vector3(0, 0, forceSign));
+  data.motionGuide.userData.arrow.setLength(1.15 + force * 0.18, 0.2, 0.1);
+
+  const particleTravel = state.elapsed * (0.9 + params.current * 0.45) * params.speed * currentSign;
+  data.particles.forEach((particle, index) => {
+    const normalized = (particleTravel * 0.2 + index / data.particles.length) % 1;
+    const loop = normalized < 0 ? normalized + 1 : normalized;
+    particle.position.set(0, THREE.MathUtils.lerp(-2.08, 2.08, loop), 0);
+    particle.material.emissiveIntensity = 0.45 + 0.35 * Math.sin(state.elapsed * 6 + index);
+  });
+
+  data.fieldArrows.forEach((arrow) => {
+    arrow.setLength(2.9 + params.field * 2.2, 0.2, 0.11);
+  });
+
+  updateLeftHandGuide(data.leftHand, currentSign, forceSign);
+}
+
+function updateMotorMode(data, delta) {
+  const directionSign = params.currentDirection === '정방향' ? 1 : -1;
+  const angularSpeed = (0.6 + params.current * params.field * 0.72) * params.speed;
+  state.motorAngle += directionSign * angularSpeed * delta;
+  data.rotorPivot.rotation.z = state.motorAngle;
+  data.rotorPivot.updateMatrixWorld(true);
+
+  const commutatorSign = Math.cos(state.motorAngle) >= 0 ? 1 : -1;
+  const effectiveCurrentSign = directionSign * commutatorSign;
+
+  const leftOrigin = data.rotorPivot.localToWorld(new THREE.Vector3(-data.leftSideRadius, 0, 0));
+  const rightOrigin = data.rotorPivot.localToWorld(new THREE.Vector3(data.leftSideRadius, 0, 0));
+
+  const leftCurrentDir = new THREE.Vector3(0, 0, -1 * effectiveCurrentSign);
+  const rightCurrentDir = new THREE.Vector3(0, 0, effectiveCurrentSign);
+  const fieldDir = new THREE.Vector3(1, 0, 0);
+  const leftForceDir = leftCurrentDir.clone().cross(fieldDir).normalize();
+  const rightForceDir = rightCurrentDir.clone().cross(fieldDir).normalize();
+
+  const sideForce = params.field * params.current * 1.5;
+  const arrowLength = 0.7 + sideForce * 0.42;
+
+  data.forceArrows.left.position.copy(leftOrigin);
+  data.forceArrows.left.setDirection(leftForceDir);
+  data.forceArrows.left.setLength(arrowLength, 0.22, 0.14);
+
+  data.forceArrows.right.position.copy(rightOrigin);
+  data.forceArrows.right.setDirection(rightForceDir);
+  data.forceArrows.right.setLength(arrowLength, 0.22, 0.14);
+
+  data.fieldArrows.forEach((arrow) => {
+    arrow.setLength(3.4 + params.field * 2.2, 0.2, 0.11);
+  });
+
+  const switchPulse = Math.max(0, 1 - Math.abs(Math.cos(state.motorAngle)) / 0.18);
+  data.commutatorParts.forEach((part, index) => {
+    part.material.emissiveIntensity = 0.08 + switchPulse * (index === 0 ? 0.65 : 0.5);
+  });
+
+  const pathPoints = getMotorCurrentPath(data);
+  const flowSpeed = (1.1 + params.current * 0.35) * params.speed * directionSign;
+  updateParticlesOnPolyline(data.currentParticles, pathPoints, flowSpeed);
+}
+
+function getMotorCurrentPath(data) {
+  const leftFront = data.rotorPivot.localToWorld(new THREE.Vector3(-data.leftSideRadius, 0, data.coilDepth));
+  const leftBack = data.rotorPivot.localToWorld(new THREE.Vector3(-data.leftSideRadius, 0, -data.coilDepth));
+  const rightBack = data.rotorPivot.localToWorld(new THREE.Vector3(data.leftSideRadius, 0, -data.coilDepth));
+  const rightFront = data.rotorPivot.localToWorld(new THREE.Vector3(data.leftSideRadius, 0, data.coilDepth));
+
+  const points = [
+    data.batteryLeft.clone(),
+    new THREE.Vector3(-1.42, -2.2, 1.75),
+    new THREE.Vector3(-1.0, -0.95, 2.02),
+    data.brushLeft.clone(),
+    leftFront,
+    leftBack,
+    rightBack,
+    rightFront,
+    data.brushRight.clone(),
+    new THREE.Vector3(1.0, -0.95, 2.02),
+    new THREE.Vector3(1.42, -2.2, 1.75),
+    data.batteryRight.clone()
+  ];
+
+  if (params.currentDirection === '역방향') {
+    points.reverse();
+  }
+
+  return points;
+}
+
+function updateParticlesOnPolyline(particles, points, speed) {
+  const segments = [];
+  let totalLength = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const length = start.distanceTo(end);
+    segments.push({ start, end, length });
+    totalLength += length;
+  }
+
+  if (totalLength <= 0.0001) {
+    return;
+  }
+
+  particles.forEach((particle, index) => {
+    let distance = ((state.elapsed * speed) + (index / particles.length) * totalLength) % totalLength;
+    if (distance < 0) {
+      distance += totalLength;
+    }
+
+    let traveled = 0;
+    for (const segment of segments) {
+      if (distance <= traveled + segment.length || segment === segments[segments.length - 1]) {
+        const local = segment.length > 0 ? (distance - traveled) / segment.length : 0;
+        particle.position.copy(segment.start).lerp(segment.end, local);
+        particle.material.emissiveIntensity = 0.48 + 0.34 * Math.sin(state.elapsed * 7 + index * 1.2);
+        break;
+      }
+      traveled += segment.length;
+    }
+  });
+}
+
+function updateLeftHandGuide(group, currentSign, forceSign) {
+  const { indexArrow, middleArrow, thumbArrow, indexLabel, middleLabel, thumbLabel } = group.userData;
+
+  indexArrow.setDirection(new THREE.Vector3(1, 0, 0));
+  indexArrow.setLength(1.05, 0.18, 0.11);
+  middleArrow.setDirection(new THREE.Vector3(0, currentSign, 0));
+  middleArrow.setLength(1.05, 0.18, 0.11);
+  thumbArrow.setDirection(new THREE.Vector3(0, 0, forceSign));
+  thumbArrow.setLength(1.05, 0.18, 0.11);
+
+  indexLabel.position.set(1.2, 0, 0);
+  middleLabel.position.set(0, 1.2 * currentSign, 0);
+  thumbLabel.position.set(0, 0, 1.2 * forceSign);
+}
+
+function updateOverlay() {
+  const force = params.field * params.current * WIRE_LENGTH_METERS;
+  const directionLabel = params.currentDirection === '정방향' ? '정방향' : '역방향';
+
+  formulaModeEl.textContent = params.mode;
+  formulaCurrentEl.textContent = `${params.current.toFixed(1)} A`;
+  formulaFieldEl.textContent = `${params.field.toFixed(2)} T`;
+
+  if (params.mode === MODES.WIRE) {
+    const currentSign = params.currentDirection === '정방향' ? 1 : -1;
+    const forceSign = currentSign === 1 ? -1 : 1;
+    const forceDirectionText = forceSign > 0 ? '화면 바깥쪽' : '화면 안쪽';
+
+    statusTitleEl.textContent = '직선 도선이 자기장에서 힘을 받는 중';
+    statusBodyEl.textContent = `전류 ${directionLabel}, 자기장 오른쪽 방향. 힘 F=${force.toFixed(2)} N가 ${forceDirectionText}으로 작용합니다.`;
+    modeSummaryEl.textContent = '검지(B)와 중지(I)가 정해지면 엄지(F)가 도선이 움직일 방향을 가리킵니다.';
+
+    formulaForceEl.textContent = `${force.toFixed(2)} N`;
+    formulaDirectionEl.textContent = `자기장 → / 전류 ${currentSign > 0 ? '위쪽' : '아래쪽'} / 힘 ${forceDirectionText}`;
+    formulaMotionEl.textContent = '도선이 힘 방향으로 밀려 이동';
+    formulaConceptEl.innerHTML = '<strong>플레밍 왼손 법칙</strong>검지는 자기장 B, 중지는 전류 I, 엄지는 힘 F 방향을 나타냅니다.';
+    formulaEnergyEl.innerHTML = '<strong>에너지 전환</strong>전기 에너지 → 도선의 운동 에너지';
+
+    energyChainEl.textContent = '전기 에너지 → 자기장 속 힘 → 도선의 직선 운동';
+    energyNoteEl.textContent = '전류나 자기장 세기가 커질수록 F = BIL 값이 커져 도선이 더 크게 밀립니다.';
+  } else {
+    const modeAge = state.elapsed - state.enteredModeAt;
+    const switchPulse = Math.max(0, 1 - Math.abs(Math.cos(state.motorAngle)) / 0.18);
+    const commutatorSign = Math.cos(state.motorAngle) >= 0 ? 1 : -1;
+    const effectiveCurrentSign = (params.currentDirection === '정방향' ? 1 : -1) * commutatorSign;
+    const leftForceText = effectiveCurrentSign > 0 ? '아래쪽' : '위쪽';
+    const rightForceText = effectiveCurrentSign > 0 ? '위쪽' : '아래쪽';
+    const rotationText = params.currentDirection === '정방향' ? '반시계 방향' : '시계 방향';
+
+    if (modeAge < 2.2) {
+      statusTitleEl.textContent = '1. 전류가 브러시와 코일로 흐릅니다';
+      statusBodyEl.textContent = '전지에서 나온 전류가 브러시와 정류자를 거쳐 코일로 들어갑니다. 노란 입자가 흐름을 보여 줍니다.';
+    } else if (switchPulse > 0.52) {
+      statusTitleEl.textContent = '3. 정류자가 전류 방향을 전환합니다';
+      statusBodyEl.textContent = '반 바퀴마다 접촉면이 바뀌며 코일 내부 전류가 반전되어, 회전 방향은 유지됩니다.';
+    } else if (modeAge < 4.2) {
+      statusTitleEl.textContent = '2. 코일 양쪽에 반대 방향 힘이 작용합니다';
+      statusBodyEl.textContent = `왼쪽 코일은 ${leftForceText}, 오른쪽 코일은 ${rightForceText}으로 힘을 받아 돌림힘이 생깁니다.`;
+    } else {
+      statusTitleEl.textContent = '4. 전동기가 계속 같은 방향으로 회전합니다';
+      statusBodyEl.textContent = `${rotationText} 회전이 유지되며 전기 에너지가 회전 운동 에너지로 계속 전환됩니다.`;
+    }
+
+    modeSummaryEl.textContent = '코일 양쪽 힘, 정류자의 반전, 연속 회전까지 한 장면에서 이어서 관찰하세요.';
+
+    formulaForceEl.textContent = `${(params.field * params.current * 1.5).toFixed(2)} N / 코일 한 변`;
+    formulaDirectionEl.textContent = `왼쪽 코일 ${leftForceText}, 오른쪽 코일 ${rightForceText}`;
+    formulaMotionEl.textContent = `${rotationText} 연속 회전 (정류자 반전 포함)`;
+    formulaConceptEl.innerHTML = '<strong>DC 전동기 원리</strong>자기장 속 코일의 양쪽 변에 반대 방향 힘이 작용해 돌림힘이 생기고, 정류자가 반 바퀴마다 전류를 뒤집어 같은 방향 회전을 유지합니다.';
+    formulaEnergyEl.innerHTML = '<strong>에너지 전환</strong>전기 에너지 → 회전 운동 에너지 + 열에너지(마찰)';
+
+    energyChainEl.textContent = '전기 에너지 → 자기장 속 힘 → 코일 회전 → 운동 에너지 + 열에너지(마찰)';
+    energyNoteEl.textContent = '전류 I와 자기장 B를 키우면 코일 변에 작용하는 힘이 커져 회전이 더 빠르고 강해집니다.';
+  }
+
+  applicationsEl.classList.toggle('hidden', !(params.mode === MODES.MOTOR && params.showApplications));
+  appCards.forEach((card, index) => {
+    const active = params.mode === MODES.MOTOR && params.showApplications && index === Math.floor(state.elapsed * 0.45) % appCards.length;
+    card.classList.toggle('active', active);
+  });
+}
+
+function updateVisibility() {
+  energyPanelEl.classList.toggle('hidden', !params.showEnergy);
+
+  if (state.modeData?.kind === 'wire' && state.modeData.leftHand) {
+    state.modeData.leftHand.visible = params.showLeftHand;
+  }
+}
+
+function resetSimulation() {
+  params.mode = MODES.WIRE;
+  params.current = 2;
+  params.field = 0.5;
+  params.currentDirection = '정방향';
+  params.speed = 1;
+  params.showLeftHand = true;
+  params.showEnergy = true;
+  params.showApplications = false;
+  state.guideOpen = false;
+  guidePanelEl.classList.remove('open');
+  guideToggleEl.textContent = '📖 학습 가이드';
+  rebuildModeScene();
+  guiInstance?.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.033);
+  state.elapsed += delta;
+
+  if (state.modeData?.kind === 'wire') {
+    updateWireMode(state.modeData, delta);
+  } else if (state.modeData?.kind === 'motor') {
+    updateMotorMode(state.modeData, delta);
+  }
+
+  updateOverlay();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    textColor = '#ffffff',
+    background = 'rgba(20, 24, 44, 0.8)',
+    border = 'rgba(255,255,255,0.16)',
+    scale = [1, 0.3],
+    paddingX = 24,
+    paddingY = 18,
+    fontSize = 52
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  context.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  const metrics = context.measureText(text);
+  canvas.width = Math.ceil(metrics.width + paddingX * 2);
+  canvas.height = Math.ceil(fontSize + paddingY * 2);
+
+  const ctx = canvas.getContext('2d');
+  ctx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  roundRect(ctx, 2, 2, canvas.width - 4, canvas.height - 4, 18);
+  ctx.fillStyle = background;
+  ctx.fill();
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = textColor;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale[0], scale[1], 1);
+  return sprite;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function disposeHierarchy(object) {
+  object.traverse((node) => {
+    if (node.geometry) {
+      node.geometry.dispose();
+    }
+
+    if (node.material) {
+      const materialsToDispose = Array.isArray(node.material) ? node.material : [node.material];
+      materialsToDispose.forEach((material) => {
+        if (sharedMaterials.has(material)) {
+          return;
+        }
+        for (const key of Object.keys(material)) {
+          const value = material[key];
+          if (value && value.isTexture) {
+            value.dispose();
+          }
+        }
+        material.dispose();
+      });
+    }
+  });
+}
+</script>
+</body>
+</html>

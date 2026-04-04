@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>감염병 진단과 PCR - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --bg: #112233;
+    --panel: rgba(10, 19, 33, 0.84);
+    --panel-strong: rgba(8, 16, 28, 0.94);
+    --panel-soft: rgba(255, 255, 255, 0.05);
+    --line: rgba(255, 255, 255, 0.1);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.72);
+    --text-soft: rgba(244, 251, 255, 0.54);
+    --danger: #ff6b57;
+    --warn: #ffcf6d;
+    --accent: #7fd4ff;
+    --success: #7df39e;
+    --polymerase: #ffcc44;
+    --shadow: 0 20px 44px rgba(0, 0, 0, 0.26);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 14% 16%, rgba(102, 196, 255, 0.12), transparent 24%),
+      radial-gradient(circle at 84% 12%, rgba(255, 111, 87, 0.08), transparent 20%),
+      linear-gradient(180deg, #15283c 0%, #112233 44%, #0b1724 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+
+  button, input {
+    font: inherit;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  }
+
+  #scene-panel,
+  #info-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 14%, rgba(255, 120, 95, 0.08), transparent 20%),
+      radial-gradient(circle at 60% 22%, rgba(114, 198, 255, 0.1), transparent 26%),
+      linear-gradient(180deg, rgba(18, 39, 60, 0.95), rgba(10, 20, 32, 0.98));
+  }
+
+  #info-panel {
+    background:
+      linear-gradient(180deg, rgba(9, 17, 29, 0.98) 0%, rgba(6, 13, 24, 1) 100%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #title-card {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 22;
+    max-width: min(560px, calc(100% - 190px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 28px;
+    line-height: 1.06;
+    letter-spacing: -0.05em;
+  }
+
+  #title-card p {
+    margin-top: 8px;
+    max-width: 500px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #scene-badge {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 24;
+    min-width: 216px;
+    padding: 14px 16px;
+    border-radius: 18px;
+  }
+
+  #mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  #mode-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 14px rgba(127, 212, 255, 0.9);
+  }
+
+  #temp-readout {
+    margin-top: 12px;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  #cycle-pill {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  #scene-note {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 21;
+    width: min(620px, calc(100% - 36px));
+    padding: 12px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.88);
+    pointer-events: none;
+  }
+
+  #panel-content {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px 18px 16px;
+  }
+
+  #status-panel {
+    border-radius: 20px;
+    padding: 16px 16px 14px;
+  }
+
+  #status-panel .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  #status-title {
+    margin-top: 6px;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+
+  #status-summary {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #status-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stat-box {
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: var(--panel-soft);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .stat-box .label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-soft);
+  }
+
+  .stat-box .value {
+    display: block;
+    margin-top: 6px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #stage-cards {
+    display: grid;
+    gap: 10px;
+  }
+
+  .stage-card {
+    text-align: left;
+    border-radius: 18px;
+    padding: 13px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .stage-card:hover {
+    transform: translateY(-1px);
+  }
+
+  .stage-card.active {
+    background: rgba(127, 212, 255, 0.12);
+    border-color: rgba(127, 212, 255, 0.28);
+  }
+
+  .stage-card[data-stage="denaturation"].active {
+    background: rgba(255, 107, 87, 0.12);
+    border-color: rgba(255, 107, 87, 0.28);
+  }
+
+  .stage-card[data-stage="annealing"].active {
+    background: rgba(255, 207, 109, 0.12);
+    border-color: rgba(255, 207, 109, 0.28);
+  }
+
+  .stage-card[data-stage="extension"].active {
+    background: rgba(125, 243, 158, 0.12);
+    border-color: rgba(125, 243, 158, 0.28);
+  }
+
+  .stage-card .stage-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .stage-card .stage-name {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .stage-card .stage-temp {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .stage-card .stage-desc {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #kit-panel {
+    display: none;
+    padding: 14px 15px;
+    border-radius: 18px;
+  }
+
+  #kit-panel.visible {
+    display: block;
+  }
+
+  #kit-panel h3 {
+    font-size: 16px;
+    color: #d5f3ff;
+  }
+
+  #kit-panel p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: var(--text-dim);
+  }
+
+  #kit-result {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+  }
+
+  #kit-result.positive {
+    background: rgba(255, 107, 87, 0.16);
+    color: #ffe1da;
+  }
+
+  #kit-result.negative {
+    background: rgba(127, 212, 255, 0.14);
+    color: #dff3ff;
+  }
+
+  #graph-shell {
+    position: relative;
+    min-height: 0;
+    border-radius: 22px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #graph-head h3 {
+    font-size: 17px;
+    color: #bde8ff;
+  }
+
+  #graph-head p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+  }
+
+  #graph-callout {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    z-index: 4;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(6, 12, 22, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #graph-callout strong {
+    color: #ffe5a6;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 35;
+    width: min(360px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.74;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #cbefff;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.02));
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .row .label {
+    width: 82px;
+    flex-shrink: 0;
+    color: var(--text-soft);
+  }
+
+  .row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .formula-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-box strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #bde8ff;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 42;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: rgba(9, 17, 29, 0.86);
+    color: var(--text-main);
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 56px;
+    left: 16px;
+    z-index: 41;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(70vh, 700px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #b9ecff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd79a;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 10px;
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(9, 17, 29, 0.88);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(127, 212, 255, 0.24);
+    --text-color: #f4fbff;
+    --number-color: #9bddff;
+    --string-color: #aff6c2;
+    z-index: 50 !important;
+    margin-top: 16px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 1080px) {
+    #app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) 420px;
+    }
+
+    #info-panel {
+      border-left: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #title-card {
+      max-width: min(560px, calc(100% - 140px));
+    }
+
+    #formula-panel {
+      bottom: 438px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      top: 62px;
+      left: 12px;
+      right: 12px;
+      max-width: none;
+      width: auto;
+      padding: 12px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #title-card p {
+      font-size: 11px;
+    }
+
+    #scene-badge {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      min-width: 0;
+      width: calc(100% - 24px);
+    }
+
+    #scene-note {
+      bottom: 128px;
+      width: calc(100% - 24px);
+      border-radius: 20px;
+      font-size: 11px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      width: calc(100vw - 24px);
+      bottom: 432px;
+    }
+
+    #panel-content {
+      padding: 14px;
+    }
+
+    #status-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui.root {
+      margin-top: 72px;
+      margin-right: 6px;
+      transform: scale(0.95);
+      transform-origin: top right;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+
+      <div id="title-card" class="glass">
+        <div class="eyebrow">통합과학2 · III. 과학과 미래 사회</div>
+        <h1>감염병 진단과 PCR</h1>
+        <p>특정 DNA를 기하급수적으로 증폭하는 PCR 과정과 자가 진단 키트의 판독 원리를 비교합니다.</p>
+      </div>
+
+      <div id="scene-badge" class="glass">
+        <div id="mode-chip"><span class="dot"></span><span id="mode-chip-text">PCR 과정</span></div>
+        <div id="temp-readout">95°C</div>
+        <div id="cycle-pill">Cycle 1 · DNA 2개</div>
+      </div>
+
+      <div id="scene-note" class="glass">① 변성 — 이중나선 DNA를 가열하여 두 가닥으로 분리</div>
+    </section>
+
+    <aside id="info-panel">
+      <div id="panel-content">
+        <section id="status-panel" class="glass">
+          <div class="eyebrow" id="status-eyebrow">PCR 과정</div>
+          <h2 id="status-title">변성 단계</h2>
+          <p id="status-summary">95°C에서 수소 결합이 끊어지며 이중나선 DNA가 두 가닥으로 분리됩니다.</p>
+
+          <div id="status-grid">
+            <div class="stat-box">
+              <span class="label">현재 단계</span>
+              <span class="value" id="status-stage">변성</span>
+            </div>
+            <div class="stat-box">
+              <span class="label">현재 온도</span>
+              <span class="value" id="status-temp">95°C</span>
+            </div>
+            <div class="stat-box">
+              <span class="label">사이클 수</span>
+              <span class="value" id="status-cycle">1회</span>
+            </div>
+            <div class="stat-box">
+              <span class="label">DNA 양</span>
+              <span class="value" id="status-amount">2¹ = 2개</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="stage-cards">
+          <button class="stage-card active" data-stage="denaturation">
+            <div class="stage-top">
+              <span class="stage-name">① 변성</span>
+              <span class="stage-temp">95°C</span>
+            </div>
+            <div class="stage-desc">이중나선 DNA를 가열해 두 가닥으로 분리합니다.</div>
+          </button>
+          <button class="stage-card" data-stage="annealing">
+            <div class="stage-top">
+              <span class="stage-name">② 결합</span>
+              <span class="stage-temp">55°C</span>
+            </div>
+            <div class="stage-desc">프라이머가 목표 염기서열의 시작점에 결합합니다.</div>
+          </button>
+          <button class="stage-card" data-stage="extension">
+            <div class="stage-top">
+              <span class="stage-name">③ 신장</span>
+              <span class="stage-temp">72°C</span>
+            </div>
+            <div class="stage-desc">DNA 중합효소가 새 가닥을 합성해 DNA 양을 2배로 늘립니다.</div>
+          </button>
+        </section>
+
+        <section id="kit-panel" class="glass">
+          <h3>자가 진단 키트 판독</h3>
+          <p id="kit-summary">항원-항체 반응으로 검체에 목표 항원이 있는지 확인합니다. C선은 검사 유효성을, T선은 양성 여부를 뜻합니다.</p>
+          <div id="kit-result" class="negative">현재 판정: 음성 (C선만 표시)</div>
+        </section>
+
+        <section id="graph-shell">
+          <div id="graph-head">
+            <h3 id="graph-title">PCR 증폭 그래프</h3>
+            <p id="graph-subtitle">사이클이 반복될수록 DNA 양은 2ⁿ으로 증가합니다. 30사이클 후에는 약 10억 개 수준까지 증폭됩니다.</p>
+            <div id="graph-legend"></div>
+          </div>
+          <canvas id="graph-canvas"></canvas>
+          <div id="graph-callout"><strong>사이클 1:</strong> DNA 2개. 반복될수록 DNA 양은 기하급수적으로 증가합니다.</div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <section id="formula-panel" class="glass">
+    <h3>🧬 감염병 진단과 PCR</h3>
+    <div class="divider"></div>
+    <div class="row"><span class="label">현재 모드</span><span class="value" id="formula-mode">PCR 과정</span></div>
+    <div class="row"><span class="label">현재 단계</span><span class="value" id="formula-stage">변성</span></div>
+    <div class="row"><span class="label">사이클 수</span><span class="value" id="formula-cycle">1</span></div>
+    <div class="row"><span class="label">DNA 양</span><span class="value" id="formula-amount">2¹ = 2개</span></div>
+
+    <div class="formula-box">
+      <strong>PCR 3단계</strong>
+      <div>① 변성 (95°C): DNA 가닥 분리</div>
+      <div>② 결합 (55°C): 프라이머 결합</div>
+      <div>③ 신장 (72°C): 새 가닥 합성</div>
+    </div>
+
+    <div class="formula-box">
+      <strong>30사이클 후</strong>
+      <div>2³⁰ ≈ 10억 개로 증폭</div>
+      <div>→ 소량의 DNA도 검출 가능</div>
+    </div>
+  </section>
+
+  <button id="guide-toggle" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+  <section id="guide-panel" class="glass">
+    <h3>핵심 원리</h3>
+    <p>PCR(중합효소연쇄반응)은 특정 DNA를 기하급수적으로 증폭하는 기술입니다. 변성(95°C) → 결합(55°C) → 신장(72°C) 3단계를 반복하면 소량의 DNA도 검출 가능한 수준으로 늘릴 수 있어 감염병 진단에 활용됩니다.</p>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>PCR 검사가 자가 진단 키트보다 더 정확한 까닭은 무엇인가요?</li>
+      <li>PCR에서 온도를 변화시키는 까닭은 무엇인가요? (힌트: DNA 구조)</li>
+      <li>30사이클 후 DNA가 약 10억 개로 증폭되는 원리를 수학적으로 설명해 보세요.</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>코로나19 PCR 검사와 변이 바이러스 확인</li>
+      <li>법의학에서 범인 DNA 분석</li>
+      <li>친자 확인과 유전 질환 진단</li>
+    </ul>
+
+    <div class="textbook-ref">미래엔 통합과학2 III편 p130~133 — 과학의 유용성, 감염병 진단, PCR</div>
+  </section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const dom = {
+    sceneCanvas: document.getElementById('scene-canvas'),
+    graphCanvas: document.getElementById('graph-canvas'),
+    modeChipText: document.getElementById('mode-chip-text'),
+    tempReadout: document.getElementById('temp-readout'),
+    cyclePill: document.getElementById('cycle-pill'),
+    sceneNote: document.getElementById('scene-note'),
+    statusEyebrow: document.getElementById('status-eyebrow'),
+    statusTitle: document.getElementById('status-title'),
+    statusSummary: document.getElementById('status-summary'),
+    statusStage: document.getElementById('status-stage'),
+    statusTemp: document.getElementById('status-temp'),
+    statusCycle: document.getElementById('status-cycle'),
+    statusAmount: document.getElementById('status-amount'),
+    stageCards: Array.from(document.querySelectorAll('.stage-card')),
+    kitPanel: document.getElementById('kit-panel'),
+    kitSummary: document.getElementById('kit-summary'),
+    kitResult: document.getElementById('kit-result'),
+    graphTitle: document.getElementById('graph-title'),
+    graphSubtitle: document.getElementById('graph-subtitle'),
+    graphLegend: document.getElementById('graph-legend'),
+    graphCallout: document.getElementById('graph-callout'),
+    formulaMode: document.getElementById('formula-mode'),
+    formulaStage: document.getElementById('formula-stage'),
+    formulaCycle: document.getElementById('formula-cycle'),
+    formulaAmount: document.getElementById('formula-amount'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel')
+  };
+
+  const MODE_LABELS = {
+    pcr: 'PCR 과정',
+    kit: '자가 진단 키트'
+  };
+
+  const STAGE_META = {
+    denaturation: {
+      label: '변성',
+      dropdown: '변성(95°C)',
+      temp: '95°C',
+      tempColor: '#ff6b57',
+      summary: '95°C에서 수소 결합이 끊어지며 이중나선 DNA가 두 가닥으로 분리됩니다.',
+      sceneLabel: '① 변성 — 이중나선 DNA를 가열하여 두 가닥으로 분리'
+    },
+    annealing: {
+      label: '결합',
+      dropdown: '결합(55°C)',
+      temp: '55°C',
+      tempColor: '#ffcf6d',
+      summary: '온도를 낮추면 프라이머가 목표 염기서열에 선택적으로 달라붙습니다.',
+      sceneLabel: '② 결합 — 프라이머가 목표 서열에 결합'
+    },
+    extension: {
+      label: '신장',
+      dropdown: '신장(72°C)',
+      temp: '72°C',
+      tempColor: '#7df39e',
+      summary: 'DNA 중합효소가 프라이머부터 이동하면서 새로운 가닥을 합성합니다.',
+      sceneLabel: '③ 신장 — DNA 중합효소가 새 가닥을 합성'
+    },
+    cycle: {
+      label: '전체 사이클',
+      dropdown: '전체 사이클',
+      temp: '95°C → 55°C → 72°C',
+      tempColor: '#9bddff',
+      summary: '변성, 결합, 신장 3단계를 반복하면 DNA 양이 2ⁿ으로 빠르게 증가합니다.',
+      sceneLabel: '한 사이클마다 DNA 1개가 2개로 증폭됩니다.'
+    }
+  };
+
+  const STAGE_LABEL_TO_KEY = {
+    '변성(95°C)': 'denaturation',
+    '결합(55°C)': 'annealing',
+    '신장(72°C)': 'extension',
+    '전체 사이클': 'cycle'
+  };
+
+  const CYCLE_DURATION = 4;
+  const STAGE_DURATION = 2.5;
+  const PCR_THRESHOLD_CYCLE = 10;
+  const SELF_TEST_THRESHOLD_CYCLE = 18;
+  const graphCtx = dom.graphCanvas.getContext('2d');
+  const clock = new THREE.Clock();
+
+  const state = {
+    mode: 'pcr',
+    stage: 'cycle',
+    cycle: 1,
+    autoPlay: false,
+    speed: 1,
+    sequenceTime: 0,
+    manualTime: 0,
+    oneShot: false
+  };
+
+  const params = {
+    '보기 모드': MODE_LABELS.pcr,
+    'PCR 단계': STAGE_META.cycle.dropdown,
+    '사이클 수': 1,
+    '다음 사이클': () => {
+      if (state.cycle >= 30) return;
+      state.stage = 'cycle';
+      state.autoPlay = false;
+      state.oneShot = true;
+      state.sequenceTime = 0;
+      syncParamsFromState();
+    },
+    '자동 재생': () => {
+      state.stage = 'cycle';
+      state.oneShot = false;
+      state.autoPlay = !state.autoPlay;
+      if (state.autoPlay && state.cycle >= 30) state.cycle = 1;
+      state.sequenceTime = 0;
+      syncParamsFromState();
+    },
+    '재생 속도': 1,
+    '초기화': () => {
+      state.mode = 'pcr';
+      state.stage = 'cycle';
+      state.cycle = 1;
+      state.autoPlay = false;
+      state.oneShot = false;
+      state.speed = 1;
+      state.sequenceTime = 0;
+      state.manualTime = 0;
+      mountSceneMode();
+      syncParamsFromState();
+    }
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function easeInOut(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function toSuperscript(value) {
+    const table = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+    return String(value).split('').map((char) => table[char] || char).join('');
+  }
+
+  function dnaAmount(cycle) {
+    return 2 ** cycle;
+  }
+
+  function formatDnaAmount(cycle) {
+    const amount = dnaAmount(cycle);
+    return `2${toSuperscript(cycle)} = ${amount.toLocaleString('ko-KR')}개`;
+  }
+
+  function baseAmountText(cycle) {
+    return `${dnaAmount(cycle).toLocaleString('ko-KR')}개`;
+  }
+
+  function helixPoint(t, radius, height, turns, phase = 0) {
+    const angle = phase + t * turns * Math.PI * 2;
+    const y = lerp(-height * 0.5, height * 0.5, t);
+    return new THREE.Vector3(radius * Math.cos(angle), y, radius * Math.sin(angle));
+  }
+
+  function makeHelixCurve(radius, height, turns, phase = 0, segments = 80) {
+    const points = [];
+    for (let i = 0; i <= segments; i += 1) {
+      points.push(helixPoint(i / segments, radius, height, turns, phase));
+    }
+    return new THREE.CatmullRomCurve3(points);
+  }
+
+  function disposeObject(root) {
+    const seenMaterials = new Set();
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => {
+          if (!material || seenMaterials.has(material)) return;
+          seenMaterials.add(material);
+          material.dispose();
+        });
+      }
+    });
+  }
+
+  function resizeGraphCanvas() {
+    const rect = dom.graphCanvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+    if (dom.graphCanvas.width !== width || dom.graphCanvas.height !== height) {
+      dom.graphCanvas.width = width;
+      dom.graphCanvas.height = height;
+    }
+    graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function renderLegend(items) {
+    dom.graphLegend.innerHTML = items.map((item) => `
+      <span class="legend-chip">
+        <span class="legend-dot" style="background:${item.color}"></span>${item.label}
+      </span>
+    `).join('');
+  }
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x112233, 0.055);
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: dom.sceneCanvas,
+    antialias: true,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x112233, 1);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 1.8, 12.8);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.minDistance = 8;
+  controls.maxDistance = 20;
+  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.target.set(0, 0.5, 0);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+  const pointLight = new THREE.PointLight(0xffffff, 1.0, 60);
+  pointLight.position.set(6, 8, 10);
+  pointLight.castShadow = true;
+  scene.add(ambientLight, pointLight);
+
+  function resizeScene() {
+    const rect = dom.sceneCanvas.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height, false);
+    camera.aspect = rect.width / Math.max(1, rect.height);
+    camera.updateProjectionMatrix();
+  }
+
+  function createSimpleDoubleHelix(scale = 0.22) {
+    const group = new THREE.Group();
+    const curveA = makeHelixCurve(0.44, 3.4, 2.3, 0, 32);
+    const curveB = makeHelixCurve(0.44, 3.4, 2.3, Math.PI, 32);
+    const strandAMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(curveA, 40, 0.05, 8, false),
+      new THREE.MeshStandardMaterial({ color: 0xff5555, roughness: 0.35 })
+    );
+    const strandBMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(curveB, 40, 0.05, 8, false),
+      new THREE.MeshStandardMaterial({ color: 0x5577ff, roughness: 0.35 })
+    );
+    group.add(strandAMesh, strandBMesh);
+    for (let i = 0; i < 8; i += 1) {
+      const t = i / 7;
+      const a = helixPoint(t, 0.44, 3.4, 2.3, 0);
+      const b = helixPoint(t, 0.44, 3.4, 2.3, Math.PI);
+      const bond = new THREE.Mesh(
+        new THREE.BoxGeometry(0.48, 0.05, 0.05),
+        new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x44aa44 : 0xffaa44, roughness: 0.4 })
+      );
+      bond.position.copy(a.clone().add(b).multiplyScalar(0.5));
+      bond.lookAt(b);
+      bond.rotateY(Math.PI * 0.5);
+      group.add(bond);
+    }
+    group.scale.setScalar(scale);
+    return group;
+  }
+
+  function createHeatParticles() {
+    const group = new THREE.Group();
+    const particles = [];
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff735f,
+      transparent: true,
+      opacity: 0.75
+    });
+
+    for (let i = 0; i < 44; i += 1) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), material.clone());
+      mesh.position.set((Math.random() - 0.5) * 2.4, -3 + Math.random() * 6, (Math.random() - 0.5) * 2.4);
+      group.add(mesh);
+      particles.push({
+        mesh,
+        baseX: mesh.position.x,
+        baseZ: mesh.position.z,
+        speed: 0.9 + Math.random() * 0.9,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    return { group, particles };
+  }
+
+  function createPrimerGroup() {
+    const group = new THREE.Group();
+    for (let i = 0; i < 4; i += 1) {
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 12, 12),
+        new THREE.MeshStandardMaterial({
+          color: 0x44ff44,
+          emissive: 0x1b6d1b,
+          emissiveIntensity: 0.18,
+          roughness: 0.42
+        })
+      );
+      sphere.position.x = i * 0.18;
+      group.add(sphere);
+    }
+    return group;
+  }
+
+  function createDetailedPcrModel() {
+    const group = new THREE.Group();
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.2, 5.6, 0.7, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0x1a2c3d,
+        roughness: 0.9,
+        metalness: 0.08
+      })
+    );
+    platform.position.y = -3.6;
+    platform.receiveShadow = true;
+    group.add(platform);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(5.2, 0.08, 12, 80),
+      new THREE.MeshStandardMaterial({
+        color: 0x9bddff,
+        emissive: 0x316780,
+        emissiveIntensity: 0.2,
+        transparent: true,
+        opacity: 0.36
+      })
+    );
+    ring.rotation.x = Math.PI * 0.5;
+    ring.position.y = -3.22;
+    group.add(ring);
+
+    const dnaRoot = new THREE.Group();
+    group.add(dnaRoot);
+
+    const strandAGroup = new THREE.Group();
+    const strandBGroup = new THREE.Group();
+    dnaRoot.add(strandAGroup, strandBGroup);
+
+    const strandAMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(makeHelixCurve(1.05, 6.3, 3.4, 0, 120), 140, 0.13, 12, false),
+      new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.3, metalness: 0.1 })
+    );
+    const strandBMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(makeHelixCurve(1.05, 6.3, 3.4, Math.PI, 120), 140, 0.13, 12, false),
+      new THREE.MeshStandardMaterial({ color: 0x4444ff, roughness: 0.3, metalness: 0.1 })
+    );
+    strandAMesh.castShadow = true;
+    strandBMesh.castShadow = true;
+    strandAGroup.add(strandAMesh);
+    strandBGroup.add(strandBMesh);
+
+    const basePairGroup = new THREE.Group();
+    dnaRoot.add(basePairGroup);
+    const basePairs = [];
+    const pairPointsA = [];
+    const pairPointsB = [];
+    const pairCount = 14;
+    for (let i = 0; i < pairCount; i += 1) {
+      const t = i / (pairCount - 1);
+      const a = helixPoint(t, 1.05, 6.3, 3.4, 0);
+      const b = helixPoint(t, 1.05, 6.3, 3.4, Math.PI);
+      pairPointsA.push(a);
+      pairPointsB.push(b);
+      const pair = new THREE.Mesh(
+        new THREE.BoxGeometry(1.95, 0.12, 0.12),
+        new THREE.MeshStandardMaterial({
+          color: i % 2 === 0 ? 0x44aa44 : 0xffaa44,
+          transparent: true,
+          opacity: 0.92,
+          roughness: 0.4
+        })
+      );
+      pair.position.copy(a.clone().add(b).multiplyScalar(0.5));
+      pair.lookAt(b);
+      pair.rotateY(Math.PI * 0.5);
+      pair.userData.baseOpacity = 0.92;
+      basePairGroup.add(pair);
+      basePairs.push(pair);
+    }
+
+    const primerA = createPrimerGroup();
+    const primerB = createPrimerGroup();
+    dnaRoot.add(primerA, primerB);
+
+    const polymeraseA = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 16, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0xffcc44,
+        emissive: 0x8b6710,
+        emissiveIntensity: 0.26,
+        roughness: 0.36
+      })
+    );
+    const polymeraseB = polymeraseA.clone();
+    dnaRoot.add(polymeraseA, polymeraseB);
+
+    const synthGroupA = new THREE.Group();
+    const synthGroupB = new THREE.Group();
+    dnaRoot.add(synthGroupA, synthGroupB);
+
+    const synthA = [];
+    const synthB = [];
+    const extSteps = 12;
+    const extPathA = [];
+    const extPathB = [];
+    for (let i = 0; i < extSteps; i += 1) {
+      const t = 0.18 + (i / (extSteps - 1)) * 0.64;
+      const a = helixPoint(t, 1.05, 6.3, 3.4, 0).add(new THREE.Vector3(-0.28, 0, 0));
+      const b = helixPoint(1 - t, 1.05, 6.3, 3.4, Math.PI).add(new THREE.Vector3(0.28, 0, 0));
+      extPathA.push(a);
+      extPathB.push(b);
+
+      const ballA = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0xa0f0ff, roughness: 0.25, emissive: 0x28536a, emissiveIntensity: 0.2 })
+      );
+      const ballB = ballA.clone();
+      synthGroupA.add(ballA);
+      synthGroupB.add(ballB);
+      synthA.push(ballA);
+      synthB.push(ballB);
+    }
+
+    const heat = createHeatParticles();
+    dnaRoot.add(heat.group);
+
+    const copyGroup = new THREE.Group();
+    copyGroup.position.set(0, -1.4, -4.2);
+    group.add(copyGroup);
+    const copyHelices = [];
+    for (let i = 0; i < 32; i += 1) {
+      const copy = createSimpleDoubleHelix(0.2);
+      const cols = 8;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      copy.position.set(-3.5 + col * 1.02, -1.2 + row * 0.88, -0.5 + (row % 2) * -0.2);
+      copy.rotation.y = (i % 2) * Math.PI * 0.5;
+      copy.visible = false;
+      copyGroup.add(copy);
+      copyHelices.push(copy);
+    }
+
+    return {
+      group,
+      dnaRoot,
+      ring,
+      strandAGroup,
+      strandBGroup,
+      basePairs,
+      pairPointsA,
+      pairPointsB,
+      primerA,
+      primerB,
+      polymeraseA,
+      polymeraseB,
+      synthA,
+      synthB,
+      extPathA,
+      extPathB,
+      heat,
+      copyHelices
+    };
+  }
+
+  function createKitModel() {
+    const group = new THREE.Group();
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.3, 5.7, 0.7, 48),
+      new THREE.MeshStandardMaterial({ color: 0x1b2a38, roughness: 0.92 })
+    );
+    base.position.y = -3.35;
+    base.receiveShadow = true;
+    group.add(base);
+
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(8.1, 0.42, 2.6),
+      new THREE.MeshStandardMaterial({ color: 0xf0f4fa, roughness: 0.92 })
+    );
+    body.rotation.z = -0.05;
+    body.castShadow = true;
+    group.add(body);
+
+    const sampleWell = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.28, 0.08, 20),
+      new THREE.MeshStandardMaterial({ color: 0x6a7888, roughness: 0.8 })
+    );
+    sampleWell.rotation.x = Math.PI * 0.5;
+    sampleWell.position.set(-2.65, 0.23, 0);
+    group.add(sampleWell);
+
+    const windowFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.7, 0.06, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xdce3ec, roughness: 0.88 })
+    );
+    windowFrame.position.set(0.75, 0.24, 0);
+    group.add(windowFrame);
+
+    const windowGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(2.3, 0.02, 0.66),
+      new THREE.MeshStandardMaterial({
+        color: 0xeff5fb,
+        roughness: 0.22,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    windowGlass.position.set(0.75, 0.27, 0);
+    group.add(windowGlass);
+
+    const cLine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.02, 0.5),
+      new THREE.MeshStandardMaterial({
+        color: 0xff6b57,
+        emissive: 0x5a1d15,
+        emissiveIntensity: 0.22,
+        transparent: true,
+        opacity: 0.92
+      })
+    );
+    cLine.position.set(1.35, 0.29, 0);
+    group.add(cLine);
+
+    const tLine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.02, 0.5),
+      new THREE.MeshStandardMaterial({
+        color: 0xff6b57,
+        emissive: 0x5a1d15,
+        emissiveIntensity: 0.24,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    tLine.position.set(0.65, 0.29, 0);
+    group.add(tLine);
+
+    const guideMarks = [];
+    for (let i = 0; i < 3; i += 1) {
+      const mark = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.01, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0x7b8795, transparent: true, opacity: 0.58 })
+      );
+      mark.position.set(0.1 - i * 0.55, 0.24, 0);
+      group.add(mark);
+      guideMarks.push(mark);
+    }
+
+    const droplet = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 12, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x7fd4ff,
+        transparent: true,
+        opacity: 0.84,
+        emissive: 0x2a5d77,
+        emissiveIntensity: 0.22
+      })
+    );
+    droplet.position.set(-2.65, 0.65, 0);
+    group.add(droplet);
+
+    const swabStick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 3.1, 10),
+      new THREE.MeshStandardMaterial({ color: 0xb7c2d0, roughness: 0.8 })
+    );
+    swabStick.position.set(-3.9, 1.15, -0.15);
+    swabStick.rotation.z = 1.06;
+    group.add(swabStick);
+
+    const swabTip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 12, 12),
+      new THREE.MeshStandardMaterial({ color: 0xdff5ff, roughness: 0.9 })
+    );
+    swabTip.position.set(-2.62, 1.84, -0.15);
+    group.add(swabTip);
+
+    return {
+      group,
+      body,
+      cLine,
+      tLine,
+      droplet,
+      swabStick,
+      swabTip
+    };
+  }
+
+  let activeSceneMode = null;
+
+  function getDisplayedStage() {
+    if (state.mode === 'kit') {
+      return {
+        key: 'kit',
+        label: '항원-항체 판독',
+        temp: '면역 반응',
+        tempColor: '#9bddff',
+        summary: '항체가 붙어 있는 막을 따라 항원이 이동하면서 T선과 C선의 색이 나타납니다.',
+        sceneLabel: '항원-항체 반응으로 목표 항원의 존재를 판독'
+      };
+    }
+
+    if (state.autoPlay || state.oneShot || state.stage === 'cycle') {
+      const t = clamp(state.sequenceTime / CYCLE_DURATION, 0, 0.9999);
+      if (t < 0.32) {
+        return {
+          key: 'denaturation',
+          progress: t / 0.32,
+          ...STAGE_META.denaturation
+        };
+      }
+      if (t < 0.58) {
+        return {
+          key: 'annealing',
+          progress: (t - 0.32) / 0.26,
+          ...STAGE_META.annealing
+        };
+      }
+      return {
+        key: 'extension',
+        progress: (t - 0.58) / 0.42,
+        ...STAGE_META.extension
+      };
+    }
+
+    return {
+      key: state.stage,
+      progress: (state.manualTime / STAGE_DURATION) % 1,
+      ...STAGE_META[state.stage]
+    };
+  }
+
+  function buildPcrSceneMode() {
+    const root = new THREE.Group();
+    const model = createDetailedPcrModel();
+    root.add(model.group);
+
+    const backGlow = new THREE.Mesh(
+      new THREE.CircleGeometry(4.8, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0x2f5377,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide
+      })
+    );
+    backGlow.position.set(0, 0, -4.8);
+    root.add(backGlow);
+
+    function updateHeatParticles(displayStage, elapsed) {
+      const strength = displayStage.key === 'denaturation' ? easeInOut(displayStage.progress) : 0;
+      model.heat.group.visible = strength > 0.04;
+      model.heat.particles.forEach((particle, index) => {
+        particle.mesh.position.y += (0.04 + particle.speed * 0.02) * Math.max(0.25, strength);
+        particle.mesh.position.x = particle.baseX + Math.sin(elapsed * 2 + particle.phase + index) * 0.05;
+        particle.mesh.position.z = particle.baseZ + Math.cos(elapsed * 1.6 + particle.phase) * 0.05;
+        particle.mesh.material.opacity = 0.12 + strength * 0.7;
+        if (particle.mesh.position.y > 3.7) particle.mesh.position.y = -3.2;
+      });
+    }
+
+    function updateDNA(displayStage, delta, elapsed) {
+      model.dnaRoot.rotation.y += delta * 0.36;
+
+      const separation = displayStage.key === 'denaturation'
+        ? lerp(0, 1.45, easeInOut(displayStage.progress))
+        : displayStage.key === 'annealing'
+          ? 1.45
+          : displayStage.key === 'extension'
+            ? 1.2
+            : 0.35;
+
+      model.strandAGroup.position.x = -separation;
+      model.strandBGroup.position.x = separation;
+      model.strandAGroup.rotation.z = -separation * 0.18;
+      model.strandBGroup.rotation.z = separation * 0.18;
+
+      const bondStrength = displayStage.key === 'denaturation'
+        ? 1 - easeInOut(displayStage.progress)
+        : displayStage.key === 'annealing' || displayStage.key === 'extension'
+          ? 0.08
+          : 1;
+
+      model.basePairs.forEach((pair, index) => {
+        pair.scale.x = 0.18 + bondStrength * 0.82;
+        pair.material.opacity = pair.userData.baseOpacity * bondStrength;
+        pair.visible = pair.material.opacity > 0.03;
+        pair.rotation.x = Math.sin(elapsed * 0.6 + index * 0.3) * 0.03;
+      });
+
+      const primerProgress = displayStage.key === 'annealing'
+        ? easeInOut(displayStage.progress)
+        : displayStage.key === 'extension'
+          ? 1
+          : 0;
+      const primerTargetA = model.extPathA[1].clone().add(new THREE.Vector3(-separation, 0.1, 0));
+      const primerTargetB = model.extPathB[1].clone().add(new THREE.Vector3(separation, 0.1, 0));
+      const primerStartA = new THREE.Vector3(-4.4, -0.2, 1.2);
+      const primerStartB = new THREE.Vector3(4.4, 0.3, -1.2);
+      model.primerA.visible = primerProgress > 0.02;
+      model.primerB.visible = primerProgress > 0.02;
+      model.primerA.position.copy(primerStartA.clone().lerp(primerTargetA, primerProgress));
+      model.primerB.position.copy(primerStartB.clone().lerp(primerTargetB, primerProgress));
+      model.primerA.rotation.y = Math.PI * 0.5;
+      model.primerB.rotation.y = -Math.PI * 0.5;
+
+      const extensionProgress = displayStage.key === 'extension' ? easeInOut(displayStage.progress) : 0;
+      model.polymeraseA.visible = extensionProgress > 0.02;
+      model.polymeraseB.visible = extensionProgress > 0.02;
+
+      const samplePath = (path, progress) => {
+        const scaled = progress * (path.length - 1);
+        const idx = Math.floor(scaled);
+        const next = Math.min(path.length - 1, idx + 1);
+        return path[idx].clone().lerp(path[next], scaled - idx);
+      };
+
+      if (model.polymeraseA.visible) {
+        model.polymeraseA.position.copy(samplePath(model.extPathA, extensionProgress).add(new THREE.Vector3(-separation - 0.24, 0.24, 0)));
+        model.polymeraseB.position.copy(samplePath(model.extPathB, extensionProgress).add(new THREE.Vector3(separation + 0.24, 0.24, 0)));
+      }
+
+      const builtCount = Math.round(extensionProgress * model.synthA.length);
+      model.synthA.forEach((ball, index) => {
+        ball.visible = index < builtCount;
+        ball.position.copy(model.extPathA[index]).add(new THREE.Vector3(-separation - 0.16, 0.08, 0));
+      });
+      model.synthB.forEach((ball, index) => {
+        ball.visible = index < builtCount;
+        ball.position.copy(model.extPathB[index]).add(new THREE.Vector3(separation + 0.16, 0.08, 0));
+      });
+
+      updateHeatParticles(displayStage, elapsed);
+
+      const visibleCopies = Math.min(dnaAmount(state.cycle), 32);
+      model.copyHelices.forEach((copy, index) => {
+        copy.visible = index < visibleCopies;
+        if (!copy.visible) return;
+        copy.rotation.y += delta * (0.35 + (index % 6) * 0.03);
+        copy.position.z = -0.5 + (Math.floor(index / 8) % 2) * -0.18 + Math.sin(elapsed + index) * 0.01;
+      });
+      model.ring.rotation.z += delta * 0.18;
+    }
+
+    function update(delta, elapsed) {
+      const displayStage = getDisplayedStage();
+      updateDNA(displayStage, delta, elapsed);
+    }
+
+    function dispose() {
+      disposeObject(root);
+    }
+
+    return { root, update, dispose };
+  }
+
+  function buildKitSceneMode() {
+    const root = new THREE.Group();
+    const model = createKitModel();
+    root.add(model.group);
+
+    const aura = new THREE.Mesh(
+      new THREE.CircleGeometry(5.4, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0x7fd4ff,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.DoubleSide
+      })
+    );
+    aura.rotation.x = -Math.PI * 0.5;
+    aura.position.y = -3.0;
+    root.add(aura);
+
+    function update(delta, elapsed) {
+      const positive = state.cycle >= SELF_TEST_THRESHOLD_CYCLE;
+      model.group.rotation.y = Math.sin(elapsed * 0.5) * 0.15;
+      model.group.rotation.x = Math.sin(elapsed * 0.4) * 0.04;
+      model.group.position.y = Math.sin(elapsed * 1.2) * 0.04;
+      aura.rotation.z += delta * 0.15;
+
+      model.droplet.position.y = 0.62 + Math.abs(Math.sin(elapsed * 1.8)) * 0.24;
+      model.droplet.material.opacity = 0.42 + Math.abs(Math.sin(elapsed * 1.8)) * 0.36;
+
+      model.tLine.material.opacity = positive ? 0.92 : clamp((state.cycle - 12) / (SELF_TEST_THRESHOLD_CYCLE - 12), 0, 0.16);
+      model.tLine.material.emissiveIntensity = positive ? 0.28 : 0.08;
+      model.cLine.material.opacity = 0.92;
+
+      model.body.material.color.set(positive ? 0xf8f0f0 : 0xf0f4fa);
+    }
+
+    function dispose() {
+      disposeObject(root);
+    }
+
+    return { root, update, dispose };
+  }
+
+  function mountSceneMode() {
+    if (activeSceneMode) {
+      scene.remove(activeSceneMode.root);
+      activeSceneMode.dispose();
+    }
+
+    activeSceneMode = state.mode === 'pcr' ? buildPcrSceneMode() : buildKitSceneMode();
+    scene.add(activeSceneMode.root);
+
+    camera.position.set(0, 1.7, state.mode === 'pcr' ? 12.8 : 11.6);
+    controls.target.set(0, 0.3, 0);
+    controls.update();
+  }
+
+  function updateGuiVisibility() {
+    stageController.domElement.style.display = state.mode === 'pcr' ? '' : 'none';
+    nextCycleController.domElement.style.display = state.mode === 'pcr' ? '' : 'none';
+    autoPlayController.domElement.style.display = state.mode === 'pcr' ? '' : 'none';
+    autoPlayController.name(state.autoPlay ? '자동 재생 중지' : '자동 재생');
+  }
+
+  function syncParamsFromState() {
+    params['보기 모드'] = MODE_LABELS[state.mode];
+    params['PCR 단계'] = STAGE_META[state.stage].dropdown;
+    params['사이클 수'] = state.cycle;
+    params['재생 속도'] = state.speed;
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    updateGuiVisibility();
+  }
+
+  const gui = new GUI({ title: '컨트롤 패널' });
+  const modeController = gui.add(params, '보기 모드', Object.values(MODE_LABELS)).name('보기 모드').onChange((value) => {
+    state.mode = value === MODE_LABELS.kit ? 'kit' : 'pcr';
+    state.autoPlay = false;
+    state.oneShot = false;
+    state.sequenceTime = 0;
+    state.manualTime = 0;
+    mountSceneMode();
+    syncParamsFromState();
+  });
+  const stageController = gui.add(params, 'PCR 단계', Object.values(STAGE_META).map((meta) => meta.dropdown)).name('PCR 단계').onChange((value) => {
+    state.stage = STAGE_LABEL_TO_KEY[value];
+    state.autoPlay = false;
+    state.oneShot = false;
+    state.sequenceTime = 0;
+    state.manualTime = 0;
+    syncParamsFromState();
+  });
+  const cycleController = gui.add(params, '사이클 수', 1, 30, 1).name('사이클 수').onChange((value) => {
+    state.cycle = value;
+    state.autoPlay = false;
+    state.oneShot = false;
+    state.sequenceTime = 0;
+    syncParamsFromState();
+  });
+  const nextCycleController = gui.add(params, '다음 사이클').name('다음 사이클');
+  const autoPlayController = gui.add(params, '자동 재생').name('자동 재생');
+  const speedController = gui.add(params, '재생 속도', 0.5, 3, 0.1).name('재생 속도').onChange((value) => {
+    state.speed = value;
+  });
+  const resetController = gui.add(params, '초기화').name('초기화');
+
+  dom.guideToggle.addEventListener('click', () => {
+    const open = dom.guidePanel.classList.toggle('open');
+    dom.guideToggle.setAttribute('aria-expanded', String(open));
+  });
+
+  dom.stageCards.forEach((card) => {
+    card.addEventListener('click', () => {
+      const stage = card.dataset.stage;
+      if (!stage) return;
+      state.mode = 'pcr';
+      state.stage = stage;
+      state.autoPlay = false;
+      state.oneShot = false;
+      state.sequenceTime = 0;
+      state.manualTime = 0;
+      mountSceneMode();
+      syncParamsFromState();
+    });
+  });
+
+  function drawGraphBackdrop(ctx, width, height, margin) {
+    ctx.clearRect(0, 0, width, height);
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const gradient = ctx.createLinearGradient(0, margin.top, 0, margin.top + plotHeight);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.04)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0.015)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(margin.left, margin.top, plotWidth, plotHeight);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    for (let i = 0; i <= 5; i += 1) {
+      const y = margin.top + (plotHeight / 5) * i;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(margin.left + plotWidth, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 6; i += 1) {
+      const x = margin.left + (plotWidth / 6) * i;
+      ctx.beginPath();
+      ctx.moveTo(x, margin.top);
+      ctx.lineTo(x, margin.top + plotHeight);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.38)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, margin.top + plotHeight);
+    ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+    ctx.stroke();
+  }
+
+  function graphValueToY(value, margin, height, maxLog) {
+    const plotHeight = height - margin.top - margin.bottom;
+    const safe = Math.max(1, value);
+    return margin.top + plotHeight - (Math.log10(safe) / maxLog) * plotHeight;
+  }
+
+  function drawPcrGraph(width, height) {
+    const margin = { top: 118, right: 26, bottom: 64, left: 56 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const maxLog = Math.log10(dnaAmount(30));
+    const mapX = (cycle) => margin.left + (cycle / 30) * plotWidth;
+    const mapY = (value) => graphValueToY(value, margin, height, maxLog);
+
+    drawGraphBackdrop(graphCtx, width, height, margin);
+
+    graphCtx.font = '12px Pretendard';
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+    for (let i = 0; i <= 30; i += 5) {
+      graphCtx.fillText(String(i), mapX(i), height - margin.bottom + 24);
+    }
+
+    graphCtx.textAlign = 'right';
+    const yTicks = [
+      { label: '1', value: 1 },
+      { label: '10³', value: 1e3 },
+      { label: '10⁶', value: 1e6 },
+      { label: '10⁹', value: 1e9 }
+    ];
+    yTicks.forEach((tick) => {
+      graphCtx.fillText(tick.label, margin.left - 10, mapY(tick.value) + 4);
+    });
+
+    graphCtx.save();
+    graphCtx.translate(18, margin.top + plotHeight * 0.5);
+    graphCtx.rotate(-Math.PI * 0.5);
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = '#9bddff';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('DNA 양 (개, 로그 눈금)', 0, 0);
+    graphCtx.restore();
+
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('사이클 수', margin.left + plotWidth * 0.5, height - 16);
+
+    graphCtx.strokeStyle = '#7fd4ff';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let cycle = 0; cycle <= 30; cycle += 1) {
+      const x = mapX(cycle);
+      const y = mapY(dnaAmount(cycle));
+      if (cycle === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+
+    const markerX = mapX(state.cycle);
+    const markerY = mapY(dnaAmount(state.cycle));
+    graphCtx.setLineDash([7, 6]);
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+    graphCtx.lineWidth = 1.4;
+    graphCtx.beginPath();
+    graphCtx.moveTo(markerX, margin.top);
+    graphCtx.lineTo(markerX, margin.top + plotHeight);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    graphCtx.fillStyle = '#7fd4ff';
+    graphCtx.beginPath();
+    graphCtx.arc(markerX, markerY, 5.5, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.strokeStyle = '#ffffff';
+    graphCtx.lineWidth = 1.2;
+    graphCtx.stroke();
+
+    dom.graphTitle.textContent = 'PCR 증폭 그래프';
+    dom.graphSubtitle.textContent = '사이클이 반복될수록 DNA 양은 2ⁿ으로 증가합니다. 30사이클 후에는 약 10억 개 수준까지 증폭됩니다.';
+    dom.graphCallout.innerHTML = `<strong>사이클 ${state.cycle}:</strong> DNA ${baseAmountText(state.cycle)}. 2${toSuperscript(state.cycle)}로 늘어나므로 초기 표본이 매우 적어도 검출 가능한 수준까지 증폭됩니다.`;
+    renderLegend([
+      { color: '#7fd4ff', label: 'DNA 양 2ⁿ' },
+      { color: '#ffcf6d', label: '현재 사이클 마커' }
+    ]);
+  }
+
+  function drawKitGraph(width, height) {
+    const margin = { top: 118, right: 26, bottom: 64, left: 56 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const maxLog = Math.log10(dnaAmount(30));
+    const mapX = (cycle) => margin.left + (cycle / 30) * plotWidth;
+    const mapY = (value) => graphValueToY(value, margin, height, maxLog);
+    const pcrThreshold = dnaAmount(PCR_THRESHOLD_CYCLE);
+    const kitThreshold = dnaAmount(SELF_TEST_THRESHOLD_CYCLE);
+
+    drawGraphBackdrop(graphCtx, width, height, margin);
+
+    graphCtx.font = '12px Pretendard';
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+    for (let i = 0; i <= 30; i += 5) {
+      graphCtx.fillText(String(i), mapX(i), height - margin.bottom + 24);
+    }
+
+    graphCtx.textAlign = 'right';
+    [
+      { label: '1', value: 1 },
+      { label: '10³', value: 1e3 },
+      { label: '10⁶', value: 1e6 },
+      { label: '10⁹', value: 1e9 }
+    ].forEach((tick) => {
+      graphCtx.fillText(tick.label, margin.left - 10, mapY(tick.value) + 4);
+    });
+
+    graphCtx.strokeStyle = '#7fd4ff';
+    graphCtx.lineWidth = 3;
+    graphCtx.beginPath();
+    for (let cycle = 0; cycle <= 30; cycle += 1) {
+      const x = mapX(cycle);
+      const y = mapY(dnaAmount(cycle));
+      if (cycle === 0) graphCtx.moveTo(x, y);
+      else graphCtx.lineTo(x, y);
+    }
+    graphCtx.stroke();
+
+    const pcrY = mapY(pcrThreshold);
+    const kitY = mapY(kitThreshold);
+    graphCtx.setLineDash([8, 6]);
+    graphCtx.lineWidth = 1.8;
+    graphCtx.strokeStyle = 'rgba(125, 243, 158, 0.86)';
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, pcrY);
+    graphCtx.lineTo(margin.left + plotWidth, pcrY);
+    graphCtx.stroke();
+    graphCtx.strokeStyle = 'rgba(255, 107, 87, 0.86)';
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, kitY);
+    graphCtx.lineTo(margin.left + plotWidth, kitY);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    const markerX = mapX(state.cycle);
+    const markerY = mapY(dnaAmount(state.cycle));
+    graphCtx.fillStyle = state.cycle >= SELF_TEST_THRESHOLD_CYCLE ? '#ff6b57' : '#7fd4ff';
+    graphCtx.beginPath();
+    graphCtx.arc(markerX, markerY, 5.5, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.strokeStyle = '#ffffff';
+    graphCtx.lineWidth = 1.2;
+    graphCtx.stroke();
+
+    graphCtx.textAlign = 'left';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+    graphCtx.font = '11px Pretendard';
+    graphCtx.fillText('PCR 검출선', margin.left + 10, pcrY - 8);
+    graphCtx.fillText('자가 진단 양성선', margin.left + 10, kitY - 8);
+
+    graphCtx.save();
+    graphCtx.translate(18, margin.top + plotHeight * 0.5);
+    graphCtx.rotate(-Math.PI * 0.5);
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = '#9bddff';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('DNA 양 (개, 로그 눈금)', 0, 0);
+    graphCtx.restore();
+
+    graphCtx.textAlign = 'center';
+    graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.fillText('사이클 수', margin.left + plotWidth * 0.5, height - 16);
+
+    const positive = state.cycle >= SELF_TEST_THRESHOLD_CYCLE;
+    dom.graphTitle.textContent = 'PCR vs 자가 진단 검출 민감도';
+    dom.graphSubtitle.textContent = 'PCR은 적은 양의 DNA도 증폭해 검출할 수 있지만, 자가 진단 키트는 더 많은 항원량이 있어야 T선이 뚜렷하게 나타납니다.';
+    dom.graphCallout.innerHTML = positive
+      ? `<strong>현재 판정: 양성</strong> 사이클 ${state.cycle} 수준의 표적량이면 자가 진단 키트의 T선도 확인될 수 있습니다.`
+      : `<strong>현재 판정: 음성 가능</strong> 사이클 ${state.cycle} 수준에서는 PCR은 검출 가능해도 자가 진단 키트는 T선이 약하거나 보이지 않을 수 있습니다.`;
+    renderLegend([
+      { color: '#7fd4ff', label: 'DNA 양 2ⁿ' },
+      { color: '#7df39e', label: 'PCR 검출선' },
+      { color: '#ff6b57', label: '자가 진단 양성선' }
+    ]);
+  }
+
+  function drawGraph() {
+    resizeGraphCanvas();
+    const width = dom.graphCanvas.clientWidth;
+    const height = dom.graphCanvas.clientHeight;
+    if (state.mode === 'pcr') drawPcrGraph(width, height);
+    else drawKitGraph(width, height);
+  }
+
+  function updatePanels() {
+    const displayStage = getDisplayedStage();
+    const amountText = formatDnaAmount(state.cycle);
+
+    dom.modeChipText.textContent = MODE_LABELS[state.mode];
+    dom.cyclePill.textContent = `Cycle ${state.cycle} · DNA ${baseAmountText(state.cycle)}`;
+    dom.formulaMode.textContent = MODE_LABELS[state.mode];
+    dom.formulaCycle.textContent = `${state.cycle}`;
+    dom.formulaAmount.textContent = amountText;
+    dom.statusCycle.textContent = `${state.cycle}회`;
+    dom.statusAmount.textContent = amountText;
+
+    if (state.mode === 'pcr') {
+      dom.tempReadout.textContent = displayStage.temp;
+      dom.tempReadout.style.color = displayStage.tempColor;
+      dom.sceneNote.textContent = displayStage.sceneLabel;
+      dom.statusEyebrow.textContent = 'PCR 과정';
+      dom.statusTitle.textContent = `${displayStage.label} 단계`;
+      dom.statusSummary.textContent = displayStage.summary;
+      dom.statusStage.textContent = displayStage.label;
+      dom.statusTemp.textContent = displayStage.temp;
+      dom.formulaStage.textContent = displayStage.label;
+
+      dom.stageCards.forEach((card) => {
+        card.classList.toggle('active', card.dataset.stage === displayStage.key);
+      });
+
+      dom.kitPanel.classList.remove('visible');
+      dom.stageCards.forEach((card) => { card.style.display = ''; });
+    } else {
+      const positive = state.cycle >= SELF_TEST_THRESHOLD_CYCLE;
+      dom.tempReadout.textContent = positive ? '양성' : '음성';
+      dom.tempReadout.style.color = positive ? '#ff6b57' : '#9bddff';
+      dom.sceneNote.textContent = displayStage.sceneLabel;
+      dom.statusEyebrow.textContent = '자가 진단 키트';
+      dom.statusTitle.textContent = positive ? 'T선 + C선 판독' : 'C선만 판독';
+      dom.statusSummary.textContent = '항원-항체 반응을 이용한 면역 분석입니다. 표적 항원이 충분하면 T선과 C선이 모두 나타납니다.';
+      dom.statusStage.textContent = '항원 판독';
+      dom.statusTemp.textContent = positive ? '양성' : '음성';
+      dom.formulaStage.textContent = '항원 판독';
+
+      dom.kitPanel.classList.add('visible');
+      dom.kitResult.className = positive ? 'positive' : 'negative';
+      dom.kitResult.textContent = positive ? '현재 판정: 양성 (T선 + C선 표시)' : '현재 판정: 음성 (C선만 표시)';
+      dom.kitSummary.textContent = positive
+        ? '표적 항원이 충분해 T선과 C선이 모두 나타나는 상태입니다. PCR은 이런 표적을 더 이른 단계에서도 검출할 수 있습니다.'
+        : '항원량이 적으면 자가 진단 키트에서는 C선만 보여 음성으로 보일 수 있습니다. PCR은 소량의 표적도 증폭해 찾아냅니다.';
+      dom.stageCards.forEach((card) => { card.style.display = 'none'; });
+    }
+  }
+
+  function stepPlayback(delta) {
+    const rate = state.speed;
+    if (state.autoPlay || state.oneShot) {
+      state.sequenceTime += delta * rate;
+      if (state.sequenceTime >= CYCLE_DURATION) {
+        state.sequenceTime -= CYCLE_DURATION;
+        if (state.cycle < 30) state.cycle += 1;
+        if (state.oneShot) {
+          state.oneShot = false;
+          state.sequenceTime = 0;
+        }
+        if (state.cycle >= 30) {
+          state.cycle = 30;
+          state.autoPlay = false;
+          state.oneShot = false;
+          state.sequenceTime = CYCLE_DURATION;
+        }
+        syncParamsFromState();
+      }
+      return;
+    }
+
+    if (state.stage === 'cycle') {
+      state.sequenceTime = (state.sequenceTime + delta * rate) % CYCLE_DURATION;
+    } else {
+      state.manualTime = (state.manualTime + delta * rate) % STAGE_DURATION;
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    resizeScene();
+    drawGraph();
+  });
+
+  mountSceneMode();
+  resizeScene();
+  syncParamsFromState();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.033);
+    const elapsed = clock.elapsedTime;
+
+    stepPlayback(delta);
+    if (activeSceneMode) activeSceneMode.update(delta, elapsed);
+    controls.update();
+    updatePanels();
+    drawGraph();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+</script>
+</body>
+</html>

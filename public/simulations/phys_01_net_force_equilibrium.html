@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>알짜힘과 힘의 평형 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --panel-bg: rgba(8, 18, 34, 0.8);
+    --panel-strong: rgba(6, 15, 28, 0.92);
+    --panel-soft: rgba(255, 255, 255, 0.18);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.7);
+    --text-deep: rgba(12, 27, 46, 0.86);
+    --red: #ff6565;
+    --blue: #6d8dff;
+    --green: #63d98d;
+    --gold: #ffd879;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 230, 174, 0.24), transparent 24%),
+      radial-gradient(circle at 82% 8%, rgba(112, 152, 255, 0.16), transparent 18%),
+      linear-gradient(180deg, #f6f8fb 0%, #eef0f5 55%, #e4e7ef 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  #title-wrap {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  #title-wrap .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(20, 42, 67, 0.56);
+  }
+
+  #title-wrap h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: rgba(18, 36, 58, 0.94);
+    text-shadow: 0 6px 16px rgba(255, 255, 255, 0.58);
+  }
+
+  #title-wrap p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(20, 42, 67, 0.66);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    padding: 10px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.68);
+    color: rgba(12, 31, 52, 0.92);
+    font-family: "Pretendard", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 40;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 14px 32px rgba(67, 84, 118, 0.14);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 14px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(76vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(7, 21, 40, 0.9);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 42px rgba(8, 18, 34, 0.22);
+    z-index: 39;
+    display: none;
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9fd6ff;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #status-chip {
+    position: fixed;
+    top: 86px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 360px;
+    max-width: min(82vw, 760px);
+    padding: 13px 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.62);
+    color: rgba(11, 28, 47, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 34px rgba(63, 82, 111, 0.14);
+    text-align: center;
+    z-index: 32;
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  #status-chip .body {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.62;
+    color: rgba(19, 41, 67, 0.76);
+  }
+
+  #status-chip.equilibrium {
+    background: rgba(232, 255, 241, 0.78);
+    border-color: rgba(126, 227, 163, 0.45);
+  }
+
+  #status-chip.accelerating {
+    background: rgba(255, 247, 228, 0.78);
+    border-color: rgba(255, 205, 111, 0.46);
+  }
+
+  #equilibrium-banner {
+    position: fixed;
+    top: 152px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 11px 18px;
+    border-radius: 999px;
+    background: rgba(58, 176, 92, 0.94);
+    color: #f7fff8;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    box-shadow: 0 16px 36px rgba(32, 119, 59, 0.28);
+    z-index: 33;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease, transform 0.28s ease;
+  }
+
+  #equilibrium-banner.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 42px rgba(7, 18, 32, 0.2);
+    z-index: 26;
+    font-size: 12px;
+    line-height: 1.74;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff0bb;
+  }
+
+  #formula-panel .panel-subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 10px 0;
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 86px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.97);
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #vector-panel {
+    position: fixed;
+    top: 196px;
+    right: 16px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    background: var(--panel-strong);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 42px rgba(7, 18, 32, 0.2);
+    z-index: 26;
+  }
+
+  #vector-panel h2 {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  #vector-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #vector-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #vector-canvas {
+    display: block;
+    width: 100%;
+    height: 270px;
+    margin-top: 12px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 15% 12%, rgba(91, 184, 255, 0.1), transparent 20%),
+      linear-gradient(180deg, rgba(15, 28, 49, 0.96) 0%, rgba(8, 18, 34, 0.98) 100%);
+  }
+
+  #vector-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.64;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 24;
+  }
+
+  .hud-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 5px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(7, 17, 31, 0.8);
+    color: #ffffff;
+    backdrop-filter: blur(10px);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 12px 26px rgba(6, 15, 28, 0.16);
+  }
+
+  .hud-label.red { border-color: rgba(255, 101, 101, 0.4); color: #ffd4d4; }
+  .hud-label.blue { border-color: rgba(109, 141, 255, 0.42); color: #dbe2ff; }
+  .hud-label.green { border-color: rgba(99, 217, 141, 0.42); color: #d9ffe6; }
+  .hud-label.mass { color: #f6f2d1; }
+
+  #scene-hint {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    max-width: 280px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.62);
+    color: rgba(14, 31, 52, 0.84);
+    font-size: 11px;
+    line-height: 1.65;
+    z-index: 24;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(12px);
+  }
+
+  @media (max-width: 980px) {
+    #status-chip {
+      min-width: 0;
+      width: calc(100vw - 32px);
+      top: 98px;
+    }
+
+    #equilibrium-banner {
+      top: 174px;
+      width: calc(100vw - 40px);
+      text-align: center;
+    }
+
+    #vector-panel {
+      top: auto;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      width: auto;
+    }
+
+    #formula-panel {
+      bottom: 336px;
+      width: calc(100vw - 32px);
+    }
+
+    #scene-hint {
+      display: none;
+    }
+  }
+
+  @media (max-width: 680px) {
+    #title-wrap h1 { font-size: 20px; }
+    #title-wrap p { font-size: 10px; }
+    #status-chip { top: 92px; padding: 12px 14px; }
+    #status-chip .title { font-size: 14px; }
+    #status-chip .body { font-size: 11px; }
+    #equilibrium-banner { top: 164px; font-size: 13px; }
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 300px;
+      width: auto;
+      font-size: 11px;
+    }
+    #vector-panel {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      padding: 14px 14px 12px;
+    }
+    #vector-canvas { height: 208px; }
+    #guide-toggle { top: 12px; left: 12px; padding: 9px 13px; }
+    #guide-panel { top: 52px; left: 12px; width: calc(100vw - 24px); }
+  }
+</style>
+</head>
+<body>
+<div id="title-wrap">
+  <div class="eyebrow">Physics I · Net Force & Equilibrium</div>
+  <h1>알짜힘과 힘의 평형</h1>
+  <p>마찰이 없는 실험실 바닥에서 두 힘의 합성과 관성 법칙을 함께 살펴보세요.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>🔬 핵심 원리</h3>
+  <p>물체에 작용하는 알짜힘이 0인 상태를 힘의 평형이라고 합니다. 힘의 평형일 때 운동하던 물체는 속도가 일정한 운동을 계속하고, 정지해 있던 물체는 계속 정지해 있습니다. 이를 관성 법칙 또는 뉴턴 제1법칙이라고 합니다.</p>
+
+  <h3>❓ 탐구 질문</h3>
+  <ul>
+    <li>두 힘이 같은 방향으로 작용할 때와 반대 방향으로 작용할 때 알짜힘의 크기는 어떻게 달라질까요?</li>
+    <li>힘의 평형 상태에서 물체는 반드시 정지해 있어야 할까요? 등속 직선 운동도 가능한 이유를 설명해 보세요.</li>
+    <li>달리는 버스가 갑자기 멈추면 승객이 앞으로 쏠리는 현상을 관성 법칙으로 설명할 수 있을까요?</li>
+  </ul>
+
+  <h3>🌍 실생활 예시</h3>
+  <ul>
+    <li><strong>줄다리기</strong> - 양쪽 힘이 같으면 줄의 알짜힘이 0이 됩니다.</li>
+    <li><strong>등속으로 운행하는 자동차</strong> - 추진력과 저항력이 평형이면 속도가 일정합니다.</li>
+    <li><strong>에스컬레이터 위 정지한 사람</strong> - 여러 힘이 서로 균형을 이루면 가속되지 않습니다.</li>
+  </ul>
+
+  <h3>📘 교과서 연계</h3>
+  <p>물리학 I편 p13~14 - 알짜힘, 힘의 평형, 관성 법칙 (그림 I-1)</p>
+</div>
+
+<div id="status-chip">
+  <div class="title" id="status-title">같은 방향의 힘은 크기를 더합니다.</div>
+  <div class="body" id="status-body">알짜힘이 0이 아니면 블록은 그 방향으로 가속되고, 알짜힘이 0이면 정지 또는 등속 직선 운동을 유지합니다.</div>
+</div>
+
+<div id="equilibrium-banner">⚖️ 힘의 평형! 알짜힘이 0이므로 정지 또는 등속 직선 운동을 유지합니다.</div>
+
+<div id="formula-panel">
+  <div class="panel-title">⚖️ 알짜힘과 힘의 평형</div>
+  <div class="panel-subtitle">1 N = 0.5 길이 단위로 화살표를 표현합니다.</div>
+  <div class="divider"></div>
+  <div class="line"><span class="label">모드</span><span class="value" id="formula-mode">같은 방향</span></div>
+  <div class="line"><span class="label">F₁</span><span class="value" id="formula-f1">3.0 N · 오른쪽</span></div>
+  <div class="line"><span class="label">F₂</span><span class="value" id="formula-f2">5.0 N · 오른쪽</span></div>
+  <div class="divider"></div>
+  <div class="line"><span class="label">알짜힘 F</span><span class="value" id="formula-net">8.0 N · 오른쪽</span></div>
+  <div class="line"><span class="label">성분</span><span class="value mono" id="formula-components">Fx = +8.0 N, Fz = +0.0 N</span></div>
+  <div class="line"><span class="label">상태</span><span class="value" id="formula-state">오른쪽으로 가속</span></div>
+  <div class="line"><span class="label">속도 |v|</span><span class="value mono" id="formula-speed">0.00</span></div>
+  <div class="highlight">
+    <div class="mono" id="formula-condition">힘의 평형 조건: F₁ + F₂ = 0 → 알짜힘 0</div>
+    <div style="margin-top:8px; color:rgba(255,255,255,0.86);" id="formula-law">관성 법칙: 알짜힘이 0이면 정지한 물체는 정지, 운동하던 물체는 등속 직선 운동을 유지합니다.</div>
+  </div>
+</div>
+
+<div id="vector-panel">
+  <h2>벡터 합성 다이어그램</h2>
+  <p>우측 패널에서 힘 벡터를 머리-꼬리 연결과 평행사변형 법칙으로 함께 비교합니다.</p>
+  <div id="vector-legend">
+    <span class="legend-chip"><span class="legend-dot" style="background:#ff6565;"></span>F₁</span>
+    <span class="legend-chip"><span class="legend-dot" style="background:#6d8dff;"></span>F₂</span>
+    <span class="legend-chip"><span class="legend-dot" style="background:#63d98d;"></span>알짜힘</span>
+  </div>
+  <canvas id="vector-canvas"></canvas>
+  <div id="vector-note">같은 방향의 힘은 한 직선 위에서 더해집니다. 화살표 길이를 비교해 알짜힘의 크기를 확인해 보세요.</div>
+</div>
+
+<div id="label-layer"></div>
+
+<div id="scene-hint">
+  마우스로 장면을 회전하고 확대할 수 있습니다. 알짜힘이 0인 상태를 만든 뒤 다시 운동을 재생해 관성 법칙을 살펴보세요.
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const FORCE_SCALE = 0.5;
+const MOTION_SCALE = 0.22;
+const MASS = 2;
+const EQUILIBRIUM_EPS = 0.05;
+const MOTION_DURATION = 6;
+const FLOOR_LIMIT = 8.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(6.4, 4.2, 6.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.domElement.id = 'scene-canvas';
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0.9, 0);
+controls.minDistance = 4;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(6, 10, 5);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.left = -14;
+directionalLight.shadow.camera.right = 14;
+directionalLight.shadow.camera.top = 14;
+directionalLight.shadow.camera.bottom = -14;
+directionalLight.shadow.bias = -0.00012;
+scene.add(directionalLight);
+
+const fillLight = new THREE.DirectionalLight(0xbfd3ff, 0.28);
+fillLight.position.set(-5, 4, -5);
+scene.add(fillLight);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.95, metalness: 0.04 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const gridHelper = new THREE.GridHelper(20, 20, 0xc4cad4, 0xdfe3ea);
+scene.add(gridHelper);
+
+const motionTrack = new THREE.Mesh(
+  new THREE.PlaneGeometry(16, 2.6),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 })
+);
+motionTrack.rotation.x = -Math.PI / 2;
+motionTrack.position.set(0, 0.002, 0);
+scene.add(motionTrack);
+
+const blockRig = new THREE.Group();
+blockRig.position.set(0, 0.5, 0);
+scene.add(blockRig);
+
+const blockMaterial = new THREE.MeshStandardMaterial({
+  color: 0x4488aa,
+  roughness: 0.6,
+  metalness: 0.15,
+  emissive: 0x103418,
+  emissiveIntensity: 0
+});
+
+const block = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1), blockMaterial);
+block.castShadow = true;
+block.receiveShadow = true;
+blockRig.add(block);
+
+const blockEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.5, 1, 1)),
+  new THREE.LineBasicMaterial({ color: 0x0f2d46, transparent: true, opacity: 0.4 })
+);
+blockRig.add(blockEdges);
+
+const glowMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(1.72, 1.18, 1.18),
+  new THREE.MeshBasicMaterial({
+    color: 0x63d98d,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  })
+);
+blockRig.add(glowMesh);
+
+const arrowLayer = new THREE.Group();
+blockRig.add(arrowLayer);
+
+const parallelogramMaterial = new THREE.MeshBasicMaterial({
+  color: 0x63d98d,
+  transparent: true,
+  opacity: 0.18,
+  side: THREE.DoubleSide,
+  depthWrite: false
+});
+
+const parallelogramMesh = new THREE.Mesh(new THREE.BufferGeometry(), parallelogramMaterial);
+parallelogramMesh.visible = false;
+blockRig.add(parallelogramMesh);
+
+const parallelogramOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color: 0x8dffb0, transparent: true, opacity: 0.8 })
+);
+parallelogramOutline.visible = false;
+blockRig.add(parallelogramOutline);
+
+const labelLayer = document.getElementById('label-layer');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const statusChip = document.getElementById('status-chip');
+const statusTitle = document.getElementById('status-title');
+const statusBody = document.getElementById('status-body');
+const equilibriumBanner = document.getElementById('equilibrium-banner');
+const vectorCanvas = document.getElementById('vector-canvas');
+const vectorContext = vectorCanvas.getContext('2d');
+const vectorNote = document.getElementById('vector-note');
+
+const formulaMode = document.getElementById('formula-mode');
+const formulaF1 = document.getElementById('formula-f1');
+const formulaF2 = document.getElementById('formula-f2');
+const formulaNet = document.getElementById('formula-net');
+const formulaComponents = document.getElementById('formula-components');
+const formulaState = document.getElementById('formula-state');
+const formulaSpeed = document.getElementById('formula-speed');
+const formulaCondition = document.getElementById('formula-condition');
+const formulaLaw = document.getElementById('formula-law');
+
+const params = {
+  mode: '같은 방향',
+  f1Magnitude: 3,
+  f2Magnitude: 5,
+  f1Angle: 0,
+  f2Angle: 180,
+  showResultant: true,
+  runMotion: () => startMotion(),
+  makeEquilibrium: () => createEquilibrium(),
+  reset: () => resetSimulation()
+};
+
+const state = {
+  force1N: new THREE.Vector3(),
+  force2N: new THREE.Vector3(),
+  netN: new THREE.Vector3(),
+  force1Scene: new THREE.Vector3(),
+  force2Scene: new THREE.Vector3(),
+  netScene: new THREE.Vector3(),
+  equilibrium: false
+};
+
+const velocity = new THREE.Vector3();
+const clock = new THREE.Clock();
+let motionActive = false;
+let motionTimer = 0;
+
+const arrowOffsets = {
+  f1: new THREE.Vector3(0, 0.18, 0.18),
+  f2: new THREE.Vector3(0, -0.12, -0.18),
+  sum: new THREE.Vector3(0, 0.55, 0)
+};
+
+function createHudLabel(text, classes) {
+  const el = document.createElement('div');
+  el.className = `hud-label ${classes}`;
+  el.textContent = text;
+  labelLayer.appendChild(el);
+  return el;
+}
+
+const massLabel = createHudLabel('m = 2 kg', 'mass');
+const f1Label = createHudLabel('F₁ = 3 N', 'red');
+const f2Label = createHudLabel('F₂ = 5 N', 'blue');
+const sumLabel = createHudLabel('F = 8 N', 'green');
+
+function formatForce(value) {
+  return `${value.toFixed(1)} N`;
+}
+
+function normalizeAngle(angle) {
+  return ((angle % 360) + 360) % 360;
+}
+
+function angleToDirection(angle) {
+  const deg = normalizeAngle(angle);
+  const rounded = Math.round(deg);
+
+  if (Math.abs(deg - 0) < 6 || Math.abs(deg - 360) < 6) return `오른쪽 (${rounded}°)`;
+  if (Math.abs(deg - 90) < 6) return `위쪽 (${rounded}°)`;
+  if (Math.abs(deg - 180) < 6) return `왼쪽 (${rounded}°)`;
+  if (Math.abs(deg - 270) < 6) return `아래쪽 (${rounded}°)`;
+  if (deg > 0 && deg < 90) return `오른쪽 위 (${rounded}°)`;
+  if (deg > 90 && deg < 180) return `왼쪽 위 (${rounded}°)`;
+  if (deg > 180 && deg < 270) return `왼쪽 아래 (${rounded}°)`;
+  return `오른쪽 아래 (${rounded}°)`;
+}
+
+function vectorToAngle(vector) {
+  return normalizeAngle(THREE.MathUtils.radToDeg(Math.atan2(-vector.z, vector.x)));
+}
+
+function vectorToDirection(vector) {
+  if (vector.length() < EQUILIBRIUM_EPS) return '없음';
+  return angleToDirection(vectorToAngle(vector));
+}
+
+function forceVector(angleDeg, magnitude) {
+  const rad = THREE.MathUtils.degToRad(angleDeg);
+  return new THREE.Vector3(Math.cos(rad) * magnitude, 0, -Math.sin(rad) * magnitude);
+}
+
+function disposeMaterial(material) {
+  if (Array.isArray(material)) {
+    material.forEach((item) => item.dispose());
+    return;
+  }
+  material.dispose();
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) disposeMaterial(child.material);
+  });
+}
+
+function clearGroup(group) {
+  while (group.children.length > 0) {
+    const child = group.children[0];
+    group.remove(child);
+    disposeObject(child);
+  }
+}
+
+function createArrow(start, vector, color, options = {}) {
+  const length = vector.length();
+  if (length < 0.001) return null;
+
+  const group = new THREE.Group();
+  group.position.copy(start);
+  group.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    vector.clone().normalize()
+  );
+
+  const opacity = options.opacity ?? 1;
+  const radius = options.radius ?? 0.045;
+  const headLength = Math.min(0.34, Math.max(0.2, length * 0.25));
+  const shaftLength = Math.max(0.05, length - headLength);
+
+  const materialOptions = {
+    color,
+    transparent: opacity < 1,
+    opacity
+  };
+
+  if (options.dashed) {
+    const dashLength = 0.16;
+    const gapLength = 0.1;
+    let cursor = 0;
+
+    while (cursor < shaftLength - 0.02) {
+      const segmentLength = Math.min(dashLength, shaftLength - cursor);
+      const segment = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, segmentLength, 12),
+        new THREE.MeshStandardMaterial({ ...materialOptions, roughness: 0.35, metalness: 0.1 })
+      );
+      segment.position.y = cursor + segmentLength * 0.5;
+      segment.castShadow = true;
+      group.add(segment);
+      cursor += segmentLength + gapLength;
+    }
+  } else {
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius, shaftLength, 12),
+      new THREE.MeshStandardMaterial({ ...materialOptions, roughness: 0.35, metalness: 0.1 })
+    );
+    shaft.position.y = shaftLength * 0.5;
+    shaft.castShadow = true;
+    group.add(shaft);
+  }
+
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(radius * 2.4, headLength, 18),
+    new THREE.MeshStandardMaterial({ ...materialOptions, roughness: 0.28, metalness: 0.14 })
+  );
+  cone.position.y = shaftLength + headLength * 0.5;
+  cone.castShadow = true;
+  group.add(cone);
+
+  arrowLayer.add(group);
+  return group;
+}
+
+function projectLabel(label, worldPosition, visible = true) {
+  if (!visible) {
+    label.style.display = 'none';
+    return;
+  }
+
+  const projected = worldPosition.clone().project(camera);
+  const onscreen = projected.z > -1 && projected.z < 1;
+
+  if (!onscreen) {
+    label.style.display = 'none';
+    return;
+  }
+
+  label.style.display = 'block';
+  label.style.left = `${(projected.x * 0.5 + 0.5) * window.innerWidth}px`;
+  label.style.top = `${(-projected.y * 0.5 + 0.5) * window.innerHeight}px`;
+}
+
+function setModeDefaults() {
+  if (params.mode === '같은 방향') {
+    params.f1Angle = 0;
+    params.f2Angle = 0;
+  } else if (params.mode === '반대 방향') {
+    params.f1Angle = 0;
+    params.f2Angle = 180;
+  }
+}
+
+function computeForces() {
+  setModeDefaults();
+
+  state.force1N.copy(forceVector(params.f1Angle, params.f1Magnitude));
+  state.force2N.copy(forceVector(params.f2Angle, params.f2Magnitude));
+  state.netN.copy(state.force1N).add(state.force2N);
+
+  state.force1Scene.copy(state.force1N).multiplyScalar(FORCE_SCALE);
+  state.force2Scene.copy(state.force2N).multiplyScalar(FORCE_SCALE);
+  state.netScene.copy(state.netN).multiplyScalar(FORCE_SCALE);
+
+  state.equilibrium = state.netN.length() < EQUILIBRIUM_EPS;
+}
+
+function updateParallelogram() {
+  const area = new THREE.Vector3().crossVectors(state.force1Scene, state.force2Scene).length();
+  const show = params.mode === '2D 임의 방향' && area > 0.03;
+
+  parallelogramMesh.visible = show;
+  parallelogramOutline.visible = show;
+
+  if (!show) return;
+
+  const y = 0.74;
+  const o = new THREE.Vector3(0, y, 0);
+  const a = new THREE.Vector3(state.force1Scene.x, y, state.force1Scene.z);
+  const b = new THREE.Vector3(state.force2Scene.x, y, state.force2Scene.z);
+  const c = new THREE.Vector3(state.force1Scene.x + state.force2Scene.x, y, state.force1Scene.z + state.force2Scene.z);
+
+  const vertices = new Float32Array([
+    o.x, o.y, o.z,
+    a.x, a.y, a.z,
+    c.x, c.y, c.z,
+    b.x, b.y, b.z
+  ]);
+
+  const indices = [0, 1, 2, 0, 2, 3];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  parallelogramMesh.geometry.dispose();
+  parallelogramMesh.geometry = geometry;
+
+  const outline = new Float32Array([
+    o.x, o.y, o.z,
+    a.x, a.y, a.z,
+    c.x, c.y, c.z,
+    b.x, b.y, b.z
+  ]);
+
+  const outlineGeometry = new THREE.BufferGeometry();
+  outlineGeometry.setAttribute('position', new THREE.BufferAttribute(outline, 3));
+  parallelogramOutline.geometry.dispose();
+  parallelogramOutline.geometry = outlineGeometry;
+}
+
+function rebuildArrows() {
+  clearGroup(arrowLayer);
+
+  createArrow(arrowOffsets.f1, state.force1Scene, 0xff4444, { opacity: 0.95 });
+  createArrow(arrowOffsets.f2, state.force2Scene, 0x4444ff, { opacity: 0.95 });
+
+  if (params.showResultant && state.netScene.length() >= 0.001) {
+    createArrow(arrowOffsets.sum, state.netScene, 0x44cc44, { dashed: true, opacity: 0.8, radius: 0.04 });
+  }
+
+  updateParallelogram();
+}
+
+function updateFormula() {
+  const motionDescription = describeMotionState();
+
+  formulaMode.textContent = params.mode;
+  formulaF1.textContent = `${formatForce(params.f1Magnitude)} · ${angleToDirection(params.f1Angle)}`;
+  formulaF2.textContent = `${formatForce(params.f2Magnitude)} · ${angleToDirection(params.f2Angle)}`;
+
+  if (state.equilibrium) {
+    formulaNet.textContent = '0.0 N (힘의 평형)';
+  } else {
+    formulaNet.textContent = `${formatForce(state.netN.length())} · ${vectorToDirection(state.netN)}`;
+  }
+
+  formulaComponents.textContent = `Fx = ${state.netN.x >= 0 ? '+' : ''}${state.netN.x.toFixed(1)} N, Fz = ${state.netN.z >= 0 ? '+' : ''}${state.netN.z.toFixed(1)} N`;
+  formulaState.textContent = motionDescription;
+  formulaSpeed.textContent = velocity.length().toFixed(2);
+
+  if (state.equilibrium) {
+    formulaCondition.textContent = '힘의 평형 조건: F₁ + F₂ = 0 → 알짜힘 0';
+    formulaLaw.textContent = velocity.length() < 0.05
+      ? '관성 법칙: 알짜힘이 0이므로 정지한 블록은 계속 정지합니다.'
+      : '관성 법칙: 알짜힘이 0이므로 운동 중인 블록은 등속 직선 운동을 유지합니다.';
+  } else {
+    formulaCondition.textContent = '알짜힘 ≠ 0 이면 가속도가 생겨 운동 상태가 바뀝니다.';
+    formulaLaw.textContent = '관성 법칙은 알짜힘이 0일 때만 성립합니다. 지금은 알짜힘이 있어 속도나 방향이 변합니다.';
+  }
+}
+
+function updateStatusPanels() {
+  statusChip.classList.remove('equilibrium', 'accelerating');
+
+  if (state.equilibrium) {
+    statusChip.classList.add('equilibrium');
+    statusTitle.textContent = '⚖️ 힘의 평형: 알짜힘이 0입니다.';
+    statusBody.textContent = velocity.length() < 0.05
+      ? '정지한 블록은 그대로 정지합니다. 먼저 불평형 상태에서 움직인 뒤 평형을 만들면 등속 운동도 확인할 수 있습니다.'
+      : '운동 중인 블록은 같은 속력과 방향을 유지하며 움직입니다. 이것이 관성 법칙의 핵심입니다.';
+    equilibriumBanner.classList.add('show');
+  } else {
+    statusChip.classList.add('accelerating');
+    statusTitle.textContent = `${vectorToDirection(state.netN)} 방향으로 알짜힘 ${state.netN.length().toFixed(1)} N`;
+    statusBody.textContent = motionActive
+      ? '운동 시뮬레이션이 재생 중입니다. 알짜힘 방향으로 속도가 계속 변합니다.'
+      : '알짜힘이 0이 아니므로 버튼을 눌러 재생하면 블록이 그 방향으로 가속됩니다.';
+    equilibriumBanner.classList.remove('show');
+  }
+}
+
+function describeMotionState() {
+  if (state.equilibrium) {
+    if (velocity.length() < 0.05) return '정지 유지';
+    return motionActive ? '등속 직선 운동' : '등속 운동 준비';
+  }
+  return motionActive ? `${vectorToDirection(state.netN)}으로 가속` : `${vectorToDirection(state.netN)}으로 가속 가능`;
+}
+
+function drawArrow2D(ctx, from, to, color, width = 3, dashed = false, alpha = 1) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (dashed) ctx.setLineDash([10, 8]);
+
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const headLength = 12;
+
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(to.x - Math.cos(angle - Math.PI / 6) * headLength, to.y - Math.sin(angle - Math.PI / 6) * headLength);
+  ctx.lineTo(to.x - Math.cos(angle + Math.PI / 6) * headLength, to.y - Math.sin(angle + Math.PI / 6) * headLength);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLabel2D(ctx, text, point, color) {
+  ctx.save();
+  ctx.font = '12px Pretendard, sans-serif';
+  const width = ctx.measureText(text).width + 18;
+  const x = point.x + 10;
+  const y = point.y - 26;
+  ctx.fillStyle = 'rgba(6, 15, 28, 0.84)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, 24, 12);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fillText(text, x + 9, y + 16);
+  ctx.restore();
+}
+
+function renderVectorDiagram() {
+  const rect = vectorCanvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  vectorCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  vectorCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  vectorContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const width = rect.width;
+  const height = rect.height;
+
+  vectorContext.clearRect(0, 0, width, height);
+
+  const origin = { x: width * 0.34, y: height * 0.68 };
+  const f1 = { x: state.force1N.x, y: -state.force1N.z };
+  const f2 = { x: state.force2N.x, y: -state.force2N.z };
+  const sum = { x: state.netN.x, y: -state.netN.z };
+
+  const points = [
+    f1,
+    f2,
+    sum,
+    { x: f1.x + f2.x, y: f1.y + f2.y }
+  ];
+
+  let maxAbs = 1;
+  points.forEach((point) => {
+    maxAbs = Math.max(maxAbs, Math.abs(point.x), Math.abs(point.y));
+  });
+
+  const scale = Math.min((width * 0.52) / (maxAbs * 2), (height * 0.46) / (maxAbs * 2), 26);
+
+  const toCanvas = (point) => ({
+    x: origin.x + point.x * scale,
+    y: origin.y - point.y * scale
+  });
+
+  vectorContext.save();
+  vectorContext.strokeStyle = 'rgba(255,255,255,0.08)';
+  vectorContext.lineWidth = 1;
+
+  for (let step = -4; step <= 4; step += 1) {
+    vectorContext.beginPath();
+    vectorContext.moveTo(origin.x + step * scale, 22);
+    vectorContext.lineTo(origin.x + step * scale, height - 22);
+    vectorContext.stroke();
+
+    vectorContext.beginPath();
+    vectorContext.moveTo(20, origin.y - step * scale);
+    vectorContext.lineTo(width - 20, origin.y - step * scale);
+    vectorContext.stroke();
+  }
+
+  vectorContext.strokeStyle = 'rgba(255,255,255,0.22)';
+  vectorContext.lineWidth = 1.4;
+  vectorContext.beginPath();
+  vectorContext.moveTo(20, origin.y);
+  vectorContext.lineTo(width - 20, origin.y);
+  vectorContext.moveTo(origin.x, 20);
+  vectorContext.lineTo(origin.x, height - 20);
+  vectorContext.stroke();
+
+  vectorContext.fillStyle = 'rgba(255,255,255,0.56)';
+  vectorContext.font = '11px Pretendard, sans-serif';
+  vectorContext.fillText('x', width - 26, origin.y - 6);
+  vectorContext.fillText('z', origin.x + 8, 28);
+  vectorContext.restore();
+
+  const originPoint = toCanvas({ x: 0, y: 0 });
+  const f1End = toCanvas(f1);
+  const f2End = toCanvas(f2);
+  const sumEnd = toCanvas(sum);
+  const tailEnd = toCanvas({ x: f1.x + f2.x, y: f1.y + f2.y });
+
+  if (params.mode === '2D 임의 방향') {
+    vectorContext.save();
+    vectorContext.fillStyle = 'rgba(99, 217, 141, 0.13)';
+    vectorContext.strokeStyle = 'rgba(141, 255, 176, 0.28)';
+    vectorContext.lineWidth = 1.5;
+    vectorContext.beginPath();
+    vectorContext.moveTo(originPoint.x, originPoint.y);
+    vectorContext.lineTo(f1End.x, f1End.y);
+    vectorContext.lineTo(tailEnd.x, tailEnd.y);
+    vectorContext.lineTo(f2End.x, f2End.y);
+    vectorContext.closePath();
+    vectorContext.fill();
+    vectorContext.stroke();
+    vectorContext.restore();
+
+    drawArrow2D(vectorContext, f1End, tailEnd, '#6d8dff', 2, true, 0.55);
+    drawArrow2D(vectorContext, f2End, tailEnd, '#ff6565', 2, true, 0.55);
+  } else {
+    drawArrow2D(vectorContext, f1End, tailEnd, '#6d8dff', 2, true, 0.55);
+  }
+
+  drawArrow2D(vectorContext, originPoint, f1End, '#ff6565');
+  drawArrow2D(vectorContext, originPoint, f2End, '#6d8dff');
+
+  if (params.showResultant && Math.hypot(sum.x, sum.y) > EQUILIBRIUM_EPS) {
+    drawArrow2D(vectorContext, originPoint, sumEnd, '#63d98d', 3.2, true);
+    drawLabel2D(vectorContext, `F = ${state.netN.length().toFixed(1)} N`, sumEnd, '#d9ffe6');
+  } else if (state.equilibrium) {
+    drawLabel2D(vectorContext, 'F = 0 N', originPoint, '#d9ffe6');
+  }
+
+  drawLabel2D(vectorContext, `F₁ ${params.f1Magnitude.toFixed(1)} N`, f1End, '#ffd4d4');
+  drawLabel2D(vectorContext, `F₂ ${params.f2Magnitude.toFixed(1)} N`, f2End, '#dbe2ff');
+
+  if (state.equilibrium) {
+    vectorNote.textContent = 'F₁ + F₂ = 0 이므로 힘의 평형입니다. 정지한 물체는 정지하고, 이미 움직이던 물체는 같은 속도로 계속 움직입니다.';
+  } else if (params.mode === '같은 방향') {
+    vectorNote.textContent = '같은 방향의 힘은 한 직선 위에서 크기를 그대로 더하면 됩니다. 두 화살표가 모두 오른쪽이므로 알짜힘도 오른쪽입니다.';
+  } else if (params.mode === '반대 방향') {
+    vectorNote.textContent = '반대 방향의 힘은 큰 힘에서 작은 힘을 뺀 값이 알짜힘입니다. 크기가 같아지면 알짜힘은 0이 됩니다.';
+  } else {
+    vectorNote.textContent = '2D 임의 방향에서는 평행사변형의 대각선이 알짜힘입니다. 각도 슬라이더를 바꾸며 대각선의 길이와 방향을 비교해 보세요.';
+  }
+}
+
+function updateLabels() {
+  projectLabel(massLabel, blockRig.localToWorld(new THREE.Vector3(0, 0.95, 0)));
+
+  const f1End = blockRig.localToWorld(arrowOffsets.f1.clone().add(state.force1Scene).add(new THREE.Vector3(0, 0.1, 0)));
+  const f2End = blockRig.localToWorld(arrowOffsets.f2.clone().add(state.force2Scene).add(new THREE.Vector3(0, 0.1, 0)));
+  const sumPoint = state.equilibrium
+    ? blockRig.localToWorld(new THREE.Vector3(0, 0.95, 0))
+    : blockRig.localToWorld(arrowOffsets.sum.clone().add(state.netScene).add(new THREE.Vector3(0, 0.12, 0)));
+
+  f1Label.textContent = `F₁ = ${params.f1Magnitude.toFixed(1)} N`;
+  f2Label.textContent = `F₂ = ${params.f2Magnitude.toFixed(1)} N`;
+  sumLabel.textContent = state.equilibrium ? 'F = 0 N' : `F = ${state.netN.length().toFixed(1)} N`;
+
+  projectLabel(f1Label, f1End, params.f1Magnitude > 0.01);
+  projectLabel(f2Label, f2End, params.f2Magnitude > 0.01);
+  projectLabel(sumLabel, sumPoint, params.showResultant || state.equilibrium);
+}
+
+function syncGui(gui) {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function refresh(gui) {
+  computeForces();
+  rebuildArrows();
+  updateAngleControllerVisibility();
+  updateFormula();
+  updateStatusPanels();
+  renderVectorDiagram();
+  updateLabels();
+  syncGui(gui);
+}
+
+function clampBlockPosition() {
+  blockRig.position.x = THREE.MathUtils.clamp(blockRig.position.x, -FLOOR_LIMIT, FLOOR_LIMIT);
+  blockRig.position.z = THREE.MathUtils.clamp(blockRig.position.z, -FLOOR_LIMIT, FLOOR_LIMIT);
+}
+
+function startMotion() {
+  motionActive = true;
+  motionTimer = 0;
+  updateStatusPanels();
+}
+
+function createEquilibrium() {
+  if (params.mode === '2D 임의 방향') {
+    params.f2Magnitude = params.f1Magnitude;
+    params.f2Angle = normalizeAngle(params.f1Angle + 180);
+  } else {
+    params.mode = '반대 방향';
+    params.f1Angle = 0;
+    params.f2Angle = 180;
+    params.f2Magnitude = params.f1Magnitude;
+  }
+  refresh(gui);
+}
+
+function resetSimulation() {
+  params.mode = '같은 방향';
+  params.f1Magnitude = 3;
+  params.f2Magnitude = 5;
+  params.f1Angle = 0;
+  params.f2Angle = 180;
+  params.showResultant = true;
+  blockRig.position.set(0, 0.5, 0);
+  velocity.set(0, 0, 0);
+  motionActive = false;
+  motionTimer = 0;
+  refresh(gui);
+}
+
+function updateGlow(time) {
+  if (state.equilibrium) {
+    const pulse = 0.18 + Math.sin(time * 2.8) * 0.05;
+    glowMesh.material.opacity = pulse;
+    blockMaterial.emissiveIntensity = 0.42 + Math.sin(time * 2.8) * 0.06;
+  } else {
+    glowMesh.material.opacity = THREE.MathUtils.lerp(glowMesh.material.opacity, 0, 0.14);
+    blockMaterial.emissiveIntensity = THREE.MathUtils.lerp(blockMaterial.emissiveIntensity, 0.02, 0.12);
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (motionActive) {
+    motionTimer += dt;
+
+    const acceleration = state.netN.clone().multiplyScalar(MOTION_SCALE / MASS);
+    velocity.addScaledVector(acceleration, dt);
+    blockRig.position.addScaledVector(velocity, dt);
+    clampBlockPosition();
+
+    if (motionTimer >= MOTION_DURATION) {
+      motionActive = false;
+    }
+  }
+
+  updateGlow(clock.elapsedTime);
+  updateFormula();
+  updateStatusPanels();
+  updateLabels();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function updateResponsiveCanvas() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderVectorDiagram();
+  updateLabels();
+}
+
+guideToggle.addEventListener('click', () => {
+  const visible = guidePanel.style.display === 'block';
+  guidePanel.style.display = visible ? 'none' : 'block';
+});
+
+const gui = new GUI({ title: '힘 실험 제어', width: 290 });
+gui.domElement.style.position = 'fixed';
+gui.domElement.style.top = '14px';
+gui.domElement.style.right = '14px';
+gui.domElement.style.zIndex = '50';
+
+const controllers = {
+  mode: gui.add(params, 'mode', ['같은 방향', '반대 방향', '2D 임의 방향']).name('모드').onChange(() => refresh(gui)),
+  f1Magnitude: gui.add(params, 'f1Magnitude', 0, 10, 0.5).name('F₁ 크기').onChange(() => refresh(gui)),
+  f2Magnitude: gui.add(params, 'f2Magnitude', 0, 10, 0.5).name('F₂ 크기').onChange(() => refresh(gui)),
+  f1Angle: gui.add(params, 'f1Angle', 0, 360, 1).name('F₁ 방향').onChange(() => refresh(gui)),
+  f2Angle: gui.add(params, 'f2Angle', 0, 360, 1).name('F₂ 방향').onChange(() => refresh(gui)),
+  showResultant: gui.add(params, 'showResultant').name('알짜힘 표시').onChange(() => refresh(gui)),
+  runMotion: gui.add(params, 'runMotion').name('운동 시뮬레이션'),
+  makeEquilibrium: gui.add(params, 'makeEquilibrium').name('평형 만들기'),
+  reset: gui.add(params, 'reset').name('초기화')
+};
+
+function updateAngleControllerVisibility() {
+  const visible = params.mode === '2D 임의 방향';
+  controllers.f1Angle.domElement.style.display = visible ? '' : 'none';
+  controllers.f2Angle.domElement.style.display = visible ? '' : 'none';
+}
+
+window.addEventListener('resize', updateResponsiveCanvas);
+
+if (window.innerWidth < 900) gui.close();
+
+refresh(gui);
+animate();
+</script>
+</body>
+</html>

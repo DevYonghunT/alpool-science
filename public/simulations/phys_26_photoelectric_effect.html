@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>광전 효과와 빛의 입자성 - 3D 시뮬레이션</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg-deep: #0a0a20;
+    --panel-dark: rgba(9, 16, 36, 0.9);
+    --panel-mid: rgba(16, 26, 50, 0.88);
+    --panel-soft: rgba(255, 255, 255, 0.08);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f6f8ff;
+    --text-dim: rgba(246, 248, 255, 0.7);
+    --text-faint: rgba(246, 248, 255, 0.5);
+    --accent-gold: #ffd76f;
+    --accent-cyan: #7ce4ff;
+    --accent-red: #ff7474;
+    --accent-green: #77ef9a;
+    --accent-violet: #b98aff;
+    --shadow-strong: 0 20px 42px rgba(3, 8, 22, 0.34);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 12% 10%, rgba(85, 142, 255, 0.12), transparent 22%),
+      radial-gradient(circle at 88% 18%, rgba(255, 120, 120, 0.1), transparent 20%),
+      linear-gradient(180deg, #091022 0%, #050810 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.36fr) minmax(360px, 0.94fr);
+    background: var(--bg-deep);
+  }
+
+  #scene-panel,
+  #dashboard-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 16% 18%, rgba(152, 126, 255, 0.14), transparent 24%),
+      radial-gradient(circle at 78% 16%, rgba(255, 205, 106, 0.12), transparent 20%),
+      linear-gradient(180deg, #0c1025 0%, #090d1f 100%);
+  }
+
+  #dashboard-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 18px 16px;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(60, 164, 255, 0.12), transparent 20%),
+      linear-gradient(180deg, #08101f 0%, #060b15 100%);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-intro {
+    position: absolute;
+    top: 64px;
+    left: 18px;
+    width: min(430px, calc(100% - 36px));
+    padding: 18px 20px;
+    border-radius: 24px;
+    background: rgba(10, 18, 38, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-strong);
+    z-index: 10;
+  }
+
+  #scene-intro .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  #scene-intro h1 {
+    margin-top: 6px;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  #scene-intro p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  #status-card {
+    position: absolute;
+    top: 226px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(440px, calc(100% - 36px));
+    padding: 14px 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-strong);
+    text-align: center;
+    z-index: 11;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  #status-card.good {
+    background: rgba(104, 245, 150, 0.14);
+    border-color: rgba(104, 245, 150, 0.3);
+  }
+
+  #status-card.bad {
+    background: rgba(255, 116, 116, 0.14);
+    border-color: rgba(255, 116, 116, 0.32);
+  }
+
+  #status-card .title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #status-card .body {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #warning-flash {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-10%, -30%) scale(0.9);
+    padding: 14px 18px;
+    border-radius: 18px;
+    background: rgba(255, 70, 70, 0.16);
+    border: 1px solid rgba(255, 112, 112, 0.34);
+    color: #fff5f5;
+    box-shadow: 0 18px 38px rgba(120, 10, 10, 0.24);
+    backdrop-filter: blur(16px);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 12;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  #warning-flash.show {
+    opacity: 1;
+    transform: translate(-10%, -30%) scale(1);
+  }
+
+  #warning-flash strong {
+    display: block;
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff1f1;
+  }
+
+  #warning-flash span {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: rgba(255, 244, 244, 0.84);
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    width: min(410px, calc(100% - 36px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 14, 30, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-strong);
+    z-index: 10;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel .title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffe9a4;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #formula-panel .highlight {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #formula-panel .highlight.good {
+    border-color: rgba(119, 239, 154, 0.24);
+    background: rgba(119, 239, 154, 0.08);
+  }
+
+  #formula-panel .highlight.bad {
+    border-color: rgba(255, 116, 116, 0.28);
+    background: rgba(255, 116, 116, 0.08);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 40;
+    padding: 11px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(7, 14, 30, 0.86);
+    color: #f9fbff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-strong);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 64px;
+    left: 18px;
+    z-index: 39;
+    width: min(420px, calc(100vw - 36px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 14, 30, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-strong);
+    display: none;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #9bdfff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #dashboard-header {
+    padding: 18px 18px 16px;
+    border-radius: 26px;
+    background: var(--panel-dark);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--shadow-strong);
+  }
+
+  #dashboard-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  #dashboard-header h2 {
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  #dashboard-header p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .metric-card {
+    padding: 13px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 0;
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  .metric-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+
+  .dashboard-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    border-radius: 26px;
+    background: var(--panel-mid);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--shadow-strong);
+    overflow: hidden;
+  }
+
+  .dashboard-card .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px 10px;
+  }
+
+  .dashboard-card h3 {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .dashboard-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .dashboard-card .legend {
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.78);
+    white-space: nowrap;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    padding: 0 14px 14px;
+  }
+
+  .dashboard-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(6, 12, 24, 0.98) 0%, rgba(5, 9, 18, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #observation-card {
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #observation-card strong {
+    display: block;
+    font-size: 13px;
+    color: #fff0b5;
+  }
+
+  #observation-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: var(--text-dim);
+  }
+
+  #empty-state {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 120px;
+    padding: 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #gui-mount {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 50;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(7, 14, 30, 0.94);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --widget-border-color: rgba(255, 255, 255, 0.08);
+    --padding: 8px;
+    --title-background-color: rgba(255, 255, 255, 0.08);
+    --text-color: #f5f8ff;
+    --focus-color: rgba(124, 228, 255, 0.4);
+    box-shadow: var(--shadow-strong);
+  }
+
+  @media (max-width: 1180px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(420px, 58vh) minmax(0, 42vh);
+    }
+
+    #dashboard-panel {
+      border-left: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #status-card {
+      top: 214px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    #scene-intro {
+      top: 62px;
+      width: calc(100% - 24px);
+      left: 12px;
+      padding: 14px 16px;
+    }
+
+    #scene-intro h1 {
+      font-size: 22px;
+    }
+
+    #status-card {
+      top: 220px;
+      width: calc(100% - 24px);
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: calc(100% - 24px);
+      padding: 14px 14px 12px;
+    }
+
+    #dashboard-panel {
+      padding: 12px;
+    }
+
+    #metric-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .dashboard-card .card-head {
+      flex-direction: column;
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #gui-mount .lil-gui {
+      max-width: min(290px, calc(100vw - 24px));
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle">📖 학습 가이드</button>
+<section id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>금속에 빛을 비추면 전자가 방출되는 광전 효과에서, 빛의 진동수가 문턱 진동수 이상일 때만 전자가 방출됩니다. 빛의 세기(광자 수)를 높여도 진동수가 부족하면 전자는 방출되지 않습니다. 이는 빛이 광자라는 에너지 덩어리임을 뜻합니다.</p>
+  <h3>탐구 질문</h3>
+  <ol>
+    <li>빨간빛(낮은 진동수)을 아무리 세게 비춰도 광전자가 방출되지 않는 까닭은 무엇인가요?</li>
+    <li>보라빛(높은 진동수)의 세기를 높이면 광전류는 어떻게 변하나요? 광전자의 운동 에너지는?</li>
+    <li>광전 효과는 빛의 파동성만으로는 설명하기 어렵습니다. 그 까닭은 무엇인가요?</li>
+  </ol>
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>태양 전지에서 빛 에너지가 전기 에너지로 전환될 때</li>
+    <li>자동문 센서와 광센서가 빛을 감지할 때</li>
+    <li>디지털 카메라 이미지 센서가 빛을 전하 신호로 바꿀 때</li>
+  </ul>
+  <h3>교과서 연계</h3>
+  <p>물리학 III편 p150~155 — 광전 효과, 빛의 입자성, 아인슈타인</p>
+</section>
+
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div id="scene-intro">
+      <div class="eyebrow">PHYSICS III · 빛과 물질</div>
+      <h1>광전 효과와 빛의 입자성</h1>
+      <p>금속판에 도달한 광자 1개가 전자 1개를 튀어나오게 할 수 있는지 관찰해 보세요. 진동수가 문턱값을 넘으면 전자가 방출되고, 세기를 높이면 전류만 커집니다.</p>
+      <div id="badge-row">
+        <div class="badge" id="badge-metal"><span class="dot"></span><span>금속</span></div>
+        <div class="badge" id="badge-frequency"><span class="dot"></span><span>진동수</span></div>
+        <div class="badge" id="badge-intensity"><span class="dot"></span><span>세기</span></div>
+      </div>
+    </div>
+
+    <div id="status-card">
+      <div class="title" id="status-title">광자와 금속이 만나는 중</div>
+      <div class="body" id="status-body"></div>
+    </div>
+
+    <div id="warning-flash">
+      <strong>× 에너지 부족</strong>
+      <span>빛의 세기(광자 수)를 늘려도 진동수가 문턱 진동수보다 낮으면 광전자는 방출되지 않습니다.</span>
+    </div>
+
+    <div id="formula-panel">
+      <div class="title">💡 광전 효과와 빛의 입자성</div>
+      <div class="divider"></div>
+      <div class="mono" id="formula-text"></div>
+      <div class="highlight" id="formula-highlight"></div>
+    </div>
+  </section>
+
+  <aside id="dashboard-panel">
+    <section id="dashboard-header">
+      <div class="eyebrow">Experiment Dashboard</div>
+      <h2>광전류와 에너지 비교</h2>
+      <p>노란선은 세기에 비례하는 광전류, 하늘선은 진동수에 의해 결정되는 광전자 운동 에너지입니다. 문턱 진동수 이전에는 두 값 모두 0으로 남습니다.</p>
+      <div id="metric-grid">
+        <div class="metric-card">
+          <div class="label">금속 / 문턱</div>
+          <strong id="metric-threshold">-</strong>
+          <span id="metric-threshold-body">-</span>
+        </div>
+        <div class="metric-card">
+          <div class="label">광자 에너지</div>
+          <strong id="metric-photon-energy">-</strong>
+          <span id="metric-photon-body">-</span>
+        </div>
+        <div class="metric-card">
+          <div class="label">광전자 운동 에너지</div>
+          <strong id="metric-kinetic-energy">-</strong>
+          <span id="metric-kinetic-body">-</span>
+        </div>
+        <div class="metric-card">
+          <div class="label">상대 광전류</div>
+          <strong id="metric-current">-</strong>
+          <span id="metric-current-body">-</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-card" id="energy-card">
+      <div class="card-head">
+        <div>
+          <h3>에너지 다이어그램</h3>
+          <p>광자 에너지 <span class="mono">hf</span>가 일함수 <span class="mono">W</span>를 넘으면 남는 만큼이 운동 에너지 <span class="mono">Ek</span>가 됩니다.</p>
+        </div>
+        <div class="legend">금색: hf · 빨강: W · 하늘색: Ek</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="dashboard-canvas" id="energy-canvas"></canvas>
+      </div>
+    </section>
+
+    <section class="dashboard-card" id="graph-card">
+      <div class="card-head">
+        <div>
+          <h3>광전류-진동수 그래프</h3>
+          <p>문턱 이후에 광전류는 세기에 따라 즉시 생기고, 운동 에너지는 진동수가 높아질수록 직선적으로 커집니다.</p>
+        </div>
+        <div class="legend">노란선: I · 하늘선: Ek · 붉은 마커: 현재 설정</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas class="dashboard-canvas" id="graph-canvas"></canvas>
+      </div>
+    </section>
+
+    <section id="observation-card">
+      <strong>관찰 포인트</strong>
+      <p id="observation-text">빛의 진동수가 충분하면 세기를 높일수록 더 많은 광전자가 방출되어 광전류가 커집니다. 하지만 각 전자의 운동 에너지는 진동수만이 결정합니다.</p>
+    </section>
+
+    <div id="empty-state">에너지 다이어그램과 그래프가 모두 꺼져 있습니다. 오른쪽 위 실험 제어 패널에서 다시 켜 보세요.</div>
+  </aside>
+</div>
+
+<div id="gui-mount"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const PLANCK_EV_S = 4.135667696e-15;
+  const GRAPH_FREQ_MIN = 3;
+  const GRAPH_FREQ_MAX = 10;
+  const MAX_MOVING_PARTICLES = 50;
+  const MAX_PHOTONS = 26;
+  const MAX_ELECTRONS = 24;
+
+  const METALS = {
+    cs: { key: 'cs', label: '세슘(Cs)', threshold14: 4.7 },
+    na: { key: 'na', label: '나트륨(Na)', threshold14: 5.5 },
+    zn: { key: 'zn', label: '아연(Zn)', threshold14: 8.0 }
+  };
+
+  Object.values(METALS).forEach((metal) => {
+    metal.workFunctionEv = PLANCK_EV_S * metal.threshold14 * 1e14;
+  });
+
+  const dom = {
+    scenePanel: document.getElementById('scene-panel'),
+    sceneCanvas: document.getElementById('scene-canvas'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel'),
+    statusCard: document.getElementById('status-card'),
+    statusTitle: document.getElementById('status-title'),
+    statusBody: document.getElementById('status-body'),
+    warningFlash: document.getElementById('warning-flash'),
+    badgeMetal: document.getElementById('badge-metal'),
+    badgeFrequency: document.getElementById('badge-frequency'),
+    badgeIntensity: document.getElementById('badge-intensity'),
+    formulaText: document.getElementById('formula-text'),
+    formulaHighlight: document.getElementById('formula-highlight'),
+    metricThreshold: document.getElementById('metric-threshold'),
+    metricThresholdBody: document.getElementById('metric-threshold-body'),
+    metricPhotonEnergy: document.getElementById('metric-photon-energy'),
+    metricPhotonBody: document.getElementById('metric-photon-body'),
+    metricKineticEnergy: document.getElementById('metric-kinetic-energy'),
+    metricKineticBody: document.getElementById('metric-kinetic-body'),
+    metricCurrent: document.getElementById('metric-current'),
+    metricCurrentBody: document.getElementById('metric-current-body'),
+    observationText: document.getElementById('observation-text'),
+    energyCard: document.getElementById('energy-card'),
+    graphCard: document.getElementById('graph-card'),
+    emptyState: document.getElementById('empty-state'),
+    energyCanvas: document.getElementById('energy-canvas'),
+    graphCanvas: document.getElementById('graph-canvas'),
+    guiMount: document.getElementById('gui-mount')
+  };
+
+  const state = {
+    metalKey: 'na',
+    frequency14: 6,
+    intensity: 5,
+    showEnergyDiagram: true,
+    showGraph: true,
+    emitterBoost: 1.1,
+    autoScan: false,
+    autoScanElapsed: 0,
+    currentLevel: 0,
+    warningTimer: 0,
+    impactGlow: 0,
+    anodeGlow: 0,
+    lastEmissionCount: 0,
+    guideOpen: false,
+    gui: null,
+    controlProxy: null
+  };
+
+  const threeState = {
+    renderer: null,
+    scene: null,
+    camera: null,
+    controls: null,
+    cathode: null,
+    cathodeGlow: null,
+    anode: null,
+    anodeGlowMesh: null,
+    lampLens: null,
+    photonGeometry: null,
+    electronGeometry: null,
+    emitterAccumulator: 0,
+    photons: [],
+    electrons: [],
+    anchoredElectrons: [],
+    starField: null
+  };
+
+  function getMetal() {
+    return METALS[state.metalKey];
+  }
+
+  function getPhotonEnergyEv(frequency14 = state.frequency14) {
+    return PLANCK_EV_S * frequency14 * 1e14;
+  }
+
+  function getKineticEnergyEv(frequency14 = state.frequency14, metal = getMetal()) {
+    return Math.max(0, getPhotonEnergyEv(frequency14) - metal.workFunctionEv);
+  }
+
+  function canEmit(frequency14 = state.frequency14, metal = getMetal()) {
+    return frequency14 >= metal.threshold14;
+  }
+
+  function getRelativeCurrentTarget() {
+    if (!canEmit()) return 0;
+    return 0.45 + state.intensity * 0.28;
+  }
+
+  function formatFrequency14(value) {
+    return `${value.toFixed(1)}×10¹⁴ Hz`;
+  }
+
+  function formatEv(value) {
+    return `${value.toFixed(2)} eV`;
+  }
+
+  function getPhotonColor(frequency14) {
+    const stops = [
+      { f: 4.3, color: new THREE.Color(0xff0000) },
+      { f: 5.5, color: new THREE.Color(0x00ff00) },
+      { f: 7.5, color: new THREE.Color(0x8800ff) },
+      { f: 10.0, color: new THREE.Color(0xcc44ff) }
+    ];
+
+    if (frequency14 <= stops[0].f) return stops[0].color.clone();
+    for (let index = 0; index < stops.length - 1; index += 1) {
+      const current = stops[index];
+      const next = stops[index + 1];
+      if (frequency14 <= next.f) {
+        const t = (frequency14 - current.f) / (next.f - current.f);
+        return current.color.clone().lerp(next.color, t);
+      }
+    }
+    return stops[stops.length - 1].color.clone();
+  }
+
+  function syncGui() {
+    if (state.gui) {
+      state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+  }
+
+  function initScene() {
+    const renderer = new THREE.WebGLRenderer({
+      canvas: dom.sceneCanvas,
+      antialias: true,
+      alpha: false
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a20);
+    scene.fog = new THREE.Fog(0x0a0a20, 10, 18);
+
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    camera.position.set(1.6, 1.6, 8.4);
+
+    const controls = new OrbitControls(camera, dom.sceneCanvas);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.minDistance = 5.5;
+    controls.maxDistance = 14;
+    controls.target.set(-0.25, 0.2, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+
+    const fillLight = new THREE.DirectionalLight(0x9ab4ff, 1.2);
+    fillLight.position.set(5, 5, 6);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.PointLight(0x558fff, 1.3, 24, 2);
+    rimLight.position.set(0, 3.6, 4.5);
+    scene.add(rimLight);
+
+    const lampLight = new THREE.PointLight(0xffa56f, 2.2, 12, 2);
+    lampLight.position.set(-4.8, 0.4, 0);
+    scene.add(lampLight);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(7, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0x0c1630,
+        metalness: 0.15,
+        roughness: 0.95,
+        transparent: true,
+        opacity: 0.65
+      })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -2.35;
+    scene.add(floor);
+
+    const cathodeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcccccc,
+      metalness: 0.8,
+      roughness: 0.2,
+      side: THREE.DoubleSide
+    });
+    const cathode = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), cathodeMaterial);
+    cathode.rotation.y = Math.PI / 2;
+    cathode.position.set(-1.1, 0, 0);
+    scene.add(cathode);
+
+    const cathodeGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 3.2),
+      new THREE.MeshBasicMaterial({
+        color: 0xffc968,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    cathodeGlow.rotation.y = Math.PI / 2;
+    cathodeGlow.position.set(-1.14, 0, 0);
+    scene.add(cathodeGlow);
+
+    const anode = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshStandardMaterial({
+        color: 0xddaa44,
+        metalness: 0.72,
+        roughness: 0.28,
+        side: THREE.DoubleSide
+      })
+    );
+    anode.rotation.y = -Math.PI / 2;
+    anode.position.set(3.35, 0, 0);
+    scene.add(anode);
+
+    const anodeGlowMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.2, 2.2),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe38d,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    anodeGlowMesh.rotation.y = -Math.PI / 2;
+    anodeGlowMesh.position.set(3.39, 0, 0);
+    scene.add(anodeGlowMesh);
+
+    const lampGroup = new THREE.Group();
+    lampGroup.position.set(-4.9, 0.2, 0);
+    scene.add(lampGroup);
+
+    const lampBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.74, 1.4, 28, 1, true),
+      new THREE.MeshStandardMaterial({
+        color: 0x2f3759,
+        metalness: 0.55,
+        roughness: 0.3
+      })
+    );
+    lampBody.rotation.z = Math.PI / 2;
+    lampGroup.add(lampBody);
+
+    const lampCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.45, 0.46, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0xffb16f,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    lampCore.rotation.z = Math.PI / 2;
+    lampCore.position.x = 0.84;
+    lampGroup.add(lampCore);
+
+    const lampLens = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 24, 18),
+      new THREE.MeshBasicMaterial({
+        color: 0xffcc91,
+        transparent: true,
+        opacity: 0.8
+      })
+    );
+    lampLens.position.x = 1.05;
+    lampGroup.add(lampLens);
+
+    const wireMaterial = new THREE.LineBasicMaterial({ color: 0x516b9c, transparent: true, opacity: 0.65 });
+    const upperWirePoints = [
+      new THREE.Vector3(-1.1, 1.58, 0),
+      new THREE.Vector3(0.8, 2.18, 0),
+      new THREE.Vector3(3.35, 1.08, 0)
+    ];
+    const lowerWirePoints = [
+      new THREE.Vector3(-1.1, -1.58, 0),
+      new THREE.Vector3(0.2, -2.05, 0),
+      new THREE.Vector3(3.35, -1.05, 0)
+    ];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(upperWirePoints), wireMaterial));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lowerWirePoints), wireMaterial));
+
+    const meter = new THREE.Mesh(
+      new THREE.TorusGeometry(0.38, 0.08, 16, 48, Math.PI * 1.6),
+      new THREE.MeshStandardMaterial({
+        color: 0x8bd7ff,
+        metalness: 0.35,
+        roughness: 0.32,
+        emissive: 0x18395a,
+        emissiveIntensity: 0.8
+      })
+    );
+    meter.position.set(1.1, 1.96, 0);
+    meter.rotation.z = -0.7;
+    scene.add(meter);
+
+    const gridGroup = new THREE.Group();
+    const gridMaterial = new THREE.LineBasicMaterial({ color: 0x7d88b0, transparent: true, opacity: 0.22 });
+    for (let index = 0; index <= 5; index += 1) {
+      const z = -1.5 + index * 0.6;
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-1.085, -1.5, z),
+        new THREE.Vector3(-1.085, 1.5, z)
+      ]);
+      gridGroup.add(new THREE.Line(geometry, gridMaterial));
+    }
+    for (let index = 0; index <= 5; index += 1) {
+      const y = -1.5 + index * 0.6;
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-1.085, y, -1.5),
+        new THREE.Vector3(-1.085, y, 1.5)
+      ]);
+      gridGroup.add(new THREE.Line(geometry, gridMaterial));
+    }
+    scene.add(gridGroup);
+
+    const electronGeometry = new THREE.SphereGeometry(0.06, 16, 16);
+    const anchoredMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffff44,
+      emissive: 0x756a12,
+      emissiveIntensity: 1.15,
+      metalness: 0.1,
+      roughness: 0.4
+    });
+    for (let row = 0; row < 5; row += 1) {
+      for (let column = 0; column < 6; column += 1) {
+        const y = -1.15 + row * 0.58 + (column % 2 ? 0.08 : -0.03);
+        const z = -1.3 + column * 0.52;
+        const mesh = new THREE.Mesh(electronGeometry, anchoredMaterial.clone());
+        mesh.position.set(-1.08, y, z);
+        mesh.material.emissiveIntensity = 1.05 + Math.random() * 0.2;
+        scene.add(mesh);
+        threeState.anchoredElectrons.push({
+          mesh,
+          baseY: y,
+          baseZ: z,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    const starCount = 180;
+    const positions = new Float32Array(starCount * 3);
+    for (let index = 0; index < starCount; index += 1) {
+      positions[index * 3] = THREE.MathUtils.randFloatSpread(20);
+      positions[index * 3 + 1] = THREE.MathUtils.randFloatSpread(12);
+      positions[index * 3 + 2] = THREE.MathUtils.randFloatSpread(18) - 4;
+    }
+    const starGeometry = new THREE.BufferGeometry();
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const starField = new THREE.Points(
+      starGeometry,
+      new THREE.PointsMaterial({
+        color: 0xbfd8ff,
+        size: 0.06,
+        transparent: true,
+        opacity: 0.45
+      })
+    );
+    scene.add(starField);
+
+    threeState.renderer = renderer;
+    threeState.scene = scene;
+    threeState.camera = camera;
+    threeState.controls = controls;
+    threeState.cathode = cathode;
+    threeState.cathodeGlow = cathodeGlow;
+    threeState.anode = anode;
+    threeState.anodeGlowMesh = anodeGlowMesh;
+    threeState.lampLens = lampLens;
+    threeState.starField = starField;
+    threeState.photonGeometry = new THREE.SphereGeometry(0.04, 12, 12);
+    threeState.electronGeometry = electronGeometry;
+
+    resizeScene();
+  }
+
+  function resizeScene() {
+    const width = dom.scenePanel.clientWidth;
+    const height = dom.scenePanel.clientHeight;
+    if (!width || !height || !threeState.renderer || !threeState.camera) return;
+    threeState.renderer.setSize(width, height, false);
+    threeState.camera.aspect = width / height;
+    threeState.camera.updateProjectionMatrix();
+  }
+
+  function createTrail(color) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.7
+    });
+    return new THREE.Line(geometry, material);
+  }
+
+  function spawnPhoton() {
+    const movingCount = threeState.photons.length + threeState.electrons.length;
+    if (movingCount >= MAX_MOVING_PARTICLES || threeState.photons.length >= MAX_PHOTONS) return;
+
+    const color = getPhotonColor(state.frequency14);
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.95
+    });
+    const mesh = new THREE.Mesh(threeState.photonGeometry, material);
+    mesh.position.set(
+      -3.86,
+      THREE.MathUtils.randFloat(-1.05, 1.05),
+      THREE.MathUtils.randFloat(-0.9, 0.9)
+    );
+    threeState.scene.add(mesh);
+    threeState.photons.push({
+      mesh,
+      speed: 4.8,
+      wobble: Math.random() * Math.PI * 2
+    });
+  }
+
+  function spawnPhotoelectron(sourceY, sourceZ) {
+    const movingCount = threeState.photons.length + threeState.electrons.length;
+    if (movingCount >= MAX_MOVING_PARTICLES || threeState.electrons.length >= MAX_ELECTRONS) return;
+
+    const kinetic = getKineticEnergyEv();
+    const normalized = THREE.MathUtils.clamp(kinetic / 1.8, 0.08, 1);
+    const mesh = new THREE.Mesh(
+      threeState.electronGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xffff44,
+        emissive: 0x807516,
+        emissiveIntensity: 1.35,
+        metalness: 0.08,
+        roughness: 0.36
+      })
+    );
+    mesh.position.set(-1.02, sourceY, sourceZ);
+
+    const direction = new THREE.Vector3(
+      1,
+      THREE.MathUtils.randFloatSpread(0.22 + normalized * 0.18),
+      THREE.MathUtils.randFloatSpread(0.18 + normalized * 0.18)
+    ).normalize();
+
+    const speed = 2.6 + normalized * 3.7;
+    const trail = createTrail(0xfff38a);
+    threeState.scene.add(mesh, trail);
+    threeState.electrons.push({
+      mesh,
+      trail,
+      velocity: direction.multiplyScalar(speed),
+      trailLength: 0.22 + normalized * 0.75,
+      opacity: 0.85,
+      age: 0,
+      maxAge: 1.1 + normalized * 0.45
+    });
+
+    state.lastEmissionCount += 1;
+    state.impactGlow = 1;
+  }
+
+  function removePhoton(index) {
+    const photon = threeState.photons[index];
+    if (!photon) return;
+    threeState.scene.remove(photon.mesh);
+    photon.mesh.material.dispose();
+    threeState.photons.splice(index, 1);
+  }
+
+  function removeElectron(index) {
+    const electron = threeState.electrons[index];
+    if (!electron) return;
+    threeState.scene.remove(electron.mesh, electron.trail);
+    electron.mesh.material.dispose();
+    electron.trail.geometry.dispose();
+    electron.trail.material.dispose();
+    threeState.electrons.splice(index, 1);
+  }
+
+  function flashWarning() {
+    state.warningTimer = 0.65;
+    dom.warningFlash.classList.add('show');
+  }
+
+  function handlePhotonImpact(photonIndex) {
+    const photon = threeState.photons[photonIndex];
+    const sourceY = photon.mesh.position.y;
+    const sourceZ = photon.mesh.position.z;
+
+    if (canEmit()) {
+      spawnPhotoelectron(sourceY, sourceZ);
+    } else {
+      flashWarning();
+      state.impactGlow = Math.max(state.impactGlow, 0.3);
+    }
+
+    removePhoton(photonIndex);
+  }
+
+  function updateAnchoredElectrons(timeSeconds) {
+    threeState.anchoredElectrons.forEach((item, index) => {
+      const pulse = Math.sin(timeSeconds * 2.2 + item.phase + index * 0.15);
+      const shimmer = Math.cos(timeSeconds * 3.6 + item.phase);
+      item.mesh.position.x = -1.08 + pulse * 0.02;
+      item.mesh.position.y = item.baseY + pulse * 0.03;
+      item.mesh.position.z = item.baseZ + shimmer * 0.03;
+    });
+  }
+
+  function updateEmitter(delta) {
+    if (state.autoScan) {
+      state.autoScanElapsed += delta;
+      const progress = Math.min(state.autoScanElapsed / 9, 1);
+      const stepped = Math.round((GRAPH_FREQ_MIN + (GRAPH_FREQ_MAX - GRAPH_FREQ_MIN) * progress) * 2) / 2;
+      if (stepped !== state.frequency14) {
+        state.frequency14 = stepped;
+        updateGuiProxy(state.controlProxy);
+        syncGui();
+        refreshPhotonAppearance();
+        updatePanels();
+      }
+      if (progress >= 1) {
+        state.autoScan = false;
+      }
+    }
+
+    state.emitterBoost = Math.max(0, state.emitterBoost - delta * 0.12);
+    const emissionMultiplier = 1 + state.emitterBoost * 0.55;
+    const spawnRate = (0.75 + state.intensity * 0.74) * emissionMultiplier;
+    threeState.emitterAccumulator += delta * spawnRate;
+
+    while (threeState.emitterAccumulator >= 1) {
+      spawnPhoton();
+      threeState.emitterAccumulator -= 1;
+    }
+  }
+
+  function refreshPhotonAppearance() {
+    const color = getPhotonColor(state.frequency14);
+    threeState.photons.forEach((photon) => {
+      photon.mesh.material.color.copy(color);
+    });
+
+    if (threeState.lampLens) {
+      threeState.lampLens.material.color.copy(color.clone().lerp(new THREE.Color(0xffffff), 0.3));
+    }
+  }
+
+  function updatePhotons(delta, elapsedTime) {
+    for (let index = threeState.photons.length - 1; index >= 0; index -= 1) {
+      const photon = threeState.photons[index];
+      photon.mesh.position.x += photon.speed * delta;
+      photon.mesh.position.y += Math.sin(elapsedTime * 7 + photon.wobble) * 0.0012;
+      photon.mesh.scale.setScalar(1 + Math.sin(elapsedTime * 10 + photon.wobble) * 0.12);
+
+      if (photon.mesh.position.x >= -1.1) {
+        handlePhotonImpact(index);
+      }
+    }
+  }
+
+  function updateElectrons(delta) {
+    for (let index = threeState.electrons.length - 1; index >= 0; index -= 1) {
+      const electron = threeState.electrons[index];
+      electron.age += delta;
+      electron.mesh.position.addScaledVector(electron.velocity, delta);
+
+      const trailPositions = electron.trail.geometry.attributes.position.array;
+      const current = electron.mesh.position;
+      const direction = electron.velocity.clone().normalize().multiplyScalar(electron.trailLength);
+      trailPositions[0] = current.x;
+      trailPositions[1] = current.y;
+      trailPositions[2] = current.z;
+      trailPositions[3] = current.x - direction.x;
+      trailPositions[4] = current.y - direction.y;
+      trailPositions[5] = current.z - direction.z;
+      electron.trail.geometry.attributes.position.needsUpdate = true;
+
+      const fade = THREE.MathUtils.clamp(1 - electron.age / electron.maxAge, 0, 1);
+      electron.trail.material.opacity = fade * 0.8;
+
+      if (electron.mesh.position.x >= 3.12 || electron.age >= electron.maxAge) {
+        state.anodeGlow = 1;
+        removeElectron(index);
+      }
+    }
+  }
+
+  function updateVisualFeedback(delta, elapsedTime) {
+    state.warningTimer = Math.max(0, state.warningTimer - delta);
+    if (state.warningTimer <= 0) {
+      dom.warningFlash.classList.remove('show');
+    }
+
+    state.impactGlow = Math.max(0, state.impactGlow - delta * 1.6);
+    state.anodeGlow = Math.max(0, state.anodeGlow - delta * 1.8);
+
+    if (threeState.cathodeGlow) {
+      threeState.cathodeGlow.material.opacity = state.impactGlow * 0.38;
+    }
+    if (threeState.anodeGlowMesh) {
+      threeState.anodeGlowMesh.material.opacity = state.anodeGlow * 0.45;
+    }
+    if (threeState.lampLens) {
+      const lampPulse = 0.78 + state.intensity * 0.012 + Math.sin(elapsedTime * 10) * 0.04 + state.emitterBoost * 0.08;
+      threeState.lampLens.material.opacity = lampPulse;
+      threeState.lampLens.scale.setScalar(1 + state.emitterBoost * 0.06);
+    }
+    if (threeState.starField) {
+      threeState.starField.rotation.y += delta * 0.02;
+    }
+  }
+
+  function updateCurrent(delta) {
+    const target = getRelativeCurrentTarget();
+    const damping = 1 - Math.exp(-delta * 3.2);
+    state.currentLevel += (target - state.currentLevel) * damping;
+    state.lastEmissionCount = Math.max(0, state.lastEmissionCount - delta * 10);
+  }
+
+  function updatePanels() {
+    const metal = getMetal();
+    const photonEnergy = getPhotonEnergyEv();
+    const kineticEnergy = getKineticEnergyEv();
+    const emitting = canEmit();
+
+    dom.badgeMetal.innerHTML = `<span class="dot" style="color:#ffd76f"></span><span>${metal.label}</span>`;
+    dom.badgeFrequency.innerHTML = `<span class="dot" style="color:${getPhotonColor(state.frequency14).getStyle()}"></span><span>f = ${formatFrequency14(state.frequency14)}</span>`;
+    dom.badgeIntensity.innerHTML = `<span class="dot" style="color:#7ce4ff"></span><span>세기 ${state.intensity.toFixed(0)} / 10</span>`;
+
+    dom.statusCard.classList.toggle('good', emitting);
+    dom.statusCard.classList.toggle('bad', !emitting);
+
+    if (emitting) {
+      dom.statusTitle.textContent = '광전자 방출 가능';
+      dom.statusBody.textContent = `문턱 진동수 ${formatFrequency14(metal.threshold14)} 이상입니다. 세기를 높이면 광전류가 커지고, 현재 운동 에너지는 ${formatEv(kineticEnergy)}입니다.`;
+    } else {
+      dom.statusTitle.textContent = '광전자 방출 불가';
+      dom.statusBody.textContent = `현재 진동수 ${formatFrequency14(state.frequency14)}는 ${metal.label}의 문턱값 ${formatFrequency14(metal.threshold14)}보다 낮습니다. 세기를 높여도 전자는 방출되지 않습니다.`;
+    }
+
+    const formulaLines = [
+      `금속: ${metal.label} (일함수 W=${metal.workFunctionEv.toFixed(2)}eV)`,
+      `빛의 진동수 f = ${state.frequency14.toFixed(1)}×10¹⁴ Hz`,
+      `문턱 진동수 f₀ = ${metal.threshold14.toFixed(1)}×10¹⁴ Hz`,
+      '',
+      `광자 에너지: E = hf = ${photonEnergy.toFixed(2)}eV`,
+      '  h = 6.63×10⁻³⁴ J·s (플랑크 상수)',
+      '',
+      emitting ? 'f ≥ f₀ → 광전자 방출 ✅' : 'f < f₀ → 방출 불가 ❌',
+      emitting ? `  운동 에너지 Ek = hf - W = ${kineticEnergy.toFixed(2)}eV` : '  빛의 세기(광자 수) 무관!',
+      '',
+      '아인슈타인 (1905):',
+      '  빛 = 광자(에너지 덩어리)의 흐름'
+    ];
+    dom.formulaText.innerHTML = formulaLines.join('<br>');
+    dom.formulaHighlight.className = `highlight ${emitting ? 'good' : 'bad'}`;
+    dom.formulaHighlight.innerHTML = emitting
+      ? `진동수만이 광전자 1개의 운동 에너지를 결정합니다. 지금은 <strong>${formatEv(kineticEnergy)}</strong>만큼 남아 전자가 더 빠르게 양극으로 이동합니다.`
+      : `광자 1개가 지닌 에너지가 부족합니다. 현재처럼 <strong>${state.intensity.toFixed(0)}</strong>배로 세기를 높여도 문턱 진동수를 넘지 못하면 광전류는 생기지 않습니다.`;
+
+    dom.metricThreshold.textContent = `${metal.label}`;
+    dom.metricThresholdBody.textContent = `f₀ = ${formatFrequency14(metal.threshold14)} · W = ${formatEv(metal.workFunctionEv)}`;
+    dom.metricPhotonEnergy.textContent = formatEv(photonEnergy);
+    dom.metricPhotonBody.textContent = '광자 1개의 에너지 hf';
+    dom.metricKineticEnergy.textContent = emitting ? formatEv(kineticEnergy) : '0.00 eV';
+    dom.metricKineticBody.textContent = emitting ? 'hf - W만큼 남은 에너지' : '문턱 진동수 미만이라 방출 불가';
+    dom.metricCurrent.textContent = `${state.currentLevel.toFixed(2)} a.u.`;
+    dom.metricCurrentBody.textContent = emitting ? `세기 ${state.intensity.toFixed(0)}에 비례하여 증가` : '진동수 부족으로 0';
+
+    dom.observationText.textContent = emitting
+      ? `현재 ${metal.label}에서는 진동수가 문턱값을 넘었기 때문에 광전자가 방출됩니다. 세기를 올리면 더 많은 광자가 금속에 도달해 광전류가 증가하지만, 각 전자의 운동 에너지는 ${formatEv(kineticEnergy)}로 유지됩니다.`
+      : `현재 ${metal.label}의 문턱 진동수보다 낮은 빛을 사용하고 있습니다. 아무리 많은 광자를 보내도 광자 1개당 에너지가 부족해 전자는 금속 밖으로 빠져나오지 못합니다.`;
+
+    dom.energyCard.style.display = state.showEnergyDiagram ? 'flex' : 'none';
+    dom.graphCard.style.display = state.showGraph ? 'flex' : 'none';
+    dom.emptyState.style.display = state.showEnergyDiagram || state.showGraph ? 'none' : 'flex';
+  }
+
+  function prepareCanvas(canvas) {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return null;
+    const targetWidth = Math.round(width * ratio);
+    const targetHeight = Math.round(height * ratio);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    return { context, width, height };
+  }
+
+  function drawPanelBackground(context, x, y, width, height) {
+    const gradient = context.createLinearGradient(x, y, x, y + height);
+    gradient.addColorStop(0, 'rgba(12, 22, 40, 0.98)');
+    gradient.addColorStop(1, 'rgba(7, 13, 24, 0.98)');
+    context.fillStyle = gradient;
+    context.strokeStyle = 'rgba(255,255,255,0.08)';
+    context.lineWidth = 1;
+    roundRect(context, x, y, width, height, 18);
+    context.fill();
+    context.stroke();
+  }
+
+  function roundRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+  }
+
+  function drawEnergyDiagram() {
+    const prepared = prepareCanvas(dom.energyCanvas);
+    if (!prepared) return;
+    const { context, width, height } = prepared;
+    context.clearRect(0, 0, width, height);
+
+    drawPanelBackground(context, 0.5, 0.5, width - 1, height - 1);
+
+    const padding = 24;
+    const chartX = padding + 34;
+    const chartY = 24;
+    const chartWidth = width - padding * 2 - 48;
+    const chartHeight = height - 58;
+    const axisTop = chartY + 14;
+    const axisBottom = chartY + chartHeight - 18;
+
+    context.strokeStyle = 'rgba(255,255,255,0.24)';
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.moveTo(chartX, axisTop);
+    context.lineTo(chartX, axisBottom);
+    context.lineTo(chartX + chartWidth, axisBottom);
+    context.stroke();
+
+    context.fillStyle = 'rgba(255,255,255,0.55)';
+    context.font = '11px sans-serif';
+    context.fillText('에너지', chartX - 24, axisTop - 4);
+    context.fillText('금속 내부', chartX + 10, axisBottom + 16);
+
+    const metal = getMetal();
+    const photonEnergy = getPhotonEnergyEv();
+    const kineticEnergy = getKineticEnergyEv();
+    const maxEnergy = Math.max(4, metal.workFunctionEv + 1.4, photonEnergy + 0.7);
+    const energyToY = (value) => axisBottom - (value / maxEnergy) * (axisBottom - axisTop - 10);
+    const workY = energyToY(metal.workFunctionEv);
+    const photonY = energyToY(photonEnergy);
+
+    context.setLineDash([6, 6]);
+    context.strokeStyle = 'rgba(255,116,116,0.74)';
+    context.beginPath();
+    context.moveTo(chartX - 6, workY);
+    context.lineTo(chartX + chartWidth - 10, workY);
+    context.stroke();
+    context.setLineDash([]);
+
+    context.fillStyle = '#ffb2b2';
+    context.fillText(`W = ${formatEv(metal.workFunctionEv)}`, chartX + 10, workY - 8);
+
+    const arrowX = chartX + chartWidth * 0.42;
+    context.strokeStyle = '#ffd76f';
+    context.fillStyle = '#ffd76f';
+    context.lineWidth = 4;
+    context.beginPath();
+    context.moveTo(arrowX, axisBottom);
+    context.lineTo(arrowX, photonY);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(arrowX, photonY);
+    context.lineTo(arrowX - 8, photonY + 12);
+    context.lineTo(arrowX + 8, photonY + 12);
+    context.closePath();
+    context.fill();
+    context.font = '12px sans-serif';
+    context.fillText(`hf = ${formatEv(photonEnergy)}`, arrowX - 28, photonY - 12);
+
+    context.fillStyle = 'rgba(255,255,255,0.82)';
+    context.font = '11px sans-serif';
+    context.fillText(`${formatFrequency14(state.frequency14)}`, arrowX - 36, axisBottom + 16);
+
+    if (canEmit()) {
+      const ekTopY = energyToY(photonEnergy);
+      const ekBottomY = energyToY(metal.workFunctionEv);
+      const ekX = chartX + chartWidth * 0.74;
+
+      context.strokeStyle = '#7ce4ff';
+      context.fillStyle = '#7ce4ff';
+      context.lineWidth = 4;
+      context.beginPath();
+      context.moveTo(ekX, ekBottomY);
+      context.lineTo(ekX, ekTopY);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(ekX, ekTopY);
+      context.lineTo(ekX - 8, ekTopY + 12);
+      context.lineTo(ekX + 8, ekTopY + 12);
+      context.closePath();
+      context.fill();
+
+      context.fillStyle = '#c6f6ff';
+      context.font = '12px sans-serif';
+      context.fillText(`Ek = ${formatEv(kineticEnergy)}`, ekX - 36, ekTopY - 12);
+
+      context.strokeStyle = 'rgba(124,228,255,0.5)';
+      context.setLineDash([4, 4]);
+      context.beginPath();
+      context.moveTo(arrowX + 16, photonY);
+      context.lineTo(ekX - 12, ekTopY);
+      context.stroke();
+      context.setLineDash([]);
+    } else {
+      context.fillStyle = '#ff8b8b';
+      context.font = '13px sans-serif';
+      context.fillText('에너지 부족', chartX + chartWidth * 0.62, photonY - 8);
+      context.strokeStyle = 'rgba(255,116,116,0.9)';
+      context.lineWidth = 3;
+      context.beginPath();
+      context.moveTo(chartX + chartWidth * 0.74 - 18, photonY - 14);
+      context.lineTo(chartX + chartWidth * 0.74 + 18, photonY + 18);
+      context.moveTo(chartX + chartWidth * 0.74 + 18, photonY - 14);
+      context.lineTo(chartX + chartWidth * 0.74 - 18, photonY + 18);
+      context.stroke();
+    }
+  }
+
+  function drawGraph() {
+    const prepared = prepareCanvas(dom.graphCanvas);
+    if (!prepared) return;
+    const { context, width, height } = prepared;
+    context.clearRect(0, 0, width, height);
+
+    drawPanelBackground(context, 0.5, 0.5, width - 1, height - 1);
+
+    const paddingLeft = 44;
+    const paddingRight = 24;
+    const paddingTop = 26;
+    const paddingBottom = 34;
+    const plotX = paddingLeft;
+    const plotY = paddingTop;
+    const plotWidth = width - paddingLeft - paddingRight;
+    const plotHeight = height - paddingTop - paddingBottom;
+    const metal = getMetal();
+    const currentPlateau = getRelativeCurrentTarget();
+    const yMax = Math.max(3.6, currentPlateau + 0.8, getKineticEnergyEv(GRAPH_FREQ_MAX, metal) + 0.8);
+
+    const xToCanvas = (value) => plotX + ((value - GRAPH_FREQ_MIN) / (GRAPH_FREQ_MAX - GRAPH_FREQ_MIN)) * plotWidth;
+    const yToCanvas = (value) => plotY + plotHeight - (value / yMax) * plotHeight;
+    const currentCurve = (frequency14) => (frequency14 >= metal.threshold14 ? currentPlateau : 0);
+    const kineticCurve = (frequency14) => Math.max(0, getKineticEnergyEv(frequency14, metal));
+
+    context.strokeStyle = 'rgba(255,255,255,0.12)';
+    context.lineWidth = 1;
+    for (let lineIndex = 0; lineIndex <= 5; lineIndex += 1) {
+      const yValue = (yMax / 5) * lineIndex;
+      const y = yToCanvas(yValue);
+      context.beginPath();
+      context.moveTo(plotX, y);
+      context.lineTo(plotX + plotWidth, y);
+      context.stroke();
+      context.fillStyle = 'rgba(255,255,255,0.48)';
+      context.font = '10px sans-serif';
+      context.fillText(yValue.toFixed(1), 8, y + 4);
+    }
+
+    for (let freq = GRAPH_FREQ_MIN; freq <= GRAPH_FREQ_MAX; freq += 1) {
+      const x = xToCanvas(freq);
+      context.beginPath();
+      context.moveTo(x, plotY);
+      context.lineTo(x, plotY + plotHeight);
+      context.stroke();
+      context.fillStyle = 'rgba(255,255,255,0.5)';
+      context.font = '10px sans-serif';
+      context.fillText(String(freq), x - 4, plotY + plotHeight + 16);
+    }
+
+    context.strokeStyle = 'rgba(255,255,255,0.24)';
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.moveTo(plotX, plotY);
+    context.lineTo(plotX, plotY + plotHeight);
+    context.lineTo(plotX + plotWidth, plotY + plotHeight);
+    context.stroke();
+
+    context.fillStyle = 'rgba(255,255,255,0.64)';
+    context.font = '11px sans-serif';
+    context.fillText('상대값', 10, plotY - 6);
+    context.fillText('빛의 진동수 f (×10¹⁴ Hz)', plotX + plotWidth - 132, plotY + plotHeight + 26);
+
+    context.setLineDash([6, 5]);
+    context.strokeStyle = 'rgba(255,116,116,0.92)';
+    context.beginPath();
+    context.moveTo(xToCanvas(metal.threshold14), plotY);
+    context.lineTo(xToCanvas(metal.threshold14), plotY + plotHeight);
+    context.stroke();
+    context.setLineDash([]);
+    context.fillStyle = '#ffb2b2';
+    context.fillText(`f₀ = ${metal.threshold14.toFixed(1)}`, xToCanvas(metal.threshold14) + 6, plotY + 14);
+
+    context.strokeStyle = '#ffd76f';
+    context.lineWidth = 3;
+    context.beginPath();
+    for (let sample = 0; sample <= 120; sample += 1) {
+      const frequency = GRAPH_FREQ_MIN + (sample / 120) * (GRAPH_FREQ_MAX - GRAPH_FREQ_MIN);
+      const x = xToCanvas(frequency);
+      const y = yToCanvas(currentCurve(frequency));
+      if (sample === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    }
+    context.stroke();
+
+    context.strokeStyle = '#7ce4ff';
+    context.lineWidth = 3;
+    context.beginPath();
+    for (let sample = 0; sample <= 120; sample += 1) {
+      const frequency = GRAPH_FREQ_MIN + (sample / 120) * (GRAPH_FREQ_MAX - GRAPH_FREQ_MIN);
+      const x = xToCanvas(frequency);
+      const y = yToCanvas(kineticCurve(frequency));
+      if (sample === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    }
+    context.stroke();
+
+    const markerX = xToCanvas(state.frequency14);
+    const currentY = yToCanvas(currentCurve(state.frequency14));
+    const kineticY = yToCanvas(kineticCurve(state.frequency14));
+
+    context.setLineDash([5, 5]);
+    context.strokeStyle = 'rgba(255,92,92,0.86)';
+    context.lineWidth = 1.5;
+    context.beginPath();
+    context.moveTo(markerX, plotY);
+    context.lineTo(markerX, plotY + plotHeight);
+    context.stroke();
+    context.setLineDash([]);
+
+    context.fillStyle = '#ff7474';
+    context.beginPath();
+    context.arc(markerX, currentY, 5.5, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.arc(markerX, kineticY, 5.5, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = '#ffd76f';
+    context.fillText(`I = ${currentCurve(state.frequency14).toFixed(2)}`, markerX + 10, currentY - 8);
+    context.fillStyle = '#7ce4ff';
+    context.fillText(`Ek = ${kineticCurve(state.frequency14).toFixed(2)}eV`, markerX + 10, kineticY - 8);
+  }
+
+  function renderDashboard() {
+    if (state.showEnergyDiagram) drawEnergyDiagram();
+    if (state.showGraph) drawGraph();
+  }
+
+  function updateAllVisuals() {
+    updatePanels();
+    renderDashboard();
+  }
+
+  function buildGui() {
+    const controlProxy = {
+      '금속 종류': '나트륨(Na)',
+      '빛의 진동수 f': state.frequency14,
+      '빛의 세기': state.intensity,
+      '에너지 다이어그램': state.showEnergyDiagram,
+      '광전류 그래프': state.showGraph,
+      '광자 발사': () => {
+        state.emitterBoost = 1.8;
+      },
+      '자동 주파수 스캔': () => {
+        state.autoScan = true;
+        state.autoScanElapsed = 0;
+        state.frequency14 = GRAPH_FREQ_MIN;
+        state.emitterBoost = 1.5;
+        updateGuiProxy(controlProxy);
+        refreshPhotonAppearance();
+        updateAllVisuals();
+        syncGui();
+      },
+      '초기화': () => {
+        state.metalKey = 'na';
+        state.frequency14 = 6;
+        state.intensity = 5;
+        state.showEnergyDiagram = true;
+        state.showGraph = true;
+        state.emitterBoost = 1.1;
+        state.autoScan = false;
+        state.autoScanElapsed = 0;
+        state.currentLevel = 0;
+        clearMovingParticles();
+        refreshPhotonAppearance();
+        updateGuiProxy(controlProxy);
+        updateAllVisuals();
+        syncGui();
+      }
+    };
+
+    const gui = new GUI({
+      container: dom.guiMount,
+      title: '실험 제어',
+      width: 314
+    });
+
+    const metalOptions = {
+      '세슘(Cs)': 'cs',
+      '나트륨(Na)': 'na',
+      '아연(Zn)': 'zn'
+    };
+
+    gui.add(controlProxy, '금속 종류', Object.keys(metalOptions)).onChange((label) => {
+      state.metalKey = metalOptions[label];
+      updateAllVisuals();
+    });
+
+    gui.add(controlProxy, '빛의 진동수 f', GRAPH_FREQ_MIN, GRAPH_FREQ_MAX, 0.5).onChange((value) => {
+      state.frequency14 = value;
+      state.autoScan = false;
+      refreshPhotonAppearance();
+      updateAllVisuals();
+    });
+
+    gui.add(controlProxy, '빛의 세기', 1, 10, 1).onChange((value) => {
+      state.intensity = value;
+      updateAllVisuals();
+    });
+
+    gui.add(controlProxy, '광자 발사');
+    gui.add(controlProxy, '자동 주파수 스캔');
+
+    gui.add(controlProxy, '에너지 다이어그램').onChange((value) => {
+      state.showEnergyDiagram = value;
+      updateAllVisuals();
+    });
+
+    gui.add(controlProxy, '광전류 그래프').onChange((value) => {
+      state.showGraph = value;
+      updateAllVisuals();
+    });
+
+    gui.add(controlProxy, '초기화');
+
+    state.gui = gui;
+    state.controlProxy = controlProxy;
+  }
+
+  function updateGuiProxy(proxy) {
+    proxy['금속 종류'] = getMetal().label;
+    proxy['빛의 진동수 f'] = state.frequency14;
+    proxy['빛의 세기'] = state.intensity;
+    proxy['에너지 다이어그램'] = state.showEnergyDiagram;
+    proxy['광전류 그래프'] = state.showGraph;
+  }
+
+  function clearMovingParticles() {
+    for (let index = threeState.photons.length - 1; index >= 0; index -= 1) {
+      removePhoton(index);
+    }
+    for (let index = threeState.electrons.length - 1; index >= 0; index -= 1) {
+      removeElectron(index);
+    }
+    threeState.emitterAccumulator = 0;
+  }
+
+  function animate() {
+    let previousTime = performance.now() * 0.001;
+
+    function frame(nowMs) {
+      const now = nowMs * 0.001;
+      const delta = Math.min(0.05, now - previousTime);
+      previousTime = now;
+
+      updateEmitter(delta);
+      updateAnchoredElectrons(now);
+      updatePhotons(delta, now);
+      updateElectrons(delta);
+      updateVisualFeedback(delta, now);
+      updateCurrent(delta);
+      updatePanels();
+      renderDashboard();
+
+      threeState.controls.update();
+      threeState.renderer.render(threeState.scene, threeState.camera);
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function handleGuideToggle() {
+    state.guideOpen = !state.guideOpen;
+    dom.guidePanel.style.display = state.guideOpen ? 'block' : 'none';
+    dom.guideToggle.textContent = state.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  }
+
+  function handleResize() {
+    resizeScene();
+    renderDashboard();
+  }
+
+  function init() {
+    initScene();
+    buildGui();
+    updateGuiProxy(state.controlProxy);
+    refreshPhotonAppearance();
+    updateAllVisuals();
+    dom.guideToggle.addEventListener('click', handleGuideToggle);
+    window.addEventListener('resize', handleResize);
+    animate();
+  }
+
+  init();
+</script>
+</body>
+</html>

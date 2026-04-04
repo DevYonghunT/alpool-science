@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빛의 이중 슬릿 간섭 (영의 실험) - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --bg-deep: #0a0a20;
+    --bg-panel: rgba(10, 16, 36, 0.82);
+    --bg-panel-soft: rgba(255, 255, 255, 0.08);
+    --bg-graph: rgba(6, 10, 24, 0.96);
+    --border: rgba(255, 255, 255, 0.12);
+    --text-main: #f7f9ff;
+    --text-dim: rgba(247, 249, 255, 0.68);
+    --text-deep: rgba(15, 26, 45, 0.92);
+    --accent-warm: #ffd47b;
+    --accent-cool: #91cfff;
+    --accent-soft: rgba(145, 207, 255, 0.22);
+    --shadow: 0 24px 52px rgba(4, 8, 20, 0.34);
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 15% 12%, rgba(123, 176, 255, 0.16), transparent 24%),
+      radial-gradient(circle at 84% 10%, rgba(255, 217, 120, 0.1), transparent 22%),
+      linear-gradient(180deg, #090c1d 0%, #070912 52%, #04060c 100%);
+    color: var(--text-main);
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.18fr) minmax(380px, 0.82fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 16% 18%, rgba(100, 156, 255, 0.12), transparent 20%),
+      radial-gradient(circle at 86% 16%, rgba(255, 235, 158, 0.08), transparent 16%),
+      linear-gradient(180deg, rgba(10, 10, 28, 0.96) 0%, rgba(8, 9, 20, 1) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 16% 12%, rgba(96, 153, 255, 0.18), transparent 22%),
+      radial-gradient(circle at 84% 16%, rgba(255, 202, 107, 0.14), transparent 20%),
+      linear-gradient(180deg, #101a37 0%, #081022 58%, #050912 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .glass {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 320px;
+    max-width: min(78vw, 680px);
+    padding: 14px 22px 16px;
+    border-radius: 22px;
+    text-align: center;
+    z-index: 18;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  #title-card h1 {
+    margin-top: 5px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 32;
+    padding: 10px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(10, 18, 36, 0.88);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 14px 28px rgba(5, 8, 18, 0.24);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(13, 24, 48, 0.92);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 60px;
+    left: 16px;
+    z-index: 31;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 24px;
+    display: none;
+    line-height: 1.78;
+    font-size: 13px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #b6dcff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  #guide-panel .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+  }
+
+  #status-chip {
+    position: absolute;
+    top: 104px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, calc(100% - 32px));
+    min-height: 88px;
+    padding: 16px 18px;
+    border-radius: 24px;
+    z-index: 19;
+    pointer-events: none;
+  }
+
+  #status-chip .title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff4c9;
+  }
+
+  #status-chip .body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(247, 249, 255, 0.78);
+  }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: min(380px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff0b0;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 108px;
+    flex-shrink: 0;
+    color: rgba(247, 249, 255, 0.6);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(247, 249, 255, 0.96);
+  }
+
+  .concept-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .concept-box strong {
+    display: block;
+    color: #f6fbff;
+  }
+
+  .concept-box p {
+    margin-top: 4px;
+    color: rgba(247, 249, 255, 0.76);
+  }
+
+  #label-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 17;
+  }
+
+  .hud-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 15, 28, 0.84);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    backdrop-filter: blur(10px);
+  }
+
+  #gui-mount {
+    position: absolute;
+    top: 205px;
+    right: 16px;
+    z-index: 40;
+  }
+
+  #gui-mount .lil-gui {
+    --background-color: rgba(8, 15, 30, 0.88);
+    --title-background-color: rgba(15, 28, 54, 0.96);
+    --text-color: #f7f9ff;
+    --widget-color: #d9ebff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --focus-color: rgba(255, 255, 255, 0.06);
+    --number-color: #ffd37c;
+    --font-size: 12px;
+    overflow: hidden;
+    border-radius: 20px;
+    box-shadow: 0 20px 42px rgba(4, 8, 18, 0.34);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #graph-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(247, 249, 255, 0.52);
+  }
+
+  #graph-head h2 {
+    margin-top: 6px;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 7px;
+    max-width: 520px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(247, 249, 255, 0.72);
+  }
+
+  #graph-metrics {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 18px;
+    z-index: 11;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .metric-card {
+    min-height: 94px;
+    padding: 13px 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 16px 34px rgba(4, 8, 18, 0.18);
+  }
+
+  .metric-card .label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: rgba(247, 249, 255, 0.56);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 20px;
+    color: #fff;
+  }
+
+  .metric-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.58;
+    color: rgba(247, 249, 255, 0.74);
+  }
+
+  #graph-hint {
+    position: absolute;
+    top: 126px;
+    right: 22px;
+    z-index: 12;
+    padding: 9px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(247, 249, 255, 0.82);
+    font-size: 11px;
+    pointer-events: none;
+  }
+
+  @media (max-width: 1120px) {
+    #layout {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  }
+
+  @media (max-width: 900px) {
+    #title-card {
+      top: 62px;
+      max-width: calc(100% - 26px);
+      min-width: 0;
+      padding: 12px 16px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 23px;
+    }
+
+    #status-chip {
+      top: 154px;
+      width: calc(100% - 24px);
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      width: min(350px, calc(100vw - 24px));
+      left: 12px;
+      bottom: 12px;
+    }
+
+    #graph-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #graph-hint {
+      top: auto;
+      bottom: 228px;
+      left: 20px;
+      right: auto;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #guide-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      top: 56px;
+    }
+
+    #status-chip {
+      top: 152px;
+      min-height: 104px;
+    }
+
+    #status-chip .title {
+      font-size: 16px;
+    }
+
+    #formula-panel {
+      font-size: 11px;
+      width: calc(100vw - 24px);
+    }
+
+    .info-row .label {
+      width: 92px;
+    }
+
+    #graph-head {
+      left: 18px;
+      right: 18px;
+    }
+
+    #graph-head h2 {
+      font-size: 22px;
+    }
+
+    #graph-metrics {
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      gap: 8px;
+    }
+
+    .metric-card {
+      min-height: 86px;
+      padding: 12px;
+      border-radius: 18px;
+    }
+
+    .metric-card strong {
+      font-size: 17px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="layout">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+    <div id="guide-panel" class="glass">
+      <h3>핵심 원리</h3>
+      <p>이중 슬릿에 빛을 통과시키면 밝고 어두운 간섭무늬가 나타납니다. 경로차가 파장의 정수배이면 보강 간섭, 반파장의 홀수 배이면 상쇄 간섭입니다. 영의 실험은 빛의 파동성을 입증했습니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>파장이 긴 빨간빛과 짧은 파란빛 중 어느 쪽의 간섭무늬 간격이 더 넓을까요?</li>
+        <li>슬릿 간격을 좁히면 스크린의 밝은 띠 간격은 어떻게 바뀔까요?</li>
+        <li>영의 이중 슬릿 실험이 빛의 파동성을 보여 주는 까닭은 무엇일까요?</li>
+      </ul>
+
+      <h3>실험 해석</h3>
+      <ul>
+        <li>경로차가 <strong>mλ</strong>이면 두 파가 같은 위상으로 만나 밝은 무늬가 생깁니다.</li>
+        <li>경로차가 <strong>(m + 1/2)λ</strong>이면 두 파가 반대 위상으로 만나 어두운 무늬가 생깁니다.</li>
+        <li>무늬 간격은 <strong>Δy = λL / d</strong>로 계산되므로 파장과 스크린 거리가 커질수록 넓어지고, 슬릿 간격이 커질수록 좁아집니다.</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>CD와 DVD 표면의 무지개색</li>
+        <li>비눗방울이나 기름막의 간섭색</li>
+        <li>얇은 막 코팅 렌즈의 반사 억제</li>
+      </ul>
+
+      <div class="textbook-ref">교과서 연계: 물리학 III편 p138~143 — 빛의 파동성, 이중 슬릿 간섭, 영의 실험</div>
+    </div>
+
+    <div id="title-card" class="glass">
+      <div class="eyebrow">Wave Optics Simulation</div>
+      <h1>빛의 이중 슬릿 간섭</h1>
+      <p>광원, 이중 슬릿, 스크린을 한 장면에서 보며 간섭무늬와 강도 분포를 동시에 탐구하세요.</p>
+    </div>
+
+    <div id="status-chip" class="glass">
+      <div class="title" id="status-title">중앙 밝은 무늬가 가장 강합니다.</div>
+      <div class="body" id="status-body">파장, 슬릿 간격, 스크린 거리를 바꾸면 Δy = λL / d 에 따라 띠 간격이 함께 달라집니다.</div>
+    </div>
+
+    <div id="formula-panel" class="glass">
+      <h3>🌈 빛의 이중 슬릿 간섭 (영의 실험)</h3>
+      <div class="divider"></div>
+      <div class="info-row"><span class="label">파장 λ</span><span class="value" id="formula-lambda">550 nm</span></div>
+      <div class="info-row"><span class="label">슬릿 간격 d</span><span class="value" id="formula-spacing">0.50 mm</span></div>
+      <div class="info-row"><span class="label">슬릿 폭 w</span><span class="value" id="formula-width">0.15 mm</span></div>
+      <div class="info-row"><span class="label">스크린 거리 L</span><span class="value" id="formula-distance">1.00 m</span></div>
+      <div class="info-row"><span class="label">무늬 간격 Δy</span><span class="value" id="formula-fringe">1.10 mm</span></div>
+      <div class="info-row"><span class="label">관측점 P</span><span class="value" id="formula-point">중앙 (0.00 mm)</span></div>
+      <div class="info-row"><span class="label">경로차 Δr</span><span class="value" id="formula-delta">0.00 λ</span></div>
+
+      <div class="concept-box">
+        <strong>보강 간섭 (밝은 무늬)</strong>
+        <p id="constructive-text">경로차 = mλ (m = 0, ±1, ±2, ...)</p>
+      </div>
+
+      <div class="concept-box">
+        <strong>상쇄 간섭 (어두운 무늬)</strong>
+        <p id="destructive-text">경로차 = (m + 1/2)λ</p>
+      </div>
+
+      <div class="concept-box">
+        <strong>의의</strong>
+        <p id="meaning-text">빛이 파동임을 입증한 대표적 실험입니다. 오른쪽 패턴을 클릭하면 특정 점 P에서의 경로차를 바로 확인할 수 있습니다.</p>
+      </div>
+    </div>
+
+    <div id="label-layer">
+      <div id="label-s1" class="hud-label">S₁</div>
+      <div id="label-s2" class="hud-label">S₂</div>
+      <div id="label-p" class="hud-label">P</div>
+    </div>
+
+    <div id="gui-mount"></div>
+  </section>
+
+  <section id="graph-panel">
+    <canvas id="graph-canvas"></canvas>
+    <div id="graph-head">
+      <div class="eyebrow">Interference Pattern</div>
+      <h2>간섭무늬와 강도 분포</h2>
+      <p>스크린 패턴과 <span id="graph-formula-inline">I ∝ cos²(πdy / λL)</span> 그래프를 함께 보세요. 패턴을 클릭하거나 드래그하면 관측점 P가 이동합니다.</p>
+    </div>
+    <div id="graph-hint">오른쪽 패턴 클릭: 관측점 P 이동</div>
+    <div id="graph-metrics">
+      <div class="metric-card">
+        <span class="label">Fringe Gap</span>
+        <strong id="metric-gap">1.10 mm</strong>
+        <p id="metric-gap-desc">파장과 스크린 거리가 커질수록 넓어집니다.</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Probe Point</span>
+        <strong id="metric-probe">0.00 mm</strong>
+        <p id="metric-probe-desc">중심축에서 관측점 P까지의 위치</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Path Difference</span>
+        <strong id="metric-delta">0.00 λ</strong>
+        <p id="metric-delta-desc">S₁과 S₂에서 P까지의 거리 차</p>
+      </div>
+      <div class="metric-card">
+        <span class="label">Condition</span>
+        <strong id="metric-condition">보강 간섭</strong>
+        <p id="metric-condition-desc">경로차가 정수배 파장에 가까운 상태</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const scenePanel = document.getElementById('scene-panel');
+  const graphPanel = document.getElementById('graph-panel');
+  const sceneCanvas = document.getElementById('scene-canvas');
+  const graphCanvas = document.getElementById('graph-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const guiMount = document.getElementById('gui-mount');
+
+  const statusTitle = document.getElementById('status-title');
+  const statusBody = document.getElementById('status-body');
+  const formulaLambda = document.getElementById('formula-lambda');
+  const formulaSpacing = document.getElementById('formula-spacing');
+  const formulaWidth = document.getElementById('formula-width');
+  const formulaDistance = document.getElementById('formula-distance');
+  const formulaFringe = document.getElementById('formula-fringe');
+  const formulaPoint = document.getElementById('formula-point');
+  const formulaDelta = document.getElementById('formula-delta');
+  const constructiveText = document.getElementById('constructive-text');
+  const destructiveText = document.getElementById('destructive-text');
+  const meaningText = document.getElementById('meaning-text');
+  const graphFormulaInline = document.getElementById('graph-formula-inline');
+
+  const metricGap = document.getElementById('metric-gap');
+  const metricGapDesc = document.getElementById('metric-gap-desc');
+  const metricProbe = document.getElementById('metric-probe');
+  const metricProbeDesc = document.getElementById('metric-probe-desc');
+  const metricDelta = document.getElementById('metric-delta');
+  const metricDeltaDesc = document.getElementById('metric-delta-desc');
+  const metricCondition = document.getElementById('metric-condition');
+  const metricConditionDesc = document.getElementById('metric-condition-desc');
+
+  const labelS1 = document.getElementById('label-s1');
+  const labelS2 = document.getElementById('label-s2');
+  const labelP = document.getElementById('label-p');
+
+  const graphCtx = graphCanvas.getContext('2d');
+
+  const SCREEN_WORLD_WIDTH = 3.2;
+  const SCREEN_WORLD_HEIGHT = 4.5;
+  const SCREEN_PHYSICAL_HEIGHT_M = 0.024;
+  const SCREEN_Z_MIN = 3.8;
+  const SCREEN_Z_MAX = 8.1;
+  const SOURCE_Z = -6.2;
+  const PLATE_Z = -1.55;
+  const PLATE_HEIGHT = 4.8;
+  const PLATE_WIDTH = 3.5;
+  const PLATE_DEPTH = 0.14;
+  const MAX_RING_COUNT = 10;
+  const MAX_MARKERS = 11;
+  const PATTERN_TEXTURE_WIDTH = 320;
+  const PATTERN_TEXTURE_HEIGHT = 960;
+
+  const defaults = {
+    lightPreset: '초록',
+    wavelength: 550,
+    slitSpacing: 0.5,
+    slitWidth: 0.15,
+    distance: 1,
+    waveVisualization: true,
+    showPathDifference: true,
+    showIntensityGraph: true,
+    probeY: 0
+  };
+
+  const state = { ...defaults };
+  const graphLayout = {
+    patternRect: null,
+    graphRect: null
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function formatNumber(value, digits = 2) {
+    return Number(value).toFixed(digits);
+  }
+
+  function mmToMeters(mm) {
+    return mm * 1e-3;
+  }
+
+  function nmToMeters(nm) {
+    return nm * 1e-9;
+  }
+
+  function wavelengthToRgb(wavelength) {
+    const lambda = clamp(wavelength, 380, 780);
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+
+    if (lambda >= 380 && lambda < 440) {
+      red = -(lambda - 440) / (440 - 380);
+      green = 0;
+      blue = 1;
+    } else if (lambda < 490) {
+      red = 0;
+      green = (lambda - 440) / (490 - 440);
+      blue = 1;
+    } else if (lambda < 510) {
+      red = 0;
+      green = 1;
+      blue = -(lambda - 510) / (510 - 490);
+    } else if (lambda < 580) {
+      red = (lambda - 510) / (580 - 510);
+      green = 1;
+      blue = 0;
+    } else if (lambda < 645) {
+      red = 1;
+      green = -(lambda - 645) / (645 - 580);
+      blue = 0;
+    } else {
+      red = 1;
+      green = 0;
+      blue = 0;
+    }
+
+    let factor = 1;
+    if (lambda > 700) {
+      factor = 0.3 + 0.7 * (780 - lambda) / (780 - 700);
+    } else if (lambda < 420) {
+      factor = 0.3 + 0.7 * (lambda - 380) / (420 - 380);
+    }
+
+    const gamma = 0.8;
+    const adjust = (color) => Math.round(255 * Math.pow(color * factor, gamma));
+    return [adjust(red), adjust(green), adjust(blue)];
+  }
+
+  function currentLightRgb() {
+    if (state.lightPreset === '흰색') {
+      return [255, 255, 255];
+    }
+    return wavelengthToRgb(state.wavelength);
+  }
+
+  function rgbToCss(rgb, alpha = 1) {
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+  }
+
+  function rgbToThreeColor(rgb, scale = 1) {
+    return new THREE.Color((rgb[0] / 255) * scale, (rgb[1] / 255) * scale, (rgb[2] / 255) * scale);
+  }
+
+  function spectrumHueText() {
+    if (state.lightPreset === '흰색') {
+      return '흰색(복합광)';
+    }
+    return `${state.lightPreset} 계열`;
+  }
+
+  function effectiveSlitWidthMm() {
+    const maxWidth = Math.max(0.03, state.slitSpacing * 0.68);
+    return clamp(state.slitWidth, 0.02, maxWidth);
+  }
+
+  function syncPhysicalConstraints() {
+    const constrainedWidth = effectiveSlitWidthMm();
+    if (Math.abs(constrainedWidth - state.slitWidth) > 1e-6) {
+      state.slitWidth = constrainedWidth;
+    }
+    state.probeY = clamp(state.probeY, -SCREEN_PHYSICAL_HEIGHT_M * 0.5, SCREEN_PHYSICAL_HEIGHT_M * 0.5);
+  }
+
+  function calculateIntensityAt(yMeters, wavelengthNm = state.wavelength) {
+    const lambda = nmToMeters(wavelengthNm);
+    const d = mmToMeters(state.slitSpacing);
+    const w = mmToMeters(effectiveSlitWidthMm());
+    const L = state.distance;
+    const deltaTerm = Math.PI * d * yMeters / (lambda * L);
+    const beta = Math.PI * w * yMeters / (lambda * L);
+    const interference = Math.cos(deltaTerm) ** 2;
+    const envelope = Math.abs(beta) < 1e-7 ? 1 : (Math.sin(beta) / beta) ** 2;
+    return clamp(interference * envelope, 0, 1);
+  }
+
+  function calculateFringeSpacingMeters() {
+    return (nmToMeters(state.wavelength) * state.distance) / mmToMeters(state.slitSpacing);
+  }
+
+  function physicalYToWorldY(yMeters) {
+    return (yMeters / (SCREEN_PHYSICAL_HEIGHT_M * 0.5)) * (SCREEN_WORLD_HEIGHT * 0.5);
+  }
+
+  function currentScreenZ() {
+    const t = (state.distance - 0.5) / (3 - 0.5);
+    return lerp(SCREEN_Z_MIN, SCREEN_Z_MAX, clamp(t, 0, 1));
+  }
+
+  function currentSlitSpacingWorld() {
+    const t = (state.slitSpacing - 0.1) / (2 - 0.1);
+    return lerp(0.38, 1.42, clamp(t, 0, 1));
+  }
+
+  function currentSlitWidthWorld() {
+    const width = effectiveSlitWidthMm();
+    const t = (width - 0.02) / (0.4 - 0.02);
+    return lerp(0.16, 0.7, clamp(t, 0, 1));
+  }
+
+  function getProbeData() {
+    const lambda = nmToMeters(state.wavelength);
+    const d = mmToMeters(state.slitSpacing);
+    const L = state.distance;
+    const y = state.probeY;
+    const r1 = Math.sqrt(L * L + (y - d * 0.5) ** 2);
+    const r2 = Math.sqrt(L * L + (y + d * 0.5) ** 2);
+    const deltaSigned = r2 - r1;
+    const deltaAbs = Math.abs(deltaSigned);
+    const ratio = deltaAbs / lambda;
+    const constructiveM = Math.round(ratio);
+    const destructiveM = Math.floor(ratio);
+    const constructiveError = Math.abs(ratio - constructiveM);
+    const destructiveError = Math.abs(ratio - (destructiveM + 0.5));
+
+    let kind = 'intermediate';
+    let title = '중간 간섭';
+    let detail = '보강과 상쇄 사이의 중간 밝기 구간입니다.';
+
+    if (constructiveError < 0.12) {
+      kind = 'constructive';
+      title = constructiveM === 0 ? '0차 보강 간섭' : `${constructiveM}차 보강 간섭`;
+      detail = `경로차가 ${constructiveM}λ에 가깝습니다.`;
+    } else if (destructiveError < 0.12) {
+      kind = 'destructive';
+      title = `${destructiveM}차 상쇄 간섭`;
+      detail = `경로차가 (${destructiveM} + 1/2)λ에 가깝습니다.`;
+    }
+
+    return {
+      r1,
+      r2,
+      deltaSigned,
+      deltaAbs,
+      ratio,
+      kind,
+      title,
+      detail,
+      intensity: calculateIntensityAt(y)
+    };
+  }
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a20);
+  scene.fog = new THREE.Fog(0x0a0a20, 12, 28);
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: sceneCanvas,
+    antialias: true,
+    alpha: true
+  });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(5.9, 2.9, 8.8);
+
+  const controls = new OrbitControls(camera, sceneCanvas);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 16;
+  controls.minPolarAngle = 0.65;
+  controls.maxPolarAngle = 1.45;
+  controls.target.set(0, 0.15, 0.8);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.22);
+  scene.add(ambientLight);
+
+  const fillLight = new THREE.DirectionalLight(0x6da6ff, 0.28);
+  fillLight.position.set(4.5, 6, 8);
+  scene.add(fillLight);
+
+  const backLight = new THREE.DirectionalLight(0xffd47b, 0.18);
+  backLight.position.set(-6, 3, -8);
+  scene.add(backLight);
+
+  const sourceLight = new THREE.PointLight(0x7fffaa, 1.4, 18, 2);
+  sourceLight.position.set(0, 0, SOURCE_Z);
+  scene.add(sourceLight);
+
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(22, 22),
+    new THREE.MeshStandardMaterial({
+      color: 0x0e1324,
+      roughness: 0.92,
+      metalness: 0.06
+    })
+  );
+  floor.rotation.x = -Math.PI * 0.5;
+  floor.position.y = -2.85;
+  floor.position.z = 1.1;
+  scene.add(floor);
+
+  const labBase = new THREE.Mesh(
+    new THREE.BoxGeometry(7.6, 0.35, 14.5),
+    new THREE.MeshStandardMaterial({
+      color: 0x171d31,
+      roughness: 0.78,
+      metalness: 0.12
+    })
+  );
+  labBase.position.set(0, -2.68, 0.8);
+  scene.add(labBase);
+
+  const sourceGroup = new THREE.Group();
+  scene.add(sourceGroup);
+
+  const sourceSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x77ffaa,
+      emissiveIntensity: 2.4,
+      roughness: 0.24,
+      metalness: 0.08
+    })
+  );
+  sourceSphere.position.set(0, 0, SOURCE_Z);
+  sourceGroup.add(sourceSphere);
+
+  const sourceHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 24, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x99ffdd,
+      transparent: true,
+      opacity: 0.18
+    })
+  );
+  sourceHalo.position.copy(sourceSphere.position);
+  sourceGroup.add(sourceHalo);
+
+  const incidentBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.24, Math.abs(PLATE_Z - SOURCE_Z) - 0.45, 28, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xb7ffd0,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide
+    })
+  );
+  incidentBeam.rotation.x = Math.PI * 0.5;
+  incidentBeam.position.set(0, 0, (SOURCE_Z + PLATE_Z) * 0.5 - 0.08);
+  scene.add(incidentBeam);
+
+  const slitGroup = new THREE.Group();
+  scene.add(slitGroup);
+
+  const plateMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2a2f43,
+    roughness: 0.78,
+    metalness: 0.22
+  });
+
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(PLATE_WIDTH, 1, PLATE_DEPTH), plateMaterial);
+  const middleBar = new THREE.Mesh(new THREE.BoxGeometry(PLATE_WIDTH, 1, PLATE_DEPTH), plateMaterial);
+  const bottomBar = new THREE.Mesh(new THREE.BoxGeometry(PLATE_WIDTH, 1, PLATE_DEPTH), plateMaterial);
+  slitGroup.add(topBar, middleBar, bottomBar);
+
+  const plateFrame = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(PLATE_WIDTH, PLATE_HEIGHT, PLATE_DEPTH)),
+    new THREE.LineBasicMaterial({ color: 0x53617f, transparent: true, opacity: 0.55 })
+  );
+  plateFrame.position.z = PLATE_Z;
+  slitGroup.add(plateFrame);
+
+  const slitGlowMaterial1 = new THREE.MeshBasicMaterial({
+    color: 0x88ffcc,
+    transparent: true,
+    opacity: 0.78,
+    side: THREE.DoubleSide
+  });
+  const slitGlowMaterial2 = slitGlowMaterial1.clone();
+  const slitGlow1 = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_WIDTH * 0.92, 0.2), slitGlowMaterial1);
+  const slitGlow2 = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_WIDTH * 0.92, 0.2), slitGlowMaterial2);
+  slitGlow1.position.z = PLATE_Z + PLATE_DEPTH * 0.52;
+  slitGlow2.position.z = PLATE_Z + PLATE_DEPTH * 0.52;
+  slitGroup.add(slitGlow1, slitGlow2);
+
+  const screenTextureCanvas = document.createElement('canvas');
+  screenTextureCanvas.width = PATTERN_TEXTURE_WIDTH;
+  screenTextureCanvas.height = PATTERN_TEXTURE_HEIGHT;
+  const screenTextureCtx = screenTextureCanvas.getContext('2d');
+  const screenTexture = new THREE.CanvasTexture(screenTextureCanvas);
+  screenTexture.colorSpace = THREE.SRGBColorSpace;
+  screenTexture.anisotropy = 8;
+
+  const screenGroup = new THREE.Group();
+  scene.add(screenGroup);
+
+  const screenMaterial = new THREE.MeshBasicMaterial({
+    map: screenTexture,
+    side: THREE.DoubleSide
+  });
+  const screenMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(SCREEN_WORLD_WIDTH, SCREEN_WORLD_HEIGHT),
+    screenMaterial
+  );
+  screenGroup.add(screenMesh);
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd9dce3,
+    roughness: 0.62,
+    metalness: 0.18
+  });
+
+  const frameTop = new THREE.Mesh(new THREE.BoxGeometry(SCREEN_WORLD_WIDTH + 0.24, 0.12, 0.14), frameMaterial);
+  const frameBottom = frameTop.clone();
+  const frameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, SCREEN_WORLD_HEIGHT + 0.24, 0.14), frameMaterial);
+  const frameRight = frameLeft.clone();
+  screenGroup.add(frameTop, frameBottom, frameLeft, frameRight);
+
+  const screenStand1 = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 2.1, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0x888f9f,
+      roughness: 0.5,
+      metalness: 0.35
+    })
+  );
+  const screenStand2 = screenStand1.clone();
+  const screenBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.82, 0.92, 0.12, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0x454d60,
+      roughness: 0.76,
+      metalness: 0.18
+    })
+  );
+  screenGroup.add(screenStand1, screenStand2, screenBase);
+
+  const screenGuideLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-SCREEN_WORLD_WIDTH * 0.5, 0, 0.03),
+      new THREE.Vector3(SCREEN_WORLD_WIDTH * 0.5, 0, 0.03)
+    ]),
+    new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.55
+    })
+  );
+  screenGroup.add(screenGuideLine);
+
+  const probeMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 20, 20),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95
+    })
+  );
+  scene.add(probeMarker);
+
+  const markerGroup = new THREE.Group();
+  scene.add(markerGroup);
+  const maximaMarkers = [];
+  const minimaMarkers = [];
+
+  for (let i = 0; i < MAX_MARKERS; i += 1) {
+    const bright = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 16, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    const dark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.048, 12, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0x203152,
+        transparent: true,
+        opacity: 0.78
+      })
+    );
+    maximaMarkers.push(bright);
+    minimaMarkers.push(dark);
+    markerGroup.add(bright, dark);
+  }
+
+  const pathMaterial1 = new THREE.LineBasicMaterial({
+    color: 0xff6c6c,
+    transparent: true,
+    opacity: 0.92
+  });
+  const pathMaterial2 = new THREE.LineBasicMaterial({
+    color: 0x6ca8ff,
+    transparent: true,
+    opacity: 0.92
+  });
+  const pathLine1 = new THREE.Line(new THREE.BufferGeometry(), pathMaterial1);
+  const pathLine2 = new THREE.Line(new THREE.BufferGeometry(), pathMaterial2);
+  scene.add(pathLine1, pathLine2);
+
+  const waveGroup1 = new THREE.Group();
+  const waveGroup2 = new THREE.Group();
+  scene.add(waveGroup1, waveGroup2);
+
+  const ringGeometry = new THREE.RingGeometry(0.86, 1, 72);
+  const ringMaterial1 = new THREE.MeshBasicMaterial({
+    color: 0xff7c7c,
+    transparent: true,
+    opacity: 0.18,
+    side: THREE.DoubleSide
+  });
+  const ringMaterial2 = new THREE.MeshBasicMaterial({
+    color: 0x6ca8ff,
+    transparent: true,
+    opacity: 0.18,
+    side: THREE.DoubleSide
+  });
+  const ringMeshes1 = [];
+  const ringMeshes2 = [];
+
+  for (let i = 0; i < MAX_RING_COUNT; i += 1) {
+    const ring1 = new THREE.Mesh(ringGeometry, ringMaterial1.clone());
+    const ring2 = new THREE.Mesh(ringGeometry, ringMaterial2.clone());
+    waveGroup1.add(ring1);
+    waveGroup2.add(ring2);
+    ringMeshes1.push(ring1);
+    ringMeshes2.push(ring2);
+  }
+
+  const particleGroup = new THREE.Group();
+  scene.add(particleGroup);
+
+  const incidentParticleCount = 48;
+  const incidentPositions = new Float32Array(incidentParticleCount * 3);
+  const incidentGeometry = new THREE.BufferGeometry();
+  incidentGeometry.setAttribute('position', new THREE.BufferAttribute(incidentPositions, 3));
+  const incidentPoints = new THREE.Points(
+    incidentGeometry,
+    new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.075,
+      transparent: true,
+      opacity: 0.8,
+      sizeAttenuation: true
+    })
+  );
+  particleGroup.add(incidentPoints);
+
+  const transmittedParticleCount = 120;
+  const transmittedPositions = new Float32Array(transmittedParticleCount * 3);
+  const transmittedGeometry = new THREE.BufferGeometry();
+  transmittedGeometry.setAttribute('position', new THREE.BufferAttribute(transmittedPositions, 3));
+  const transmittedPoints = new THREE.Points(
+    transmittedGeometry,
+    new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.06,
+      transparent: true,
+      opacity: 0.78,
+      sizeAttenuation: true
+    })
+  );
+  particleGroup.add(transmittedPoints);
+
+  const particleSeeds = Array.from({ length: transmittedParticleCount }, (_, index) => ({
+    phase: index / transmittedParticleCount,
+    speed: 0.18 + (index % 7) * 0.012,
+    slitIndex: index % 2 === 0 ? 1 : -1,
+    spread: ((index * 0.73) % 1) - 0.5
+  }));
+
+  const incidentSeeds = Array.from({ length: incidentParticleCount }, (_, index) => ({
+    phase: index / incidentParticleCount,
+    lane: ((index % 6) - 2.5) * 0.05
+  }));
+
+  const gui = new GUI({
+    container: guiMount,
+    title: '실험 제어'
+  });
+
+  const controllers = [];
+
+  function addController(controller) {
+    controllers.push(controller);
+    return controller;
+  }
+
+  const lightController = addController(gui.add(state, 'lightPreset', ['빨강', '초록', '파랑', '흰색']).name('빛의 색'));
+  const wavelengthController = addController(gui.add(state, 'wavelength', 400, 700, 10).name('파장 λ (nm)'));
+  const spacingController = addController(gui.add(state, 'slitSpacing', 0.1, 2, 0.1).name('슬릿 간격 d (mm)'));
+  const widthController = addController(gui.add(state, 'slitWidth', 0.02, 0.4, 0.01).name('슬릿 폭 w (mm)'));
+  const distanceController = addController(gui.add(state, 'distance', 0.5, 3, 0.1).name('슬릿-스크린 거리 L (m)'));
+  const waveController = addController(gui.add(state, 'waveVisualization').name('파동 시각화'));
+  const pathController = addController(gui.add(state, 'showPathDifference').name('경로차 표시'));
+  const graphController = addController(gui.add(state, 'showIntensityGraph').name('강도 그래프'));
+  addController(gui.add({
+    초기화() {
+      Object.assign(state, defaults);
+      syncPhysicalConstraints();
+      syncGui();
+      refreshAll();
+    }
+  }, '초기화'));
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  lightController.onChange((value) => {
+    if (value === '빨강') state.wavelength = 650;
+    if (value === '초록') state.wavelength = 550;
+    if (value === '파랑') state.wavelength = 450;
+    syncGui();
+    refreshAll();
+  });
+
+  wavelengthController.onChange(() => {
+    refreshAll();
+  });
+
+  spacingController.onChange(() => {
+    syncPhysicalConstraints();
+    syncGui();
+    refreshAll();
+  });
+
+  widthController.onChange(() => {
+    syncPhysicalConstraints();
+    syncGui();
+    refreshAll();
+  });
+
+  distanceController.onChange(() => {
+    refreshAll();
+  });
+
+  waveController.onChange(() => {
+    refreshAll();
+  });
+
+  pathController.onChange(() => {
+    refreshAll();
+  });
+
+  graphController.onChange(() => {
+    refreshAll();
+  });
+
+  if (window.innerWidth < 900) {
+    gui.close();
+  }
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+    guideToggle.textContent = guidePanel.classList.contains('open') ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+  });
+
+  function projectLabel(worldPosition, element) {
+    const rect = scenePanel.getBoundingClientRect();
+    const vector = worldPosition.clone().project(camera);
+    const visible = vector.z < 1 && vector.z > -1;
+    if (!visible) {
+      element.style.opacity = '0';
+      return;
+    }
+    const x = (vector.x * 0.5 + 0.5) * rect.width;
+    const y = (-vector.y * 0.5 + 0.5) * rect.height;
+    if (x < -40 || x > rect.width + 40 || y < -40 || y > rect.height + 40) {
+      element.style.opacity = '0';
+      return;
+    }
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
+    element.style.opacity = '1';
+  }
+
+  function getSlitWorldPositions() {
+    const spacingWorld = currentSlitSpacingWorld();
+    const upper = new THREE.Vector3(0, spacingWorld * 0.5, PLATE_Z + PLATE_DEPTH * 0.55);
+    const lower = new THREE.Vector3(0, -spacingWorld * 0.5, PLATE_Z + PLATE_DEPTH * 0.55);
+    return { upper, lower };
+  }
+
+  function updateSlitGeometry() {
+    const spacingWorld = currentSlitSpacingWorld();
+    const slitWidthWorld = currentSlitWidthWorld();
+    const upperCenter = spacingWorld * 0.5;
+    const lowerCenter = -spacingWorld * 0.5;
+    const halfPlate = PLATE_HEIGHT * 0.5;
+    const upperTop = upperCenter + slitWidthWorld * 0.5;
+    const upperBottom = upperCenter - slitWidthWorld * 0.5;
+    const lowerTop = lowerCenter + slitWidthWorld * 0.5;
+    const lowerBottom = lowerCenter - slitWidthWorld * 0.5;
+
+    const topHeight = Math.max(0.08, halfPlate - upperTop);
+    const middleHeight = Math.max(0.08, upperBottom - lowerTop);
+    const bottomHeight = Math.max(0.08, lowerBottom + halfPlate);
+
+    topBar.scale.set(1, topHeight, 1);
+    middleBar.scale.set(1, middleHeight, 1);
+    bottomBar.scale.set(1, bottomHeight, 1);
+
+    topBar.position.set(0, (halfPlate + upperTop) * 0.5, PLATE_Z);
+    middleBar.position.set(0, (upperBottom + lowerTop) * 0.5, PLATE_Z);
+    bottomBar.position.set(0, (-halfPlate + lowerBottom) * 0.5, PLATE_Z);
+
+    slitGlow1.scale.set(1, slitWidthWorld / 0.2, 1);
+    slitGlow2.scale.set(1, slitWidthWorld / 0.2, 1);
+    slitGlow1.position.y = upperCenter;
+    slitGlow2.position.y = lowerCenter;
+  }
+
+  function updateScreenGeometry() {
+    const screenZ = currentScreenZ();
+    screenGroup.position.set(0, 0, screenZ);
+    screenMesh.position.z = 0;
+
+    frameTop.position.set(0, SCREEN_WORLD_HEIGHT * 0.5 + 0.12, -0.02);
+    frameBottom.position.set(0, -SCREEN_WORLD_HEIGHT * 0.5 - 0.12, -0.02);
+    frameLeft.position.set(-SCREEN_WORLD_WIDTH * 0.5 - 0.12, 0, -0.02);
+    frameRight.position.set(SCREEN_WORLD_WIDTH * 0.5 + 0.12, 0, -0.02);
+
+    screenStand1.position.set(-0.72, -SCREEN_WORLD_HEIGHT * 0.5 - 0.98, -0.08);
+    screenStand2.position.set(0.72, -SCREEN_WORLD_HEIGHT * 0.5 - 0.98, -0.08);
+    screenBase.position.set(0, -SCREEN_WORLD_HEIGHT * 0.5 - 2.02, 0.06);
+
+    const probeWorldY = physicalYToWorldY(state.probeY);
+    probeMarker.position.set(0, probeWorldY, screenZ + 0.07);
+    screenGuideLine.position.y = probeWorldY;
+    screenGuideLine.visible = state.showPathDifference;
+  }
+
+  function updatePathLines() {
+    const { upper, lower } = getSlitWorldPositions();
+    const screenZ = currentScreenZ();
+    const probeY = physicalYToWorldY(state.probeY);
+    const probe = new THREE.Vector3(0, probeY, screenZ + 0.08);
+    const mid1 = new THREE.Vector3(-0.56, (upper.y + probe.y) * 0.5, lerp(upper.z, probe.z, 0.45));
+    const mid2 = new THREE.Vector3(0.56, (lower.y + probe.y) * 0.5, lerp(lower.z, probe.z, 0.45));
+    pathLine1.geometry.setFromPoints([upper, mid1, probe]);
+    pathLine2.geometry.setFromPoints([lower, mid2, probe]);
+    pathLine1.visible = state.showPathDifference;
+    pathLine2.visible = state.showPathDifference;
+    probeMarker.visible = state.showPathDifference;
+    labelP.style.opacity = state.showPathDifference ? '1' : '0';
+  }
+
+  function updateScreenMarkers() {
+    const screenZ = currentScreenZ();
+    const spacingMeters = calculateFringeSpacingMeters();
+    const halfHeight = SCREEN_PHYSICAL_HEIGHT_M * 0.5;
+    const rgb = currentLightRgb();
+    const brightColor = rgbToThreeColor(rgb, 1.0);
+    const darkColor = new THREE.Color(0x24365b);
+
+    maximaMarkers.forEach((mesh, index) => {
+      const order = index - Math.floor(MAX_MARKERS / 2);
+      const yMeters = order * spacingMeters;
+      mesh.visible = Math.abs(yMeters) <= halfHeight;
+      if (mesh.visible) {
+        mesh.position.set(0, physicalYToWorldY(yMeters), screenZ + 0.035);
+        mesh.material.color.copy(brightColor);
+      }
+    });
+
+    minimaMarkers.forEach((mesh, index) => {
+      const order = index - Math.floor(MAX_MARKERS / 2);
+      const yMeters = (order + 0.5) * spacingMeters;
+      mesh.visible = Math.abs(yMeters) <= halfHeight;
+      if (mesh.visible) {
+        mesh.position.set(0, physicalYToWorldY(yMeters), screenZ + 0.03);
+        mesh.material.color.copy(darkColor);
+      }
+    });
+  }
+
+  function updateLightColor() {
+    const rgb = currentLightRgb();
+    const color = rgbToThreeColor(rgb, 1);
+    const soft = rgbToThreeColor(rgb, 0.7);
+    sourceSphere.material.color.copy(color);
+    sourceSphere.material.emissive.copy(color);
+    sourceHalo.material.color.copy(soft);
+    sourceLight.color.copy(color);
+    incidentBeam.material.color.copy(color);
+    incidentPoints.material.color.copy(color);
+    transmittedPoints.material.color.copy(color);
+    slitGlow1.material.color.copy(color);
+    slitGlow2.material.color.copy(color);
+    ringMaterial1.color.copy(color);
+    ringMaterial2.color.copy(color.clone().offsetHSL(0.08, -0.12, 0.05));
+  }
+
+  function drawPatternToTexture() {
+    const width = screenTextureCanvas.width;
+    const height = screenTextureCanvas.height;
+    const rgb = currentLightRgb();
+    screenTextureCtx.clearRect(0, 0, width, height);
+
+    for (let y = 0; y < height; y += 1) {
+      const normalized = 1 - y / (height - 1);
+      const yMeters = (normalized * 2 - 1) * SCREEN_PHYSICAL_HEIGHT_M * 0.5;
+      const intensity = calculateIntensityAt(yMeters);
+      const alpha = 0.15 + intensity * 0.85;
+      screenTextureCtx.fillStyle = rgbToCss(rgb, alpha);
+      screenTextureCtx.fillRect(0, y, width, 1);
+    }
+
+    const probeRow = Math.round((0.5 - state.probeY / SCREEN_PHYSICAL_HEIGHT_M) * height);
+    screenTextureCtx.fillStyle = 'rgba(255,255,255,0.6)';
+    screenTextureCtx.fillRect(0, clamp(probeRow, 0, height - 1), width, 2);
+    screenTexture.needsUpdate = true;
+  }
+
+  function drawGraph() {
+    const rect = graphPanel.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    graphCanvas.width = Math.round(width * dpr);
+    graphCanvas.height = Math.round(height * dpr);
+    graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    graphCtx.clearRect(0, 0, width, height);
+
+    const panelPad = width < 680 ? 18 : 28;
+    const topPad = width < 680 ? 138 : 148;
+    const bottomPad = width < 680 ? 190 : 150;
+    const innerWidth = width - panelPad * 2;
+    const patternHeight = state.showIntensityGraph ? Math.min(height * 0.26, 180) : Math.min(height * 0.44, 260);
+    const patternRect = {
+      x: panelPad,
+      y: topPad,
+      w: innerWidth,
+      h: patternHeight
+    };
+    const graphRect = {
+      x: panelPad,
+      y: patternRect.y + patternRect.h + 34,
+      w: innerWidth,
+      h: Math.max(0, height - bottomPad - (patternRect.y + patternRect.h + 34))
+    };
+    graphLayout.patternRect = patternRect;
+    graphLayout.graphRect = graphRect;
+
+    const patternGradient = graphCtx.createLinearGradient(patternRect.x, patternRect.y, patternRect.x + patternRect.w, patternRect.y);
+    patternGradient.addColorStop(0, 'rgba(255,255,255,0.04)');
+    patternGradient.addColorStop(1, 'rgba(255,255,255,0.01)');
+    graphCtx.fillStyle = patternGradient;
+    graphCtx.fillRect(patternRect.x, patternRect.y, patternRect.w, patternRect.h);
+
+    const rgb = currentLightRgb();
+    for (let y = 0; y < patternRect.h; y += 1) {
+      const normalized = 1 - y / Math.max(1, patternRect.h - 1);
+      const yMeters = (normalized * 2 - 1) * SCREEN_PHYSICAL_HEIGHT_M * 0.5;
+      const intensity = calculateIntensityAt(yMeters);
+      graphCtx.fillStyle = rgbToCss(rgb, 0.14 + intensity * 0.9);
+      graphCtx.fillRect(patternRect.x, patternRect.y + y, patternRect.w, 1);
+    }
+
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.14)';
+    graphCtx.lineWidth = 1;
+    graphCtx.strokeRect(patternRect.x, patternRect.y, patternRect.w, patternRect.h);
+
+    graphCtx.fillStyle = 'rgba(247,249,255,0.78)';
+    graphCtx.font = '12px Pretendard';
+    graphCtx.fillText('스크린 위 간섭무늬', patternRect.x + 12, patternRect.y - 10);
+
+    const probeY = patternRect.y + ((SCREEN_PHYSICAL_HEIGHT_M * 0.5 - state.probeY) / SCREEN_PHYSICAL_HEIGHT_M) * patternRect.h;
+    graphCtx.strokeStyle = 'rgba(255,255,255,0.72)';
+    graphCtx.setLineDash([6, 6]);
+    graphCtx.beginPath();
+    graphCtx.moveTo(patternRect.x, probeY);
+    graphCtx.lineTo(patternRect.x + patternRect.w, probeY);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+
+    graphCtx.fillStyle = '#ffffff';
+    graphCtx.beginPath();
+    graphCtx.arc(patternRect.x + patternRect.w * 0.94, probeY, 4.5, 0, Math.PI * 2);
+    graphCtx.fill();
+    graphCtx.fillText('P', patternRect.x + patternRect.w * 0.94 + 10, probeY + 4);
+
+    if (state.showIntensityGraph && graphRect.h > 80) {
+      graphCtx.fillStyle = 'rgba(255,255,255,0.02)';
+      graphCtx.fillRect(graphRect.x, graphRect.y, graphRect.w, graphRect.h);
+      graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      graphCtx.strokeRect(graphRect.x, graphRect.y, graphRect.w, graphRect.h);
+
+      graphCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+      graphCtx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const y = graphRect.y + (graphRect.h / 4) * i;
+        graphCtx.beginPath();
+        graphCtx.moveTo(graphRect.x, y);
+        graphCtx.lineTo(graphRect.x + graphRect.w, y);
+        graphCtx.stroke();
+      }
+
+      graphCtx.beginPath();
+      graphCtx.moveTo(graphRect.x + graphRect.w * 0.5, graphRect.y);
+      graphCtx.lineTo(graphRect.x + graphRect.w * 0.5, graphRect.y + graphRect.h);
+      graphCtx.stroke();
+
+      graphCtx.fillStyle = 'rgba(247,249,255,0.78)';
+      graphCtx.fillText('강도 분포 그래프', graphRect.x + 12, graphRect.y - 10);
+
+      graphCtx.strokeStyle = rgbToCss(rgb, 0.94);
+      graphCtx.lineWidth = 2.4;
+      graphCtx.beginPath();
+      for (let x = 0; x <= graphRect.w; x += 1) {
+        const normalizedX = x / graphRect.w;
+        const yMeters = (0.5 - normalizedX) * -SCREEN_PHYSICAL_HEIGHT_M;
+        const intensity = calculateIntensityAt(yMeters);
+        const drawX = graphRect.x + x;
+        const drawY = graphRect.y + graphRect.h - intensity * graphRect.h;
+        if (x === 0) {
+          graphCtx.moveTo(drawX, drawY);
+        } else {
+          graphCtx.lineTo(drawX, drawY);
+        }
+      }
+      graphCtx.stroke();
+
+      graphCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+      graphCtx.setLineDash([6, 6]);
+      graphCtx.beginPath();
+      graphCtx.moveTo(graphRect.x, probeY + (graphRect.y - patternRect.y));
+      graphCtx.lineTo(graphRect.x + graphRect.w, probeY + (graphRect.y - patternRect.y));
+      graphCtx.stroke();
+      graphCtx.setLineDash([]);
+
+      const gap = calculateFringeSpacingMeters();
+      const axisHalf = SCREEN_PHYSICAL_HEIGHT_M * 0.5;
+      [-2, -1, 0, 1, 2].forEach((order) => {
+        const yMeters = order * gap;
+        if (Math.abs(yMeters) > axisHalf) return;
+        const normalized = (yMeters + axisHalf) / SCREEN_PHYSICAL_HEIGHT_M;
+        const x = graphRect.x + normalized * graphRect.w;
+        const y = graphRect.y + graphRect.h - calculateIntensityAt(yMeters) * graphRect.h;
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, 4, 0, Math.PI * 2);
+        graphCtx.fillStyle = rgbToCss(rgb, 0.95);
+        graphCtx.fill();
+        graphCtx.fillStyle = 'rgba(247,249,255,0.82)';
+        graphCtx.fillText(`${Math.abs(order)}차`, x - 10, y - 10);
+      });
+
+      graphCtx.fillStyle = 'rgba(247,249,255,0.6)';
+      graphCtx.fillText('I', graphRect.x + 6, graphRect.y + 16);
+      graphCtx.fillText('y', graphRect.x + graphRect.w - 12, graphRect.y + graphRect.h - 8);
+    } else {
+      graphCtx.fillStyle = 'rgba(247,249,255,0.66)';
+      graphCtx.font = '13px Pretendard';
+      graphCtx.fillText('강도 그래프가 꺼져 있습니다. 토글을 켜면 cos² 분포를 함께 확인할 수 있습니다.', panelPad, graphRect.y + 24);
+    }
+  }
+
+  function updateFormulaAndMetrics() {
+    const probe = getProbeData();
+    const fringeSpacingMm = calculateFringeSpacingMeters() * 1e3;
+    const pointMm = state.probeY * 1e3;
+    const ratioText = `${formatNumber(probe.ratio, 2)} λ`;
+    const sideText = pointMm > 0 ? `위쪽 ${formatNumber(pointMm, 2)} mm` : pointMm < 0 ? `아래쪽 ${formatNumber(Math.abs(pointMm), 2)} mm` : '중앙 (0.00 mm)';
+
+    formulaLambda.textContent = `${formatNumber(state.wavelength, 0)} nm · ${spectrumHueText()}`;
+    formulaSpacing.textContent = `${formatNumber(state.slitSpacing, 2)} mm`;
+    formulaWidth.textContent = `${formatNumber(effectiveSlitWidthMm(), 2)} mm`;
+    formulaDistance.textContent = `${formatNumber(state.distance, 2)} m`;
+    formulaFringe.textContent = `${formatNumber(fringeSpacingMm, 2)} mm`;
+    formulaPoint.textContent = sideText;
+    formulaDelta.textContent = `${ratioText} (${formatNumber(probe.deltaAbs * 1e6, 2)} μm)`;
+
+    constructiveText.textContent = `경로차 = mλ, 현재 선택 점은 ${probe.kind === 'constructive' ? probe.title : '보강 조건에서 벗어나 있습니다.'}`;
+    destructiveText.textContent = `경로차 = (m + 1/2)λ, 현재 점의 밝기는 최대의 ${formatNumber(probe.intensity * 100, 0)}%입니다.`;
+    meaningText.textContent = `영의 실험은 간섭무늬를 통해 빛이 파동처럼 중첩된다는 사실을 보여 줍니다. 현재 관측점은 ${probe.detail}`;
+
+    metricGap.textContent = `${formatNumber(fringeSpacingMm, 2)} mm`;
+    metricGapDesc.textContent = `λ = ${formatNumber(state.wavelength, 0)} nm, d = ${formatNumber(state.slitSpacing, 2)} mm, L = ${formatNumber(state.distance, 2)} m`;
+    metricProbe.textContent = `${pointMm >= 0 ? '+' : '-'}${formatNumber(Math.abs(pointMm), 2)} mm`;
+    metricProbeDesc.textContent = '중심축에서 관측점 P까지의 위치';
+    metricDelta.textContent = ratioText;
+    metricDeltaDesc.textContent = `실제 거리 차 ${formatNumber(probe.deltaAbs * 1e6, 2)} μm`;
+    metricCondition.textContent = probe.title;
+    metricConditionDesc.textContent = probe.detail;
+
+    graphFormulaInline.textContent = state.showIntensityGraph
+      ? 'I ∝ cos²(πdy / λL) · sinc²(πwy / λL)'
+      : 'I ∝ cos²(πdy / λL)';
+
+    statusTitle.textContent = `${probe.title}이 관측됩니다.`;
+    statusBody.textContent = `무늬 간격 Δy = ${formatNumber(fringeSpacingMm, 2)} mm 입니다. 파장을 길게 하거나 스크린 거리를 늘리면 띠가 벌어지고, 슬릿 간격 d를 넓히면 띠가 촘촘해집니다.`;
+  }
+
+  function refreshAll() {
+    syncPhysicalConstraints();
+    updateSlitGeometry();
+    updateScreenGeometry();
+    updatePathLines();
+    updateScreenMarkers();
+    updateLightColor();
+    drawPatternToTexture();
+    drawGraph();
+    updateFormulaAndMetrics();
+  }
+
+  function updateWaveRings(time) {
+    const { upper, lower } = getSlitWorldPositions();
+    const screenZ = currentScreenZ();
+    const travel = screenZ - upper.z;
+    const visible = state.waveVisualization;
+    waveGroup1.visible = visible;
+    waveGroup2.visible = visible;
+
+    ringMeshes1.forEach((ring, index) => {
+      const t = ((time * 0.17 + index / MAX_RING_COUNT) % 1);
+      const z = lerp(upper.z + 0.12, screenZ - 0.12, t);
+      const scale = 0.18 + t * 2.7;
+      ring.position.set(upper.x, upper.y, z);
+      ring.scale.set(scale, scale, 1);
+      ring.material.opacity = (1 - t) * 0.18;
+    });
+
+    ringMeshes2.forEach((ring, index) => {
+      const t = ((time * 0.17 + index / MAX_RING_COUNT + 0.12) % 1);
+      const z = lerp(lower.z + 0.12, screenZ - 0.12, t);
+      const scale = 0.18 + t * 2.7;
+      ring.position.set(lower.x, lower.y, z);
+      ring.scale.set(scale, scale, 1);
+      ring.material.opacity = (1 - t) * 0.18;
+    });
+  }
+
+  function updateParticles(time) {
+    const { upper, lower } = getSlitWorldPositions();
+    const screenZ = currentScreenZ();
+    const positions = transmittedGeometry.attributes.position.array;
+
+    for (let i = 0; i < particleSeeds.length; i += 1) {
+      const seed = particleSeeds[i];
+      const progress = (time * seed.speed + seed.phase) % 1;
+      const from = seed.slitIndex > 0 ? upper : lower;
+      const z = lerp(from.z + 0.1, screenZ - 0.18, progress);
+      const y = from.y + seed.spread * progress * 2.3;
+      const x = Math.sin((progress + seed.phase) * Math.PI * 4) * 0.08 + seed.slitIndex * progress * 0.08;
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+    }
+
+    transmittedGeometry.attributes.position.needsUpdate = true;
+
+    const incident = incidentGeometry.attributes.position.array;
+    for (let i = 0; i < incidentSeeds.length; i += 1) {
+      const seed = incidentSeeds[i];
+      const progress = (time * 0.28 + seed.phase) % 1;
+      incident[i * 3] = seed.lane;
+      incident[i * 3 + 1] = Math.sin((seed.phase + time * 0.4) * Math.PI * 2) * 0.03;
+      incident[i * 3 + 2] = lerp(SOURCE_Z + 0.18, PLATE_Z - 0.18, progress);
+    }
+    incidentGeometry.attributes.position.needsUpdate = true;
+  }
+
+  function updateLabels() {
+    const { upper, lower } = getSlitWorldPositions();
+    const probe = probeMarker.position.clone();
+    projectLabel(upper, labelS1);
+    projectLabel(lower, labelS2);
+    if (state.showPathDifference) {
+      projectLabel(probe, labelP);
+    } else {
+      labelP.style.opacity = '0';
+    }
+  }
+
+  function resize() {
+    const rect = scenePanel.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height, false);
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+    drawGraph();
+  }
+
+  function updateProbeFromCanvasEvent(event) {
+    if (!graphLayout.patternRect) return;
+    const rect = graphCanvas.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    const activeRect = state.showIntensityGraph && graphLayout.graphRect && localY >= graphLayout.graphRect.y && localY <= graphLayout.graphRect.y + graphLayout.graphRect.h
+      ? graphLayout.graphRect
+      : graphLayout.patternRect;
+    if (localX < activeRect.x || localX > activeRect.x + activeRect.w || localY < activeRect.y || localY > activeRect.y + activeRect.h) {
+      return;
+    }
+    const normalized = 1 - (localY - activeRect.y) / activeRect.h;
+    state.probeY = clamp((normalized * 2 - 1) * SCREEN_PHYSICAL_HEIGHT_M * 0.5, -SCREEN_PHYSICAL_HEIGHT_M * 0.5, SCREEN_PHYSICAL_HEIGHT_M * 0.5);
+    refreshAll();
+  }
+
+  let isDraggingProbe = false;
+
+  graphCanvas.addEventListener('pointerdown', (event) => {
+    isDraggingProbe = true;
+    graphCanvas.setPointerCapture(event.pointerId);
+    updateProbeFromCanvasEvent(event);
+  });
+
+  graphCanvas.addEventListener('pointermove', (event) => {
+    if (!isDraggingProbe) return;
+    updateProbeFromCanvasEvent(event);
+  });
+
+  function releaseProbe(event) {
+    if (!isDraggingProbe) return;
+    isDraggingProbe = false;
+    if (graphCanvas.hasPointerCapture(event.pointerId)) {
+      graphCanvas.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  graphCanvas.addEventListener('pointerup', releaseProbe);
+  graphCanvas.addEventListener('pointercancel', releaseProbe);
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    const elapsed = clock.getElapsedTime();
+    controls.update();
+    updateWaveRings(elapsed);
+    updateParticles(elapsed);
+    updateLabels();
+    sourceHalo.scale.setScalar(1 + Math.sin(elapsed * 2.2) * 0.08);
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    if (material.map) material.map.dispose();
+    material.dispose();
+  }
+
+  function cleanup() {
+    controls.dispose();
+    gui.destroy();
+    scene.traverse((object) => {
+      if (object.geometry) object.geometry.dispose();
+      if (object.material) disposeMaterial(object.material);
+    });
+    screenTexture.dispose();
+    renderer.dispose();
+  }
+
+  window.addEventListener('resize', () => {
+    resize();
+    if (window.innerWidth < 900) {
+      gui.close();
+    }
+  });
+
+  window.addEventListener('pagehide', cleanup, { once: true });
+
+  resize();
+  refreshAll();
+  animate();
+</script>
+</body>
+</html>

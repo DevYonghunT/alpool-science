@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>충격량과 안전장치 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --panel-bg: rgba(16, 29, 46, 0.9);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-soft: rgba(255, 255, 255, 0.06);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.7);
+    --accent-red: #ff5b57;
+    --accent-green: #38b86c;
+    --accent-yellow: #f7be4c;
+    --accent-blue: #59a7ff;
+    --bg-lab: #f5f5f5;
+    --bg-graph: #fcfbf8;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: #132034;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(255, 214, 122, 0.3), transparent 22%),
+      radial-gradient(circle at 86% 16%, rgba(127, 189, 255, 0.24), transparent 24%),
+      linear-gradient(180deg, #f5f5f5 0%, #eceff4 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
+  }
+
+  #scene-panel,
+  #side-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 22% 16%, rgba(255, 224, 158, 0.45), transparent 22%),
+      linear-gradient(180deg, #fafafa 0%, #f2f2f2 48%, #ededed 100%);
+    border-right: 1px solid rgba(19, 32, 52, 0.08);
+  }
+
+  #scene-container {
+    position: absolute;
+    inset: 0;
+    touch-action: none;
+  }
+
+  #side-panel {
+    background:
+      linear-gradient(180deg, rgba(252, 251, 248, 0.96) 0%, rgba(246, 244, 238, 0.98) 100%);
+  }
+
+  .side-view {
+    position: absolute;
+    inset: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .side-view.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #graph-view {
+    padding: 18px 18px 22px;
+  }
+
+  #graph-head,
+  #gallery-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  #graph-head h2,
+  #gallery-head h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #14233a;
+  }
+
+  #graph-head p,
+  #gallery-head p {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #5c697b;
+    line-height: 1.6;
+  }
+
+  #graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    max-width: 230px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    box-shadow: 0 6px 18px rgba(19, 32, 52, 0.05);
+    font-size: 11px;
+    color: #243248;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: calc(100% - 242px);
+    min-height: 290px;
+    display: block;
+    background: rgba(255, 255, 255, 0.78);
+    border-radius: 24px;
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55), 0 20px 40px rgba(19, 32, 52, 0.06);
+  }
+
+  #graph-callout,
+  #gallery-callout {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(19, 32, 52, 0.07);
+    box-shadow: 0 12px 24px rgba(19, 32, 52, 0.05);
+    font-size: 12px;
+    line-height: 1.7;
+    color: #324155;
+  }
+
+  #graph-callout strong,
+  #gallery-callout strong {
+    color: #132034;
+  }
+
+  #comparison-table {
+    margin-top: 12px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.84);
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    box-shadow: 0 12px 24px rgba(19, 32, 52, 0.05);
+  }
+
+  #comparison-table th,
+  #comparison-table td {
+    padding: 11px 12px;
+    font-size: 12px;
+    text-align: center;
+    border-bottom: 1px solid rgba(19, 32, 52, 0.07);
+  }
+
+  #comparison-table tr:last-child th,
+  #comparison-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  #comparison-table thead th {
+    background: rgba(19, 32, 52, 0.05);
+    color: #132034;
+    font-weight: 700;
+  }
+
+  #comparison-table tbody th {
+    text-align: left;
+    width: 94px;
+    font-weight: 700;
+    color: #22324a;
+    background: rgba(19, 32, 52, 0.03);
+  }
+
+  #comparison-table .bad {
+    color: #c7313c;
+    font-weight: 700;
+  }
+
+  #comparison-table .good {
+    color: #1b8e4d;
+    font-weight: 700;
+  }
+
+  #gallery-view {
+    padding: 18px 18px 22px;
+    overflow-y: auto;
+  }
+
+  #device-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .device-card {
+    padding: 16px 16px 15px;
+    border-radius: 20px;
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 249, 252, 0.98) 100%);
+    box-shadow: 0 16px 30px rgba(19, 32, 52, 0.06);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    font-family: inherit;
+  }
+
+  .device-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 34px rgba(19, 32, 52, 0.08);
+  }
+
+  .device-card.active {
+    border-color: rgba(89, 167, 255, 0.48);
+    box-shadow: 0 22px 36px rgba(89, 167, 255, 0.15);
+  }
+
+  .device-card .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(89, 167, 255, 0.1);
+    color: #2f6eb6;
+  }
+
+  .device-card h3 {
+    margin-top: 10px;
+    font-size: 16px;
+    color: #132034;
+  }
+
+  .device-card p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #516073;
+  }
+
+  .device-card .focus-label {
+    margin-top: 10px;
+    font-size: 11px;
+    color: #2b7c43;
+    font-weight: 700;
+  }
+
+  #scene-title {
+    position: fixed;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(19, 32, 52, 0.56);
+  }
+
+  #scene-title h1 {
+    margin-top: 5px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f1b2d;
+    text-shadow: 0 6px 18px rgba(255, 255, 255, 0.45);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 12px;
+    color: rgba(19, 32, 52, 0.68);
+  }
+
+  #mode-switch {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 40;
+    display: inline-flex;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 24px rgba(19, 32, 52, 0.08);
+  }
+
+  .mode-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: transparent;
+    color: #48586e;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+
+  .mode-btn.active {
+    background: #132034;
+    color: #f7fbff;
+  }
+
+  #lab-overlays {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 12;
+  }
+
+  .surface-card {
+    position: absolute;
+    width: 224px;
+    padding: 14px 14px 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 18px 34px rgba(19, 32, 52, 0.08);
+  }
+
+  .surface-card.a { left: 20px; bottom: 20px; }
+  .surface-card.b { right: 20px; bottom: 20px; }
+
+  .surface-card .label {
+    display: inline-flex;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #56657a;
+    background: rgba(19, 32, 52, 0.05);
+  }
+
+  .surface-card h3 {
+    margin-top: 8px;
+    font-size: 17px;
+    color: #0f1b2d;
+  }
+
+  .surface-card .meta {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #5b6879;
+    line-height: 1.7;
+  }
+
+  .surface-card .result {
+    margin-top: 10px;
+    padding: 9px 11px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .surface-card .result.bad {
+    color: #c02b37;
+    background: rgba(255, 91, 87, 0.12);
+  }
+
+  .surface-card .result.good {
+    color: #1a8b4a;
+    background: rgba(56, 184, 108, 0.12);
+  }
+
+  .surface-card .result.wait {
+    color: #69551f;
+    background: rgba(247, 190, 76, 0.16);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: 348px;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 20px 38px rgba(6, 14, 24, 0.28);
+    z-index: 34;
+    font-size: 11px;
+    line-height: 1.75;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: #ffeab8;
+    margin-bottom: 10px;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .formula-row .key {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(247, 251, 255, 0.62);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: #ffffff;
+  }
+
+  .formula-note {
+    margin-top: 11px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: var(--panel-soft);
+    color: var(--text-dim);
+  }
+
+  .formula-note strong {
+    color: #ffffff;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 42;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f7fbff;
+    background: rgba(19, 32, 52, 0.92);
+    box-shadow: 0 14px 26px rgba(19, 32, 52, 0.18);
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    right: 16px;
+    width: 390px;
+    max-height: calc(100vh - 86px);
+    overflow-y: auto;
+    padding: 18px 18px 14px;
+    border-radius: 20px;
+    background: rgba(14, 24, 40, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    color: var(--text-main);
+    display: none;
+    z-index: 41;
+    box-shadow: 0 20px 36px rgba(6, 14, 24, 0.26);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #guide-panel h3 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #ffe6ab;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 6px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(247, 251, 255, 0.7);
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 32;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(19, 32, 52, 0.08);
+    box-shadow: 0 12px 22px rgba(19, 32, 52, 0.08);
+    font-size: 11px;
+    color: #405067;
+    backdrop-filter: blur(12px);
+  }
+
+  .lil-gui {
+    z-index: 45 !important;
+    --background-color: rgba(14, 24, 40, 0.95);
+    --title-background-color: rgba(255, 255, 255, 0.06);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #f2f7fb;
+    --hover-color: rgba(255, 255, 255, 0.18);
+    --focus-color: rgba(89, 167, 255, 0.28);
+  }
+
+  @media (max-width: 1100px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: 56vh 44vh;
+    }
+
+    #scene-panel {
+      border-right: 0;
+      border-bottom: 1px solid rgba(19, 32, 52, 0.08);
+    }
+
+    #formula-panel {
+      bottom: calc(44vh + 12px);
+    }
+  }
+
+  @media (max-width: 780px) {
+    #scene-title {
+      top: 70px;
+      width: calc(100vw - 24px);
+    }
+
+    #scene-title h1 {
+      font-size: 21px;
+    }
+
+    #scene-title p {
+      font-size: 11px;
+    }
+
+    #mode-switch {
+      top: 12px;
+      left: 12px;
+      right: auto;
+    }
+
+    #guide-toggle {
+      top: 12px;
+      right: 12px;
+    }
+
+    #guide-panel {
+      width: calc(100vw - 24px);
+      right: 12px;
+      top: 50px;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: calc(44vh + 10px);
+      width: auto;
+      max-height: 33vh;
+      overflow-y: auto;
+    }
+
+    .surface-card {
+      width: 188px;
+      padding: 12px;
+    }
+
+    .surface-card.a {
+      left: 12px;
+      bottom: 12px;
+    }
+
+    .surface-card.b {
+      right: 12px;
+      bottom: 12px;
+    }
+
+    #graph-head,
+    #gallery-head {
+      flex-direction: column;
+    }
+
+    #graph-legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+
+    #graph-canvas {
+      height: calc(100% - 280px);
+      min-height: 250px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #layout {
+      grid-template-rows: 52vh 48vh;
+    }
+
+    #graph-view,
+    #gallery-view {
+      padding: 14px 12px 18px;
+    }
+
+    #comparison-table th,
+    #comparison-table td {
+      padding: 8px 7px;
+      font-size: 11px;
+    }
+
+    #device-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .surface-card {
+      width: calc(50% - 18px);
+      min-width: 150px;
+    }
+
+    .surface-card h3 {
+      font-size: 15px;
+    }
+
+    #formula-panel {
+      bottom: calc(48vh + 8px);
+      max-height: 31vh;
+    }
+
+    #hint-chip {
+      left: 12px;
+      right: 12px;
+      text-align: center;
+      border-radius: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="layout">
+  <section id="scene-panel">
+    <div id="scene-container"></div>
+    <div id="lab-overlays">
+      <div class="surface-card a">
+        <div class="label">바닥 A</div>
+        <h3 id="card-a-title">나무판 (딱딱함)</h3>
+        <div class="meta" id="card-a-meta">충돌 시간 0.001 s · 짧은 시간에 큰 힘</div>
+        <div class="result wait" id="card-a-result">동시 낙하 버튼을 눌러 두 바닥의 충돌을 비교하세요.</div>
+      </div>
+      <div class="surface-card b">
+        <div class="label">바닥 B</div>
+        <h3 id="card-b-title">방석 (부드러움)</h3>
+        <div class="meta" id="card-b-meta">충돌 시간 0.050 s · 긴 시간에 작은 힘</div>
+        <div class="result wait" id="card-b-result">같은 충격량이어도 충돌 시간이 길어지면 평균 힘이 줄어듭니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="side-panel">
+    <div id="graph-view" class="side-view">
+      <div id="graph-head">
+        <div>
+          <h2>힘-시간 그래프</h2>
+          <p>그래프 아래 넓이(충격량)는 같고, 넓이가 같은 상태에서 시간이 길어질수록 힘의 높이는 낮아집니다.</p>
+        </div>
+        <div id="graph-legend">
+          <div class="legend-chip"><span class="legend-dot" style="background:#ff4444;"></span>바닥 A</div>
+          <div class="legend-chip"><span class="legend-dot" style="background:#44aa44;"></span>바닥 B</div>
+        </div>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-callout"><strong>충격량(넓이) 동일!</strong> 시간↑ → 힘↓. 에어백, 안전 매트, 범퍼, 보호대는 모두 이 원리를 이용해 몸이 받는 힘을 줄입니다.</div>
+      <table id="comparison-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>바닥 A</th>
+            <th>바닥 B</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>충격량</th>
+            <td id="cmp-impulse-a">동일</td>
+            <td id="cmp-impulse-b">동일</td>
+          </tr>
+          <tr>
+            <th>시간</th>
+            <td id="cmp-time-a">0.001 s</td>
+            <td id="cmp-time-b">0.050 s</td>
+          </tr>
+          <tr>
+            <th>평균 힘</th>
+            <td id="cmp-force-a">-</td>
+            <td id="cmp-force-b">-</td>
+          </tr>
+          <tr>
+            <th>결과</th>
+            <td id="cmp-result-a" class="bad">힘 큼 ❌</td>
+            <td id="cmp-result-b" class="good">힘 작음 ✅</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="gallery-view" class="side-view hidden">
+      <div id="gallery-head">
+        <div>
+          <h2>안전장치 갤러리</h2>
+          <p>카드를 누르면 해당 장치를 향해 카메라가 이동합니다. 네 장치 모두 공통으로 충돌 시간을 늘려 힘을 줄입니다.</p>
+        </div>
+      </div>
+      <div id="device-grid">
+        <button class="device-card active" data-device="guardrail">
+          <div class="chip">도로 보호 난간</div>
+          <h3>가드레일</h3>
+          <p>자동차가 충돌할 때 난간이 휘어지며 충돌 시간을 늘려 탑승자가 받는 힘을 줄입니다.</p>
+          <div class="focus-label">현재 포커스</div>
+        </button>
+        <button class="device-card" data-device="mat">
+          <div class="chip">높이뛰기</div>
+          <h3>안전 매트</h3>
+          <p>매트가 눌리며 멈추는 시간을 늘려, 착지할 때 몸에 작용하는 평균 힘을 줄입니다.</p>
+          <div class="focus-label">카드를 누르면 확대</div>
+        </button>
+        <button class="device-card" data-device="gear">
+          <div class="chip">보호 장구</div>
+          <h3>무릎 보호대 + 안전모</h3>
+          <p>완충재가 눌리며 충돌 시간을 늘려 관절과 머리에 전달되는 힘을 줄입니다.</p>
+          <div class="focus-label">카드를 누르면 확대</div>
+        </button>
+        <button class="device-card" data-device="airbag">
+          <div class="chip">자동차 내부</div>
+          <h3>에어백</h3>
+          <p>에어백이 팽창해 몸이 부드럽게 멈추도록 도와, 충돌 시 승객이 받는 힘을 줄입니다.</p>
+          <div class="focus-label">카드를 누르면 확대</div>
+        </button>
+      </div>
+      <div id="gallery-callout"><strong>공통 원리:</strong> 충격량 <strong>J = F × Δt</strong> 는 운동량 변화량과 같습니다. 같은 운동량 변화를 만들더라도 <strong>Δt</strong> 를 늘리면 필요한 평균 힘 <strong>F</strong> 는 작아집니다.</div>
+    </div>
+  </section>
+</div>
+
+<div id="scene-title">
+  <div class="eyebrow">Integrated Science I</div>
+  <h1 id="title-main">충격량과 안전장치</h1>
+  <p id="title-sub">충격량은 같아도 충돌 시간이 길어지면 힘은 작아집니다.</p>
+</div>
+
+<div id="mode-switch">
+  <button class="mode-btn active" data-mode="달걀 낙하">달걀 낙하 실험</button>
+  <button class="mode-btn" data-mode="안전장치 갤러리">안전장치 갤러리</button>
+</div>
+
+<div id="formula-panel"></div>
+
+<button id="guide-toggle">학습 가이드</button>
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>충격량은 힘과 작용 시간의 곱이며, 운동량의 변화량과 같습니다. 같은 충격량이라도 충돌 시간이 길면 필요한 평균 힘은 더 작아집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>달걀이 나무판에서는 깨지고 방석에서는 깨지지 않는 까닭은 무엇일까요?</li>
+    <li>자동차 범퍼와 가드레일이 단단한 금속 덩어리만으로 만들어지지 않는 까닭은 무엇일까요?</li>
+    <li>충격량은 힘-시간 그래프에서 어떻게 구할 수 있을까요? 힌트: 그래프 아래 넓이입니다.</li>
+  </ul>
+
+  <h3>실생활 연결</h3>
+  <ul>
+    <li>에어백, 범퍼, 안전 매트는 모두 멈추는 시간을 늘려 힘을 줄이는 안전장치입니다.</li>
+    <li>헬멧과 무릎 보호대의 완충재도 같은 원리로 충격을 분산합니다.</li>
+    <li>높이뛰기 매트는 선수의 운동량 변화는 같게 하면서도 몸이 받는 힘을 크게 줄입니다.</li>
+  </ul>
+
+  <h3>교과서 연결</h3>
+  <p>교과서 그림 III-26의 달걀 낙하 실험과 그림 III-27의 안전장치 사례를 한 화면에서 비교할 수 있도록 구성했습니다.</p>
+  <div class="guide-ref">미래엔 통합과학1 III편 p134~136 — 충격량과 운동량(그림 III-26), 안전장치(그림 III-27)</div>
+</div>
+
+<div id="hint-chip">드래그로 카메라를 돌리고, GUI에서 바닥 재질과 슬로모션을 바꿔 보세요.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const GRAVITY = 9.8;
+const MODEL_MASS = 1.0;
+const EGG_RADIUS = 0.2;
+const EGG_HALF_HEIGHT = EGG_RADIUS * 1.3;
+const GRAPH_MAX_TIME = 0.1;
+const GRAPH_MAX_FORCE = 10000;
+const LAB_X = { A: -2.4, B: 2.4 };
+
+const HARD_MATERIALS = {
+  '나무판': { label: '나무판 (딱딱함)', color: 0x8b6914, time: 0.001, softness: 0.08, note: '짧은 충돌 시간 → 큰 힘' },
+  '콘크리트': { label: '콘크리트 (아주 딱딱함)', color: 0x9aa0a6, time: 0.0008, softness: 0.04, note: '더 짧은 충돌 시간 → 더 큰 힘' },
+  '강철': { label: '강철 (매우 딱딱함)', color: 0x9daaba, time: 0.0006, softness: 0.03, note: '가장 짧은 충돌 시간 → 가장 큰 힘' }
+};
+
+const SOFT_MATERIALS = {
+  '방석': { label: '방석 (부드러움)', color: 0xff8888, time: 0.05, compression: 0.16, note: '긴 충돌 시간 → 작은 힘', topColor: 0xffb1b1 },
+  '스펀지': { label: '스펀지 (푹신함)', color: 0xffc469, time: 0.035, compression: 0.13, note: '완충재가 눌리며 힘을 줄임', topColor: 0xffdd9d },
+  '에어백': { label: '에어백 (아주 부드러움)', color: 0xfff1a9, time: 0.065, compression: 0.19, note: '충돌 시간을 크게 늘려 힘을 줄임', topColor: 0xfff7cc }
+};
+
+const SAFETY_DEVICE_INFO = {
+  guardrail: {
+    title: '도로 보호 난간',
+    principle: '난간이 휘며 자동차가 멈추는 시간을 늘립니다.',
+    tag: '충돌 시간↑ → 힘↓',
+    focus: new THREE.Vector3(-4.2, 0.9, -1.9),
+    camera: new THREE.Vector3(-1.4, 2.2, 2.2)
+  },
+  mat: {
+    title: '안전 매트',
+    principle: '매트가 눌리며 착지 시간을 늘립니다.',
+    tag: '착지 시간↑ → 힘↓',
+    focus: new THREE.Vector3(4.2, 0.9, -1.9),
+    camera: new THREE.Vector3(1.4, 2.5, 2.1)
+  },
+  gear: {
+    title: '무릎 보호대 + 안전모',
+    principle: '완충재가 눌리며 충격을 분산합니다.',
+    tag: '완충재 압축 → 힘↓',
+    focus: new THREE.Vector3(-4.2, 1.0, 2.4),
+    camera: new THREE.Vector3(-1.6, 2.3, 5.7)
+  },
+  airbag: {
+    title: '에어백',
+    principle: '팽창한 에어백이 몸을 부드럽게 멈추게 합니다.',
+    tag: '에어백 팽창 → 힘↓',
+    focus: new THREE.Vector3(4.2, 1.0, 2.4),
+    camera: new THREE.Vector3(1.5, 2.35, 5.6)
+  }
+};
+
+const sceneContainer = document.getElementById('scene-container');
+const scenePanel = document.getElementById('scene-panel');
+const graphView = document.getElementById('graph-view');
+const galleryView = document.getElementById('gallery-view');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphCtx = graphCanvas.getContext('2d');
+const formulaPanel = document.getElementById('formula-panel');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const hintChip = document.getElementById('hint-chip');
+const labOverlays = document.getElementById('lab-overlays');
+const modeButtons = Array.from(document.querySelectorAll('.mode-btn'));
+const deviceCards = Array.from(document.querySelectorAll('.device-card'));
+const titleMain = document.getElementById('title-main');
+const titleSub = document.getElementById('title-sub');
+
+const overlayRefs = {
+  A: {
+    title: document.getElementById('card-a-title'),
+    meta: document.getElementById('card-a-meta'),
+    result: document.getElementById('card-a-result')
+  },
+  B: {
+    title: document.getElementById('card-b-title'),
+    meta: document.getElementById('card-b-meta'),
+    result: document.getElementById('card-b-result')
+  }
+};
+
+const comparisonRefs = {
+  impulseA: document.getElementById('cmp-impulse-a'),
+  impulseB: document.getElementById('cmp-impulse-b'),
+  timeA: document.getElementById('cmp-time-a'),
+  timeB: document.getElementById('cmp-time-b'),
+  forceA: document.getElementById('cmp-force-a'),
+  forceB: document.getElementById('cmp-force-b'),
+  resultA: document.getElementById('cmp-result-a'),
+  resultB: document.getElementById('cmp-result-b')
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf5f5f5);
+scene.fog = new THREE.Fog(0xf5f5f5, 12, 26);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 3.2, 8.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+sceneContainer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(0, 1.1, 0);
+controls.minDistance = 4.8;
+controls.maxDistance = 13;
+controls.maxPolarAngle = Math.PI * 0.47;
+
+const clock = new THREE.Clock();
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(6, 8, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -10;
+dirLight.shadow.camera.right = 10;
+dirLight.shadow.camera.top = 10;
+dirLight.shadow.camera.bottom = -10;
+dirLight.shadow.bias = -0.00015;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xfff4df, 0.35);
+fillLight.position.set(-5, 4, -2);
+scene.add(fillLight);
+
+const floorPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(26, 18),
+  new THREE.MeshStandardMaterial({ color: 0xe7e4df, roughness: 0.96, metalness: 0.03 })
+);
+floorPlane.rotation.x = -Math.PI / 2;
+floorPlane.receiveShadow = true;
+scene.add(floorPlane);
+
+const labBackdrop = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 8),
+  new THREE.MeshStandardMaterial({ color: 0xf8f6f1, roughness: 1 })
+);
+labBackdrop.position.set(0, 3.2, -4.8);
+scene.add(labBackdrop);
+
+const labTable = new THREE.Mesh(
+  new THREE.BoxGeometry(11, 0.12, 3.5),
+  new THREE.MeshStandardMaterial({ color: 0xd7d0c6, roughness: 0.85, metalness: 0.06 })
+);
+labTable.position.set(0, 0.06, 0);
+labTable.castShadow = true;
+labTable.receiveShadow = true;
+scene.add(labTable);
+
+const labGroup = new THREE.Group();
+scene.add(labGroup);
+
+const galleryGroup = new THREE.Group();
+galleryGroup.visible = false;
+scene.add(galleryGroup);
+
+const state = {
+  mode: '달걀 낙하',
+  selectedDevice: 'guardrail',
+  graphDirty: true,
+  graphWarning: false,
+  tween: null,
+  dropActive: false,
+  experimentEnded: false
+};
+
+const params = {
+  실험모드: '달걀 낙하',
+  낙하높이: 1.0,
+  동시낙하: () => {
+    if (params.실험모드 !== '달걀 낙하') {
+      setMode('달걀 낙하');
+    }
+    startDrop();
+  },
+  슬로모션: 0.1,
+  충격량비교: true,
+  바닥A재질: '나무판',
+  바닥B재질: '방석',
+  초기화: () => resetExperiment(true)
+};
+
+const sharedMaterials = {
+  shell: new THREE.MeshStandardMaterial({ color: 0xffeecc, roughness: 0.62, metalness: 0.04 }),
+  yolk: new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.36, metalness: 0.02 }),
+  white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0 }),
+  stand: new THREE.MeshStandardMaterial({ color: 0x8b8f98, roughness: 0.48, metalness: 0.45 }),
+  shockRed: new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0, side: THREE.DoubleSide }),
+  shockYellow: new THREE.MeshBasicMaterial({ color: 0xffd35f, transparent: true, opacity: 0, side: THREE.DoubleSide }),
+  labelGlow: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16 })
+};
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatFixed(value, digits = 2) {
+  return Number(value).toFixed(digits);
+}
+
+function formatForce(value) {
+  return `${Math.round(value).toLocaleString('ko-KR')} N`;
+}
+
+function createRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createLabelSprite(text, options = {}) {
+  const {
+    width = 320,
+    height = 108,
+    background = 'rgba(19, 32, 52, 0.9)',
+    color = '#f7fbff',
+    border = 'rgba(255,255,255,0.14)'
+  } = options;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2.2, 0.74, 1);
+  sprite.renderOrder = 30;
+
+  sprite.userData.redraw = (nextText) => {
+    ctx.clearRect(0, 0, width, height);
+    createRoundedRect(ctx, 4, 4, width - 8, height - 8, 24);
+    ctx.fillStyle = background;
+    ctx.fill();
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.font = '700 32px Pretendard';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(nextText, width / 2, height / 2 + 2);
+    texture.needsUpdate = true;
+  };
+
+  sprite.userData.redraw(text);
+  return sprite;
+}
+
+function createEggVisual() {
+  const group = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(EGG_RADIUS, 32, 32), sharedMaterials.shell);
+  shell.scale.y = 1.3;
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  group.add(shell);
+  return { group, shell };
+}
+
+function createBrokenEgg() {
+  const group = new THREE.Group();
+
+  const lowerShell = new THREE.Mesh(
+    new THREE.SphereGeometry(EGG_RADIUS, 32, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+    sharedMaterials.shell
+  );
+  lowerShell.scale.y = 1.3;
+  lowerShell.castShadow = true;
+  lowerShell.receiveShadow = true;
+  group.add(lowerShell);
+
+  const eggWhite = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 18, 12),
+    sharedMaterials.white
+  );
+  eggWhite.scale.set(1.3, 0.2, 1.05);
+  eggWhite.position.set(0.02, -0.09, 0.02);
+  eggWhite.castShadow = true;
+  eggWhite.receiveShadow = true;
+  group.add(eggWhite);
+
+  const yolk = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 20), sharedMaterials.yolk);
+  yolk.position.set(0.03, -0.015, 0.01);
+  yolk.castShadow = true;
+  yolk.receiveShadow = true;
+  group.add(yolk);
+
+  group.visible = false;
+  return group;
+}
+
+function createFragments(parent) {
+  const fragments = [];
+  for (let i = 0; i < 10; i += 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.05 + Math.random() * 0.04, 0),
+      new THREE.MeshStandardMaterial({
+        color: i % 3 === 0 ? 0xfff3da : 0xffe5bd,
+        roughness: 0.68,
+        metalness: 0.02
+      })
+    );
+    mesh.visible = false;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    fragments.push({ mesh, velocity: new THREE.Vector3(), spin: new THREE.Vector3(), active: false });
+  }
+  return fragments;
+}
+
+function createSurface(sideKey) {
+  const group = new THREE.Group();
+  group.position.set(LAB_X[sideKey], 0.12, 0);
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 0.12, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0xbdb8af, roughness: 0.88, metalness: 0.03 })
+  );
+  base.position.y = -0.06;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const floorMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(2.02, sideKey === 'A' ? 0.1 : 0.3, 1.02),
+    new THREE.MeshStandardMaterial({ color: 0x8b6914, roughness: 0.84, metalness: 0.04 })
+  );
+  floorMesh.position.y = sideKey === 'A' ? 0.05 : 0.15;
+  floorMesh.castShadow = true;
+  floorMesh.receiveShadow = true;
+  group.add(floorMesh);
+
+  const topGeometry = new THREE.PlaneGeometry(1.96, 0.96, 24, 14);
+  topGeometry.rotateX(-Math.PI / 2);
+  const topSurface = new THREE.Mesh(
+    topGeometry,
+    new THREE.MeshStandardMaterial({ color: 0xffb1b1, roughness: 0.98, metalness: 0.02, side: THREE.DoubleSide })
+  );
+  topSurface.position.y = 0.301;
+  topSurface.receiveShadow = true;
+  topSurface.visible = sideKey === 'B';
+  topSurface.userData.original = Float32Array.from(topGeometry.attributes.position.array);
+  group.add(topSurface);
+
+  const stand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 1, 18),
+    sharedMaterials.stand
+  );
+  stand.castShadow = true;
+  stand.receiveShadow = true;
+  stand.position.set(0, 1, 0);
+  group.add(stand);
+
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.14, 0.03, 20),
+    new THREE.MeshStandardMaterial({ color: 0x60646e, roughness: 0.45, metalness: 0.5 })
+  );
+  cap.castShadow = true;
+  cap.receiveShadow = true;
+  group.add(cap);
+
+  const eggVisual = createEggVisual();
+  const eggGroup = new THREE.Group();
+  eggGroup.add(eggVisual.group);
+  group.add(eggGroup);
+
+  const brokenEgg = createBrokenEgg();
+  group.add(brokenEgg);
+
+  const shockRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.16, 0.22, 40),
+    sideKey === 'A' ? sharedMaterials.shockRed.clone() : sharedMaterials.shockYellow.clone()
+  );
+  shockRing.rotation.x = -Math.PI / 2;
+  shockRing.position.y = sideKey === 'A' ? 0.102 : 0.305;
+  shockRing.visible = false;
+  group.add(shockRing);
+
+  const flashDisk = new THREE.Mesh(
+    new THREE.CircleGeometry(0.3, 40),
+    new THREE.MeshBasicMaterial({
+      color: sideKey === 'A' ? 0xff6666 : 0xffd96a,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide
+    })
+  );
+  flashDisk.rotation.x = -Math.PI / 2;
+  flashDisk.position.y = sideKey === 'A' ? 0.101 : 0.304;
+  group.add(flashDisk);
+
+  const glow = new THREE.Mesh(
+    new THREE.RingGeometry(0.28, 0.34, 40),
+    sharedMaterials.labelGlow.clone()
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = sideKey === 'A' ? 0.1015 : 0.3045;
+  group.add(glow);
+
+  const label = createLabelSprite(sideKey === 'A' ? '나무판' : '방석');
+  label.position.set(0, 1.45, 0.72);
+  group.add(label);
+
+  const fragments = createFragments(group);
+
+  labGroup.add(group);
+
+  return {
+    key: sideKey,
+    group,
+    floorMesh,
+    topSurface,
+    stand,
+    cap,
+    eggGroup,
+    eggMesh: eggVisual.shell,
+    brokenEgg,
+    fragments,
+    shockRing,
+    flashDisk,
+    glow,
+    label,
+    currentPreset: null,
+    status: 'idle',
+    velocity: 0,
+    compression: 0,
+    collisionElapsed: 0,
+    topY: sideKey === 'A' ? 0.1 : 0.3,
+    effectElapsed: 1,
+    restSink: 0,
+    peakCompression: 0,
+    result: ''
+  };
+}
+
+const experimentSides = {
+  A: createSurface('A'),
+  B: createSurface('B')
+};
+
+function resetSoftSurface(side, amount = 0) {
+  const positions = side.topSurface.geometry.attributes.position.array;
+  const original = side.topSurface.userData.original;
+  for (let i = 0; i < positions.length; i += 3) {
+    const ox = original[i];
+    const oy = original[i + 1];
+    const oz = original[i + 2];
+    const influence = Math.exp(-((ox * ox) / 0.34 + (oz * oz) / 0.12));
+    positions[i] = ox;
+    positions[i + 1] = oy - amount * influence;
+    positions[i + 2] = oz;
+  }
+  side.topSurface.geometry.attributes.position.needsUpdate = true;
+  side.topSurface.geometry.computeVertexNormals();
+}
+
+function resetFragments(side) {
+  side.fragments.forEach((fragment) => {
+    fragment.active = false;
+    fragment.mesh.visible = false;
+    fragment.mesh.position.set(0, 0.26, 0);
+    fragment.mesh.rotation.set(0, 0, 0);
+    fragment.velocity.set(0, 0, 0);
+    fragment.spin.set(0, 0, 0);
+  });
+}
+
+function updateSideMaterial(side) {
+  if (side.key === 'A') {
+    const preset = HARD_MATERIALS[params.바닥A재질];
+    side.currentPreset = preset;
+    side.floorMesh.material.color.setHex(preset.color);
+    side.floorMesh.scale.y = 1;
+    side.floorMesh.position.y = 0.05;
+    side.topY = 0.1;
+    side.topSurface.visible = false;
+    side.label.userData.redraw(params.바닥A재질);
+  } else {
+    const preset = SOFT_MATERIALS[params.바닥B재질];
+    side.currentPreset = preset;
+    side.floorMesh.material.color.setHex(preset.color);
+    side.floorMesh.scale.y = 1;
+    side.floorMesh.position.y = 0.15;
+    side.topY = 0.3;
+    side.topSurface.visible = true;
+    side.topSurface.material.color.setHex(preset.topColor);
+    side.label.userData.redraw(params.바닥B재질);
+  }
+}
+
+function placeEgg(side) {
+  const startY = side.topY + params.낙하높이 + EGG_HALF_HEIGHT;
+  side.eggGroup.position.set(0, startY, 0);
+  side.eggGroup.visible = true;
+  side.eggMesh.visible = true;
+  side.brokenEgg.visible = false;
+  side.status = 'idle';
+  side.velocity = 0;
+  side.collisionElapsed = 0;
+  side.effectElapsed = 1;
+  side.compression = 0;
+  side.restSink = 0;
+  side.peakCompression = 0;
+  side.shockRing.visible = false;
+  side.flashDisk.material.opacity = 0;
+  side.glow.material.opacity = 0.16;
+  side.glow.scale.setScalar(1);
+
+  side.stand.position.y = side.topY + params.낙하높이 * 0.5;
+  side.stand.scale.set(1, params.낙하높이, 1);
+  side.cap.position.set(0, side.topY + params.낙하높이, 0);
+
+  if (side.key === 'B') {
+    resetSoftSurface(side, 0);
+  }
+
+  resetFragments(side);
+}
+
+function getImpactStats() {
+  const impulse = MODEL_MASS * Math.sqrt(2 * GRAVITY * params.낙하높이);
+  const statsA = HARD_MATERIALS[params.바닥A재질];
+  const statsB = SOFT_MATERIALS[params.바닥B재질];
+  const avgForceA = impulse / statsA.time;
+  const avgForceB = impulse / statsB.time;
+  const peakForceA = impulse * Math.PI / (2 * statsA.time);
+  const peakForceB = impulse * Math.PI / (2 * statsB.time);
+  return { impulse, avgForceA, avgForceB, peakForceA, peakForceB, statsA, statsB };
+}
+
+function updateOverlayCards() {
+  const { impulse, avgForceA, avgForceB, statsA, statsB } = getImpactStats();
+  overlayRefs.A.title.textContent = statsA.label;
+  overlayRefs.A.meta.textContent = `충돌 시간 ${formatFixed(statsA.time, 3)} s · 평균 힘 ${formatForce(avgForceA)}`;
+  overlayRefs.B.title.textContent = statsB.label;
+  overlayRefs.B.meta.textContent = `충돌 시간 ${formatFixed(statsB.time, 3)} s · 평균 힘 ${formatForce(avgForceB)}`;
+
+  if (experimentSides.A.status === 'idle') {
+    overlayRefs.A.result.className = 'result wait';
+    overlayRefs.A.result.textContent = `충격량 ${impulse.toFixed(2)} N·s 를 짧은 시간에 멈추면 힘이 커집니다.`;
+  }
+  if (experimentSides.B.status === 'idle') {
+    overlayRefs.B.result.className = 'result wait';
+    overlayRefs.B.result.textContent = `충격량 ${impulse.toFixed(2)} N·s 를 긴 시간에 나누어 받으면 힘이 줄어듭니다.`;
+  }
+}
+
+function updateComparisonTable() {
+  const { impulse, avgForceA, avgForceB, statsA, statsB } = getImpactStats();
+  comparisonRefs.impulseA.textContent = `${impulse.toFixed(2)} N·s`;
+  comparisonRefs.impulseB.textContent = `${impulse.toFixed(2)} N·s`;
+  comparisonRefs.timeA.textContent = `${formatFixed(statsA.time, 3)} s`;
+  comparisonRefs.timeB.textContent = `${formatFixed(statsB.time, 3)} s`;
+  comparisonRefs.forceA.textContent = formatForce(avgForceA);
+  comparisonRefs.forceB.textContent = formatForce(avgForceB);
+  comparisonRefs.resultA.textContent = avgForceA > avgForceB ? '힘 큼 ❌' : '비교 필요';
+  comparisonRefs.resultB.textContent = avgForceB < avgForceA ? '힘 작음 ✅' : '비교 필요';
+}
+
+function renderFormulaPanel() {
+  const { impulse, avgForceA, avgForceB, statsA, statsB } = getImpactStats();
+  const speed = Math.sqrt(2 * GRAVITY * params.낙하높이);
+
+  if (state.mode === '달걀 낙하') {
+    formulaPanel.innerHTML = `
+      <h3>💥 충격량과 안전장치</h3>
+      <div class="formula-row"><span class="key">낙하 높이</span><span class="value">${params.낙하높이.toFixed(2)} m</span></div>
+      <div class="formula-row"><span class="key">충돌 전 속력</span><span class="value">v = √(2gh) = ${speed.toFixed(2)} m/s</span></div>
+      <div class="formula-row"><span class="key">운동량 변화</span><span class="value">Δp = mv = ${impulse.toFixed(2)} kg·m/s</span></div>
+      <div class="formula-row"><span class="key">바닥 A</span><span class="value">Δt = ${formatFixed(statsA.time, 3)} s → F ≈ ${formatForce(avgForceA)}</span></div>
+      <div class="formula-row"><span class="key">바닥 B</span><span class="value">Δt = ${formatFixed(statsB.time, 3)} s → F ≈ ${formatForce(avgForceB)}</span></div>
+      <div class="formula-note">
+        <strong>J = F × Δt = Δp</strong><br>
+        ${statsA.label.split(' ')[0]}: Δt 짧음 → F 큼 → 달걀 깨짐 ❌<br>
+        ${statsB.label.split(' ')[0]}: Δt 긺 → F 작음 → 달걀 무사 ✅<br>
+        <strong>핵심:</strong> 충격량이 같을 때 충돌 시간↑ → 힘↓
+      </div>
+    `;
+  } else {
+    const device = SAFETY_DEVICE_INFO[state.selectedDevice];
+    formulaPanel.innerHTML = `
+      <h3>🛡️ 안전장치의 공통 원리</h3>
+      <div class="formula-row"><span class="key">현재 장치</span><span class="value">${device.title}</span></div>
+      <div class="formula-row"><span class="key">핵심 식</span><span class="value">J = F × Δt = Δp</span></div>
+      <div class="formula-row"><span class="key">충격량</span><span class="value">몸의 운동량 변화량으로 결정</span></div>
+      <div class="formula-row"><span class="key">시간 변화</span><span class="value">안전장치가 멈추는 시간을 더 길게 만듦</span></div>
+      <div class="formula-row"><span class="key">힘 변화</span><span class="value">같은 충격량에서도 평균 힘이 더 작아짐</span></div>
+      <div class="formula-note">
+        <strong>${device.title}</strong><br>
+        ${device.principle}<br>
+        <strong>${device.tag}</strong><br>
+        에어백, 안전 매트, 보호대, 범퍼는 모두 충돌 시간을 늘려 인체가 받는 힘을 줄입니다.
+      </div>
+    `;
+  }
+}
+
+function triggerHardImpact(side) {
+  side.status = 'broken';
+  side.eggGroup.visible = false;
+  side.brokenEgg.visible = true;
+  side.brokenEgg.position.set(0, side.topY + 0.04, 0);
+  side.effectElapsed = 0;
+  side.shockRing.visible = true;
+  side.shockRing.scale.setScalar(0.7);
+  side.shockRing.material.opacity = 0.9;
+  side.flashDisk.material.opacity = 0.45;
+  side.result = '❌ 깨짐! (큰 힘, 짧은 시간)';
+
+  side.fragments.forEach((fragment, index) => {
+    fragment.active = true;
+    fragment.mesh.visible = true;
+    fragment.mesh.position.set((Math.random() - 0.5) * 0.1, side.topY + 0.18, (Math.random() - 0.5) * 0.1);
+    fragment.velocity.set(
+      (Math.random() - 0.5) * 1.8,
+      1.2 + Math.random() * 1.2 + index * 0.02,
+      (Math.random() - 0.5) * 1.1
+    );
+    fragment.spin.set(
+      (Math.random() - 0.5) * 10,
+      (Math.random() - 0.5) * 10,
+      (Math.random() - 0.5) * 10
+    );
+  });
+
+  overlayRefs.A.result.className = 'result bad';
+  overlayRefs.A.result.textContent = side.result;
+}
+
+function startSoftLanding(side) {
+  side.status = 'compressing';
+  side.collisionElapsed = 0;
+  side.velocity = 0;
+  side.effectElapsed = 0;
+  side.shockRing.visible = true;
+  side.shockRing.scale.setScalar(0.72);
+  side.shockRing.material.opacity = 0.62;
+  side.flashDisk.material.opacity = 0.18;
+  side.peakCompression = clamp(side.currentPreset.compression + params.낙하높이 * 0.02, 0.11, 0.23);
+  side.restSink = side.peakCompression * 0.26;
+}
+
+function finishSoftLanding(side) {
+  side.status = 'resting';
+  side.eggGroup.position.y = side.topY + EGG_HALF_HEIGHT - side.restSink;
+  resetSoftSurface(side, side.restSink);
+  side.result = '✅ 무사! (작은 힘, 긴 시간)';
+  overlayRefs.B.result.className = 'result good';
+  overlayRefs.B.result.textContent = side.result;
+}
+
+function startDrop() {
+  resetExperiment(false);
+  experimentSides.A.status = 'falling';
+  experimentSides.B.status = 'falling';
+  state.dropActive = true;
+  state.experimentEnded = false;
+  overlayRefs.A.result.className = 'result wait';
+  overlayRefs.A.result.textContent = '낙하 중... 딱딱한 바닥은 충돌 시간이 매우 짧습니다.';
+  overlayRefs.B.result.className = 'result wait';
+  overlayRefs.B.result.textContent = '낙하 중... 부드러운 바닥은 눌리면서 충돌 시간을 늘립니다.';
+}
+
+function resetExperiment(syncGui = false) {
+  updateSideMaterial(experimentSides.A);
+  updateSideMaterial(experimentSides.B);
+  placeEgg(experimentSides.A);
+  placeEgg(experimentSides.B);
+  state.dropActive = false;
+  state.experimentEnded = false;
+  updateOverlayCards();
+  updateComparisonTable();
+  renderFormulaPanel();
+  state.graphDirty = true;
+  if (syncGui) {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function updateFragments(side, dt) {
+  const ground = side.topY + 0.02;
+  side.fragments.forEach((fragment) => {
+    if (!fragment.active) return;
+    fragment.velocity.y -= GRAVITY * 0.85 * dt;
+    fragment.mesh.position.addScaledVector(fragment.velocity, dt);
+    fragment.mesh.rotation.x += fragment.spin.x * dt;
+    fragment.mesh.rotation.y += fragment.spin.y * dt;
+    fragment.mesh.rotation.z += fragment.spin.z * dt;
+
+    if (fragment.mesh.position.y < ground) {
+      fragment.mesh.position.y = ground;
+      fragment.velocity.y *= -0.28;
+      fragment.velocity.x *= 0.8;
+      fragment.velocity.z *= 0.8;
+      if (Math.abs(fragment.velocity.y) < 0.08) {
+        fragment.velocity.y = 0;
+      }
+    }
+
+    fragment.velocity.multiplyScalar(0.996);
+    if (fragment.velocity.lengthSq() < 0.001) {
+      fragment.active = false;
+    }
+  });
+}
+
+function updateImpactEffects(side, dt) {
+  if (side.effectElapsed < 1) {
+    side.effectElapsed += dt * 2.4;
+    const p = clamp(side.effectElapsed, 0, 1);
+    side.shockRing.visible = true;
+    side.shockRing.scale.setScalar(0.7 + p * 2.6);
+    side.shockRing.material.opacity = (1 - p) * (side.key === 'A' ? 0.9 : 0.55);
+    side.flashDisk.material.opacity = (1 - p) * (side.key === 'A' ? 0.46 : 0.2);
+    side.glow.material.opacity = 0.16 + (1 - p) * (side.key === 'A' ? 0.24 : 0.14);
+    side.glow.scale.setScalar(1 + p * 0.55);
+    if (p >= 1) {
+      side.shockRing.visible = false;
+    }
+  }
+}
+
+function updateExperiment(dt) {
+  const simDt = dt * params.슬로모션;
+  if (simDt <= 0) return;
+
+  ['A', 'B'].forEach((key) => {
+    const side = experimentSides[key];
+    const impactY = side.topY + EGG_HALF_HEIGHT;
+
+    if (side.status === 'falling') {
+      side.velocity -= GRAVITY * simDt;
+      side.eggGroup.position.y += side.velocity * simDt;
+
+      if (side.eggGroup.position.y <= impactY) {
+        side.eggGroup.position.y = impactY;
+        if (side.key === 'A') {
+          triggerHardImpact(side);
+        } else {
+          startSoftLanding(side);
+        }
+      }
+    } else if (side.status === 'compressing') {
+      side.collisionElapsed += simDt;
+      const duration = side.currentPreset.time;
+      const progress = clamp(side.collisionElapsed / duration, 0, 1);
+      const wave = Math.sin(progress * Math.PI);
+      const settle = easeOutCubic(progress);
+      const compression = side.peakCompression * (wave * 0.85 + settle * 0.18);
+      side.eggGroup.position.y = side.topY + EGG_HALF_HEIGHT - compression;
+      resetSoftSurface(side, compression);
+      if (progress >= 1) {
+        finishSoftLanding(side);
+      }
+    }
+
+    updateFragments(side, dt);
+    updateImpactEffects(side, dt);
+  });
+
+  if (state.dropActive) {
+    const ended = ['A', 'B'].every((key) => experimentSides[key].status === 'broken' || experimentSides[key].status === 'resting');
+    if (ended) {
+      state.dropActive = false;
+      state.experimentEnded = true;
+    }
+  }
+}
+
+function drawHatching(ctx, pathBuilder, color) {
+  ctx.save();
+  pathBuilder();
+  ctx.clip();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  for (let x = -120; x < graphCanvas.width + 120; x += 16) {
+    ctx.beginPath();
+    ctx.moveTo(x, graphCanvas.height + 40);
+    ctx.lineTo(x + 90, -40);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGraph() {
+  const rect = graphCanvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(320, Math.round(rect.width * dpr));
+  const height = Math.max(260, Math.round(rect.height * dpr));
+  if (graphCanvas.width !== width || graphCanvas.height !== height) {
+    graphCanvas.width = width;
+    graphCanvas.height = height;
+  }
+
+  const ctx = graphCtx;
+  ctx.clearRect(0, 0, width, height);
+
+  const padding = { left: 72, right: 34, top: 30, bottom: 56 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const originX = padding.left;
+  const originY = height - padding.bottom;
+
+  ctx.fillStyle = '#fffdfa';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = 'rgba(27, 39, 57, 0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i += 1) {
+    const y = padding.top + (chartHeight / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(originX, y);
+    ctx.lineTo(originX + chartWidth, y);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= 5; i += 1) {
+    const x = originX + (chartWidth / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, originY);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#1b2739';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(originX, padding.top);
+  ctx.lineTo(originX, originY);
+  ctx.lineTo(originX + chartWidth, originY);
+  ctx.stroke();
+
+  ctx.fillStyle = '#304056';
+  ctx.font = `${12 * dpr}px Pretendard`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = GRAPH_MAX_FORCE - (GRAPH_MAX_FORCE / 5) * i;
+    const y = padding.top + (chartHeight / 5) * i;
+    ctx.fillText(`${Math.round(value).toLocaleString('ko-KR')}`, originX - 12, y);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i <= 5; i += 1) {
+    const value = (GRAPH_MAX_TIME / 5) * i;
+    const x = originX + (chartWidth / 5) * i;
+    ctx.fillText(value.toFixed(2), x, originY + 10);
+  }
+
+  ctx.save();
+  ctx.translate(22, originY - chartHeight / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#304056';
+  ctx.font = `${13 * dpr}px Pretendard`;
+  ctx.textAlign = 'center';
+  ctx.fillText('힘 (N)', 0, 0);
+  ctx.restore();
+
+  ctx.fillStyle = '#304056';
+  ctx.font = `${13 * dpr}px Pretendard`;
+  ctx.fillText('시간 (s)', originX + chartWidth / 2, height - 20);
+
+  const { impulse, peakForceA, peakForceB, statsA, statsB } = getImpactStats();
+  state.graphWarning = peakForceA > GRAPH_MAX_FORCE || peakForceB > GRAPH_MAX_FORCE;
+
+  function buildCurve(duration, peak) {
+    const points = [];
+    const samples = 90;
+    for (let i = 0; i <= samples; i += 1) {
+      const t = (duration * i) / samples;
+      const force = peak * Math.sin((Math.PI * t) / duration);
+      const x = originX + (t / GRAPH_MAX_TIME) * chartWidth;
+      const y = originY - (Math.min(force, GRAPH_MAX_FORCE) / GRAPH_MAX_FORCE) * chartHeight;
+      points.push({ x, y, force });
+    }
+    return points;
+  }
+
+  function drawCurve(duration, peak, stroke, fill, hatch, label) {
+    const points = buildCurve(duration, peak);
+    const pathBuilder = () => {
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      points.forEach((point) => ctx.lineTo(point.x, point.y));
+      ctx.lineTo(originX + (duration / GRAPH_MAX_TIME) * chartWidth, originY);
+      ctx.closePath();
+    };
+
+    ctx.save();
+    pathBuilder();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.restore();
+
+    if (params.충격량비교) {
+      drawHatching(ctx, pathBuilder, hatch);
+    }
+
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    const peakPoint = points.reduce((max, point) => (point.y < max.y ? point : max), points[0]);
+    ctx.fillStyle = stroke;
+    ctx.font = `${14 * dpr}px Pretendard`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(label, peakPoint.x, peakPoint.y - 10);
+  }
+
+  drawCurve(statsA.time, peakForceA, '#ff4444', 'rgba(255, 68, 68, 0.12)', 'rgba(255, 68, 68, 0.35)', 'A');
+  drawCurve(statsB.time, peakForceB, '#44aa44', 'rgba(68, 170, 68, 0.12)', 'rgba(68, 170, 68, 0.35)', 'B');
+
+  ctx.fillStyle = '#15243b';
+  ctx.font = `${14 * dpr}px Pretendard`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`충격량(넓이) 동일 ≈ ${impulse.toFixed(2)} N·s`, originX + 12, padding.top + 8);
+
+  if (state.graphWarning) {
+    ctx.fillStyle = 'rgba(255, 91, 87, 0.14)';
+    createRoundedRect(ctx, width - 268, padding.top + 4, 248, 38, 18);
+    ctx.fill();
+    ctx.fillStyle = '#c5313c';
+    ctx.font = `${12 * dpr}px Pretendard`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('일부 피크 힘이 10,000N 축 상한을 넘습니다.', width - 144, padding.top + 24);
+  }
+}
+
+function resizeRenderer() {
+  const width = scenePanel.clientWidth;
+  const height = scenePanel.clientHeight;
+  renderer.setSize(width, height, false);
+  camera.aspect = width / Math.max(height, 1);
+  camera.updateProjectionMatrix();
+  state.graphDirty = true;
+}
+
+function animateCameraTo(position, target, duration = 1.0) {
+  state.tween = {
+    startPos: camera.position.clone(),
+    startTarget: controls.target.clone(),
+    endPos: position.clone(),
+    endTarget: target.clone(),
+    elapsed: 0,
+    duration
+  };
+}
+
+function updateCameraTween(dt) {
+  if (!state.tween) return;
+  state.tween.elapsed += dt;
+  const t = clamp(state.tween.elapsed / state.tween.duration, 0, 1);
+  const eased = easeOutCubic(t);
+  camera.position.lerpVectors(state.tween.startPos, state.tween.endPos, eased);
+  controls.target.lerpVectors(state.tween.startTarget, state.tween.endTarget, eased);
+  if (t >= 1) {
+    state.tween = null;
+  }
+}
+
+function createGalleryPedestal(x, z, color) {
+  const pedestal = new THREE.Mesh(
+    new THREE.BoxGeometry(3.1, 0.24, 2.45),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0.05 })
+  );
+  pedestal.position.set(x, 0.12, z);
+  pedestal.castShadow = true;
+  pedestal.receiveShadow = true;
+  galleryGroup.add(pedestal);
+  return pedestal;
+}
+
+function createSelectionHalo(x, z, color) {
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(0.78, 0.96, 48),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide })
+  );
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.set(x, 0.251, z);
+  galleryGroup.add(halo);
+  return halo;
+}
+
+function createStickFigure(materialColor = 0x334255) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.58, metalness: 0.06 });
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.58, 6, 10), material);
+  torso.position.y = 1.08;
+  torso.castShadow = true;
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 20), material);
+  head.position.y = 1.62;
+  head.castShadow = true;
+  group.add(head);
+
+  const legLeft = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.52, 4, 8), material);
+  legLeft.position.set(-0.11, 0.48, 0);
+  legLeft.castShadow = true;
+  group.add(legLeft);
+
+  const legRight = legLeft.clone();
+  legRight.position.x = 0.11;
+  group.add(legRight);
+
+  const armLeft = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.42, 4, 8), material);
+  armLeft.position.set(-0.28, 1.1, 0);
+  armLeft.rotation.z = Math.PI * 0.18;
+  armLeft.castShadow = true;
+  group.add(armLeft);
+
+  const armRight = armLeft.clone();
+  armRight.position.x = 0.28;
+  armRight.rotation.z = -Math.PI * 0.18;
+  group.add(armRight);
+
+  return { group, torso, head, legLeft, legRight, armLeft, armRight };
+}
+
+const galleryObjects = {};
+
+function buildSafetyGallery() {
+  createGalleryPedestal(-4.2, -1.9, 0xdfe6ee);
+  createGalleryPedestal(4.2, -1.9, 0xe4ebf4);
+  createGalleryPedestal(-4.2, 2.4, 0xe2e8ef);
+  createGalleryPedestal(4.2, 2.4, 0xe6ecf3);
+
+  const guardrailGroup = new THREE.Group();
+  guardrailGroup.position.set(-4.2, 0.24, -1.9);
+  galleryGroup.add(guardrailGroup);
+
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 0.08, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x5c6772, roughness: 0.92 })
+  );
+  road.position.y = 0.08;
+  road.receiveShadow = true;
+  guardrailGroup.add(road);
+
+  const railPosts = [];
+  const railBeams = [];
+  for (let i = -2; i <= 2; i += 1) {
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.58, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x7f8d98, roughness: 0.6, metalness: 0.32 })
+    );
+    post.position.set(i * 0.42, 0.37, 0.42);
+    post.castShadow = true;
+    guardrailGroup.add(post);
+    railPosts.push(post);
+  }
+  for (let i = 0; i < 2; i += 1) {
+    const beam = new THREE.Mesh(
+      new THREE.BoxGeometry(2.1, 0.09, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xb5c2cf, roughness: 0.46, metalness: 0.5 })
+    );
+    beam.position.set(0, 0.34 + i * 0.16, 0.42);
+    beam.castShadow = true;
+    guardrailGroup.add(beam);
+    railBeams.push(beam);
+  }
+
+  const car = new THREE.Group();
+  const carBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.26, 0.48),
+    new THREE.MeshStandardMaterial({ color: 0xff6c5b, roughness: 0.35, metalness: 0.15 })
+  );
+  carBody.position.y = 0.3;
+  carBody.castShadow = true;
+  car.add(carBody);
+  const carCabin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.2, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0xcfe4f7, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.8 })
+  );
+  carCabin.position.set(0.04, 0.47, 0);
+  car.add(carCabin);
+  for (const sx of [-0.22, 0.22]) {
+    for (const sz of [-0.18, 0.18]) {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.09, 0.08, 18),
+        new THREE.MeshStandardMaterial({ color: 0x1c2025, roughness: 0.85 })
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(sx, 0.12, sz);
+      car.add(wheel);
+    }
+  }
+  car.position.set(-0.75, 0.02, 0);
+  guardrailGroup.add(car);
+
+  const guardrailLabel = createLabelSprite('도로 보호 난간', { background: 'rgba(24, 39, 62, 0.92)' });
+  guardrailLabel.position.set(0, 1.92, 0.9);
+  guardrailGroup.add(guardrailLabel);
+
+  const matGroup = new THREE.Group();
+  matGroup.position.set(4.2, 0.24, -1.9);
+  galleryGroup.add(matGroup);
+
+  const matBase = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 0.8, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0x4488ff, roughness: 0.86, metalness: 0.05 })
+  );
+  matBase.position.y = 0.4;
+  matBase.castShadow = true;
+  matBase.receiveShadow = true;
+  matGroup.add(matBase);
+
+  const matTopGeometry = new THREE.PlaneGeometry(2.06, 1.26, 24, 14);
+  matTopGeometry.rotateX(-Math.PI / 2);
+  const matTop = new THREE.Mesh(
+    matTopGeometry,
+    new THREE.MeshStandardMaterial({ color: 0x7ab2ff, roughness: 0.94, metalness: 0.02 })
+  );
+  matTop.position.y = 0.81;
+  matTop.receiveShadow = true;
+  matTop.userData.original = Float32Array.from(matTopGeometry.attributes.position.array);
+  matGroup.add(matTop);
+
+  const jumper = createStickFigure(0x304255);
+  jumper.group.position.set(0, 1.05, 0);
+  matGroup.add(jumper.group);
+
+  const matLabel = createLabelSprite('안전 매트', { background: 'rgba(24, 39, 62, 0.92)' });
+  matLabel.position.set(0, 2.22, 0.92);
+  matGroup.add(matLabel);
+
+  const gearGroup = new THREE.Group();
+  gearGroup.position.set(-4.2, 0.24, 2.4);
+  galleryGroup.add(gearGroup);
+
+  const gearFigure = createStickFigure(0x2f3f54);
+  gearFigure.group.position.set(0, 0.02, 0);
+  gearGroup.add(gearFigure.group);
+
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 22, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0xffc64d, roughness: 0.62, metalness: 0.08 })
+  );
+  helmet.position.set(0, 1.76, 0);
+  helmet.rotation.x = Math.PI;
+  helmet.castShadow = true;
+  gearGroup.add(helmet);
+
+  const visor = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.02, 10, 28, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0xd38d1f, roughness: 0.46, metalness: 0.2 })
+  );
+  visor.position.set(0, 1.72, 0.03);
+  visor.rotation.x = Math.PI / 2;
+  gearGroup.add(visor);
+
+  const kneeLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.12, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x72b4ff, roughness: 0.56, metalness: 0.08 })
+  );
+  kneeLeft.position.set(-0.11, 0.65, 0.08);
+  kneeLeft.castShadow = true;
+  gearGroup.add(kneeLeft);
+
+  const kneeRight = kneeLeft.clone();
+  kneeRight.position.x = 0.11;
+  gearGroup.add(kneeRight);
+
+  const gearHalo = new THREE.Mesh(
+    new THREE.TorusGeometry(0.34, 0.02, 10, 30),
+    new THREE.MeshBasicMaterial({ color: 0x72b4ff, transparent: true, opacity: 0.35 })
+  );
+  gearHalo.position.set(0, 0.66, 0);
+  gearHalo.rotation.x = Math.PI / 2;
+  gearGroup.add(gearHalo);
+
+  const gearLabel = createLabelSprite('보호 장구', { background: 'rgba(24, 39, 62, 0.92)' });
+  gearLabel.position.set(0, 2.18, 0.92);
+  gearGroup.add(gearLabel);
+
+  const airbagGroup = new THREE.Group();
+  airbagGroup.position.set(4.2, 0.24, 2.4);
+  galleryGroup.add(airbagGroup);
+
+  const cockpit = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.85, 1.22),
+    new THREE.MeshStandardMaterial({ color: 0x58636f, roughness: 0.74, metalness: 0.18 })
+  );
+  cockpit.position.y = 0.5;
+  cockpit.castShadow = true;
+  cockpit.receiveShadow = true;
+  airbagGroup.add(cockpit);
+
+  const seat = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.65, 0.45),
+    new THREE.MeshStandardMaterial({ color: 0x2b343f, roughness: 0.88 })
+  );
+  seat.position.set(-0.24, 0.57, 0);
+  seat.castShadow = true;
+  airbagGroup.add(seat);
+
+  const wheel = new THREE.Mesh(
+    new THREE.TorusGeometry(0.24, 0.03, 12, 40),
+    new THREE.MeshStandardMaterial({ color: 0x202733, roughness: 0.7, metalness: 0.2 })
+  );
+  wheel.position.set(0.34, 1.02, 0);
+  wheel.rotation.y = Math.PI / 2;
+  airbagGroup.add(wheel);
+
+  const dummy = createStickFigure(0x344659);
+  dummy.group.scale.setScalar(0.72);
+  dummy.group.position.set(-0.03, 0.09, 0);
+  airbagGroup.add(dummy.group);
+
+  const airbag = new THREE.Mesh(
+    new THREE.SphereGeometry(0.26, 24, 24),
+    new THREE.MeshStandardMaterial({ color: 0xf7f2e6, roughness: 0.95, metalness: 0.01 })
+  );
+  airbag.position.set(0.18, 1.02, 0);
+  airbag.scale.set(0.2, 0.2, 0.2);
+  airbag.castShadow = true;
+  airbagGroup.add(airbag);
+
+  const airbagLabel = createLabelSprite('에어백', { background: 'rgba(24, 39, 62, 0.92)' });
+  airbagLabel.position.set(0, 2.1, 0.92);
+  airbagGroup.add(airbagLabel);
+
+  galleryObjects.guardrail = {
+    group: guardrailGroup,
+    halo: createSelectionHalo(-4.2, -1.9, 0xff8f7a),
+    update(time) {
+      const phase = time * 1.3;
+      const impact = (Math.sin(phase) + 1) * 0.5;
+      car.position.x = -0.85 + impact * 0.6;
+      railBeams.forEach((beam, index) => {
+        beam.position.z = 0.42 - impact * (0.18 - index * 0.04);
+        beam.rotation.y = -impact * 0.06;
+      });
+      railPosts[2].position.z = 0.42 - impact * 0.12;
+    }
+  };
+
+  galleryObjects.mat = {
+    group: matGroup,
+    halo: createSelectionHalo(4.2, -1.9, 0x59a7ff),
+    update(time) {
+      const cycle = (time * 0.9) % 1;
+      const bounce = Math.sin(cycle * Math.PI);
+      const figureHeight = cycle < 0.5
+        ? 1.4 - cycle * 1.8
+        : 0.5 + (cycle - 0.5) * 1.6;
+      jumper.group.position.y = figureHeight;
+      jumper.group.position.x = Math.sin(time * 0.9) * 0.05;
+      const original = matTop.userData.original;
+      const positions = matTop.geometry.attributes.position.array;
+      const sink = bounce * 0.18;
+      for (let i = 0; i < positions.length; i += 3) {
+        const ox = original[i];
+        const oy = original[i + 1];
+        const oz = original[i + 2];
+        const influence = Math.exp(-((ox * ox) / 0.42 + (oz * oz) / 0.22));
+        positions[i] = ox;
+        positions[i + 1] = oy - sink * influence;
+        positions[i + 2] = oz;
+      }
+      matTop.geometry.attributes.position.needsUpdate = true;
+      matTop.geometry.computeVertexNormals();
+    }
+  };
+
+  galleryObjects.gear = {
+    group: gearGroup,
+    halo: createSelectionHalo(-4.2, 2.4, 0x72b4ff),
+    update(time) {
+      gearFigure.group.rotation.y = Math.sin(time * 0.7) * 0.18;
+      gearFigure.legLeft.rotation.x = Math.sin(time * 1.6) * 0.12;
+      gearFigure.legRight.rotation.x = -Math.sin(time * 1.6) * 0.12;
+      gearHalo.scale.setScalar(1 + Math.sin(time * 2.4) * 0.08);
+      gearHalo.material.opacity = 0.22 + (Math.sin(time * 2.4) + 1) * 0.08;
+      helmet.rotation.z = Math.sin(time * 1.2) * 0.04;
+    }
+  };
+
+  galleryObjects.airbag = {
+    group: airbagGroup,
+    halo: createSelectionHalo(4.2, 2.4, 0xffd37a),
+    update(time) {
+      const cycle = (Math.sin(time * 2) + 1) * 0.5;
+      const scale = 0.25 + cycle * 0.9;
+      airbag.scale.set(scale, scale, scale * 0.9);
+      dummy.group.position.x = -0.03 + cycle * 0.14;
+      dummy.group.rotation.z = cycle * 0.08;
+      wheel.rotation.z = time * 0.4;
+    }
+  };
+}
+
+buildSafetyGallery();
+
+function updateGallerySelectionUI() {
+  deviceCards.forEach((card) => {
+    const isActive = card.dataset.device === state.selectedDevice;
+    card.classList.toggle('active', isActive);
+    const label = card.querySelector('.focus-label');
+    label.textContent = isActive ? '현재 포커스' : '카드를 누르면 확대';
+  });
+
+  Object.entries(galleryObjects).forEach(([key, entry]) => {
+    entry.halo.material.opacity = key === state.selectedDevice ? 0.4 : 0.14;
+    entry.halo.scale.setScalar(key === state.selectedDevice ? 1.1 : 1.0);
+  });
+}
+
+function focusDevice(key) {
+  state.selectedDevice = key;
+  updateGallerySelectionUI();
+  renderFormulaPanel();
+  const target = SAFETY_DEVICE_INFO[key];
+  animateCameraTo(target.camera, target.focus, 0.95);
+}
+
+function setMode(mode) {
+  params.실험모드 = mode;
+  state.mode = mode;
+  const isLab = mode === '달걀 낙하';
+  if (!isLab) {
+    resetExperiment(false);
+  }
+  labGroup.visible = isLab;
+  galleryGroup.visible = !isLab;
+  graphView.classList.toggle('hidden', !isLab);
+  galleryView.classList.toggle('hidden', isLab);
+  labOverlays.style.display = isLab ? 'block' : 'none';
+  state.graphDirty = true;
+
+  modeButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === mode);
+  });
+
+  if (isLab) {
+    titleMain.textContent = '충격량과 안전장치';
+    titleSub.textContent = '충격량은 같아도 충돌 시간이 길어지면 힘은 작아집니다.';
+    hintChip.textContent = '드래그로 카메라를 돌리고, GUI에서 바닥 재질과 슬로모션을 바꿔 보세요.';
+    animateCameraTo(new THREE.Vector3(0, 3.2, 8.5), new THREE.Vector3(0, 1.1, 0), 0.95);
+  } else {
+    titleMain.textContent = '안전장치 갤러리';
+    titleSub.textContent = '에어백, 난간, 안전 매트, 보호 장구는 모두 충돌 시간을 늘립니다.';
+    hintChip.textContent = '카드를 눌러 장치를 확대하고, OrbitControls로 여러 각도에서 살펴보세요.';
+    focusDevice(state.selectedDevice);
+  }
+
+  renderFormulaPanel();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function updateGraphIfNeeded() {
+  if (!state.graphDirty) return;
+  drawGraph();
+  state.graphDirty = false;
+}
+
+modeButtons.forEach((button) => {
+  button.addEventListener('click', () => setMode(button.dataset.mode));
+});
+
+deviceCards.forEach((card) => {
+  card.addEventListener('click', () => focusDevice(card.dataset.device));
+});
+
+guideToggle.addEventListener('click', () => {
+  const visible = guidePanel.style.display === 'block';
+  guidePanel.style.display = visible ? 'none' : 'block';
+});
+
+const gui = new GUI({ title: '충격량 실험', width: 320 });
+if (window.innerWidth < 768) {
+  gui.close();
+}
+
+gui.add(params, '실험모드', ['달걀 낙하', '안전장치 갤러리']).name('실험 모드').onChange((value) => {
+  setMode(value);
+});
+gui.add(params, '낙하높이', 0.5, 3.0, 0.1).name('낙하 높이 (m)').onChange(() => {
+  if (params.실험모드 !== '달걀 낙하') return;
+  resetExperiment(false);
+});
+gui.add(params, '동시낙하').name('동시 낙하');
+gui.add(params, '슬로모션', 0.01, 1, 0.01).name('슬로모션');
+gui.add(params, '충격량비교').name('충격량 비교').onChange(() => {
+  state.graphDirty = true;
+});
+gui.add(params, '바닥A재질', Object.keys(HARD_MATERIALS)).name('바닥 A 재질').onChange(() => {
+  resetExperiment(false);
+});
+gui.add(params, '바닥B재질', Object.keys(SOFT_MATERIALS)).name('바닥 B 재질').onChange(() => {
+  resetExperiment(false);
+});
+gui.add(params, '초기화').name('초기화');
+
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  updateCameraTween(dt);
+
+  if (state.mode === '달걀 낙하') {
+    updateExperiment(dt);
+  } else {
+    const time = clock.elapsedTime;
+    Object.values(galleryObjects).forEach((entry) => entry.update(time));
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  updateGraphIfNeeded();
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', () => {
+  resizeRenderer();
+});
+
+function disposeScene() {
+  gui.destroy();
+  controls.dispose();
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
+
+  scene.traverse((object) => {
+    if (object.geometry) geometries.add(object.geometry);
+    if (object.material) {
+      const list = Array.isArray(object.material) ? object.material : [object.material];
+      list.forEach((material) => {
+        materials.add(material);
+        Object.values(material).forEach((value) => {
+          if (value && value.isTexture) textures.add(value);
+        });
+      });
+    }
+  });
+
+  textures.forEach((texture) => texture.dispose());
+  materials.forEach((material) => material.dispose());
+  geometries.forEach((geometry) => geometry.dispose());
+  renderer.dispose();
+}
+
+window.addEventListener('beforeunload', disposeScene);
+
+resetExperiment(false);
+updateGallerySelectionUI();
+resizeRenderer();
+animate();
+</script>
+</body>
+</html>

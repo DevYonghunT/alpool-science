@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전자기 유도와 발전기 원리 — 3D 시뮬레이션</title>
+<style>
+  :root {
+    --panel-bg: rgba(248, 250, 255, 0.84);
+    --panel-border: rgba(33, 52, 78, 0.12);
+    --text-main: #112033;
+    --text-dim: rgba(17, 32, 51, 0.68);
+    --accent: #ffb347;
+    --accent-2: #58a6ff;
+    --accent-3: #ff6961;
+    --accent-4: #7bc96f;
+    --shadow: 0 18px 42px rgba(34, 57, 85, 0.14);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 16%, rgba(255, 205, 128, 0.22), transparent 18%),
+      radial-gradient(circle at 78% 12%, rgba(113, 174, 255, 0.18), transparent 20%),
+      linear-gradient(180deg, #f4f5fb 0%, #eef1f7 48%, #e8edf4 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 280px;
+    max-width: min(90vw, 560px);
+    padding: 12px 20px 13px;
+    border-radius: 20px;
+    text-align: center;
+    z-index: 26;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(17, 32, 51, 0.52);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: rgba(13, 24, 38, 0.95);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(17, 32, 51, 0.62);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(17, 32, 51, 0.12);
+    background: rgba(17, 31, 52, 0.9);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 10px 24px rgba(17, 31, 52, 0.22);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 74vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    z-index: 39;
+    display: none;
+    line-height: 1.78;
+    font-size: 12px;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #23456b;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #9b4d14;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(17, 32, 51, 0.05);
+    color: rgba(17, 32, 51, 0.58);
+    font-size: 11px;
+  }
+
+  #mode-panel {
+    position: fixed;
+    top: 88px;
+    right: 14px;
+    width: min(330px, calc(100vw - 28px));
+    padding: 14px;
+    border-radius: 20px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  #mode-panel h2 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #13253a;
+  }
+
+  #mode-panel .subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #mode-cards {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mode-card {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(17, 32, 51, 0.06);
+    transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .mode-card.active {
+    background: rgba(88, 166, 255, 0.12);
+    border-color: rgba(88, 166, 255, 0.42);
+    transform: translateX(-4px);
+  }
+
+  .mode-card strong {
+    display: block;
+    font-size: 12px;
+    color: #13253a;
+  }
+
+  .mode-card span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(17, 32, 51, 0.72);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    z-index: 24;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 17px;
+    color: #0f233a;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(17, 32, 51, 0.25), rgba(17, 32, 51, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(17, 32, 51, 0.54);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(17, 32, 51, 0.96);
+  }
+
+  .concept-box {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(17, 32, 51, 0.05);
+    color: rgba(17, 32, 51, 0.82);
+  }
+
+  .concept-box strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #12385f;
+  }
+
+  #energy-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    width: min(380px, calc(100vw - 28px));
+    padding: 16px;
+    border-radius: 22px;
+    z-index: 24;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #energy-panel.hidden {
+    display: none;
+  }
+
+  #energy-panel h3 {
+    font-size: 16px;
+    color: #12385f;
+  }
+
+  #energy-chain {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 179, 71, 0.13);
+    color: #5c3c11;
+    font-weight: 700;
+  }
+
+  #driver-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(88, 166, 255, 0.1);
+    color: rgba(17, 32, 51, 0.82);
+  }
+
+  #plant-badges {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .plant-badge {
+    padding: 9px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.58);
+    border: 1px solid rgba(17, 32, 51, 0.06);
+    color: rgba(17, 32, 51, 0.6);
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+
+  .plant-badge.active {
+    background: rgba(123, 201, 111, 0.14);
+    border-color: rgba(123, 201, 111, 0.45);
+    color: rgba(17, 32, 51, 0.92);
+    transform: translateY(-1px);
+  }
+
+  .plant-badge strong {
+    display: block;
+    font-size: 12px;
+  }
+
+  .plant-badge span {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  .lil-gui {
+    z-index: 50 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 960px) {
+    #mode-panel {
+      top: auto;
+      bottom: 206px;
+      width: calc(100vw - 28px);
+    }
+
+    #energy-panel {
+      left: 14px;
+      width: calc(100vw - 28px);
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      max-width: calc(100vw - 124px);
+      min-width: 0;
+      padding: 10px 14px 11px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #formula-panel,
+    #energy-panel,
+    #mode-panel {
+      font-size: 11px;
+    }
+
+    #plant-badges {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui {
+      max-height: 44vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="title-card" class="glass">
+  <div class="eyebrow">Integrated Science 2</div>
+  <h1>전자기 유도와 발전기 원리</h1>
+  <p>미래엔 통합과학2 II. 환경과 에너지 · p102~105</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>자석이나 코일을 움직여 코일을 통과하는 자기장이 변하면 코일에 전류가 흐르는 전자기 유도 현상이 나타납니다. 발전기는 전자기 유도 현상을 이용해 운동 에너지를 전기 에너지로 전환하는 장치입니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>자석이 코일 속에 정지해 있으면 전류가 흐르지 않는 까닭은 무엇인가요?</li>
+    <li>간이 발전기와 발전소의 대형 발전기는 기본 원리가 같습니다. 그 원리는 무엇인가요?</li>
+    <li>풍력 발전, 수력 발전, 화력 발전, 핵발전에서 터빈을 회전시키는 방법의 차이점은 무엇인가요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li><strong>자전거 발전기</strong>: 바퀴의 운동이 자석 회전으로 바뀌어 전기를 만듭니다.</li>
+    <li><strong>핸드 크랭크 충전기</strong>: 손으로 축을 돌려 휴대용 전원을 얻습니다.</li>
+    <li><strong>수력 발전소</strong>: 높은 곳의 물이 터빈을 돌려 발전기를 작동합니다.</li>
+  </ul>
+
+  <h4>관찰 포인트</h4>
+  <ul>
+    <li>자석과 코일의 상대 운동이 있을 때만 검류계 바늘과 LED가 반응합니다.</li>
+    <li>자석이 들어갈 때와 나올 때 전류 방향이 반대로 바뀝니다.</li>
+    <li>터빈 회전 속도가 빨라질수록 발전기 전구가 더 밝아집니다.</li>
+  </ul>
+
+  <div class="textbook-ref">교과서 연계: 미래엔 통합과학2 II편 p102~105 — 전자기 유도, 발전기, 그림 II-19~21</div>
+</div>
+
+<div id="mode-panel" class="glass">
+  <h2 id="mode-heading">모드 개요</h2>
+  <div class="subtitle" id="mode-summary">자석과 코일의 상대 운동이 자기장 변화를 만듭니다.</div>
+  <div id="mode-cards">
+    <div class="mode-card active" data-mode="자석 이동">
+      <strong>자석 이동</strong>
+      <span>코일은 고정, 자석만 이동합니다. 움직임이 멈추면 전류도 사라집니다.</span>
+    </div>
+    <div class="mode-card" data-mode="코일 이동">
+      <strong>코일 이동</strong>
+      <span>자석은 고정, 코일이 왕복 이동합니다. 핵심은 상대 운동입니다.</span>
+    </div>
+    <div class="mode-card" data-mode="발전기 구조">
+      <strong>발전기 구조</strong>
+      <span>터빈이 자석을 회전시키고, 코일을 지나는 자기장 변화가 전기를 만듭니다.</span>
+    </div>
+  </div>
+</div>
+
+<div id="formula-panel" class="glass">
+  <h3>⚡ 전자기 유도와 발전기 원리</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">현재 모드</span><span class="value" id="fp-mode">자석 이동</span></div>
+  <div class="info-row"><span class="label">전류 발생</span><span class="value" id="fp-current-state">없음</span></div>
+  <div class="info-row"><span class="label">전류 방향</span><span class="value" id="fp-direction">—</span></div>
+  <div class="info-row"><span class="label">전류 세기</span><span class="value mono" id="fp-strength">0.00</span></div>
+  <div class="info-row"><span class="label" id="fp-extra-label">상대 거리</span><span class="value mono" id="fp-extra-value">0.00 m</span></div>
+
+  <div class="concept-box">
+    <strong>전자기 유도</strong>
+    코일을 통과하는 자기장이 변하면 코일에 전류가 흐릅니다.
+  </div>
+
+  <div class="concept-box">
+    <strong>발전기 원리</strong>
+    운동 에너지(터빈) → 자석 회전(자기장 변화) → 전기 에너지(전자기 유도)
+  </div>
+</div>
+
+<div id="energy-panel" class="glass">
+  <h3>에너지 전환 경로</h3>
+  <div id="energy-chain">상대 운동 → 자기장 변화 → 전기 에너지 → LED·검류계 반응</div>
+  <div id="driver-note">자석이나 코일이 멈추면 자기장 변화가 없어 전류가 흐르지 않습니다.</div>
+  <div id="plant-badges">
+    <div class="plant-badge active" data-plant="풍력">
+      <strong>🌬 풍력</strong>
+      <span>바람이 날개를 직접 밀어 터빈 회전</span>
+    </div>
+    <div class="plant-badge" data-plant="수력">
+      <strong>💧 수력</strong>
+      <span>낙차가 만든 물의 흐름이 터빈 회전</span>
+    </div>
+    <div class="plant-badge" data-plant="화력">
+      <strong>🔥 화력</strong>
+      <span>연소열이 만든 증기가 터빈 회전</span>
+    </div>
+    <div class="plant-badge" data-plant="핵발전">
+      <strong>☢ 핵발전</strong>
+      <span>핵분열열이 만든 증기가 터빈 회전</span>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0f0f5);
+scene.fog = new THREE.Fog(0xf0f0f5, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(7, 4.4, 10.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.id = 'scene-canvas';
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 6;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 0.9, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+keyLight.position.set(7, 10, 8);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.left = -12;
+keyLight.shadow.camera.right = 12;
+keyLight.shadow.camera.top = 12;
+keyLight.shadow.camera.bottom = -12;
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 40;
+scene.add(keyLight);
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const modeHeading = document.getElementById('mode-heading');
+const modeSummary = document.getElementById('mode-summary');
+const modeCards = [...document.querySelectorAll('.mode-card')];
+const energyPanel = document.getElementById('energy-panel');
+const energyChain = document.getElementById('energy-chain');
+const driverNote = document.getElementById('driver-note');
+const plantBadgeGrid = document.getElementById('plant-badges');
+const plantBadges = [...document.querySelectorAll('.plant-badge')];
+const formulaMode = document.getElementById('fp-mode');
+const formulaCurrentState = document.getElementById('fp-current-state');
+const formulaDirection = document.getElementById('fp-direction');
+const formulaStrength = document.getElementById('fp-strength');
+const formulaExtraLabel = document.getElementById('fp-extra-label');
+const formulaExtraValue = document.getElementById('fp-extra-value');
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+const modeOptions = ['자석 이동', '코일 이동', '발전기 구조'];
+const plantInfo = {
+  풍력: {
+    chain: '바람 → 터빈 회전 → 자석 회전 → 전기 에너지 → 전구',
+    driver: '바람이 날개를 직접 밀어 터빈을 회전시킵니다.'
+  },
+  수력: {
+    chain: '낙차가 만든 물의 흐름 → 터빈 회전 → 자석 회전 → 전기 에너지 → 전구',
+    driver: '높은 곳에서 내려오는 물이 터빈 날개를 밀어 회전시킵니다.'
+  },
+  화력: {
+    chain: '화학 에너지(연료) → 열에너지(증기) → 터빈 회전 → 전기 에너지 → 전구',
+    driver: '화석 연료를 태워 만든 증기가 터빈을 회전시킵니다.'
+  },
+  핵발전: {
+    chain: '핵에너지(핵분열) → 열에너지(증기) → 터빈 회전 → 전기 에너지 → 전구',
+    driver: '핵분열로 얻은 열이 증기를 만들고, 그 증기가 터빈을 회전시킵니다.'
+  }
+};
+
+const state = {
+  mode: '자석 이동',
+  magnetPosition: -2.3,
+  turbineSpeed: 5,
+  showFieldLines: true,
+  showEnergyPath: true,
+  plantType: '풍력'
+};
+
+const resetActions = {
+  reset: () => resetSimulation()
+};
+
+let activeMode = null;
+
+function clamp01(value) {
+  return THREE.MathUtils.clamp(value, 0, 1);
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    fontSize = 52,
+    textColor = '#ffffff',
+    background = 'rgba(14, 28, 44, 0.86)',
+    paddingX = 22,
+    paddingY = 14
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  context.font = `700 ${fontSize}px sans-serif`;
+  const metrics = context.measureText(text);
+  const width = Math.ceil(metrics.width + paddingX * 2);
+  const height = Math.ceil(fontSize * 1.8 + paddingY * 2);
+  canvas.width = width;
+  canvas.height = height;
+
+  context.font = `700 ${fontSize}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  roundRect(context, 4, 4, width - 8, height - 8, 22);
+  context.fillStyle = background;
+  context.fill();
+  context.fillStyle = textColor;
+  context.fillText(text, width / 2, height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(width / 220, height / 220, 1);
+  return sprite;
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  Object.values(material).forEach((value) => {
+    if (value && value.isTexture) value.dispose();
+  });
+  material.dispose();
+}
+
+function disposeHierarchy(root) {
+  if (!root) return;
+  root.traverse((object) => {
+    if (object.geometry) object.geometry.dispose();
+    if (object.material) {
+      if (Array.isArray(object.material)) {
+        object.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(object.material);
+      }
+    }
+  });
+  if (root.parent) root.parent.remove(root);
+}
+
+function createTube(points, color, radius = 0.035, opacity = 1, tubularSegments = 56) {
+  const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.2);
+  const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, 10, false);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.18,
+    transparent: opacity < 1,
+    opacity
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createArrowMesh(color = 0x5fc2ff, axis = 'z') {
+  const group = new THREE.Group();
+  const shaftMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.7
+  });
+  const headMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.9
+  });
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.35, 12), shaftMaterial);
+  shaft.position.y = 0.16;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 14), headMaterial);
+  head.position.y = 0.44;
+  group.add(shaft, head);
+
+  if (axis === 'x') group.rotation.z = -Math.PI / 2;
+  if (axis === 'z') group.rotation.x = -Math.PI / 2;
+
+  group.userData.materials = [shaftMaterial, headMaterial];
+  return group;
+}
+
+function setArrowDirection(group, axis, sign) {
+  if (axis === 'x') group.rotation.z = sign >= 0 ? -Math.PI / 2 : Math.PI / 2;
+  if (axis === 'z') group.rotation.x = sign >= 0 ? -Math.PI / 2 : Math.PI / 2;
+}
+
+function createFluxArrowCluster() {
+  const group = new THREE.Group();
+  const arrows = [];
+  const xs = [-0.46, -0.18, 0.1, 0.38];
+
+  xs.forEach((x, index) => {
+    const arrow = createArrowMesh(0x5fb6ff, 'z');
+    arrow.position.set(x, 0, -0.45 + index * 0.22);
+    group.add(arrow);
+    arrows.push(arrow);
+  });
+
+  return {
+    group,
+    setState(intensity, direction, elapsed) {
+      group.visible = state.showFieldLines;
+      const level = clamp01(intensity);
+      arrows.forEach((arrow, index) => {
+        setArrowDirection(arrow, 'z', direction);
+        arrow.position.z = (-0.55 + index * 0.36) + Math.sin(elapsed * 2.8 + index * 0.8) * 0.1 * level * direction;
+        const scale = 0.6 + level * 0.8;
+        arrow.scale.setScalar(scale);
+        arrow.userData.materials.forEach((material, materialIndex) => {
+          material.opacity = (materialIndex === 0 ? 0.25 : 0.38) + level * (materialIndex === 0 ? 0.55 : 0.45);
+        });
+      });
+    }
+  };
+}
+
+function createEnergyPathGroup() {
+  const root = new THREE.Group();
+  const segments = [
+    {
+      from: new THREE.Vector3(-3.7, 3.0, 0),
+      to: new THREE.Vector3(-1.6, 3.0, 0),
+      label: '운동 에너지'
+    },
+    {
+      from: new THREE.Vector3(-1.0, 3.0, 0),
+      to: new THREE.Vector3(1.1, 3.0, 0),
+      label: '자기장 변화'
+    },
+    {
+      from: new THREE.Vector3(1.7, 3.0, 0),
+      to: new THREE.Vector3(3.8, 3.0, 0),
+      label: '전기 에너지'
+    }
+  ];
+
+  const arrows = segments.map((segment) => {
+    const container = new THREE.Group();
+    const arrow = createArrowMesh(0xffb347, 'x');
+    const length = segment.to.x - segment.from.x;
+    arrow.scale.set(length * 1.85, 1, 1);
+    arrow.position.copy(segment.from);
+    container.add(arrow);
+
+    const label = createTextSprite(segment.label, {
+      fontSize: 38,
+      textColor: '#1e2c3f',
+      background: 'rgba(255, 248, 237, 0.95)'
+    });
+    label.position.set((segment.from.x + segment.to.x) * 0.5, 3.45, 0);
+    container.add(label);
+    root.add(container);
+
+    return { container, arrow };
+  });
+
+  return {
+    root,
+    update(intensity, elapsed) {
+      root.visible = state.showEnergyPath;
+      arrows.forEach(({ arrow }, index) => {
+        const pulse = 0.45 + intensity * 0.6 + Math.sin(elapsed * 3 + index * 0.9) * 0.08;
+        arrow.userData.materials.forEach((material, materialIndex) => {
+          material.opacity = materialIndex === 0 ? pulse * 0.7 : pulse;
+        });
+      });
+    }
+  };
+}
+
+function createLEDIndicator(size = 0.14) {
+  const group = new THREE.Group();
+  const shellMaterial = new THREE.MeshStandardMaterial({
+    color: 0xfff2a8,
+    emissive: 0xffdd55,
+    emissiveIntensity: 0,
+    roughness: 0.2,
+    metalness: 0.1
+  });
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfff4b8,
+    transparent: true,
+    opacity: 0
+  });
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.55, size * 0.7, size * 0.55, 18), new THREE.MeshStandardMaterial({
+    color: 0x5d6775,
+    metalness: 0.8,
+    roughness: 0.28
+  }));
+  base.castShadow = true;
+  group.add(base);
+
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 24), shellMaterial);
+  bulb.position.y = size * 0.85;
+  bulb.castShadow = true;
+  group.add(bulb);
+
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(size * 1.85, 20, 20), haloMaterial);
+  halo.position.copy(bulb.position);
+  group.add(halo);
+
+  return {
+    group,
+    setBrightness(value) {
+      const level = clamp01(value);
+      shellMaterial.emissiveIntensity = level * 2.4;
+      haloMaterial.opacity = level * 0.26;
+      halo.scale.setScalar(1 + level * 0.34);
+    }
+  };
+}
+
+function createGalvanometer() {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.18, 40), new THREE.MeshStandardMaterial({
+    color: 0xf8fbff,
+    metalness: 0.18,
+    roughness: 0.32
+  }));
+  body.rotation.x = Math.PI / 2;
+  body.castShadow = true;
+  group.add(body);
+
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.035, 16, 64), new THREE.MeshStandardMaterial({
+    color: 0x334b68,
+    metalness: 0.65,
+    roughness: 0.22
+  }));
+  rim.position.z = 0.1;
+  group.add(rim);
+
+  const face = new THREE.Mesh(new THREE.CircleGeometry(0.52, 36), new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 1
+  }));
+  face.position.z = 0.105;
+  group.add(face);
+
+  const needlePivot = new THREE.Group();
+  needlePivot.position.z = 0.13;
+  const needle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.46, 0.04), new THREE.MeshStandardMaterial({
+    color: 0xd94841,
+    emissive: 0xaa302b,
+    emissiveIntensity: 0.18
+  }));
+  needle.position.y = 0.23;
+  needle.castShadow = true;
+  needlePivot.add(needle);
+  group.add(needlePivot);
+
+  const center = new THREE.Mesh(new THREE.CircleGeometry(0.06, 18), new THREE.MeshBasicMaterial({ color: 0x22384f }));
+  center.position.z = 0.14;
+  group.add(center);
+
+  for (let i = -3; i <= 3; i += 1) {
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.02), new THREE.MeshBasicMaterial({ color: 0x455d78 }));
+    const angle = i * 0.28;
+    tick.position.set(Math.sin(angle) * 0.4, Math.cos(angle) * 0.4, 0.13);
+    tick.rotation.z = -angle;
+    group.add(tick);
+  }
+
+  const label = createTextSprite('검류계', {
+    fontSize: 34,
+    textColor: '#1a3048',
+    background: 'rgba(255, 255, 255, 0.92)'
+  });
+  label.position.set(0, -0.95, 0);
+  group.add(label);
+
+  return {
+    group,
+    setNeedle(value) {
+      needlePivot.rotation.z = -THREE.MathUtils.clamp(value, -1, 1) * 0.92;
+    }
+  };
+}
+
+function createBarMagnet() {
+  const group = new THREE.Group();
+
+  const northMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff4747,
+    metalness: 0.35,
+    roughness: 0.28
+  });
+  const southMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4d74ff,
+    metalness: 0.35,
+    roughness: 0.28
+  });
+
+  const north = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 1), northMaterial);
+  north.position.z = 0.5;
+  north.castShadow = true;
+  const south = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 1), southMaterial);
+  south.position.z = -0.5;
+  south.castShadow = true;
+  group.add(north, south);
+
+  const northLabel = createTextSprite('N', {
+    fontSize: 44,
+    background: 'rgba(255, 85, 85, 0.92)'
+  });
+  northLabel.position.set(0.35, 0.45, 0.52);
+  group.add(northLabel);
+
+  const southLabel = createTextSprite('S', {
+    fontSize: 44,
+    background: 'rgba(77, 116, 255, 0.92)'
+  });
+  southLabel.position.set(0.35, 0.45, -0.52);
+  group.add(southLabel);
+
+  const fieldGroup = new THREE.Group();
+  const loopOffsets = [-0.48, -0.18, 0.18, 0.48];
+  loopOffsets.forEach((offset) => {
+    const points = [
+      new THREE.Vector3(0.18, offset * 0.5, 0.86),
+      new THREE.Vector3(0.92, 0.68 + Math.abs(offset) * 0.2, 0.46),
+      new THREE.Vector3(1.15, 0.82 + Math.abs(offset) * 0.12, 0),
+      new THREE.Vector3(0.92, 0.68 + Math.abs(offset) * 0.2, -0.46),
+      new THREE.Vector3(0.18, offset * 0.5, -0.86)
+    ];
+
+    const rightLoop = createTube(points, 0x5c9dff, 0.02, 0.42, 42);
+    rightLoop.material.transparent = true;
+    rightLoop.material.opacity = 0.36;
+    fieldGroup.add(rightLoop);
+
+    const leftLoop = createTube(points.map((point) => point.clone().multiply(new THREE.Vector3(-1, 1, 1))), 0x5c9dff, 0.02, 0.42, 42);
+    leftLoop.material.transparent = true;
+    leftLoop.material.opacity = 0.36;
+    fieldGroup.add(leftLoop);
+  });
+
+  group.add(fieldGroup);
+
+  return {
+    group,
+    setFieldVisible(visible) {
+      fieldGroup.visible = visible;
+    }
+  };
+}
+
+function createGeneratorSource(type) {
+  const root = new THREE.Group();
+  let update = () => {};
+
+  if (type === '풍력') {
+    const ribbonMaterials = [];
+    const arrows = [];
+    for (let i = 0; i < 3; i += 1) {
+      const ribbon = createTube([
+        new THREE.Vector3(-1.2, 0.5 + i * 0.35, -0.26 + i * 0.25),
+        new THREE.Vector3(-0.2, 0.7 + i * 0.18, -0.1 + i * 0.1),
+        new THREE.Vector3(1.3, 0.62 + i * 0.08, 0)
+      ], 0x7ebcff, 0.024, 0.4, 40);
+      ribbon.material.transparent = true;
+      ribbon.material.opacity = 0.34;
+      ribbonMaterials.push(ribbon.material);
+      root.add(ribbon);
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+      const arrow = createArrowMesh(0x7ebcff, 'x');
+      arrow.position.set(-0.9 + i * 0.7, 1.35 - i * 0.22, 0);
+      root.add(arrow);
+      arrows.push(arrow);
+    }
+
+    const label = createTextSprite('🌬 바람', {
+      fontSize: 34,
+      textColor: '#12385f',
+      background: 'rgba(247, 251, 255, 0.92)'
+    });
+    label.position.set(0, 2.15, 0);
+    root.add(label);
+
+    update = (delta, elapsed, speed) => {
+      arrows.forEach((arrow, index) => {
+        arrow.position.x = -1 + ((elapsed * (1 + speed * 2.4)) + index * 0.45) % 2.4;
+        const opacity = 0.28 + speed * 0.6;
+        arrow.userData.materials.forEach((material, materialIndex) => {
+          material.opacity = opacity * (materialIndex === 0 ? 0.74 : 1);
+        });
+      });
+      ribbonMaterials.forEach((material, index) => {
+        material.opacity = 0.16 + speed * 0.35 + Math.sin(elapsed * 2 + index * 0.7) * 0.03;
+      });
+    };
+  }
+
+  if (type === '수력') {
+    const dam = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.2, 1.35), new THREE.MeshStandardMaterial({
+      color: 0x90a4b7,
+      roughness: 0.85
+    }));
+    dam.position.set(-0.75, 0.6, 0);
+    dam.castShadow = true;
+    root.add(dam);
+
+    const channel = createTube([
+      new THREE.Vector3(-0.35, 1.0, 0),
+      new THREE.Vector3(0.2, 0.82, 0),
+      new THREE.Vector3(1.35, 0.48, 0)
+    ], 0x4faeff, 0.09, 0.7, 50);
+    channel.material.transparent = true;
+    channel.material.opacity = 0.62;
+    root.add(channel);
+
+    const droplets = [];
+    for (let i = 0; i < 5; i += 1) {
+      const droplet = new THREE.Mesh(new THREE.SphereGeometry(0.08, 14, 14), new THREE.MeshStandardMaterial({
+        color: 0x8ad4ff,
+        emissive: 0x3c97ff,
+        emissiveIntensity: 0.18
+      }));
+      root.add(droplet);
+      droplets.push(droplet);
+    }
+
+    const label = createTextSprite('💧 물 흐름', {
+      fontSize: 34,
+      textColor: '#12385f',
+      background: 'rgba(247, 251, 255, 0.92)'
+    });
+    label.position.set(0.2, 2.15, 0);
+    root.add(label);
+
+    update = (delta, elapsed, speed) => {
+      const channelCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.35, 1.0, 0),
+        new THREE.Vector3(0.2, 0.82, 0),
+        new THREE.Vector3(1.35, 0.48, 0)
+      ]);
+      droplets.forEach((droplet, index) => {
+        const t = ((elapsed * (0.2 + speed * 0.6)) + index * 0.18) % 1;
+        droplet.position.copy(channelCurve.getPoint(t));
+        droplet.scale.setScalar(0.7 + speed * 0.8);
+      });
+    };
+  }
+
+  if (type === '화력') {
+    const boiler = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 24), new THREE.MeshStandardMaterial({
+      color: 0x9ba4b2,
+      metalness: 0.3,
+      roughness: 0.5
+    }));
+    boiler.rotation.z = Math.PI / 2;
+    boiler.position.set(-0.25, 0.95, 0);
+    boiler.castShadow = true;
+    root.add(boiler);
+
+    const furnaceMaterial = new THREE.MeshStandardMaterial({
+      color: 0x512b14,
+      emissive: 0xff7e36,
+      emissiveIntensity: 1.2,
+      roughness: 0.55
+    });
+    const furnace = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.58, 0.72), furnaceMaterial);
+    furnace.position.set(-0.95, 0.32, 0);
+    furnace.castShadow = true;
+    root.add(furnace);
+
+    const pipe = createTube([
+      new THREE.Vector3(0.4, 1.05, 0),
+      new THREE.Vector3(0.95, 1.05, 0),
+      new THREE.Vector3(1.45, 0.82, 0)
+    ], 0xcfd9e6, 0.055, 1, 36);
+    root.add(pipe);
+
+    const steamClouds = [];
+    for (let i = 0; i < 4; i += 1) {
+      const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), new THREE.MeshStandardMaterial({
+        color: 0xf8fcff,
+        transparent: true,
+        opacity: 0.78
+      }));
+      steamClouds.push(cloud);
+      root.add(cloud);
+    }
+
+    const label = createTextSprite('🔥 증기', {
+      fontSize: 34,
+      textColor: '#12385f',
+      background: 'rgba(247, 251, 255, 0.92)'
+    });
+    label.position.set(0, 2.15, 0);
+    root.add(label);
+
+    update = (delta, elapsed, speed) => {
+      furnaceMaterial.emissiveIntensity = 0.9 + speed * 1.4;
+      steamClouds.forEach((cloud, index) => {
+        const phase = (elapsed * (0.55 + speed * 1.2)) + index * 0.6;
+        cloud.position.set(0.25 + Math.sin(phase) * 0.16 + index * 0.24, 1.15 + ((phase * 0.18) % 0.7), 0);
+        const opacity = 0.24 + speed * 0.56;
+        cloud.material.opacity = opacity * (1 - (((phase * 0.18) % 0.7) / 0.7) * 0.4);
+      });
+    };
+  }
+
+  if (type === '핵발전') {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.95, 0.5, 28), new THREE.MeshStandardMaterial({
+      color: 0xd6dde6,
+      roughness: 0.86
+    }));
+    base.position.y = 0.25;
+    base.castShadow = true;
+    root.add(base);
+
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.78, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({
+      color: 0xf4f7fb,
+      roughness: 0.62
+    }));
+    dome.position.y = 0.5;
+    dome.castShadow = true;
+    root.add(dome);
+
+    const coreMaterial = new THREE.MeshStandardMaterial({
+      color: 0x89ddff,
+      emissive: 0x57c0ff,
+      emissiveIntensity: 1.1,
+      roughness: 0.26
+    });
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.56, 18), coreMaterial);
+    core.position.set(-0.1, 0.46, 0);
+    root.add(core);
+
+    const pipe = createTube([
+      new THREE.Vector3(0.55, 1.0, 0),
+      new THREE.Vector3(1.0, 1.0, 0),
+      new THREE.Vector3(1.45, 0.82, 0)
+    ], 0xcfd9e6, 0.055, 1, 36);
+    root.add(pipe);
+
+    const steamClouds = [];
+    for (let i = 0; i < 4; i += 1) {
+      const cloud = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), new THREE.MeshStandardMaterial({
+        color: 0xf8fcff,
+        transparent: true,
+        opacity: 0.78
+      }));
+      steamClouds.push(cloud);
+      root.add(cloud);
+    }
+
+    const label = createTextSprite('☢ 원자로', {
+      fontSize: 34,
+      textColor: '#12385f',
+      background: 'rgba(247, 251, 255, 0.92)'
+    });
+    label.position.set(0, 2.15, 0);
+    root.add(label);
+
+    update = (delta, elapsed, speed) => {
+      coreMaterial.emissiveIntensity = 0.8 + speed * 1.5;
+      steamClouds.forEach((cloud, index) => {
+        const phase = (elapsed * (0.55 + speed * 1.1)) + index * 0.62;
+        cloud.position.set(0.5 + Math.sin(phase) * 0.14 + index * 0.22, 1.08 + ((phase * 0.18) % 0.72), 0);
+        cloud.material.opacity = 0.24 + speed * 0.52;
+      });
+    };
+  }
+
+  return { root, update };
+}
+
+function createGeneratorMode() {
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const apparatus = new THREE.Group();
+  apparatus.position.y = 0.35;
+  root.add(apparatus);
+
+  const standBase = new THREE.Mesh(new THREE.BoxGeometry(12, 0.28, 3.6), new THREE.MeshStandardMaterial({
+    color: 0xe5e9f2,
+    roughness: 0.8
+  }));
+  standBase.position.y = -0.88;
+  standBase.receiveShadow = true;
+  apparatus.add(standBase);
+
+  const statorCoils = [];
+  const statorRadii = [1.45, 1.72, 1.98];
+  statorRadii.forEach((radius, index) => {
+    const ringMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcc6633,
+      metalness: 0.72,
+      roughness: 0.24,
+      emissive: 0x552100,
+      emissiveIntensity: 0.12
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.08, 22, 80), ringMaterial);
+    ring.rotation.y = Math.PI / 2;
+    ring.position.set(index * 0.18 - 0.18, 1.08, 0);
+    ring.castShadow = true;
+    apparatus.add(ring);
+    statorCoils.push(ring);
+  });
+
+  const housing = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.55, 32), new THREE.MeshStandardMaterial({
+    color: 0xdde5ef,
+    metalness: 0.22,
+    roughness: 0.56,
+    transparent: true,
+    opacity: 0.34
+  }));
+  housing.rotation.z = Math.PI / 2;
+  housing.position.set(0, 1.08, 0);
+  housing.receiveShadow = true;
+  apparatus.add(housing);
+
+  const rotorGroup = new THREE.Group();
+  rotorGroup.position.set(0, 1.08, 0);
+  apparatus.add(rotorGroup);
+
+  const rotorNorth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.95, 0.42), new THREE.MeshStandardMaterial({
+    color: 0xff4747,
+    metalness: 0.28,
+    roughness: 0.28
+  }));
+  rotorNorth.position.y = 0.54;
+  rotorNorth.castShadow = true;
+  rotorGroup.add(rotorNorth);
+
+  const rotorSouth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.95, 0.42), new THREE.MeshStandardMaterial({
+    color: 0x4d74ff,
+    metalness: 0.28,
+    roughness: 0.28
+  }));
+  rotorSouth.position.y = -0.54;
+  rotorSouth.castShadow = true;
+  rotorGroup.add(rotorSouth);
+
+  const rotorLabelN = createTextSprite('N', {
+    fontSize: 40,
+    background: 'rgba(255, 71, 71, 0.94)'
+  });
+  rotorLabelN.position.set(0.36, 0.54, 0);
+  rotorGroup.add(rotorLabelN);
+
+  const rotorLabelS = createTextSprite('S', {
+    fontSize: 40,
+    background: 'rgba(77, 116, 255, 0.94)'
+  });
+  rotorLabelS.position.set(0.36, -0.54, 0);
+  rotorGroup.add(rotorLabelS);
+
+  const shaftMaterial = new THREE.MeshStandardMaterial({
+    color: 0x69788a,
+    metalness: 0.85,
+    roughness: 0.25
+  });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.2, 18), shaftMaterial);
+  shaft.rotation.z = Math.PI / 2;
+  shaft.position.set(-1.65, 1.08, 0);
+  shaft.castShadow = true;
+  apparatus.add(shaft);
+
+  const turbineGroup = new THREE.Group();
+  turbineGroup.position.set(-4.25, 1.08, 0);
+  apparatus.add(turbineGroup);
+
+  const turbineHub = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.76, 24), new THREE.MeshStandardMaterial({
+    color: 0x5e7088,
+    metalness: 0.75,
+    roughness: 0.24
+  }));
+  turbineHub.rotation.z = Math.PI / 2;
+  turbineHub.castShadow = true;
+  turbineGroup.add(turbineHub);
+
+  for (let i = 0; i < 7; i += 1) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 0.35), new THREE.MeshStandardMaterial({
+      color: 0xecf1f7,
+      metalness: 0.2,
+      roughness: 0.48
+    }));
+    blade.position.y = 0.75;
+    blade.castShadow = true;
+    const bladeHolder = new THREE.Group();
+    bladeHolder.rotation.x = (Math.PI * 2 * i) / 7;
+    bladeHolder.add(blade);
+    turbineGroup.add(bladeHolder);
+  }
+
+  const turbineLabel = createTextSprite('터빈', {
+    fontSize: 34,
+    textColor: '#17314c',
+    background: 'rgba(255, 255, 255, 0.94)'
+  });
+  turbineLabel.position.set(-4.25, -0.15, 0);
+  apparatus.add(turbineLabel);
+
+  const bulb = createLEDIndicator(0.22);
+  bulb.group.position.set(4.6, 1.88, 0);
+  apparatus.add(bulb.group);
+
+  const bulbLabel = createTextSprite('전구', {
+    fontSize: 34,
+    textColor: '#17314c',
+    background: 'rgba(255, 255, 255, 0.94)'
+  });
+  bulbLabel.position.set(4.6, 0.85, 0);
+  apparatus.add(bulbLabel);
+
+  const wireMaterials = [];
+  const wireOne = createTube([
+    new THREE.Vector3(1.9, 1.08, -0.45),
+    new THREE.Vector3(3.1, 1.28, -0.5),
+    new THREE.Vector3(4.25, 1.65, -0.2),
+    new THREE.Vector3(4.45, 1.82, 0)
+  ], 0x485a70, 0.045, 1, 50);
+  const wireTwo = createTube([
+    new THREE.Vector3(1.9, 1.08, 0.45),
+    new THREE.Vector3(3.05, 1.32, 0.55),
+    new THREE.Vector3(4.2, 1.72, 0.2),
+    new THREE.Vector3(4.45, 1.82, 0)
+  ], 0x485a70, 0.045, 1, 50);
+  apparatus.add(wireOne, wireTwo);
+  wireMaterials.push(wireOne.material, wireTwo.material);
+
+  const energyPath = createEnergyPathGroup();
+  apparatus.add(energyPath.root);
+
+  let source = createGeneratorSource(state.plantType);
+  source.root.position.set(-6.45, 0.28, 0);
+  apparatus.add(source.root);
+
+  let rotorAngle = 0;
+  let lampBrightness = 0;
+  let lastPlant = state.plantType;
+
+  function rebuildSource() {
+    disposeHierarchy(source.root);
+    source = createGeneratorSource(state.plantType);
+    source.root.position.set(-6.45, 0.28, 0);
+    apparatus.add(source.root);
+    lastPlant = state.plantType;
+  }
+
+  return {
+    update(delta, elapsed) {
+      if (lastPlant !== state.plantType) rebuildSource();
+
+      const speed = state.turbineSpeed / 10;
+      const angularVelocity = speed * 4.8;
+      rotorAngle += delta * angularVelocity;
+      turbineGroup.rotation.x += delta * angularVelocity;
+      rotorGroup.rotation.x += delta * angularVelocity;
+
+      const current = Math.sin(rotorAngle) * speed;
+      lampBrightness = THREE.MathUtils.damp(lampBrightness, Math.abs(current), 7.5, delta);
+      bulb.setBrightness(lampBrightness);
+
+      statorCoils.forEach((coil) => {
+        coil.material.emissiveIntensity = 0.12 + lampBrightness * 0.95;
+      });
+
+      wireMaterials.forEach((material) => {
+        material.emissive.set(0xffd05f);
+        material.emissiveIntensity = 0.08 + lampBrightness * 0.55;
+      });
+
+      energyPath.update(lampBrightness, elapsed);
+      source.update(delta, elapsed, speed);
+
+      return {
+        current,
+        modeLabel: '발전기 구조',
+        extraLabel: '터빈 속도',
+        extraValue: `${state.turbineSpeed.toFixed(1)} RPM`,
+        energyText: plantInfo[state.plantType].chain,
+        driverText: plantInfo[state.plantType].driver,
+        summary: '터빈이 회전하면 회전자 자석이 돌고, 코일을 통과하는 자기장이 계속 변해 교류 전류가 생깁니다.'
+      };
+    },
+    reset() {
+      rotorAngle = 0;
+      lampBrightness = 0;
+      turbineGroup.rotation.x = 0;
+      rotorGroup.rotation.x = 0;
+      bulb.setBrightness(0);
+    },
+    dispose() {
+      disposeHierarchy(root);
+    }
+  };
+}
+
+function createInductionMode(coilMoves = false) {
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const apparatus = new THREE.Group();
+  apparatus.position.y = 0.35;
+  root.add(apparatus);
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(11.5, 0.28, 3.6), new THREE.MeshStandardMaterial({
+    color: 0xe5e9f2,
+    roughness: 0.82
+  }));
+  base.position.y = -0.88;
+  base.receiveShadow = true;
+  apparatus.add(base);
+
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 7.2, 14), new THREE.MeshStandardMaterial({
+    color: 0x7f8a98,
+    metalness: 0.75,
+    roughness: 0.28
+  }));
+  rail.rotation.x = Math.PI / 2;
+  rail.position.set(0, 0.7, 0);
+  rail.castShadow = true;
+  apparatus.add(rail);
+
+  const coilAssembly = new THREE.Group();
+  coilAssembly.position.set(0, 1.02, 0);
+  apparatus.add(coilAssembly);
+
+  const coilMeshes = [];
+  for (let i = 0; i < 8; i += 1) {
+    const ringMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcc6633,
+      metalness: 0.74,
+      roughness: 0.22,
+      emissive: 0x592600,
+      emissiveIntensity: 0.08
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.08, 22, 84), ringMaterial);
+    ring.position.z = -0.72 + i * 0.205;
+    ring.castShadow = true;
+    coilAssembly.add(ring);
+    coilMeshes.push(ring);
+  }
+
+  const frameRodLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 12), new THREE.MeshStandardMaterial({
+    color: 0x7a8797,
+    metalness: 0.72,
+    roughness: 0.26
+  }));
+  frameRodLeft.position.set(-1.1, -0.32, 0);
+  frameRodLeft.castShadow = true;
+  coilAssembly.add(frameRodLeft);
+
+  const frameRodRight = frameRodLeft.clone();
+  frameRodRight.position.x = 1.1;
+  coilAssembly.add(frameRodRight);
+
+  const clampPlate = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.08, 2.2), new THREE.MeshStandardMaterial({
+    color: 0xc9d2dd,
+    metalness: 0.22,
+    roughness: 0.54
+  }));
+  clampPlate.position.y = -1.1;
+  clampPlate.receiveShadow = true;
+  coilAssembly.add(clampPlate);
+
+  const coilLabel = createTextSprite('코일', {
+    fontSize: 34,
+    textColor: '#17314c',
+    background: 'rgba(255, 255, 255, 0.94)'
+  });
+  coilLabel.position.set(0, 1.42, 0);
+  coilAssembly.add(coilLabel);
+
+  const fluxArrows = createFluxArrowCluster();
+  coilAssembly.add(fluxArrows.group);
+
+  const magnet = createBarMagnet();
+  magnet.group.position.set(0, 1.02, coilMoves ? 0 : state.magnetPosition);
+  apparatus.add(magnet.group);
+
+  const gauge = createGalvanometer();
+  gauge.group.position.set(4.0, 1.02, 0);
+  apparatus.add(gauge.group);
+
+  const led = createLEDIndicator(0.13);
+  led.group.position.set(4.18, 2.0, 0);
+  apparatus.add(led.group);
+
+  const ledLabel = createTextSprite('LED', {
+    fontSize: 34,
+    textColor: '#17314c',
+    background: 'rgba(255, 255, 255, 0.94)'
+  });
+  ledLabel.position.set(4.18, 1.25, 0);
+  apparatus.add(ledLabel);
+
+  const wireMaterials = [];
+  const wireA = createTube([
+    new THREE.Vector3(1.02, 1.02, -0.72),
+    new THREE.Vector3(2.0, 1.1, -1.0),
+    new THREE.Vector3(3.1, 1.0, -0.76),
+    new THREE.Vector3(3.42, 0.94, -0.32)
+  ], 0x485a70, 0.04, 1, 46);
+  const wireB = createTube([
+    new THREE.Vector3(1.02, 1.02, 0.72),
+    new THREE.Vector3(2.1, 1.55, 1.0),
+    new THREE.Vector3(3.55, 1.82, 0.5),
+    new THREE.Vector3(4.05, 1.92, 0.1)
+  ], 0x485a70, 0.04, 1, 46);
+  const wireC = createTube([
+    new THREE.Vector3(4.48, 1.05, 0.22),
+    new THREE.Vector3(4.52, 1.45, 0.16),
+    new THREE.Vector3(4.38, 1.78, 0.08),
+    new THREE.Vector3(4.18, 1.95, 0)
+  ], 0x485a70, 0.034, 1, 28);
+  apparatus.add(wireA, wireB, wireC);
+  wireMaterials.push(wireA.material, wireB.material, wireC.material);
+
+  const marker = createTextSprite(coilMoves ? '코일이 자동으로 왕복 이동합니다.' : '자석 위치 슬라이더로 움직여 보세요.', {
+    fontSize: 34,
+    textColor: '#17314c',
+    background: 'rgba(255, 255, 255, 0.94)'
+  });
+  marker.position.set(0, 3.35, 0);
+  apparatus.add(marker);
+
+  let actualMagnetZ = state.magnetPosition;
+  let autoPhase = 0;
+  let current = 0;
+  let previousFlux = 2.6 / ((magnet.group.position.z - coilAssembly.position.z) ** 2 + 1.15);
+
+  return {
+    update(delta, elapsed) {
+      if (coilMoves) {
+        autoPhase += delta * 1.18;
+        coilAssembly.position.z = Math.sin(autoPhase) * 1.65;
+        magnet.group.position.z = 0;
+      } else {
+        actualMagnetZ = THREE.MathUtils.damp(actualMagnetZ, state.magnetPosition, 5.8, delta);
+        magnet.group.position.z = actualMagnetZ;
+        coilAssembly.position.z = 0;
+      }
+
+      const relativeZ = magnet.group.position.z - coilAssembly.position.z;
+      const flux = 2.6 / (relativeZ * relativeZ + 1.15);
+      const rawCurrent = THREE.MathUtils.clamp(-((flux - previousFlux) / Math.max(delta, 0.016)) * 0.16, -1, 1);
+      current = THREE.MathUtils.damp(current, rawCurrent, 6.5, delta);
+      if (Math.abs(current) < 0.012) current = 0;
+      previousFlux = flux;
+
+      const brightness = clamp01(Math.abs(current) * 1.85);
+      gauge.setNeedle(current);
+      led.setBrightness(brightness);
+      magnet.setFieldVisible(state.showFieldLines);
+      fluxArrows.setState(brightness, current >= 0 ? 1 : -1, elapsed);
+
+      coilMeshes.forEach((coil) => {
+        coil.material.emissiveIntensity = 0.08 + brightness * 0.62;
+      });
+      wireMaterials.forEach((material) => {
+        material.emissive.set(0xffcb5c);
+        material.emissiveIntensity = 0.05 + brightness * 0.4;
+      });
+
+      return {
+        current,
+        modeLabel: coilMoves ? '코일 이동' : '자석 이동',
+        extraLabel: '상대 거리',
+        extraValue: `${Math.abs(relativeZ).toFixed(2)} m`,
+        energyText: '상대 운동 → 자기장 변화 → 전기 에너지 → LED·검류계 반응',
+        driverText: coilMoves
+          ? '코일이 움직여도 전자기 유도가 일어납니다. 핵심은 자석과 코일의 상대 운동입니다.'
+          : '자석이 멈추면 자기장 변화가 없어 전류가 흐르지 않습니다.',
+        summary: coilMoves
+          ? '고정된 자석에 대해 코일이 왕복 이동하면 코일을 통과하는 자기장이 변해 전류가 생깁니다.'
+          : '자석이 코일 속으로 들어가거나 멀어질 때 코일을 통과하는 자기장이 달라져 전류가 생깁니다.'
+      };
+    },
+    reset() {
+      autoPhase = 0;
+      current = 0;
+      if (coilMoves) {
+        actualMagnetZ = 0;
+        magnet.group.position.z = 0;
+        coilAssembly.position.z = 0;
+      } else {
+        actualMagnetZ = state.magnetPosition;
+        magnet.group.position.z = actualMagnetZ;
+        coilAssembly.position.z = 0;
+      }
+      previousFlux = 2.6 / ((magnet.group.position.z - coilAssembly.position.z) ** 2 + 1.15);
+      gauge.setNeedle(0);
+      led.setBrightness(0);
+    },
+    dispose() {
+      disposeHierarchy(root);
+    }
+  };
+}
+
+function createEnvironment() {
+  const environment = new THREE.Group();
+  scene.add(environment);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({
+    color: 0xe4e8ef,
+    roughness: 0.98
+  }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.45;
+  floor.receiveShadow = true;
+  environment.add(floor);
+
+  const grid = new THREE.GridHelper(26, 26, 0xcfd6e1, 0xdfe5ee);
+  grid.position.y = -1.44;
+  environment.add(grid);
+
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(24, 10), new THREE.MeshStandardMaterial({
+    color: 0xf7f8fc,
+    roughness: 1
+  }));
+  wall.position.set(0, 3.2, -7.4);
+  wall.receiveShadow = true;
+  environment.add(wall);
+
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 0.08), new THREE.MeshStandardMaterial({
+    color: 0xf9fbff,
+    roughness: 0.85
+  }));
+  panel.position.set(-5.8, 3.0, -5.8);
+  panel.castShadow = true;
+  environment.add(panel);
+
+  const boardText = createTextSprite('전자기 유도 실험실', {
+    fontSize: 40,
+    textColor: '#12385f',
+    background: 'rgba(255,255,255,0.92)'
+  });
+  boardText.position.set(-5.8, 3.1, -5.7);
+  environment.add(boardText);
+}
+
+function setCameraForMode(mode) {
+  if (mode === '발전기 구조') {
+    camera.position.set(7.8, 4.6, 11.2);
+  } else {
+    camera.position.set(6.2, 4.1, 10.3);
+  }
+  controls.target.set(0, 1, 0);
+  controls.update();
+}
+
+function updateOverlays(status) {
+  const hasCurrent = Math.abs(status.current) > 0.05;
+  const direction = hasCurrent ? (status.current > 0 ? '정방향' : '역방향') : '—';
+
+  formulaMode.textContent = status.modeLabel;
+  formulaCurrentState.textContent = hasCurrent ? '있음' : '없음';
+  formulaDirection.textContent = direction;
+  formulaStrength.textContent = Math.abs(status.current).toFixed(2);
+  formulaExtraLabel.textContent = status.extraLabel;
+  formulaExtraValue.textContent = status.extraValue;
+
+  modeHeading.textContent = status.modeLabel;
+  modeSummary.textContent = status.summary;
+  energyChain.textContent = status.energyText;
+  driverNote.textContent = status.driverText;
+
+  modeCards.forEach((card) => {
+    card.classList.toggle('active', card.dataset.mode === status.modeLabel);
+  });
+
+  plantBadges.forEach((badge) => {
+    const active = status.modeLabel === '발전기 구조' && badge.dataset.plant === state.plantType;
+    badge.classList.toggle('active', active);
+  });
+  plantBadgeGrid.style.display = status.modeLabel === '발전기 구조' ? 'grid' : 'none';
+
+  energyPanel.classList.toggle('hidden', !state.showEnergyPath);
+}
+
+function rebuildMode() {
+  if (activeMode) activeMode.dispose();
+  activeMode = state.mode === '발전기 구조' ? createGeneratorMode() : createInductionMode(state.mode === '코일 이동');
+  activeMode.reset();
+  setCameraForMode(state.mode);
+  syncGui();
+}
+
+function resetSimulation() {
+  state.magnetPosition = -2.3;
+  state.turbineSpeed = 5;
+  state.showFieldLines = true;
+  state.showEnergyPath = true;
+  state.plantType = '풍력';
+  if (activeMode) activeMode.dispose();
+  activeMode = state.mode === '발전기 구조' ? createGeneratorMode() : createInductionMode(state.mode === '코일 이동');
+  activeMode.reset();
+  syncGui();
+}
+
+const gui = new GUI({ title: '전자기 유도 제어', width: 310 });
+const modeController = gui.add(state, 'mode', modeOptions).name('보기 모드').onChange(() => {
+  rebuildMode();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+});
+const magnetController = gui.add(state, 'magnetPosition', -3, 3, 0.01).name('자석 위치');
+const turbineController = gui.add(state, 'turbineSpeed', 0, 10, 0.1).name('터빈 회전 속도');
+const fieldController = gui.add(state, 'showFieldLines').name('자기력선 표시');
+const energyController = gui.add(state, 'showEnergyPath').name('에너지 전환 경로');
+const plantController = gui.add(state, 'plantType', Object.keys(plantInfo)).name('발전소 종류').onChange(() => {
+  if (state.mode === '발전기 구조') rebuildMode();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+});
+gui.add(resetActions, 'reset').name('초기화');
+
+function syncGui() {
+  magnetController.domElement.style.display = state.mode === '자석 이동' ? '' : 'none';
+  turbineController.domElement.style.display = state.mode === '발전기 구조' ? '' : 'none';
+  plantController.domElement.style.display = state.mode === '발전기 구조' ? '' : 'none';
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+createEnvironment();
+rebuildMode();
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  if (activeMode) {
+    const status = activeMode.update(delta, elapsed);
+    updateOverlays(status);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

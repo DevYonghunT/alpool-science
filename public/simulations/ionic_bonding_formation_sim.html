@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이온 결합 형성 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --panel: rgba(11, 16, 38, 0.88);
+    --panel-strong: rgba(9, 13, 30, 0.94);
+    --stroke: rgba(255, 255, 255, 0.11);
+    --text-soft: rgba(255, 255, 255, 0.72);
+    --accent: #ffd860;
+    --accent-2: #7cc9ff;
+    --danger: #ff8b7d;
+    --success: #8cf2bc;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 16% 14%, rgba(91, 108, 255, 0.18), transparent 26%),
+      radial-gradient(circle at 82% 12%, rgba(255, 117, 87, 0.12), transparent 24%),
+      linear-gradient(180deg, #0d1028, #070912 70%);
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas#main-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+
+  #title-block {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    z-index: 20;
+    width: min(450px, calc(100vw - 32px));
+    padding: 18px 20px;
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(16, 21, 52, 0.88), rgba(10, 14, 32, 0.78));
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+    pointer-events: none;
+  }
+
+  #title-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  #title-block h1 {
+    margin-top: 8px;
+    font-size: 30px;
+    line-height: 1.06;
+    letter-spacing: -0.05em;
+  }
+
+  #scene-subtitle {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-soft);
+  }
+
+  #mode-chip {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  #tab-bar {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 22;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 999px;
+    background: rgba(8, 11, 24, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(14px);
+  }
+
+  .tab-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
+  }
+
+  .tab-btn:hover {
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .tab-btn.active {
+    color: #08101f;
+    background: linear-gradient(135deg, #ffe38a, #ffb870);
+    box-shadow: 0 10px 28px rgba(255, 182, 97, 0.28);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    z-index: 24;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    padding: 9px 14px;
+    background: rgba(10, 14, 28, 0.78);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+
+  #guide-toggle:hover {
+    background: rgba(23, 30, 58, 0.92);
+    transform: translateY(-1px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    right: 16px;
+    top: 56px;
+    z-index: 23;
+    width: min(380px, calc(100vw - 32px));
+    max-height: min(66vh, 680px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(11, 16, 36, 0.98), rgba(8, 12, 26, 0.94));
+    box-shadow: 0 22px 52px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(16px);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #b8d8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd28a;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 11px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 21;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(9, 13, 31, 0.95), rgba(9, 13, 31, 0.86));
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(14px);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: #9dd3ff;
+  }
+
+  .divider {
+    margin: 11px 0 12px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.3), rgba(255,255,255,0));
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .formula-value {
+    flex: 1;
+  }
+
+  .equation-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .equation-title {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffd28a;
+  }
+
+  .equation-line {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  #status-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 21;
+    width: min(330px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(11, 16, 38, 0.92), rgba(9, 12, 26, 0.82));
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(14px);
+  }
+
+  #status-panel h3 {
+    font-size: 15px;
+    color: #ffd98b;
+  }
+
+  #status-body {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: var(--text-soft);
+  }
+
+  #status-extra {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #selection-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 20;
+    min-width: min(520px, calc(100vw - 32px));
+    max-width: min(720px, calc(100vw - 32px));
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(8, 11, 24, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(14px);
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.86);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease, transform 0.24s ease;
+  }
+
+  #selection-banner.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .lil-gui.root {
+    z-index: 25 !important;
+    --background-color: rgba(8, 11, 24, 0.92);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.13);
+    --focus-color: rgba(255, 255, 255, 0.18);
+    --text-color: #f4f7ff;
+    --number-color: #9dd8ff;
+    --string-color: #ffd58f;
+  }
+
+  @media (max-width: 1180px) {
+    #title-block {
+      width: min(360px, calc(100vw - 32px));
+    }
+
+    #tab-bar {
+      top: auto;
+      bottom: 120px;
+      width: calc(100vw - 32px);
+      justify-content: center;
+      flex-wrap: wrap;
+      border-radius: 22px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    #title-block {
+      width: calc(100vw - 32px);
+      padding: 16px;
+    }
+
+    #title-block h1 {
+      font-size: 26px;
+    }
+
+    #guide-panel,
+    #formula-panel,
+    #status-panel {
+      width: calc(100vw - 32px);
+    }
+
+    #formula-panel {
+      bottom: 112px;
+    }
+
+    #status-panel {
+      bottom: 300px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-block {
+      top: 12px;
+      left: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+    }
+
+    #guide-panel {
+      right: 12px;
+      top: 12px;
+      width: calc(100vw - 24px);
+      max-height: 72vh;
+    }
+
+    #formula-panel,
+    #status-panel {
+      left: 12px;
+      right: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #formula-panel {
+      bottom: 102px;
+    }
+
+    #status-panel {
+      bottom: 286px;
+      right: 12px;
+    }
+
+    #tab-bar {
+      left: 12px;
+      right: 12px;
+      bottom: 56px;
+      width: auto;
+      transform: none;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .tab-btn {
+      flex: 1 1 calc(33.333% - 6px);
+      padding: 10px 8px;
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="title-block">
+    <div id="title-eyebrow">통합과학1 · 물질과 규칙성 · 이온 결합</div>
+    <h1>이온 결합 형성</h1>
+    <p id="scene-subtitle">나트륨과 염소의 전자 이동부터 정전기적 인력, 결정 구조까지 단계적으로 관찰해 보세요.</p>
+    <div id="mode-chip">현재 모드 · 이온 형성 · NaCl</div>
+  </div>
+
+  <div id="tab-bar">
+    <button class="tab-btn active" data-mode="이온 형성">1. 이온 형성</button>
+    <button class="tab-btn" data-mode="이온 결합">2. 이온 결합</button>
+    <button class="tab-btn" data-mode="결정 구조">3. 결정 구조</button>
+  </div>
+
+  <button id="guide-toggle">📖 학습 가이드</button>
+
+  <div id="guide-panel">
+    <h3>학습 가이드</h3>
+
+    <h4>핵심 원리</h4>
+    <p>
+      금속 원소는 전자를 잃어 양이온이 되고, 비금속 원소는 전자를 얻어 음이온이 됩니다.
+      이렇게 만들어진 양이온과 음이온 사이에는 정전기적 인력이 작용해 이온 결합이 형성됩니다.
+    </p>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>나트륨이 전자 1개를 잃으면 어떤 18족 원소와 같은 전자 배치가 되나요?</li>
+      <li>염소가 전자 1개를 얻으면 어떤 18족 원소와 같은 전자 배치가 되나요?</li>
+      <li>NaCl 결정에서 각 Na+ 이온 주변에는 몇 개의 Cl- 이온이 가까이 배열될까요?</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>소금: NaCl</li>
+      <li>산화 마그네슘: MgO, 내화 벽돌 재료</li>
+      <li>형석: CaF2</li>
+      <li>석회 관련 물질: CaO</li>
+    </ul>
+
+    <h4>장면 읽는 법</h4>
+    <ul>
+      <li>이온 형성: 보어 모형에서 최외각 전자의 이동을 확인합니다.</li>
+      <li>이온 결합: 서로 반대 전하를 띤 이온이 가까워지며 결합하는 과정을 봅니다.</li>
+      <li>결정 구조: 마우스로 회전하고, 이온을 클릭해 주변 이웃 배열을 강조합니다.</li>
+    </ul>
+
+    <div class="guide-ref">
+      📚 미래엔 통합과학1 II편 p68~69 — 이온 결합, 그림 II-19(이온 형성), 그림 II-20(이온 결합), 그림 II-21(NaCl 구조)
+    </div>
+  </div>
+
+  <div id="formula-panel">
+    <h3>🔗 이온 결합 형성</h3>
+    <div class="divider"></div>
+    <div class="formula-row"><span class="formula-label">현재 모드:</span><span class="formula-value" id="fp-mode">이온 형성</span></div>
+    <div class="formula-row"><span class="formula-label">물질:</span><span class="formula-value" id="fp-material">NaCl (염화 나트륨)</span></div>
+    <div class="equation-block">
+      <div class="equation-title">이온 형성</div>
+      <div class="equation-line" id="fp-formation-1">Na -> Na+ + e-</div>
+      <div class="equation-line" id="fp-formation-2">Cl + e- -> Cl-</div>
+    </div>
+    <div class="equation-block">
+      <div class="equation-title">이온 결합</div>
+      <div class="equation-line" id="fp-bond">Na+ + Cl- -> NaCl</div>
+      <div class="equation-line" id="fp-force">(정전기적 인력: F = k x q1q2 / r²)</div>
+    </div>
+    <div class="equation-block">
+      <div class="equation-title">전자 배치</div>
+      <div class="equation-line" id="fp-cation-config">Na: 2, 8, 1 -> 2, 8</div>
+      <div class="equation-line" id="fp-anion-config">Cl: 2, 8, 7 -> 2, 8, 8</div>
+    </div>
+  </div>
+
+  <div id="status-panel">
+    <h3 id="status-title">전자 이동을 관찰해 보세요</h3>
+    <p id="status-body">금속 원자의 최외각 전자는 비교적 쉽게 빠져나가고, 비금속 원자는 부족한 전자를 받아 안정한 배치를 이룹니다.</p>
+    <div id="status-extra">탭 또는 GUI를 사용해 단계별로 재생하고, 결정 구조에서는 이온을 클릭해 주변 배열을 확인할 수 있습니다.</div>
+  </div>
+
+  <div id="selection-banner">결정 구조 모드에서 이온을 클릭하면 주변 반대 전하 이온을 강조합니다.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const VIEW_MODES = ['이온 형성', '이온 결합', '결정 구조'];
+const SHELL_RADII = [0.8, 1.4, 2.0, 2.6];
+const SHELL_TILTS = [
+  { x: 0.14, z: -0.12 },
+  { x: -0.28, z: 0.2 },
+  { x: 0.24, z: -0.3 },
+  { x: -0.18, z: 0.26 }
+];
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const tempV = new THREE.Vector3();
+const tempV2 = new THREE.Vector3();
+const tempV3 = new THREE.Vector3();
+const dummy = new THREE.Object3D();
+
+const COMPOUNDS = {
+  NaCl: {
+    key: 'NaCl',
+    formula: 'NaCl',
+    name: '염화 나트륨',
+    transferCount: 1,
+    transferLabel: '전자 1개 이동',
+    cation: {
+      atomSymbol: 'Na',
+      ionSymbol: 'Na+',
+      atomName: '나트륨',
+      chargeLabel: '+',
+      ionTypeLabel: '양이온',
+      nucleusLabel: '+11',
+      neutralShells: [2, 8, 1],
+      ionShells: [2, 8],
+      nucleusColor: 0xff5b5b,
+      electronColor: 0x4db0ff,
+      valenceColor: 0xffdd44,
+      ionColor: 0xff6e4a,
+      glowColor: 0xff9a73,
+      neutralRadius: 0.8,
+      ionRadius: 0.6,
+      crystalRadius: 0.25
+    },
+    anions: [
+      {
+        atomSymbol: 'Cl',
+        ionSymbol: 'Cl-',
+        atomName: '염소',
+        chargeLabel: '-',
+        ionTypeLabel: '음이온',
+        nucleusLabel: '+17',
+        neutralShells: [2, 8, 7],
+        ionShells: [2, 8, 8],
+        nucleusColor: 0x4bc968,
+        electronColor: 0x4db0ff,
+        valenceColor: 0x7effc5,
+        ionColor: 0x4dd479,
+        glowColor: 0x7bc2ff,
+        neutralRadius: 0.95,
+        ionRadius: 1.0,
+        crystalRadius: 0.35
+      }
+    ],
+    equations: {
+      formation1: 'Na -> Na+ + e-',
+      formation2: 'Cl + e- -> Cl-',
+      bond: 'Na+ + Cl- -> NaCl',
+      force: '(정전기적 인력: F = k x q1q2 / r²)'
+    },
+    configs: {
+      cation: 'Na: 2, 8, 1 -> 2, 8 (Ne와 동일)',
+      anion: 'Cl: 2, 8, 7 -> 2, 8, 8 (Ar와 동일)'
+    },
+    sizeText: {
+      cation: 'Na+ < Na (양이온은 원자보다 작음)',
+      anion: 'Cl- > Cl (음이온은 원자보다 큼)'
+    },
+    crystal: {
+      type: 'alternating',
+      description: 'Na+과 Cl-이 규칙적으로 번갈아 배열된 결정 구조',
+      neighborCount: { cation: 6, anion: 6 }
+    }
+  },
+  MgO: {
+    key: 'MgO',
+    formula: 'MgO',
+    name: '산화 마그네슘',
+    transferCount: 2,
+    transferLabel: '전자 2개 이동',
+    cation: {
+      atomSymbol: 'Mg',
+      ionSymbol: 'Mg2+',
+      atomName: '마그네슘',
+      chargeLabel: '2+',
+      ionTypeLabel: '양이온',
+      nucleusLabel: '+12',
+      neutralShells: [2, 8, 2],
+      ionShells: [2, 8],
+      nucleusColor: 0xff8357,
+      electronColor: 0x4db0ff,
+      valenceColor: 0xffdd44,
+      ionColor: 0xff8c54,
+      glowColor: 0xffae7e,
+      neutralRadius: 0.92,
+      ionRadius: 0.66,
+      crystalRadius: 0.26
+    },
+    anions: [
+      {
+        atomSymbol: 'O',
+        ionSymbol: 'O2-',
+        atomName: '산소',
+        chargeLabel: '2-',
+        ionTypeLabel: '음이온',
+        nucleusLabel: '+8',
+        neutralShells: [2, 6],
+        ionShells: [2, 8],
+        nucleusColor: 0x3ccf85,
+        electronColor: 0x4db0ff,
+        valenceColor: 0x7effc5,
+        ionColor: 0x4fd8a5,
+        glowColor: 0x88d7ff,
+        neutralRadius: 0.78,
+        ionRadius: 0.98,
+        crystalRadius: 0.34
+      }
+    ],
+    equations: {
+      formation1: 'Mg -> Mg2+ + 2e-',
+      formation2: 'O + 2e- -> O2-',
+      bond: 'Mg2+ + O2- -> MgO',
+      force: '(정전기적 인력: F = k x q1q2 / r²)'
+    },
+    configs: {
+      cation: 'Mg: 2, 8, 2 -> 2, 8 (Ne와 동일)',
+      anion: 'O: 2, 6 -> 2, 8 (Ne와 동일)'
+    },
+    sizeText: {
+      cation: 'Mg2+ < Mg (양이온은 원자보다 작음)',
+      anion: 'O2- > O (음이온은 원자보다 큼)'
+    },
+    crystal: {
+      type: 'alternating',
+      description: 'Mg2+와 O2-이 교대로 배열된 단순화된 결정 구조',
+      neighborCount: { cation: 6, anion: 6 }
+    }
+  },
+  CaF2: {
+    key: 'CaF2',
+    formula: 'CaF₂',
+    name: '플루오린화 칼슘',
+    transferCount: 2,
+    transferLabel: '전자 2개 이동',
+    cation: {
+      atomSymbol: 'Ca',
+      ionSymbol: 'Ca2+',
+      atomName: '칼슘',
+      chargeLabel: '2+',
+      ionTypeLabel: '양이온',
+      nucleusLabel: '+20',
+      neutralShells: [2, 8, 8, 2],
+      ionShells: [2, 8, 8],
+      nucleusColor: 0xff8f5f,
+      electronColor: 0x4db0ff,
+      valenceColor: 0xffdd44,
+      ionColor: 0xff8a56,
+      glowColor: 0xffb28b,
+      neutralRadius: 1.05,
+      ionRadius: 0.72,
+      crystalRadius: 0.25
+    },
+    anions: [
+      {
+        atomSymbol: 'F',
+        ionSymbol: 'F-',
+        atomName: '플루오린',
+        chargeLabel: '-',
+        ionTypeLabel: '음이온',
+        nucleusLabel: '+9',
+        neutralShells: [2, 7],
+        ionShells: [2, 8],
+        nucleusColor: 0x47c977,
+        electronColor: 0x4db0ff,
+        valenceColor: 0x7effc5,
+        ionColor: 0x58dfa7,
+        glowColor: 0x7ccfff,
+        neutralRadius: 0.74,
+        ionRadius: 0.93,
+        crystalRadius: 0.31
+      },
+      {
+        atomSymbol: 'F',
+        ionSymbol: 'F-',
+        atomName: '플루오린',
+        chargeLabel: '-',
+        ionTypeLabel: '음이온',
+        nucleusLabel: '+9',
+        neutralShells: [2, 7],
+        ionShells: [2, 8],
+        nucleusColor: 0x47c977,
+        electronColor: 0x4db0ff,
+        valenceColor: 0x7effc5,
+        ionColor: 0x58dfa7,
+        glowColor: 0x7ccfff,
+        neutralRadius: 0.74,
+        ionRadius: 0.93,
+        crystalRadius: 0.31
+      }
+    ],
+    equations: {
+      formation1: 'Ca -> Ca2+ + 2e-',
+      formation2: '2F + 2e- -> 2F-',
+      bond: 'Ca2+ + 2F- -> CaF₂',
+      force: '(정전기적 인력: F = k x q1q2 / r²)'
+    },
+    configs: {
+      cation: 'Ca: 2, 8, 8, 2 -> 2, 8, 8 (Ar와 동일)',
+      anion: 'F: 2, 7 -> 2, 8 (Ne와 동일)'
+    },
+    sizeText: {
+      cation: 'Ca2+ < Ca (양이온은 원자보다 작음)',
+      anion: 'F- > F (음이온은 원자보다 큼)'
+    },
+    crystal: {
+      type: 'fluorite',
+      description: 'Ca2+와 F-이 1:2 비율로 배열된 형석형 격자(학습용 단순화)',
+      neighborCount: { cation: 8, anion: 4 }
+    }
+  }
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e0e2a);
+scene.fog = new THREE.FogExp2(0x0e0e2a, 0.02);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 1.6, 12.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.domElement.id = 'main-canvas';
+document.body.prepend(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 22;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.75);
+directionalLight.position.set(6, 8, 7);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(1024, 1024);
+scene.add(directionalLight);
+
+const ionPointLight = new THREE.PointLight(0xffc28a, 1.2, 26);
+ionPointLight.position.set(0, 2, 5);
+scene.add(ionPointLight);
+
+const backgroundParticles = createBackgroundParticles();
+scene.add(backgroundParticles);
+
+const state = {
+  viewMode: '이온 형성',
+  compoundKey: 'NaCl',
+  crystalSize: 3,
+  splitLayers: false,
+  showSizeComparison: true,
+  modeGroup: null,
+  animationCallbacks: [],
+  clock: new THREE.Clock(),
+  crystal: null,
+  currentSpacing: 1.0,
+  pointerDown: null
+};
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  subtitle: document.getElementById('scene-subtitle'),
+  modeChip: document.getElementById('mode-chip'),
+  fpMode: document.getElementById('fp-mode'),
+  fpMaterial: document.getElementById('fp-material'),
+  fpFormation1: document.getElementById('fp-formation-1'),
+  fpFormation2: document.getElementById('fp-formation-2'),
+  fpBond: document.getElementById('fp-bond'),
+  fpForce: document.getElementById('fp-force'),
+  fpCationConfig: document.getElementById('fp-cation-config'),
+  fpAnionConfig: document.getElementById('fp-anion-config'),
+  statusTitle: document.getElementById('status-title'),
+  statusBody: document.getElementById('status-body'),
+  statusExtra: document.getElementById('status-extra'),
+  selectionBanner: document.getElementById('selection-banner'),
+  tabButtons: Array.from(document.querySelectorAll('.tab-btn'))
+};
+
+dom.guideToggle.addEventListener('click', () => {
+  const open = dom.guidePanel.style.display === 'block';
+  dom.guidePanel.style.display = open ? 'none' : 'block';
+});
+
+dom.tabButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setViewMode(button.dataset.mode || '이온 형성', true);
+  });
+});
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  state.pointerDown = { x: event.clientX, y: event.clientY };
+});
+
+renderer.domElement.addEventListener('pointerup', (event) => {
+  if (state.viewMode !== '결정 구조' || !state.crystal || !state.pointerDown) {
+    state.pointerDown = null;
+    return;
+  }
+  const dx = event.clientX - state.pointerDown.x;
+  const dy = event.clientY - state.pointerDown.y;
+  state.pointerDown = null;
+  if (Math.hypot(dx, dy) > 6) return;
+  handleCrystalPick(event);
+});
+
+window.addEventListener('resize', onResize);
+
+const guiState = {
+  보기모드: state.viewMode,
+  전자이동재생: () => replayFormation(),
+  결합재생: () => replayBond(),
+  결정크기: state.crystalSize,
+  층분리: state.splitLayers,
+  이온크기비교: state.showSizeComparison,
+  원소변경: state.compoundKey,
+  초기화: () => resetAll()
+};
+
+const gui = new GUI({ width: 300, title: '컨트롤 패널' });
+const modeController = gui.add(guiState, '보기모드', VIEW_MODES).name('보기 모드').onChange((value) => {
+  setViewMode(value, true);
+});
+gui.add(guiState, '전자이동재생').name('전자 이동 재생');
+gui.add(guiState, '결합재생').name('결합 재생');
+const crystalSizeController = gui.add(guiState, '결정크기', 2, 5, 1).name('결정 크기').onChange((value) => {
+  state.crystalSize = value;
+  if (state.viewMode === '결정 구조') rebuildCurrentMode();
+});
+const splitController = gui.add(guiState, '층분리').name('층 분리').onChange((value) => {
+  state.splitLayers = value;
+});
+const compareController = gui.add(guiState, '이온크기비교').name('이온 크기 비교').onChange((value) => {
+  state.showSizeComparison = value;
+  if (state.viewMode === '이온 결합') rebuildCurrentMode(false);
+});
+const compoundController = gui.add(guiState, '원소변경', ['NaCl', 'MgO', 'CaF2']).name('원소 변경').onChange((value) => {
+  state.compoundKey = value;
+  rebuildCurrentMode();
+});
+gui.add(guiState, '초기화').name('초기화');
+
+if (window.innerWidth < 900) gui.close();
+
+function createBackgroundParticles() {
+  const count = 380;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const color = new THREE.Color();
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = (Math.random() - 0.5) * 42;
+    positions[i * 3 + 1] = (Math.random() - 0.2) * 18;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 36 - 8;
+    color.setHSL(0.58 + Math.random() * 0.08, 0.6, 0.55 + Math.random() * 0.2);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.08,
+    transparent: true,
+    opacity: 0.8,
+    vertexColors: true,
+    depthWrite: false
+  });
+  return new THREE.Points(geometry, material);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const width = options.width || 1024;
+  const height = options.height || 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale || [2.4, 0.58];
+  sprite.scale.set(scale[0], scale[1], 1);
+
+  sprite.userData.setText = (value) => {
+    const lines = String(value).split('\n');
+    ctx.clearRect(0, 0, width, height);
+    const padding = options.padding || 34;
+    if (options.background !== 'none') {
+      ctx.fillStyle = options.background || 'rgba(7, 10, 22, 0.68)';
+      ctx.strokeStyle = options.border || 'rgba(255,255,255,0.14)';
+      ctx.lineWidth = options.borderWidth || 4;
+      roundRect(ctx, padding / 2, padding / 2, width - padding, height - padding, options.radius || 42);
+      ctx.fill();
+      if (options.border !== 'none') ctx.stroke();
+    }
+
+    ctx.fillStyle = options.color || '#ffffff';
+    ctx.font = `${options.fontWeight || 700} ${options.fontSize || 74}px Pretendard, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lineHeight = options.lineHeight || (options.fontSize || 74) * 1.1;
+    const startY = height / 2 - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, width / 2, startY + index * lineHeight);
+    });
+    texture.needsUpdate = true;
+  };
+
+  sprite.userData.setText(text);
+  return sprite;
+}
+
+function createCircularTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(128, 128, 16, 128, 128, 118);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.35, 'rgba(255,255,255,0.76)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(128, 128, 118, 0, Math.PI * 2);
+  ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const circularTexture = createCircularTexture();
+
+function createGlowSphere(radius, color, opacity = 0.16) {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide
+    })
+  );
+}
+
+function createDashedCircle(radius, color = 0xffffff) {
+  const points = [];
+  const segments = 48;
+  for (let i = 0; i <= segments; i += 1) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.05,
+    gapSize: 0.03,
+    transparent: true,
+    opacity: 0.85
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
+function createLineFromCurve(curve, color) {
+  const points = curve.getPoints(48);
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.12,
+    gapSize: 0.08,
+    transparent: true,
+    opacity: 0.75
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
+function createStraightDashedLine(start, end, color) {
+  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.16,
+    gapSize: 0.1,
+    transparent: true,
+    opacity: 0.65
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
+function toCssColor(hex) {
+  return `#${hex.toString(16).padStart(6, '0')}`;
+}
+
+function clamp(value, min = 0, max = 1) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function easeInCubic(t) {
+  return t * t * t;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function disposeObject(root) {
+  if (!root) return;
+  root.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        if (material.map) material.map.dispose();
+        material.dispose();
+      });
+    }
+  });
+  if (root.parent) root.parent.remove(root);
+}
+
+function setStatus(title, body, extra) {
+  dom.statusTitle.textContent = title;
+  dom.statusBody.textContent = body;
+  dom.statusExtra.innerHTML = extra;
+}
+
+function currentCompound() {
+  return COMPOUNDS[state.compoundKey];
+}
+
+function syncTabs() {
+  dom.tabButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.mode === state.viewMode);
+  });
+}
+
+function syncFormulaPanel() {
+  const compound = currentCompound();
+  dom.fpMode.textContent = state.viewMode;
+  dom.fpMaterial.textContent = `${compound.formula} (${compound.name})`;
+  dom.fpFormation1.textContent = compound.equations.formation1;
+  dom.fpFormation2.textContent = compound.equations.formation2;
+  dom.fpBond.textContent = compound.equations.bond;
+  dom.fpForce.textContent = compound.equations.force;
+  dom.fpCationConfig.textContent = compound.configs.cation;
+  dom.fpAnionConfig.textContent = compound.configs.anion;
+  dom.modeChip.textContent = `현재 모드 · ${state.viewMode} · ${compound.formula}`;
+
+  const subtitleByMode = {
+    '이온 형성': `${compound.formula}가 만들어지기 전, 전자가 어떻게 이동해 안정한 전자 배치를 이루는지 살펴보세요.`,
+    '이온 결합': `반대 전하를 띤 ${compound.cation.ionSymbol}와 ${compound.anions[0].ionSymbol} 사이의 정전기적 인력을 확인해 보세요.`,
+    '결정 구조': `${compound.crystal.description}를 회전하고, 이온을 클릭해 주변 배열을 강조해 보세요.`
+  };
+  dom.subtitle.textContent = subtitleByMode[state.viewMode];
+
+  if (state.viewMode === '결정 구조') {
+    dom.selectionBanner.textContent = '결정 구조에서 이온을 클릭하면 주변 반대 전하 이온을 강조합니다.';
+    dom.selectionBanner.classList.add('visible');
+  } else {
+    dom.selectionBanner.classList.remove('visible');
+  }
+}
+
+function syncGuiDisplay() {
+  guiState['보기모드'] = state.viewMode;
+  guiState['결정크기'] = state.crystalSize;
+  guiState['층분리'] = state.splitLayers;
+  guiState['이온크기비교'] = state.showSizeComparison;
+  guiState['원소변경'] = state.compoundKey;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function configureCamera(mode) {
+  if (mode === '이온 형성') {
+    camera.position.set(0, 0.9, 12.5);
+    controls.target.set(0, 0.4, 0);
+    controls.minDistance = 7;
+    controls.maxDistance = 18;
+    ionPointLight.position.set(0, 2.2, 4.8);
+  } else if (mode === '이온 결합') {
+    camera.position.set(0, 1.0, 10.5);
+    controls.target.set(0, 0.3, 0);
+    controls.minDistance = 5;
+    controls.maxDistance = 16;
+    ionPointLight.position.set(0, 1.6, 3.8);
+  } else {
+    camera.position.set(6.2, 5.4, 8.4);
+    controls.target.set(0, 0.4, 0);
+    controls.minDistance = 4;
+    controls.maxDistance = 24;
+    ionPointLight.position.set(2.5, 4.8, 3.4);
+  }
+  controls.update();
+}
+
+function clearCurrentMode() {
+  state.animationCallbacks = [];
+  state.crystal = null;
+  state.currentSpacing = 1.0;
+  if (state.modeGroup) disposeObject(state.modeGroup);
+  state.modeGroup = new THREE.Group();
+  scene.add(state.modeGroup);
+  scene.background.set(0x0e0e2a);
+  scene.fog.color.set(0x0e0e2a);
+}
+
+function refreshAtomVisual(atom) {
+  const activeShells = atom.isIon ? atom.spec.ionShells : atom.spec.neutralShells;
+  atom.shells.forEach((shell, shellIndex) => {
+    shell.ring.visible = (activeShells[shellIndex] || 0) > 0;
+  });
+
+  atom.slots.forEach((slot) => {
+    const visibleByCount = slot.slotIndex < (activeShells[slot.shellIndex] || 0);
+    slot.mesh.visible = (visibleByCount || slot.extraVisible) && !slot.hiddenOverride;
+  });
+
+  atom.vacancies.forEach((vacancy) => {
+    const relatedSlot = atom.slots.find((slot) => slot.shellIndex === vacancy.shellIndex && slot.slotIndex === vacancy.slotIndex);
+    vacancy.mesh.visible = !atom.isIon && !relatedSlot.extraVisible;
+  });
+
+  atom.chargeSprite.visible = atom.isIon;
+  atom.glow.material.opacity = atom.isIon ? 0.18 : 0.05;
+  atom.labelSprite.userData.setText(atom.isIon
+    ? `${atom.spec.ionSymbol} (${atom.spec.ionTypeLabel})`
+    : `${atom.spec.atomSymbol} (원자)`);
+  atom.configSprite.userData.setText((atom.isIon ? atom.spec.ionShells : atom.spec.neutralShells).filter((count) => count > 0).join(', '));
+}
+
+function updateAtomOrbit(atom, elapsed) {
+  atom.orbits.forEach((orbit, orbitIndex) => {
+    const baseSpeed = 0.9 - orbitIndex * 0.12;
+    orbit.shellGroup.rotation.y = elapsed * 0.18 + orbitIndex * 0.22 + atom.phaseOffset;
+    orbit.slots.forEach((slot) => {
+      const angle = slot.baseAngle + elapsed * baseSpeed;
+      slot.mesh.position.set(Math.cos(angle) * orbit.radius, Math.sin(angle) * orbit.radius, 0);
+      if (slot.extraMarker) {
+        slot.extraMarker.position.copy(slot.mesh.position);
+      }
+    });
+  });
+}
+
+function createBohrAtom(spec, options = {}) {
+  const group = new THREE.Group();
+  const atom = {
+    group,
+    spec,
+    phaseOffset: options.phaseOffset || Math.random() * Math.PI * 2,
+    isIon: false,
+    shells: [],
+    orbits: [],
+    slots: [],
+    vacancies: [],
+    transferSlots: [],
+    incomingSlots: []
+  };
+
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(options.nucleusRadius || 0.32, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: spec.nucleusColor,
+      emissive: new THREE.Color(spec.nucleusColor).multiplyScalar(0.38),
+      emissiveIntensity: 0.75,
+      roughness: 0.28,
+      metalness: 0.08
+    })
+  );
+  group.add(nucleus);
+
+  const nucleusLabel = createTextSprite(spec.nucleusLabel, {
+    width: 512,
+    height: 180,
+    fontSize: 60,
+    scale: [0.86, 0.28],
+    background: 'rgba(0,0,0,0.36)'
+  });
+  nucleusLabel.position.set(0, 0, 0.48);
+  group.add(nucleusLabel);
+
+  atom.glow = createGlowSphere((spec.neutralRadius || 0.9) * 2.3, spec.glowColor, 0.05);
+  group.add(atom.glow);
+
+  const shellCount = Math.max(spec.neutralShells.length, spec.ionShells.length);
+  const outerNeutralIndex = Math.max(0, spec.neutralShells.length - 1);
+  const vacancyCount = (spec.ionShells[spec.ionShells.length - 1] || 0) - (spec.neutralShells[spec.neutralShells.length - 1] || 0);
+  let transferMarked = 0;
+
+  for (let shellIndex = 0; shellIndex < shellCount; shellIndex += 1) {
+    const orbitRadius = SHELL_RADII[shellIndex] || (2.6 + shellIndex * 0.55);
+    const shellGroup = new THREE.Group();
+    shellGroup.rotation.x = SHELL_TILTS[shellIndex % SHELL_TILTS.length].x;
+    shellGroup.rotation.z = SHELL_TILTS[shellIndex % SHELL_TILTS.length].z;
+    group.add(shellGroup);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(orbitRadius, 0.02, 10, 80),
+      new THREE.MeshBasicMaterial({
+        color: 0x6f87d9,
+        transparent: true,
+        opacity: 0.5
+      })
+    );
+    shellGroup.add(ring);
+
+    atom.shells.push({ ring });
+    const maxCount = Math.max(spec.neutralShells[shellIndex] || 0, spec.ionShells[shellIndex] || 0);
+    const orbitInfo = { shellGroup, radius: orbitRadius, slots: [] };
+    atom.orbits.push(orbitInfo);
+
+    for (let slotIndex = 0; slotIndex < maxCount; slotIndex += 1) {
+      const isTransferable = shellIndex === outerNeutralIndex
+        && slotIndex >= (spec.neutralShells[shellIndex] || 0) - (options.transferCount || 0)
+        && transferMarked < (options.transferCount || 0);
+      const electronColor = isTransferable ? spec.valenceColor : spec.electronColor;
+      const electronRadius = isTransferable ? 0.08 : 0.06;
+      const material = new THREE.MeshStandardMaterial({
+        color: electronColor,
+        emissive: new THREE.Color(electronColor).multiplyScalar(isTransferable ? 0.95 : 0.45),
+        emissiveIntensity: isTransferable ? 1.1 : 0.52,
+        roughness: 0.18,
+        metalness: 0.1
+      });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(electronRadius, 18, 18), material);
+      shellGroup.add(mesh);
+
+      const slot = {
+        mesh,
+        material,
+        shellIndex,
+        slotIndex,
+        baseAngle: (slotIndex / Math.max(maxCount, 1)) * Math.PI * 2 + shellIndex * 0.28,
+        hiddenOverride: false,
+        extraVisible: false
+      };
+      atom.slots.push(slot);
+      orbitInfo.slots.push(slot);
+
+      if (isTransferable) {
+        atom.transferSlots.push(slot);
+        transferMarked += 1;
+      }
+
+      if (slotIndex >= (spec.neutralShells[shellIndex] || 0)) {
+        atom.incomingSlots.push(slot);
+        mesh.visible = false;
+        const vacancy = createDashedCircle(0.11, 0xffffff);
+        vacancy.position.set(Math.cos(slot.baseAngle) * orbitRadius, Math.sin(slot.baseAngle) * orbitRadius, 0);
+        shellGroup.add(vacancy);
+        atom.vacancies.push({ mesh: vacancy, shellIndex, slotIndex });
+      }
+    }
+  }
+
+  atom.labelSprite = createTextSprite(`${spec.atomSymbol} (원자)`, {
+    width: 900,
+    height: 220,
+    fontSize: 64,
+    scale: [2.0, 0.42],
+    background: 'rgba(7,10,22,0.56)'
+  });
+  atom.labelSprite.position.set(0, -(SHELL_RADII[Math.max(0, shellCount - 1)] + 1.05), 0);
+  group.add(atom.labelSprite);
+
+  atom.configSprite = createTextSprite(spec.neutralShells.filter((count) => count > 0).join(', '), {
+    width: 700,
+    height: 200,
+    fontSize: 52,
+    scale: [1.4, 0.34],
+    background: 'rgba(7,10,22,0.42)',
+    color: '#cbe2ff'
+  });
+  atom.configSprite.position.set(0, -(SHELL_RADII[Math.max(0, shellCount - 1)] + 1.55), 0);
+  group.add(atom.configSprite);
+
+  atom.chargeSprite = createTextSprite(spec.chargeLabel, {
+    width: 320,
+    height: 180,
+    fontSize: 74,
+    scale: [0.58, 0.28],
+    background: 'rgba(0,0,0,0.48)',
+    color: spec.chargeLabel.includes('-') ? '#91d7ff' : '#ffb2a0'
+  });
+  atom.chargeSprite.position.set(0, SHELL_RADII[Math.max(0, shellCount - 1)] + 0.95, 0);
+  atom.chargeSprite.visible = false;
+  group.add(atom.chargeSprite);
+
+  refreshAtomVisual(atom);
+  return atom;
+}
+
+function createIonNode(spec, labelText) {
+  const group = new THREE.Group();
+  const halo = createGlowSphere(spec.ionRadius * 1.9, spec.glowColor, 0.22);
+  group.add(halo);
+
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(spec.ionRadius, 36, 36),
+    new THREE.MeshStandardMaterial({
+      color: spec.ionColor,
+      emissive: new THREE.Color(spec.glowColor).multiplyScalar(0.6),
+      emissiveIntensity: 0.86,
+      roughness: 0.22,
+      metalness: 0.08
+    })
+  );
+  core.castShadow = true;
+  group.add(core);
+
+  const chargeSprite = createTextSprite(spec.chargeLabel, {
+    width: 440,
+    height: 180,
+    fontSize: 74,
+    scale: [0.72, 0.24],
+    background: 'rgba(0,0,0,0.52)',
+    color: spec.chargeLabel.includes('-') ? '#91d7ff' : '#ffb2a0'
+  });
+  chargeSprite.position.set(0, spec.ionRadius + 0.72, 0);
+  group.add(chargeSprite);
+
+  const labelSprite = createTextSprite(labelText, {
+    width: 900,
+    height: 220,
+    fontSize: 64,
+    scale: [1.9, 0.4],
+    background: 'rgba(7,10,22,0.58)'
+  });
+  labelSprite.position.set(0, -(spec.ionRadius + 0.75), 0);
+  group.add(labelSprite);
+
+  const ghost = new THREE.Mesh(
+    new THREE.SphereGeometry(spec.neutralRadius, 32, 32),
+    new THREE.MeshBasicMaterial({
+      color: spec.glowColor,
+      transparent: true,
+      opacity: 0.14,
+      wireframe: true,
+      depthWrite: false
+    })
+  );
+  ghost.visible = state.showSizeComparison;
+  group.add(ghost);
+
+  return { group, halo, core, ghost };
+}
+
+function setupFormationScene(autoplay = true) {
+  const compound = currentCompound();
+  configureCamera('이온 형성');
+
+  const stage = new THREE.Group();
+  state.modeGroup.add(stage);
+
+  const donor = createBohrAtom(compound.cation, { transferCount: compound.transferCount, phaseOffset: 0.3 });
+  donor.group.position.set(-4.2, 0.25, 0);
+  stage.add(donor.group);
+
+  const acceptors = [];
+  const acceptorOffsets = compound.anions.length === 1 ? [0] : [1.9, -1.9];
+  compound.anions.forEach((spec, index) => {
+    const atom = createBohrAtom(spec, { phaseOffset: 0.8 + index * 0.6 });
+    atom.group.position.set(4.3, acceptorOffsets[index], 0);
+    if (compound.anions.length > 1) atom.group.scale.setScalar(0.88);
+    stage.add(atom.group);
+    acceptors.push(atom);
+  });
+
+  const transferLabel = createTextSprite(compound.transferLabel, {
+    width: 900,
+    height: 220,
+    fontSize: 62,
+    scale: [1.9, 0.36],
+    background: 'rgba(24, 11, 48, 0.6)',
+    color: '#ffe285',
+    border: 'rgba(255, 196, 110, 0.3)'
+  });
+  transferLabel.position.set(0, 3.2, 0);
+  transferLabel.visible = false;
+  stage.add(transferLabel);
+
+  const lossLabel = createTextSprite('전자 잃음', {
+    width: 700,
+    height: 200,
+    fontSize: 54,
+    scale: [1.3, 0.32],
+    background: 'rgba(44, 16, 16, 0.6)',
+    color: '#ffb29d'
+  });
+  lossLabel.position.set(-2.2, 2.2, 0.2);
+  lossLabel.visible = false;
+  stage.add(lossLabel);
+
+  const gainLabel = createTextSprite('전자 얻음', {
+    width: 700,
+    height: 200,
+    fontSize: 54,
+    scale: [1.3, 0.32],
+    background: 'rgba(12, 28, 25, 0.6)',
+    color: '#b2ffd9'
+  });
+  gainLabel.position.set(2.35, compound.anions.length === 1 ? 2.2 : 0.15, 0.2);
+  gainLabel.visible = false;
+  stage.add(gainLabel);
+
+  const transferPaths = [];
+  const currentTime = state.clock.getElapsedTime();
+  updateAtomOrbit(donor, currentTime);
+  acceptors.forEach((atom) => updateAtomOrbit(atom, currentTime));
+  scene.updateMatrixWorld(true);
+
+  const targetSlots = acceptors.flatMap((atom) => atom.incomingSlots).slice(0, compound.transferCount);
+
+  donor.transferSlots.slice(0, compound.transferCount).forEach((slot, index) => {
+    const targetSlot = targetSlots[index];
+    const targetAtom = acceptors.find((atom) => atom.incomingSlots.includes(targetSlot));
+    const start = slot.mesh.getWorldPosition(new THREE.Vector3());
+    const end = targetSlot.mesh.getWorldPosition(new THREE.Vector3());
+    const controlOffset = compound.anions.length === 1
+      ? new THREE.Vector3(0, 2.2 + index * 0.35, index % 2 === 0 ? 0.7 : -0.7)
+      : new THREE.Vector3(0, 1.5 + index * 0.4, index === 0 ? 0.8 : -0.8);
+    const curve = new THREE.CubicBezierCurve3(
+      start,
+      start.clone().lerp(end, 0.3).add(controlOffset),
+      end.clone().lerp(start, 0.3).add(controlOffset),
+      end
+    );
+    const guideLine = createLineFromCurve(curve, 0xffdd44);
+    guideLine.visible = false;
+    stage.add(guideLine);
+
+    const flyer = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 18, 18),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe05b,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false
+      })
+    );
+    flyer.visible = false;
+    stage.add(flyer);
+
+    transferPaths.push({
+      slot,
+      targetSlot,
+      targetAtom,
+      curve,
+      guideLine,
+      flyer,
+      complete: false
+    });
+  });
+
+  if (!autoplay) {
+    donor.isIon = true;
+    refreshAtomVisual(donor);
+    acceptors.forEach((atom) => {
+      atom.isIon = true;
+      atom.incomingSlots.forEach((slot) => { slot.extraVisible = false; });
+      refreshAtomVisual(atom);
+    });
+    transferLabel.visible = true;
+    lossLabel.visible = true;
+    gainLabel.visible = true;
+    setStatus(
+      '이온이 형성되었습니다',
+      '금속은 전자를 잃어 양이온이 되고, 비금속은 전자를 얻어 음이온이 됩니다.',
+      `왼쪽: ${compound.configs.cation}<br>오른쪽: ${compound.configs.anion}`
+    );
+    return;
+  }
+
+  const startTime = state.clock.getElapsedTime();
+  const transferStart = 1.0;
+  const singleDuration = 0.95;
+  const stagger = 0.28;
+  const transferEnd = transferStart + singleDuration + stagger * Math.max(0, compound.transferCount - 1);
+  let finalized = false;
+
+  setStatus(
+    '최외각 전자를 먼저 확인해 보세요',
+    '노란색으로 강조된 전자가 금속 원자의 최외각 전자입니다. 이 전자가 비금속 원자로 이동합니다.',
+    `중앙 라벨과 곡선 경로를 따라 ${compound.transferCount}개의 전자가 이동합니다.`
+  );
+
+  state.animationCallbacks.push((dt, elapsed) => {
+    updateAtomOrbit(donor, elapsed);
+    acceptors.forEach((atom) => updateAtomOrbit(atom, elapsed));
+
+    const local = elapsed - startTime;
+    donor.transferSlots.forEach((slot, index) => {
+      if (!slot.hiddenOverride) {
+        const pulse = 1 + Math.sin(elapsed * 7.5 + index) * 0.14;
+        slot.mesh.scale.setScalar(pulse);
+      }
+    });
+
+    if (local < transferStart) {
+      transferLabel.visible = false;
+      lossLabel.visible = false;
+      gainLabel.visible = false;
+      return;
+    }
+
+    transferLabel.visible = true;
+    lossLabel.visible = true;
+    gainLabel.visible = true;
+
+    transferPaths.forEach((path, index) => {
+      const progress = clamp((local - transferStart - index * stagger) / singleDuration);
+      if (progress <= 0) return;
+
+      path.guideLine.visible = true;
+      path.slot.hiddenOverride = true;
+      refreshAtomVisual(donor);
+      path.flyer.visible = progress < 1;
+
+      if (progress < 1) {
+        path.flyer.position.copy(path.curve.getPoint(progress));
+      } else if (!path.complete) {
+        path.flyer.visible = false;
+        path.targetSlot.extraVisible = true;
+        refreshAtomVisual(path.targetAtom);
+        path.complete = true;
+      }
+    });
+
+    if (local >= transferStart && local < transferEnd) {
+      setStatus(
+        '전자가 이동하는 중입니다',
+        '곡선 경로를 따라 이동한 전자는 비금속 원자의 빈자리를 채우며, 양쪽 모두 더 안정한 전자 배치로 바뀝니다.',
+        `금속 원자: 전자를 잃음<br>비금속 원자: 전자를 얻음<br>이동량: ${compound.transferLabel}`
+      );
+    }
+
+    if (local > transferEnd + 0.18 && !finalized) {
+      donor.isIon = true;
+      refreshAtomVisual(donor);
+      acceptors.forEach((atom) => {
+        atom.isIon = true;
+        atom.incomingSlots.forEach((slot) => { slot.extraVisible = false; });
+        refreshAtomVisual(atom);
+      });
+      finalized = true;
+      setStatus(
+        '이온이 형성되었습니다',
+        '나트륨과 같은 금속 원소는 전자를 잃고, 염소와 같은 비금속 원소는 전자를 얻어 서로 반대 전하를 띠게 됩니다.',
+        `왼쪽 변화: ${compound.configs.cation}<br>오른쪽 변화: ${compound.configs.anion}`
+      );
+    }
+  });
+}
+
+function setupBondScene(autoplay = true) {
+  const compound = currentCompound();
+  configureCamera('이온 결합');
+
+  const stage = new THREE.Group();
+  state.modeGroup.add(stage);
+
+  const cation = createIonNode(compound.cation, compound.cation.ionSymbol);
+  stage.add(cation.group);
+
+  const anionNodes = compound.anions.map((spec) => {
+    const node = createIonNode(spec, spec.ionSymbol);
+    stage.add(node.group);
+    return node;
+  });
+
+  const label = createTextSprite(`${compound.formula} (${compound.name})`, {
+    width: 980,
+    height: 220,
+    fontSize: 64,
+    scale: [2.2, 0.4],
+    background: 'rgba(10, 18, 36, 0.66)',
+    color: '#ffe38a'
+  });
+  label.position.set(0, -2.9, 0);
+  label.visible = !autoplay;
+  stage.add(label);
+
+  const attraction = createTextSprite('정전기적 인력', {
+    width: 820,
+    height: 220,
+    fontSize: 62,
+    scale: [1.8, 0.36],
+    background: 'rgba(40, 10, 54, 0.58)',
+    color: '#ff9fff'
+  });
+  attraction.position.set(0, 2.65, 0);
+  stage.add(attraction);
+
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: circularTexture,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  }));
+  flash.scale.set(3.2, 3.2, 1);
+  stage.add(flash);
+
+  const participants = [];
+  if (compound.anions.length === 1) {
+    participants.push({
+      node: cation,
+      start: new THREE.Vector3(-2.5, 0, 0),
+      end: new THREE.Vector3(-0.9, 0, 0)
+    });
+    participants.push({
+      node: anionNodes[0],
+      start: new THREE.Vector3(2.5, 0, 0),
+      end: new THREE.Vector3(0.92, 0, 0)
+    });
+  } else {
+    participants.push({
+      node: cation,
+      start: new THREE.Vector3(-2.9, 0, 0),
+      end: new THREE.Vector3(-0.55, 0, 0)
+    });
+    participants.push({
+      node: anionNodes[0],
+      start: new THREE.Vector3(2.9, 1.45, 0),
+      end: new THREE.Vector3(1.1, 0.9, 0)
+    });
+    participants.push({
+      node: anionNodes[1],
+      start: new THREE.Vector3(2.9, -1.45, 0),
+      end: new THREE.Vector3(1.1, -0.9, 0)
+    });
+  }
+
+  participants.forEach(({ node, start }) => {
+    node.group.position.copy(start);
+    node.ghost.visible = state.showSizeComparison;
+  });
+
+  const sizeNotes = [];
+  if (state.showSizeComparison) {
+    const cationNote = createTextSprite(compound.sizeText.cation, {
+      width: 980,
+      height: 210,
+      fontSize: 52,
+      scale: [1.95, 0.32],
+      background: 'rgba(36, 10, 10, 0.48)',
+      color: '#ffbfad'
+    });
+    cationNote.position.set(-2.35, -2.05, 0);
+    stage.add(cationNote);
+    sizeNotes.push(cationNote);
+
+    const anionNote = createTextSprite(compound.sizeText.anion, {
+      width: 980,
+      height: 210,
+      fontSize: 52,
+      scale: [1.95, 0.32],
+      background: 'rgba(10, 24, 31, 0.48)',
+      color: '#a8e5ff'
+    });
+    anionNote.position.set(compound.anions.length === 1 ? 2.35 : 2.2, compound.anions.length === 1 ? -2.05 : -2.35, 0);
+    stage.add(anionNote);
+    sizeNotes.push(anionNote);
+  }
+
+  const arrowGroup = new THREE.Group();
+  stage.add(arrowGroup);
+  if (compound.anions.length === 1) {
+    arrowGroup.add(createStraightDashedLine(new THREE.Vector3(-1.2, 0.2, 0), new THREE.Vector3(1.2, 0.2, 0), 0xff5cff));
+  } else {
+    arrowGroup.add(createStraightDashedLine(new THREE.Vector3(-1.1, 0.2, 0), new THREE.Vector3(0.95, 0.9, 0), 0xff5cff));
+    arrowGroup.add(createStraightDashedLine(new THREE.Vector3(-1.1, -0.2, 0), new THREE.Vector3(0.95, -0.9, 0), 0xff5cff));
+  }
+
+  if (!autoplay) {
+    participants.forEach(({ node, end }) => {
+      node.group.position.copy(end);
+    });
+    label.visible = true;
+    attraction.visible = false;
+    flash.material.opacity = 0;
+    setStatus(
+      '이온 결합이 형성되었습니다',
+      '반대 전하를 띤 이온은 서로 끌어당기며 가까워집니다. 이 과정이 반복되면 안정한 이온 결합 물질이 됩니다.',
+      `왼쪽과 오른쪽의 투명 외곽선은 중성 원자 크기, 밝은 구는 이온의 크기를 나타냅니다.`
+    );
+    return;
+  }
+
+  const startTime = state.clock.getElapsedTime();
+  const duration = 2.0;
+  setStatus(
+    '정전기적 인력을 따라 가까워집니다',
+    '서로 반대 전하를 띤 이온은 거리가 줄어들수록 더 빠르게 가까워집니다.',
+    `크기 비교가 켜져 있으면 중성 원자와 이온의 반지름 차이를 함께 볼 수 있습니다.`
+  );
+
+  state.animationCallbacks.push((dt, elapsed) => {
+    const t = clamp((elapsed - startTime) / duration);
+    const eased = easeInCubic(t);
+    participants.forEach(({ node, start, end }) => {
+      node.group.position.lerpVectors(start, end, eased);
+      node.halo.scale.setScalar(1 + Math.sin(elapsed * 4 + end.y) * 0.03);
+    });
+
+    const anionAverage = anionNodes.reduce((sum, node) => sum.add(node.group.position), new THREE.Vector3()).multiplyScalar(1 / anionNodes.length);
+    flash.position.copy(cation.group.position).lerp(anionAverage, 0.54);
+    ionPointLight.position.copy(flash.position).add(new THREE.Vector3(0, 0.4, 2));
+    ionPointLight.intensity = 0.95 + eased * 0.7;
+
+    if (t > 0.86) {
+      const flashT = clamp((t - 0.86) / 0.14);
+      flash.material.opacity = (1 - flashT) * 0.85;
+      flash.scale.setScalar(3 + flashT * 7);
+    } else {
+      flash.material.opacity = 0;
+      flash.scale.setScalar(3);
+    }
+
+    if (t < 1) {
+      label.visible = false;
+      attraction.visible = true;
+      setStatus(
+        '이온이 서로를 향해 끌려갑니다',
+        '가까워질수록 정전기적 인력이 더 크게 작용하므로 움직임이 점점 빨라지는 것처럼 보입니다.',
+        `${compound.equations.force}<br>${compound.equations.bond}`
+      );
+    } else {
+      label.visible = true;
+      attraction.visible = false;
+      flash.material.opacity *= 0.84;
+      setStatus(
+        '이온 결합 형성!',
+        `${compound.formula}는 양이온과 음이온 사이의 정전기적 인력으로 결합한 대표적인 이온 결합 물질입니다.`,
+        `${compound.sizeText.cation}<br>${compound.sizeText.anion}`
+      );
+    }
+  });
+}
+
+function generateCrystalEntries(compound, size) {
+  const cationEntries = [];
+  const anionEntries = [];
+
+  for (let x = 0; x < size; x += 1) {
+    for (let y = 0; y < size; y += 1) {
+      for (let z = 0; z < size; z += 1) {
+        cationEntries.push({
+          cell: new THREE.Vector3(x, y, z),
+          offset: new THREE.Vector3(0, 0, 0)
+        });
+
+        if (compound.crystal.type === 'alternating') {
+          const parity = (x + y + z) % 3;
+          const offset = parity === 0
+            ? new THREE.Vector3(0.5, 0, 0)
+            : parity === 1
+              ? new THREE.Vector3(0, 0.5, 0)
+              : new THREE.Vector3(0, 0, 0.5);
+          anionEntries.push({
+            cell: new THREE.Vector3(x, y, z),
+            offset
+          });
+        } else {
+          const parity = (x + y + z) % 2;
+          const offsetA = parity === 0 ? new THREE.Vector3(0.34, 0.34, 0.34) : new THREE.Vector3(-0.34, 0.34, -0.34);
+          const offsetB = parity === 0 ? new THREE.Vector3(-0.34, -0.34, 0.34) : new THREE.Vector3(0.34, -0.34, 0.34);
+          anionEntries.push({ cell: new THREE.Vector3(x, y, z), offset: offsetA });
+          anionEntries.push({ cell: new THREE.Vector3(x, y, z), offset: offsetB });
+        }
+      }
+    }
+  }
+
+  return { cationEntries, anionEntries };
+}
+
+function entryToPosition(entry, size, spacing) {
+  const center = (size - 1) / 2;
+  return new THREE.Vector3(
+    entry.cell.x - center + entry.offset.x,
+    (entry.cell.y - center) * spacing + entry.offset.y,
+    entry.cell.z - center + entry.offset.z
+  );
+}
+
+function createCrystalLattice(compound, size) {
+  const group = new THREE.Group();
+  const { cationEntries, anionEntries } = generateCrystalEntries(compound, size);
+
+  const cationGeometry = new THREE.SphereGeometry(compound.cation.crystalRadius, 20, 20);
+  const anionGeometry = new THREE.SphereGeometry(compound.anions[0].crystalRadius, 20, 20);
+  const cationMaterial = new THREE.MeshStandardMaterial({
+    roughness: 0.24,
+    metalness: 0.08,
+    vertexColors: true,
+    emissive: new THREE.Color(compound.cation.glowColor).multiplyScalar(0.22)
+  });
+  const anionMaterial = new THREE.MeshStandardMaterial({
+    roughness: 0.26,
+    metalness: 0.08,
+    vertexColors: true,
+    emissive: new THREE.Color(compound.anions[0].glowColor).multiplyScalar(0.2)
+  });
+
+  const cationMesh = new THREE.InstancedMesh(cationGeometry, cationMaterial, cationEntries.length);
+  const anionMesh = new THREE.InstancedMesh(anionGeometry, anionMaterial, anionEntries.length);
+  cationMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  anionMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cationMesh.userData.kind = 'cation';
+  anionMesh.userData.kind = 'anion';
+  group.add(cationMesh);
+  group.add(anionMesh);
+
+  const cationBaseColor = new THREE.Color(compound.cation.ionColor);
+  const anionBaseColor = new THREE.Color(compound.anions[0].ionColor);
+  const cationHighlight = cationBaseColor.clone().lerp(new THREE.Color(0xffffff), 0.45);
+  const anionHighlight = anionBaseColor.clone().lerp(new THREE.Color(0xffffff), 0.4);
+  const selectedColor = new THREE.Color(0xfff4bf);
+
+  const lineConnections = [];
+  const cationPositions = cationEntries.map((entry) => entryToPosition(entry, size, 1));
+  const anionPositions = anionEntries.map((entry) => entryToPosition(entry, size, 1));
+  const linksPerCation = compound.crystal.type === 'fluorite' ? 4 : 3;
+
+  cationPositions.forEach((position, cationIndex) => {
+    const nearest = anionPositions
+      .map((other, index) => ({ index, distance: position.distanceTo(other) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, linksPerCation);
+    nearest.forEach((link) => {
+      lineConnections.push({ cationIndex, anionIndex: link.index });
+    });
+  });
+
+  const linePositions = new Float32Array(lineConnections.length * 2 * 3);
+  const lineGeometry = new THREE.BufferGeometry();
+  lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0xb7c1d1,
+    transparent: true,
+    opacity: 0.26
+  });
+  const lineSegments = new THREE.LineSegments(lineGeometry, lineMaterial);
+  group.add(lineSegments);
+
+  const descriptionLabel = createTextSprite(compound.crystal.description, {
+    width: 1400,
+    height: 220,
+    fontSize: 56,
+    scale: [3.8, 0.42],
+    background: 'rgba(8, 11, 22, 0.62)',
+    color: '#d2e7ff'
+  });
+  descriptionLabel.position.set(0, size * 1.55, 0);
+  group.add(descriptionLabel);
+
+  function updateTransforms(spacing) {
+    const updatedCationPositions = cationEntries.map((entry) => entryToPosition(entry, size, spacing));
+    const updatedAnionPositions = anionEntries.map((entry) => entryToPosition(entry, size, spacing));
+    updatedCationPositions.forEach((position, index) => {
+      dummy.position.copy(position);
+      dummy.updateMatrix();
+      cationMesh.setMatrixAt(index, dummy.matrix);
+      cationMesh.setColorAt(index, cationBaseColor);
+    });
+    updatedAnionPositions.forEach((position, index) => {
+      dummy.position.copy(position);
+      dummy.updateMatrix();
+      anionMesh.setMatrixAt(index, dummy.matrix);
+      anionMesh.setColorAt(index, anionBaseColor);
+    });
+    cationMesh.instanceMatrix.needsUpdate = true;
+    anionMesh.instanceMatrix.needsUpdate = true;
+    if (cationMesh.instanceColor) cationMesh.instanceColor.needsUpdate = true;
+    if (anionMesh.instanceColor) anionMesh.instanceColor.needsUpdate = true;
+
+    lineConnections.forEach((connection, index) => {
+      const a = updatedCationPositions[connection.cationIndex];
+      const b = updatedAnionPositions[connection.anionIndex];
+      const offset = index * 6;
+      linePositions[offset] = a.x;
+      linePositions[offset + 1] = a.y;
+      linePositions[offset + 2] = a.z;
+      linePositions[offset + 3] = b.x;
+      linePositions[offset + 4] = b.y;
+      linePositions[offset + 5] = b.z;
+    });
+    lineGeometry.attributes.position.needsUpdate = true;
+    descriptionLabel.position.y = size * 1.55 + (spacing - 1) * 0.4;
+
+    crystalApi.cationPositions = updatedCationPositions;
+    crystalApi.anionPositions = updatedAnionPositions;
+    if (crystalApi.selected) applySelectionColors(crystalApi.selected.kind, crystalApi.selected.index);
+  }
+
+  function clearHighlight() {
+    crystalApi.selected = null;
+    updateTransforms(state.currentSpacing);
+  }
+
+  function applySelectionColors(kind, index) {
+    const selectedPositions = kind === 'cation' ? crystalApi.cationPositions : crystalApi.anionPositions;
+    const oppositePositions = kind === 'cation' ? crystalApi.anionPositions : crystalApi.cationPositions;
+    const selectedMesh = kind === 'cation' ? cationMesh : anionMesh;
+    const oppositeMesh = kind === 'cation' ? anionMesh : cationMesh;
+    const selectedPos = selectedPositions[index];
+    const neighborCount = compound.crystal.neighborCount[kind];
+    const neighborIndices = oppositePositions
+      .map((position, otherIndex) => ({ index: otherIndex, distance: position.distanceTo(selectedPos) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, neighborCount)
+      .map((entry) => entry.index);
+
+    selectedMesh.setColorAt(index, selectedColor);
+    neighborIndices.forEach((neighborIndex) => {
+      oppositeMesh.setColorAt(neighborIndex, kind === 'cation' ? anionHighlight : cationHighlight);
+    });
+    if (selectedMesh.instanceColor) selectedMesh.instanceColor.needsUpdate = true;
+    if (oppositeMesh.instanceColor) oppositeMesh.instanceColor.needsUpdate = true;
+  }
+
+  function highlight(kind, index) {
+    clearHighlight();
+    const selectedLabel = kind === 'cation' ? compound.cation.ionSymbol : compound.anions[0].ionSymbol;
+    const oppositeLabel = kind === 'cation' ? compound.anions[0].ionSymbol : compound.cation.ionSymbol;
+    const neighborCount = compound.crystal.neighborCount[kind];
+    dom.selectionBanner.textContent = `${selectedLabel} 주변의 ${oppositeLabel} ${neighborCount}개를 강조했습니다. ${compound.crystal.description}`;
+    dom.selectionBanner.classList.add('visible');
+    crystalApi.selected = { kind, index };
+    applySelectionColors(kind, index);
+  }
+
+  const crystalApi = {
+    group,
+    cationMesh,
+    anionMesh,
+    cationPositions,
+    anionPositions,
+    selected: null,
+    updateTransforms,
+    clearHighlight,
+    highlight
+  };
+
+  updateTransforms(1);
+  return crystalApi;
+}
+
+function setupCrystalScene() {
+  const compound = currentCompound();
+  configureCamera('결정 구조');
+  state.currentSpacing = state.splitLayers ? 2.5 : 1.0;
+
+  const stage = new THREE.Group();
+  state.modeGroup.add(stage);
+
+  const lattice = createCrystalLattice(compound, state.crystalSize);
+  stage.add(lattice.group);
+  state.crystal = lattice;
+
+  setStatus(
+    '결정 구조를 회전하고 클릭해 보세요',
+    `${compound.formula} 결정에서는 양이온과 음이온이 규칙적으로 배열됩니다. 드래그로 회전하고, 클릭으로 주변 이웃 이온을 강조할 수 있습니다.`,
+    `현재 크기: ${state.crystalSize} x ${state.crystalSize} x ${state.crystalSize}<br>층 분리: ${state.splitLayers ? '켜짐' : '꺼짐'}`
+  );
+
+  state.animationCallbacks.push((dt) => {
+    const targetSpacing = state.splitLayers ? 2.5 : 1.0;
+    state.currentSpacing += (targetSpacing - state.currentSpacing) * Math.min(1, dt * 4.2);
+    lattice.updateTransforms(state.currentSpacing);
+  });
+}
+
+function rebuildCurrentMode(autoplay = true) {
+  clearCurrentMode();
+  syncTabs();
+  syncFormulaPanel();
+  syncGuiDisplay();
+  crystalSizeController.updateDisplay();
+  splitController.updateDisplay();
+  compareController.updateDisplay();
+  compoundController.updateDisplay();
+  modeController.updateDisplay();
+
+  if (state.viewMode === '이온 형성') {
+    setupFormationScene(autoplay);
+  } else if (state.viewMode === '이온 결합') {
+    setupBondScene(autoplay);
+  } else {
+    setupCrystalScene();
+  }
+}
+
+function setViewMode(mode, autoplay = true) {
+  state.viewMode = mode;
+  rebuildCurrentMode(autoplay);
+}
+
+function replayFormation() {
+  if (state.viewMode !== '이온 형성') {
+    state.viewMode = '이온 형성';
+  }
+  rebuildCurrentMode(true);
+}
+
+function replayBond() {
+  if (state.viewMode !== '이온 결합') {
+    state.viewMode = '이온 결합';
+  }
+  rebuildCurrentMode(true);
+}
+
+function resetAll() {
+  state.viewMode = '이온 형성';
+  state.compoundKey = 'NaCl';
+  state.crystalSize = 3;
+  state.splitLayers = false;
+  state.showSizeComparison = true;
+  rebuildCurrentMode(true);
+}
+
+function handleCrystalPick(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const intersections = raycaster.intersectObjects([state.crystal.cationMesh, state.crystal.anionMesh], false);
+  if (!intersections.length) return;
+  const hit = intersections[0];
+  const kind = hit.object.userData.kind;
+  state.crystal.highlight(kind, hit.instanceId);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = state.clock.getDelta();
+  const elapsed = state.clock.elapsedTime;
+
+  if (backgroundParticles) {
+    backgroundParticles.rotation.y += dt * 0.03;
+    backgroundParticles.rotation.x = Math.sin(elapsed * 0.08) * 0.06;
+  }
+
+  state.animationCallbacks.forEach((callback) => callback(dt, elapsed));
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+resetAll();
+animate();
+</script>
+</body>
+</html>

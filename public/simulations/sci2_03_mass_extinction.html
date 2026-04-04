@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>대멸종의 원인과 그 이후의 변화</title>
+  <style>
+    :root {
+      --panel: rgba(7, 16, 31, 0.84);
+      --panel-strong: rgba(6, 14, 28, 0.94);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #eef5ff;
+      --muted: rgba(238, 245, 255, 0.7);
+      --accent: #ff6b57;
+      --accent-soft: rgba(255, 107, 87, 0.18);
+      --highlight: #ffca6c;
+      --graph-bg: linear-gradient(180deg, rgba(7, 18, 35, 0.97), rgba(3, 10, 20, 0.99));
+      --shadow: 0 22px 54px rgba(0, 0, 0, 0.32);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 14%, rgba(122, 194, 255, 0.12), transparent 24%),
+        radial-gradient(circle at 84% 14%, rgba(255, 181, 103, 0.08), transparent 22%),
+        linear-gradient(180deg, #0b1525 0%, #050b14 100%);
+      color: var(--text);
+      font-family: "Pretendard", "SUIT", "Noto Sans KR", system-ui, sans-serif;
+    }
+
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #layout {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
+    }
+
+    #scene-panel,
+    #graph-panel {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    #scene-panel {
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 34% 12%, rgba(255, 228, 155, 0.13), transparent 18%),
+        linear-gradient(180deg, rgba(125, 176, 214, 0.8) 0%, rgba(49, 98, 137, 0.86) 24%, rgba(12, 44, 74, 0.94) 56%, rgba(4, 13, 26, 0.98) 100%);
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    #graph-panel {
+      background: var(--graph-bg);
+    }
+
+    #scene-canvas,
+    #graph-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #title-block {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+      text-align: center;
+      pointer-events: none;
+      width: min(660px, calc(100vw - 220px));
+    }
+
+    #title-block .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.66);
+    }
+
+    #title-block h1 {
+      margin: 5px 0 0;
+      font-size: clamp(20px, 2.2vw, 30px);
+      font-weight: 800;
+      text-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    }
+
+    #title-block p {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.76);
+    }
+
+    #scenario-tabs {
+      position: absolute;
+      top: 86px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+      display: flex;
+      gap: 10px;
+    }
+
+    .scenario-tab {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: rgba(6, 14, 30, 0.72);
+      color: var(--text);
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .scenario-tab:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .scenario-tab.active {
+      background: linear-gradient(135deg, rgba(255, 109, 87, 0.28), rgba(255, 201, 96, 0.18));
+      border-color: rgba(255, 198, 137, 0.44);
+      color: #fff7ef;
+    }
+
+    #guide-toggle {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      z-index: 16;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(6, 14, 28, 0.78);
+      color: var(--text);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    #guide-panel {
+      position: absolute;
+      top: 64px;
+      left: 18px;
+      z-index: 15;
+      width: min(430px, calc(100vw - 36px));
+      max-height: min(52vh, 470px);
+      overflow: auto;
+      padding: 18px 18px 16px;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(180deg, rgba(7, 16, 31, 0.94), rgba(4, 10, 20, 0.9));
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    #guide-panel.hidden {
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+    }
+
+    #guide-panel h2,
+    #guide-panel h3 {
+      margin: 0 0 8px;
+    }
+
+    #guide-panel h2 {
+      font-size: 18px;
+    }
+
+    #guide-panel h3 {
+      margin-top: 14px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #ffd596;
+    }
+
+    #guide-panel p,
+    #guide-panel li {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.72;
+    }
+
+    #guide-panel ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    #formula-panel {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      z-index: 14;
+      width: min(390px, calc(100vw - 36px));
+      padding: 18px 20px 16px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(7, 16, 31, 0.86), rgba(4, 10, 20, 0.92));
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    #formula-panel h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: #ffe4af;
+    }
+
+    #formula-panel .divider {
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.18em;
+      font-size: 11px;
+    }
+
+    .info-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-row .label {
+      width: 102px;
+      flex-shrink: 0;
+      color: rgba(255, 255, 255, 0.58);
+    }
+
+    .info-row .value {
+      flex: 1;
+      color: rgba(255, 255, 255, 0.96);
+    }
+
+    .phase-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 12px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 107, 87, 0.12);
+      border: 1px solid rgba(255, 107, 87, 0.22);
+      color: #ffd6cf;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .definition {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    #graph-head {
+      position: absolute;
+      top: 18px;
+      left: 24px;
+      right: 24px;
+      z-index: 10;
+      display: grid;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    #graph-head h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    #graph-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+      max-width: 480px;
+    }
+
+    #graph-summary {
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.84);
+      line-height: 1.6;
+    }
+
+    .summary-highlight {
+      color: #ffd08b;
+      font-weight: 700;
+    }
+
+    .lil-gui.root {
+      --background-color: rgba(8, 14, 26, 0.9);
+      --widget-color: rgba(255, 255, 255, 0.07);
+      --hover-color: rgba(255, 255, 255, 0.12);
+      --focus-color: rgba(255, 255, 255, 0.14);
+      --text-color: #eef5ff;
+      --number-color: #ffd08b;
+      --string-color: #7dd7ff;
+      --title-background-color: rgba(255, 255, 255, 0.06);
+      --title-text-color: #fff;
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      z-index: 20;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    @media (max-width: 1080px) {
+      #layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 58vh) minmax(260px, 42vh);
+      }
+
+      #scene-panel {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #title-block {
+        width: min(640px, calc(100vw - 180px));
+      }
+    }
+
+    @media (max-width: 760px) {
+      #title-block {
+        top: 14px;
+        width: calc(100vw - 32px);
+      }
+
+      #title-block p {
+        display: none;
+      }
+
+      #scenario-tabs {
+        top: 82px;
+        width: calc(100vw - 32px);
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .scenario-tab {
+        font-size: 12px;
+        padding: 9px 14px;
+      }
+
+      #guide-panel,
+      #formula-panel {
+        width: calc(100vw - 24px);
+        left: 12px;
+      }
+
+      #graph-head {
+        top: 14px;
+        left: 14px;
+        right: 14px;
+      }
+
+      .lil-gui.root {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="layout">
+      <section id="scene-panel" aria-label="대멸종 3차원 장면">
+        <canvas id="scene-canvas"></canvas>
+      </section>
+      <section id="graph-panel" aria-label="해양 생물 과의 수 변화 그래프">
+        <div id="graph-head">
+          <div>
+            <h2>해양 생물 과의 수 변화</h2>
+            <p>고생대 시작 이후 해양 생물의 과 수는 전반적으로 증가했지만, 대멸종 시기에는 급격히 감소했습니다. 현재 선택한 시기는 붉은 강조선으로 표시됩니다.</p>
+          </div>
+          <div id="graph-summary"></div>
+        </div>
+        <canvas id="graph-canvas"></canvas>
+      </section>
+    </div>
+
+    <div id="title-block">
+      <div class="eyebrow">Integrated Science 2 · Biodiversity Through Geological Time</div>
+      <h1 id="scene-title">대멸종의 원인과 그 이후의 변화</h1>
+      <p id="scene-subtitle">급격한 환경 변화는 대멸종을 일으키지만, 적응한 생물에게는 새로운 진화의 기회가 되기도 합니다.</p>
+    </div>
+
+    <div id="scenario-tabs" role="tablist" aria-label="대멸종 시나리오 선택">
+      <button class="scenario-tab active" data-scenario="permian" role="tab" aria-selected="true">고생대 말 대멸종</button>
+      <button class="scenario-tab" data-scenario="cretaceous" role="tab" aria-selected="false">중생대 말 대멸종</button>
+    </div>
+
+    <button id="guide-toggle" type="button">📖 학습 가이드 열기</button>
+
+    <aside id="guide-panel" class="hidden">
+      <h2>📖 학습 가이드</h2>
+      <p>지구 환경의 급격한 변화로 인한 생물계의 큰 변화는 지질 시대를 구분하는 중요한 기준입니다. 같은 환경 변화라도 이에 적응한 생물은 다양한 종으로 진화하며 번성할 기회를 얻습니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>고생대 말과 중생대 말에 일어난 생물 대멸종의 원인을 설명하는 가설은 각각 무엇인가요?</li>
+        <li>대멸종 이후 생물의 종류가 다시 증가한 까닭은 무엇일까요?</li>
+        <li>현재 지구에서 6번째 대멸종이 진행 중이라는 주장의 근거는 무엇일까요?</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>공룡 멸종과 관련된 운석 충돌의 증거로 전 세계 지층에서 이리듐 농도 이상층이 발견됩니다.</li>
+        <li>현재는 기후변화, 서식지 파괴, 남획 등으로 많은 종이 멸종위기 상태에 놓여 있습니다.</li>
+      </ul>
+
+      <h3>교과서 연계</h3>
+      <p>미래엔 통합과학2 I편 p18~19 — 생물 대멸종의 원인과 그 이후의 변화, 그림 I-11</p>
+    </aside>
+
+    <section id="formula-panel" aria-label="대멸종 정보 패널">
+      <h3>☄️ 생물 대멸종</h3>
+      <div class="divider">━━━━━━━━━━━━━━</div>
+      <div class="phase-chip" id="phase-chip">현재 상태 · 대멸종 전</div>
+      <div class="info-row"><div class="label">현재 시나리오</div><div class="value" id="fp-scenario"></div></div>
+      <div class="info-row"><div class="label">시기</div><div class="value" id="fp-time"></div></div>
+      <div class="info-row"><div class="label">대멸종 가설</div><div class="value" id="fp-hypothesis"></div></div>
+      <div class="info-row"><div class="label">멸종된 생물</div><div class="value" id="fp-extinct"></div></div>
+      <div class="info-row"><div class="label">이후 번성 생물</div><div class="value" id="fp-flourish"></div></div>
+      <div class="definition">
+        정의: 많은 종류가 짧은 기간 동안 한꺼번에 사라지는 사건.
+        급격한 환경 변화는 멸종의 원인이 되지만, 그 변화에 적응한 생물은 새로운 빈 생태 지위를 차지하며 번성할 수 있습니다.
+      </div>
+    </section>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const dom = {
+      scenePanel: document.getElementById('scene-panel'),
+      graphPanel: document.getElementById('graph-panel'),
+      sceneCanvas: document.getElementById('scene-canvas'),
+      graphCanvas: document.getElementById('graph-canvas'),
+      guideToggle: document.getElementById('guide-toggle'),
+      guidePanel: document.getElementById('guide-panel'),
+      scenarioTabs: [...document.querySelectorAll('.scenario-tab')],
+      graphSummary: document.getElementById('graph-summary'),
+      sceneTitle: document.getElementById('scene-title'),
+      sceneSubtitle: document.getElementById('scene-subtitle'),
+      phaseChip: document.getElementById('phase-chip'),
+      fpScenario: document.getElementById('fp-scenario'),
+      fpTime: document.getElementById('fp-time'),
+      fpHypothesis: document.getElementById('fp-hypothesis'),
+      fpExtinct: document.getElementById('fp-extinct'),
+      fpFlourish: document.getElementById('fp-flourish')
+    };
+
+    const graphCtx = dom.graphCanvas.getContext('2d');
+
+    const SCENARIO_OPTIONS = {
+      '고생대 말 대멸종': 'permian',
+      '중생대 말 대멸종': 'cretaceous'
+    };
+
+    const PHASE_OPTIONS = {
+      '대멸종 전': 'before',
+      '대멸종 진행': 'during',
+      '대멸종 후': 'after'
+    };
+
+    const PHASE_LABELS = {
+      before: '대멸종 전',
+      during: '대멸종 진행',
+      after: '대멸종 후'
+    };
+
+    const HYPOTHESIS_OPTIONS = {
+      '운석 충돌설': 'impact',
+      '화산 폭발설': 'volcano',
+      '수륙 분포 변화설': 'pangea'
+    };
+
+    const HYPOTHESIS_LABELS = {
+      impact: '운석(소행성) 충돌설',
+      volcano: '화산 폭발설',
+      pangea: '수륙 분포 변화설'
+    };
+
+    const SCENARIOS = {
+      permian: {
+        name: '고생대 말 대멸종',
+        period: '~2.52억 년 전',
+        extinct: '삼엽충, 완족류 상당수, 산호류 등',
+        flourish: '파충류, 공룡 계통, 새로운 해양 생물',
+        summary: '고생대 말은 고생대가 시작된 이후 일어난 생물 대멸종 중 규모가 가장 컸던 시기입니다.',
+        subtitle: '삼엽충과 완족류가 번성하던 바다가 급격한 환경 변화로 크게 흔들린 시기입니다.'
+      },
+      cretaceous: {
+        name: '중생대 말 대멸종',
+        period: '~0.66억 년 전',
+        extinct: '비조류 공룡, 암모나이트',
+        flourish: '포유류, 속씨식물, 조류',
+        summary: '거대 운석 충돌과 그로 인한 먼지 구름, 기후 급변이 대표적인 원인으로 제시됩니다.',
+        subtitle: '육지의 공룡과 바다의 암모나이트가 사라지고 포유류와 속씨식물이 빠르게 확산된 시기입니다.'
+      }
+    };
+
+    const MASS_EXTINCTION_POINTS = [
+      { age: 445, families: 130, label: '오르도비스기 말', key: 'other' },
+      { age: 372, families: 190, label: '데본기 후반', key: 'other' },
+      { age: 252, families: 70, label: '고생대 말', key: 'permian', major: true },
+      { age: 201, families: 170, label: '트라이아스기 말', key: 'other' },
+      { age: 66, families: 320, label: '중생대 말', key: 'cretaceous' }
+    ];
+
+    const GRAPH_SERIES = [
+      { age: 539, families: 42 },
+      { age: 510, families: 120 },
+      { age: 485, families: 210 },
+      { age: 445, families: 130 },
+      { age: 430, families: 205 },
+      { age: 400, families: 260 },
+      { age: 372, families: 190 },
+      { age: 345, families: 280 },
+      { age: 300, families: 390 },
+      { age: 252, families: 70 },
+      { age: 235, families: 180 },
+      { age: 201, families: 170 },
+      { age: 180, families: 250 },
+      { age: 150, families: 360 },
+      { age: 120, families: 520 },
+      { age: 90, families: 610 },
+      { age: 66, families: 320 },
+      { age: 45, families: 540 },
+      { age: 25, families: 700 },
+      { age: 0, families: 820 }
+    ];
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: dom.sceneCanvas,
+      antialias: true,
+      alpha: false
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    const currentBackground = new THREE.Color(0x173a56);
+    const targetBackground = new THREE.Color(0x173a56);
+    scene.background = currentBackground;
+    scene.fog = new THREE.Fog(currentBackground.getHex(), 16, 44);
+
+    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 80);
+    camera.position.set(13, 8, 16);
+
+    const controls = new OrbitControls(camera, dom.sceneCanvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 1.2, 0);
+    controls.minDistance = 8;
+    controls.maxDistance = 28;
+    controls.maxPolarAngle = Math.PI * 0.48;
+
+    const ambientLight = new THREE.AmbientLight(0xcfe8ff, 1.7);
+    scene.add(ambientLight);
+
+    const hemisphereLight = new THREE.HemisphereLight(0xb9e3ff, 0x1f2a37, 1.45);
+    scene.add(hemisphereLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.7);
+    sunLight.position.set(10, 16, 8);
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x7bb3ff, 0.55);
+    fillLight.position.set(-8, 7, -10);
+    scene.add(fillLight);
+
+    const flashLight = new THREE.PointLight(0xfff0c4, 0, 28, 2);
+    flashLight.position.set(0, 1.2, 0);
+    scene.add(flashLight);
+
+    const clock = new THREE.Clock();
+
+    const runtime = {
+      scenario: 'permian',
+      hypothesis: 'impact',
+      phase: 'before',
+      autoPlaying: false,
+      autoProgress: 0,
+      elapsed: 0,
+      world: null,
+      updateCallbacks: []
+    };
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function smoothstep(edge0, edge1, x) {
+      const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function setControllerEnabled(controller, enabled) {
+      controller.domElement.style.pointerEvents = enabled ? '' : 'none';
+      controller.domElement.style.opacity = enabled ? '1' : '0.45';
+    }
+
+    function disposeMaterial(material) {
+      if (!material) return;
+      if (material.map) material.map.dispose();
+      if (material.emissiveMap) material.emissiveMap.dispose();
+      if (material.alphaMap) material.alphaMap.dispose();
+      material.dispose();
+    }
+
+    function disposeHierarchy(root) {
+      root.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+          else disposeMaterial(child.material);
+        }
+      });
+    }
+
+    function clearWorld() {
+      runtime.updateCallbacks = [];
+      flashLight.intensity = 0;
+      if (!runtime.world) return;
+      scene.remove(runtime.world);
+      disposeHierarchy(runtime.world);
+      runtime.world = null;
+    }
+
+    function makeStandardMaterial(color, extra = {}) {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.82,
+        metalness: 0.04,
+        ...extra
+      });
+    }
+
+    function addRock(group, x, y, z, scale = 1, color = 0x506372) {
+      const rock = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.52 * scale, 0),
+        makeStandardMaterial(color)
+      );
+      rock.position.set(x, y, z);
+      rock.scale.set(1.3, 0.85, 1);
+      rock.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
+      group.add(rock);
+      return rock;
+    }
+
+    function addBobbing(object, options = {}) {
+      const basePosition = object.position.clone();
+      const phase = Math.random() * Math.PI * 2;
+      const amplitude = options.amplitude ?? 0.12;
+      const speed = options.speed ?? 1.2;
+      const sway = options.sway ?? 0.1;
+      runtime.updateCallbacks.push((dt, time) => {
+        object.position.y = basePosition.y + Math.sin(time * speed + phase) * amplitude;
+        object.rotation.z = Math.sin(time * speed * 0.6 + phase) * sway;
+        object.rotation.y += dt * (options.spin ?? 0.18);
+      });
+    }
+
+    function createSeaFloor(color = 0x556677, barren = false) {
+      const group = new THREE.Group();
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(34, 26, 1, 1),
+        makeStandardMaterial(color, { side: THREE.DoubleSide })
+      );
+      floor.rotation.x = -Math.PI * 0.5;
+      floor.position.y = -2.7;
+      group.add(floor);
+
+      for (let i = 0; i < 14; i += 1) {
+        addRock(
+          group,
+          THREE.MathUtils.randFloat(-11, 11),
+          THREE.MathUtils.randFloat(-2.95, -2.3),
+          THREE.MathUtils.randFloat(-8, 8),
+          THREE.MathUtils.randFloat(0.5, 1.5),
+          barren ? 0x465561 : 0x5c7382
+        );
+      }
+
+      const surface = new THREE.Mesh(
+        new THREE.PlaneGeometry(32, 24),
+        new THREE.MeshBasicMaterial({
+          color: barren ? 0x66839d : 0x75b6d6,
+          transparent: true,
+          opacity: barren ? 0.16 : 0.2,
+          side: THREE.DoubleSide
+        })
+      );
+      surface.rotation.x = -Math.PI * 0.5;
+      surface.position.y = 1.45;
+      group.add(surface);
+
+      const haze = new THREE.Mesh(
+        new THREE.SphereGeometry(18, 32, 18),
+        new THREE.MeshBasicMaterial({
+          color: barren ? 0x31465d : 0x9ad5ff,
+          transparent: true,
+          opacity: barren ? 0.04 : 0.06,
+          side: THREE.BackSide
+        })
+      );
+      haze.position.set(0, 3.5, 0);
+      group.add(haze);
+
+      return group;
+    }
+
+    function createCoral(scale = 1, color = 0xff8866, dead = false) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(dead ? 0x777270 : color, { emissive: dead ? 0x000000 : 0x552211, emissiveIntensity: dead ? 0 : 0.1 });
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.1, 10), material);
+      trunk.position.y = 0.55;
+      group.add(trunk);
+
+      const branches = [
+        { x: 0.22, y: 1.0, z: 0.02, rz: -0.6 },
+        { x: -0.2, y: 0.92, z: -0.06, rz: 0.55 },
+        { x: 0.02, y: 1.18, z: 0.11, rx: 0.35 }
+      ];
+
+      branches.forEach((branch) => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, dead ? 0.46 : 0.72, 8), material);
+        mesh.position.set(branch.x, branch.y, branch.z);
+        mesh.rotation.z = branch.rz || 0;
+        mesh.rotation.x = branch.rx || 0;
+        group.add(mesh);
+      });
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createTrilobite(scale = 1, color = 0x887766) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(color);
+      const segments = [
+        { x: 0, sx: 1.3, sy: 0.45, sz: 0.9 },
+        { x: -0.54, sx: 0.9, sy: 0.36, sz: 0.76 },
+        { x: 0.54, sx: 0.9, sy: 0.36, sz: 0.76 }
+      ];
+
+      segments.forEach((segment) => {
+        const shell = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.7), material);
+        shell.position.x = segment.x;
+        shell.scale.set(segment.sx, segment.sy, segment.sz);
+        group.add(shell);
+      });
+
+      const antennaLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.55, 6), makeStandardMaterial(0x6d5c4e));
+      antennaLeft.position.set(-0.9, 0.02, 0.16);
+      antennaLeft.rotation.z = Math.PI * 0.32;
+      group.add(antennaLeft);
+
+      const antennaRight = antennaLeft.clone();
+      antennaRight.position.z = -0.16;
+      group.add(antennaRight);
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createBrachiopod(scale = 1, color = 0xaaaaaa) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(color);
+      const shellA = new THREE.Mesh(new THREE.SphereGeometry(0.52, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), material);
+      shellA.rotation.x = Math.PI;
+      shellA.position.y = 0.18;
+      group.add(shellA);
+
+      const shellB = new THREE.Mesh(new THREE.SphereGeometry(0.46, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), material);
+      shellB.position.y = 0.05;
+      group.add(shellB);
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createDinosaur(scale = 1, color = 0x668855) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(color, { emissive: 0x0f1e0f, emissiveIntensity: 0.12 });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 0.78), material);
+      body.position.set(0, 1.95, 0);
+      group.add(body);
+
+      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.34), material);
+      neck.position.set(0.86, 2.55, 0);
+      neck.rotation.z = -0.45;
+      group.add(neck);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.34, 0.34), material);
+      head.position.set(1.55, 3.0, 0);
+      head.rotation.z = -0.18;
+      group.add(head);
+
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.24, 0.28), material);
+      tail.position.set(-1.55, 2.05, 0);
+      tail.rotation.z = 0.22;
+      group.add(tail);
+
+      [-0.5, 0.5].forEach((z) => {
+        const legFront = new THREE.Mesh(new THREE.BoxGeometry(0.24, 1.45, 0.22), material);
+        legFront.position.set(0.55, 1.15, z * 0.6);
+        group.add(legFront);
+
+        const legBack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.68, 0.24), material);
+        legBack.position.set(-0.62, 1.0, z * 0.6);
+        group.add(legBack);
+      });
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createAmmonite(scale = 1, color = 0x887766) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(color);
+
+      for (let i = 0; i < 5; i += 1) {
+        const radius = 0.9 - i * 0.14;
+        const tube = 0.15 - i * 0.015;
+        const torus = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 10, 32, Math.PI * 1.55), material);
+        torus.rotation.y = Math.PI * 0.5;
+        torus.position.x = i * 0.12;
+        group.add(torus);
+      }
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), makeStandardMaterial(0xd8c3a5));
+      body.position.set(1.02, 0.06, 0);
+      group.add(body);
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createMammal(scale = 1, color = 0xb28b67) {
+      const group = new THREE.Group();
+      const material = makeStandardMaterial(color);
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.45, 0.36), material);
+      body.position.set(0, 0.78, 0);
+      group.add(body);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.28), material);
+      head.position.set(0.62, 0.95, 0);
+      group.add(head);
+
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.08, 0.08), material);
+      tail.position.set(-0.76, 0.9, 0);
+      tail.rotation.z = 0.3;
+      group.add(tail);
+
+      [-0.12, 0.12].forEach((z) => {
+        [-0.28, 0.3].forEach((x) => {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.7, 0.1), material);
+          leg.position.set(x, 0.34, z);
+          group.add(leg);
+        });
+      });
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createFloweringPlant(scale = 1) {
+      const group = new THREE.Group();
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.06, 0.9, 8),
+        makeStandardMaterial(0x5a8d4e)
+      );
+      stem.position.y = 0.45;
+      group.add(stem);
+
+      for (let i = 0; i < 5; i += 1) {
+        const petal = new THREE.Mesh(
+          new THREE.ConeGeometry(0.12, 0.28, 6),
+          makeStandardMaterial(i % 2 === 0 ? 0xffcf6f : 0xff8bb0)
+        );
+        const angle = (Math.PI * 2 * i) / 5;
+        petal.position.set(Math.cos(angle) * 0.12, 0.96, Math.sin(angle) * 0.12);
+        petal.rotation.z = Math.PI;
+        petal.lookAt(0, 1.15, 0);
+        group.add(petal);
+      }
+
+      const center = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), makeStandardMaterial(0xffde74));
+      center.position.y = 0.98;
+      group.add(center);
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createPalm(scale = 1, color = 0x6a9a58) {
+      const group = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 1.8, 8), makeStandardMaterial(0x7f684c));
+      trunk.position.y = 0.9;
+      group.add(trunk);
+
+      for (let i = 0; i < 5; i += 1) {
+        const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 1.15), makeStandardMaterial(color));
+        leaf.position.set(0, 1.76, 0);
+        leaf.rotation.y = (Math.PI * 2 * i) / 5;
+        leaf.rotation.x = -0.28;
+        leaf.position.x = Math.cos(leaf.rotation.y) * 0.25;
+        leaf.position.z = Math.sin(leaf.rotation.y) * 0.25;
+        group.add(leaf);
+      }
+
+      group.scale.setScalar(scale);
+      return group;
+    }
+
+    function createContinentPlate(width = 4, depth = 3, color = 0x8a7a58) {
+      const group = new THREE.Group();
+      const rock = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.8, depth),
+        makeStandardMaterial(0x6c6755)
+      );
+      group.add(rock);
+
+      const land = new THREE.Mesh(
+        new THREE.BoxGeometry(width * 0.92, 0.18, depth * 0.9),
+        makeStandardMaterial(color)
+      );
+      land.position.y = 0.47;
+      group.add(land);
+
+      return group;
+    }
+
+    function createImpactBurst(count, colorA, colorB, size = 0.12) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const velocities = Array.from({ length: count }, () => new THREE.Vector3());
+
+      for (let i = 0; i < count; i += 1) {
+        const mix = Math.random();
+        const color = new THREE.Color(colorA).lerp(new THREE.Color(colorB), mix);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.visible = false;
+
+      function scatter(origin, speedMin, speedMax) {
+        const array = geometry.attributes.position.array;
+        for (let i = 0; i < count; i += 1) {
+          array[i * 3] = origin.x;
+          array[i * 3 + 1] = origin.y;
+          array[i * 3 + 2] = origin.z;
+
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const speed = THREE.MathUtils.randFloat(speedMin, speedMax);
+          velocities[i].set(
+            Math.sin(phi) * Math.cos(theta) * speed,
+            Math.abs(Math.cos(phi)) * speed * THREE.MathUtils.randFloat(0.35, 1.15),
+            Math.sin(phi) * Math.sin(theta) * speed
+          );
+        }
+        geometry.attributes.position.needsUpdate = true;
+        points.visible = true;
+      }
+
+      function update(dt, drag = 0.92, gravity = -2.8) {
+        const array = geometry.attributes.position.array;
+        for (let i = 0; i < count; i += 1) {
+          velocities[i].multiplyScalar(drag);
+          velocities[i].y += gravity * dt;
+          array[i * 3] += velocities[i].x * dt;
+          array[i * 3 + 1] += velocities[i].y * dt;
+          array[i * 3 + 2] += velocities[i].z * dt;
+        }
+        geometry.attributes.position.needsUpdate = true;
+      }
+
+      return { points, material, scatter, update };
+    }
+
+    function addCreatureCluster(world, createFn, positions) {
+      positions.forEach((entry) => {
+        const creature = createFn(entry.scale, entry.color);
+        creature.position.set(entry.x, entry.y, entry.z);
+        creature.rotation.y = entry.ry ?? THREE.MathUtils.randFloat(0, Math.PI * 2);
+        world.add(creature);
+        addBobbing(creature, {
+          amplitude: entry.amp ?? 0.08,
+          speed: entry.speed ?? THREE.MathUtils.randFloat(0.7, 1.4),
+          sway: entry.sway ?? 0.12,
+          spin: entry.spin ?? 0.06
+        });
+      });
+    }
+
+    function setEnvironmentColor(hex) {
+      targetBackground.setHex(hex);
+    }
+
+    function buildPermianWorld() {
+      const world = new THREE.Group();
+      const floorSystem = createSeaFloor(runtime.phase !== 'after' ? 0x556677 : 0x4a5660, runtime.phase === 'after');
+      world.add(floorSystem);
+
+      const ridge = new THREE.Mesh(
+        new THREE.BoxGeometry(8.5, 0.9, 4.2),
+        makeStandardMaterial(0x5c5c4e)
+      );
+      ridge.position.set(-5.8, -2.2, -6.6);
+      ridge.rotation.z = -0.08;
+      world.add(ridge);
+
+      if (runtime.phase === 'before') {
+        setEnvironmentColor(0x2f6f96);
+
+        addCreatureCluster(world, createTrilobite, [
+          { x: -5.5, y: -1.9, z: -1.6, scale: 0.9, color: 0x887766 },
+          { x: -2.5, y: -1.6, z: 1.2, scale: 1.05, color: 0x7b6b5c },
+          { x: 1.2, y: -1.7, z: -2.1, scale: 0.86, color: 0x8b7968 },
+          { x: 4.3, y: -1.8, z: 1.8, scale: 0.92, color: 0x826e61 },
+          { x: 6.2, y: -1.9, z: -0.2, scale: 0.74, color: 0x8a7767 }
+        ]);
+
+        addCreatureCluster(world, createBrachiopod, [
+          { x: -6.8, y: -2.15, z: 2.8, scale: 0.95, color: 0xaeb6b8, amp: 0.03, speed: 0.6 },
+          { x: -1.4, y: -2.05, z: -3.4, scale: 1.1, color: 0xb4b4b4, amp: 0.03, speed: 0.8 },
+          { x: 2.8, y: -2.1, z: 2.9, scale: 0.85, color: 0xa4a4a4, amp: 0.02, speed: 0.7 },
+          { x: 5.7, y: -2.0, z: -3.1, scale: 1.0, color: 0xafafaf, amp: 0.04, speed: 0.75 }
+        ]);
+
+        [
+          { x: -7.5, z: -1.4, scale: 1.25 },
+          { x: -3.7, z: 3.0, scale: 0.95 },
+          { x: -0.8, z: -3.6, scale: 1.15 },
+          { x: 2.1, z: -0.8, scale: 1.0 },
+          { x: 6.9, z: 3.2, scale: 1.08 }
+        ].forEach((entry) => {
+          const coral = createCoral(entry.scale);
+          coral.position.set(entry.x, -2.72, entry.z);
+          coral.rotation.y = Math.random() * Math.PI;
+          world.add(coral);
+        });
+      }
+
+      if (runtime.phase === 'during') {
+        addCreatureCluster(world, createTrilobite, [
+          { x: -3.2, y: -1.8, z: 1.3, scale: 0.82, color: 0x78695c },
+          { x: 3.8, y: -1.95, z: -1.9, scale: 0.7, color: 0x7a6858 }
+        ]);
+
+        if (runtime.hypothesis === 'impact') {
+          setEnvironmentColor(0x24394d);
+
+          const meteor = new THREE.Mesh(
+            new THREE.SphereGeometry(0.62, 18, 18),
+            makeStandardMaterial(0x6a6763, { emissive: 0x301a08, emissiveIntensity: 0.4 })
+          );
+          meteor.position.set(8, 12, -4);
+          world.add(meteor);
+
+          const tail = new THREE.Mesh(
+            new THREE.ConeGeometry(0.35, 2.4, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff9d5c, transparent: true, opacity: 0.5 })
+          );
+          tail.rotation.z = Math.PI * 0.5;
+          tail.position.set(1.2, 0.2, 0);
+          meteor.add(tail);
+
+          const flash = new THREE.Mesh(
+            new THREE.SphereGeometry(0.7, 20, 20),
+            new THREE.MeshBasicMaterial({ color: 0xfff1c0, transparent: true, opacity: 0 })
+          );
+          flash.position.set(0, 0.45, 0);
+          world.add(flash);
+
+          const burst = createImpactBurst(260, 0xfff0c9, 0xff7d4e, 0.11);
+          world.add(burst.points);
+          let hasBurstTriggered = false;
+
+          runtime.updateCallbacks.push((dt, time) => {
+            const cycle = time % 6.2;
+            if (cycle < 2.2) {
+              const t = smoothstep(0, 2.2, cycle);
+              hasBurstTriggered = false;
+              meteor.visible = true;
+              meteor.position.set(
+                THREE.MathUtils.lerp(8, 0.2, t),
+                THREE.MathUtils.lerp(12, 1.5, t),
+                THREE.MathUtils.lerp(-4, 0, t)
+              );
+              meteor.rotation.x += dt * 2.4;
+              meteor.rotation.z += dt * 1.6;
+              flash.material.opacity = 0;
+              burst.material.opacity = 0;
+              flashLight.intensity = 0;
+            } else {
+              const t = cycle - 2.2;
+              if (!hasBurstTriggered) {
+                burst.scatter(new THREE.Vector3(0.1, 0.4, 0), 3.2, 9.5);
+                hasBurstTriggered = true;
+              }
+              meteor.visible = false;
+              burst.material.opacity = Math.max(0, 0.85 - t * 0.18);
+              burst.update(dt, 0.94, -3.3);
+              flash.scale.setScalar(1 + t * 2.4);
+              flash.material.opacity = Math.max(0, 0.65 - t * 0.42);
+              flashLight.position.copy(flash.position);
+              flashLight.intensity = Math.max(0, 3.6 - t * 2.3);
+            }
+          });
+        }
+
+        if (runtime.hypothesis === 'volcano') {
+          setEnvironmentColor(0x302d2d);
+
+          const volcanoBase = new THREE.Mesh(
+            new THREE.ConeGeometry(2.5, 4.2, 22),
+            makeStandardMaterial(0x51453c)
+          );
+          volcanoBase.position.set(-5.7, -0.7, -6.4);
+          world.add(volcanoBase);
+
+          const vent = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.44, 0.62, 0.3, 14),
+            makeStandardMaterial(0x2f2b29)
+          );
+          vent.position.set(-5.7, 1.42, -6.4);
+          world.add(vent);
+
+          const particles = createImpactBurst(220, 0xff7c39, 0x5e676d, 0.14);
+          world.add(particles.points);
+          particles.scatter(new THREE.Vector3(-5.7, 1.55, -6.4), 1.8, 4.2);
+
+          runtime.updateCallbacks.push((dt, time) => {
+            particles.material.opacity = 0.82;
+            particles.update(dt, 0.9, -1.8);
+
+            const array = particles.points.geometry.attributes.position.array;
+            for (let i = 0; i < array.length; i += 3) {
+              if (array[i + 1] < -0.4 || Math.abs(array[i] + 5.7) > 4.5) {
+                array[i] = -5.7 + THREE.MathUtils.randFloatSpread(0.4);
+                array[i + 1] = 1.55;
+                array[i + 2] = -6.4 + THREE.MathUtils.randFloatSpread(0.4);
+              }
+            }
+            particles.points.geometry.attributes.position.needsUpdate = true;
+            flashLight.position.set(-5.7, 1.9, -6.4);
+            flashLight.intensity = 0.6 + Math.sin(time * 8) * 0.18;
+          });
+        }
+
+        if (runtime.hypothesis === 'pangea') {
+          setEnvironmentColor(0x3b4d5d);
+
+          const leftPlate = createContinentPlate(4.2, 3.4, 0xa2865d);
+          const rightPlate = createContinentPlate(4.7, 3.6, 0x95774f);
+          leftPlate.position.set(-6, 1.8, -5.2);
+          rightPlate.position.set(6, 1.82, -5.4);
+          world.add(leftPlate);
+          world.add(rightPlate);
+
+          const shoreline = new THREE.Mesh(
+            new THREE.BoxGeometry(3.2, 0.18, 0.55),
+            makeStandardMaterial(0xd0bb8e)
+          );
+          shoreline.position.set(0, 1.52, -5.3);
+          world.add(shoreline);
+
+          runtime.updateCallbacks.push((dt, time) => {
+            const wave = 0.5 + Math.sin(time * 0.65) * 0.5;
+            leftPlate.position.x = THREE.MathUtils.lerp(-6.2, -1.6, wave);
+            rightPlate.position.x = THREE.MathUtils.lerp(6.2, 1.7, wave);
+            shoreline.scale.x = 0.9 + wave * 1.1;
+            leftPlate.rotation.y = -0.2 + wave * 0.18;
+            rightPlate.rotation.y = 0.18 - wave * 0.16;
+          });
+        }
+      }
+
+      if (runtime.phase === 'after') {
+        setEnvironmentColor(0x263240);
+
+        [
+          { x: -7.4, z: -1.6, scale: 0.85 },
+          { x: -1.3, z: 2.3, scale: 0.72 },
+          { x: 4.6, z: -2.8, scale: 0.76 }
+        ].forEach((entry) => {
+          const deadCoral = createCoral(entry.scale, 0x999999, true);
+          deadCoral.position.set(entry.x, -2.72, entry.z);
+          world.add(deadCoral);
+        });
+
+        const island = createContinentPlate(5.8, 2.8, 0x7e8b58);
+        island.position.set(0, 1.74, -7.2);
+        island.scale.y = 0.8;
+        world.add(island);
+
+        const hintDino = createDinosaur(0.45, 0x657b52);
+        hintDino.position.set(-0.6, 2.1, -7.1);
+        world.add(hintDino);
+
+        const hintFern = createPalm(0.48, 0x5f8a51);
+        hintFern.position.set(1.45, 1.96, -7.0);
+        world.add(hintFern);
+
+        runtime.updateCallbacks.push((dt, time) => {
+          hintDino.rotation.y = Math.sin(time * 0.9) * 0.08;
+        });
+      }
+
+      return world;
+    }
+
+    function buildCretaceousWorld() {
+      const world = new THREE.Group();
+
+      const land = new THREE.Mesh(
+        new THREE.BoxGeometry(16, 1.4, 12),
+        makeStandardMaterial(runtime.phase === 'after' ? 0x5a4a3c : 0x6b5a43)
+      );
+      land.position.set(-4.8, -2.0, -0.6);
+      land.rotation.z = -0.04;
+      world.add(land);
+
+      const ocean = new THREE.Mesh(
+        new THREE.BoxGeometry(14, 0.36, 16),
+        makeStandardMaterial(runtime.phase === 'after' ? 0x32485c : 0x3e698e, {
+          transparent: true,
+          opacity: runtime.phase === 'after' ? 0.76 : 0.88
+        })
+      );
+      ocean.position.set(6.4, -1.6, 0.2);
+      world.add(ocean);
+
+      const coast = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.2, 14),
+        makeStandardMaterial(0xcfb88f)
+      );
+      coast.position.set(1.5, -1.28, 0.1);
+      world.add(coast);
+
+      for (let i = 0; i < 10; i += 1) {
+        addRock(
+          world,
+          THREE.MathUtils.randFloat(-8.5, 8.5),
+          THREE.MathUtils.randFloat(-2.35, -1.6),
+          THREE.MathUtils.randFloat(-6.5, 6.5),
+          THREE.MathUtils.randFloat(0.45, 1.4),
+          runtime.phase === 'after' ? 0x574d46 : 0x6a6157
+        );
+      }
+
+      if (runtime.phase === 'before') {
+        setEnvironmentColor(0x55789a);
+
+        const dinoA = createDinosaur(0.9, 0x668855);
+        dinoA.position.set(-5.7, -1.28, -1.4);
+        world.add(dinoA);
+
+        const dinoB = createDinosaur(0.62, 0x6d8f5d);
+        dinoB.position.set(-1.9, -1.42, 1.7);
+        dinoB.rotation.y = Math.PI * 0.3;
+        world.add(dinoB);
+
+        const ammonitePositions = [
+          { x: 4.2, y: -0.9, z: -3.6, scale: 0.78 },
+          { x: 6.9, y: -0.5, z: 2.3, scale: 0.68 },
+          { x: 8.8, y: -0.86, z: -1.0, scale: 0.9 },
+          { x: 3.5, y: -0.72, z: 3.7, scale: 0.72 }
+        ];
+
+        addCreatureCluster(world, createAmmonite, ammonitePositions.map((entry) => ({
+          ...entry,
+          color: 0x887766,
+          amp: 0.12,
+          speed: THREE.MathUtils.randFloat(0.8, 1.35),
+          spin: 0.22
+        })));
+
+        [
+          { x: -8.2, z: -4.4, scale: 0.82 },
+          { x: -3.4, z: 4.1, scale: 0.94 },
+          { x: 0.1, z: -4.6, scale: 0.72 }
+        ].forEach((entry) => {
+          const palm = createPalm(entry.scale);
+          palm.position.set(entry.x, -1.25, entry.z);
+          world.add(palm);
+        });
+
+        runtime.updateCallbacks.push((dt, time) => {
+          dinoA.rotation.y = Math.sin(time * 0.7) * 0.06;
+          dinoB.rotation.y = Math.PI * 0.3 + Math.sin(time * 0.9 + 1.5) * 0.08;
+        });
+      }
+
+      if (runtime.phase === 'during') {
+        setEnvironmentColor(0x3d4854);
+
+        const dino = createDinosaur(0.78, 0x60784d);
+        dino.position.set(-4.8, -1.34, -0.8);
+        world.add(dino);
+
+        addCreatureCluster(world, createAmmonite, [
+          { x: 5.7, y: -0.8, z: -2.9, scale: 0.7, color: 0x887766, amp: 0.1, speed: 1.0, spin: 0.24 },
+          { x: 8.4, y: -0.58, z: 1.8, scale: 0.62, color: 0x7c6d5f, amp: 0.1, speed: 1.1, spin: 0.22 }
+        ]);
+
+        const meteor = new THREE.Mesh(
+          new THREE.SphereGeometry(2, 24, 24),
+          makeStandardMaterial(0x666666, { emissive: 0x331300, emissiveIntensity: 0.45 })
+        );
+        meteor.position.set(10, 15, -8);
+        world.add(meteor);
+
+        const tail = new THREE.Mesh(
+          new THREE.ConeGeometry(0.9, 4.2, 18),
+          new THREE.MeshBasicMaterial({ color: 0xff9f5a, transparent: true, opacity: 0.56 })
+        );
+        tail.rotation.z = Math.PI * 0.5;
+        tail.position.set(2.2, 0.2, 0);
+        meteor.add(tail);
+
+        const flash = new THREE.Mesh(
+          new THREE.SphereGeometry(1.2, 24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0 })
+        );
+        flash.position.set(1.1, -0.9, 0);
+        world.add(flash);
+
+        const dustDome = new THREE.Mesh(
+          new THREE.SphereGeometry(22, 32, 24),
+          new THREE.MeshBasicMaterial({
+            color: 0x2f343a,
+            transparent: true,
+            opacity: 0,
+            side: THREE.BackSide
+          })
+        );
+        dustDome.position.set(0, 4, 0);
+        world.add(dustDome);
+
+        const burst = createImpactBurst(1000, 0xffe6b3, 0xff6a4d, 0.12);
+        world.add(burst.points);
+        let hasBurstTriggered = false;
+
+        runtime.updateCallbacks.push((dt, time) => {
+          const cycle = time % 9.6;
+          dino.rotation.y = Math.sin(time * 0.8) * 0.06;
+
+          if (cycle < 2.6) {
+            const t = smoothstep(0, 2.6, cycle);
+            hasBurstTriggered = false;
+            meteor.visible = true;
+            meteor.position.set(
+              THREE.MathUtils.lerp(10, 1.1, t),
+              THREE.MathUtils.lerp(15, 0.3, t),
+              THREE.MathUtils.lerp(-8, 0.2, t)
+            );
+            meteor.rotation.x += dt * 1.8;
+            meteor.rotation.y += dt * 1.2;
+            flash.material.opacity = 0;
+            dustDome.material.opacity = Math.max(0, dustDome.material.opacity - dt * 0.5);
+            burst.material.opacity = 0;
+            flashLight.intensity = 0;
+          } else {
+            const t = cycle - 2.6;
+            if (!hasBurstTriggered) {
+              burst.scatter(new THREE.Vector3(1.1, -0.8, 0.1), 3.5, 12.5);
+              hasBurstTriggered = true;
+            }
+            meteor.visible = false;
+            burst.material.opacity = Math.max(0, 1 - t * 0.12);
+            burst.update(dt, 0.95, -2.7);
+            flash.scale.setScalar(1.6 + t * 2.4);
+            flash.material.opacity = Math.max(0, 0.82 - t * 0.28);
+            dustDome.material.opacity = clamp(0.14 + t * 0.1, 0, 0.6);
+            flashLight.position.copy(flash.position);
+            flashLight.intensity = Math.max(0, 4.2 - t * 1.1);
+          }
+        });
+      }
+
+      if (runtime.phase === 'after') {
+        setEnvironmentColor(0x394959);
+
+        const mammalA = createMammal(0.95);
+        mammalA.position.set(-3.2, -1.38, -1.0);
+        world.add(mammalA);
+
+        const mammalB = createMammal(0.74, 0xc19870);
+        mammalB.position.set(-0.8, -1.44, 2.3);
+        mammalB.rotation.y = -0.4;
+        world.add(mammalB);
+
+        [
+          { x: -6.2, z: -3.8, scale: 0.92 },
+          { x: -2.7, z: 3.4, scale: 0.82 },
+          { x: 1.2, z: -4.5, scale: 0.86 }
+        ].forEach((entry) => {
+          const plant = createFloweringPlant(entry.scale);
+          plant.position.set(entry.x, -1.26, entry.z);
+          world.add(plant);
+        });
+
+        runtime.updateCallbacks.push((dt, time) => {
+          mammalA.rotation.y = Math.sin(time * 1.2) * 0.08;
+          mammalB.rotation.y = -0.4 + Math.sin(time * 1.05 + 1) * 0.08;
+        });
+      }
+
+      return world;
+    }
+
+    function rebuildWorld(syncGui = true) {
+      clearWorld();
+      runtime.elapsed = 0;
+      runtime.world = runtime.scenario === 'permian' ? buildPermianWorld() : buildCretaceousWorld();
+      scene.add(runtime.world);
+      updateUi(syncGui);
+      drawGraph();
+    }
+
+    function updateUi(syncGui = true) {
+      const scenario = SCENARIOS[runtime.scenario];
+      const hypothesisText = runtime.scenario === 'permian'
+        ? HYPOTHESIS_LABELS[runtime.hypothesis]
+        : '운석 충돌 + 환경 급변';
+
+      dom.sceneTitle.textContent = scenario.name;
+      dom.sceneSubtitle.textContent = scenario.subtitle;
+      dom.phaseChip.textContent = `현재 상태 · ${PHASE_LABELS[runtime.phase]}`;
+      dom.fpScenario.textContent = scenario.name;
+      dom.fpTime.textContent = scenario.period;
+      dom.fpHypothesis.textContent = hypothesisText;
+      dom.fpExtinct.textContent = scenario.extinct;
+      dom.fpFlourish.textContent = scenario.flourish;
+
+      dom.graphSummary.innerHTML = runtime.scenario === 'permian'
+        ? `<span class="summary-highlight">고생대 말</span> 대멸종은 그래프 전체에서 가장 큰 급감으로 표시됩니다. 교과서 p19의 강조처럼 고생대 시작 이후 규모가 가장 컸던 멸종 사건입니다.`
+        : `<span class="summary-highlight">중생대 말</span> 운석 충돌 이후 공룡과 암모나이트가 사라지고, 이후 포유류와 속씨식물의 확산으로 생물 다양성이 다시 커졌습니다.`;
+
+      dom.scenarioTabs.forEach((button) => {
+        const active = button.dataset.scenario === runtime.scenario;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+
+      setControllerEnabled(hypothesisController, runtime.scenario === 'permian');
+
+      if (syncGui) {
+        params.시나리오 = runtime.scenario;
+        params.대멸종가설 = runtime.hypothesis;
+        params.상태 = runtime.phase;
+        gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      }
+    }
+
+    function resizeRenderer() {
+      const width = Math.max(1, dom.scenePanel.clientWidth);
+      const height = Math.max(1, dom.scenePanel.clientHeight);
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    function resizeGraphCanvas() {
+      const dpr = Math.min(window.devicePixelRatio, 2);
+      const width = Math.max(1, dom.graphPanel.clientWidth);
+      const height = Math.max(1, dom.graphPanel.clientHeight);
+      dom.graphCanvas.width = Math.round(width * dpr);
+      dom.graphCanvas.height = Math.round(height * dpr);
+      dom.graphCanvas.style.width = `${width}px`;
+      dom.graphCanvas.style.height = `${height}px`;
+      graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawGraph();
+    }
+
+    function drawArrow(x, y, color) {
+      graphCtx.strokeStyle = color;
+      graphCtx.fillStyle = color;
+      graphCtx.lineWidth = 1.5;
+      graphCtx.beginPath();
+      graphCtx.moveTo(x, y - 20);
+      graphCtx.lineTo(x, y);
+      graphCtx.stroke();
+      graphCtx.beginPath();
+      graphCtx.moveTo(x, y);
+      graphCtx.lineTo(x - 5, y - 8);
+      graphCtx.lineTo(x + 5, y - 8);
+      graphCtx.closePath();
+      graphCtx.fill();
+    }
+
+    function drawGraph() {
+      const width = dom.graphCanvas.clientWidth;
+      const height = dom.graphCanvas.clientHeight;
+      if (!width || !height) return;
+
+      graphCtx.clearRect(0, 0, width, height);
+      graphCtx.fillStyle = '#05101d';
+      graphCtx.fillRect(0, 0, width, height);
+
+      const margin = { top: 140, right: 24, bottom: 56, left: 58 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+
+      const xForAge = (age) => margin.left + ((539 - age) / 539) * plotWidth;
+      const yForFamilies = (families) => margin.top + (1 - families / 900) * plotHeight;
+
+      const eras = [
+        { start: 539, end: 252, label: '고생대', color: 'rgba(88, 156, 224, 0.10)' },
+        { start: 252, end: 66, label: '중생대', color: 'rgba(255, 189, 88, 0.09)' },
+        { start: 66, end: 0, label: '신생대', color: 'rgba(114, 219, 149, 0.08)' }
+      ];
+
+      eras.forEach((era) => {
+        const x1 = xForAge(era.start);
+        const x2 = xForAge(era.end);
+        graphCtx.fillStyle = era.color;
+        graphCtx.fillRect(x1, margin.top, x2 - x1, plotHeight);
+        graphCtx.fillStyle = 'rgba(255,255,255,0.82)';
+        graphCtx.font = '600 12px Pretendard, SUIT, sans-serif';
+        graphCtx.fillText(era.label, x1 + 8, margin.top + 18);
+      });
+
+      graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      graphCtx.lineWidth = 1;
+      for (let y = 0; y <= 900; y += 100) {
+        const yPos = yForFamilies(y);
+        graphCtx.beginPath();
+        graphCtx.moveTo(margin.left, yPos);
+        graphCtx.lineTo(width - margin.right, yPos);
+        graphCtx.stroke();
+      }
+
+      [539, 450, 350, 252, 200, 100, 66, 0].forEach((age) => {
+        const x = xForAge(age);
+        graphCtx.beginPath();
+        graphCtx.moveTo(x, margin.top);
+        graphCtx.lineTo(x, height - margin.bottom);
+        graphCtx.stroke();
+      });
+
+      const gradient = graphCtx.createLinearGradient(margin.left, margin.top, margin.left, margin.top + plotHeight);
+      gradient.addColorStop(0, '#ffe7b0');
+      gradient.addColorStop(0.55, '#ffd37c');
+      gradient.addColorStop(1, '#ff8b5f');
+
+      graphCtx.strokeStyle = gradient;
+      graphCtx.lineWidth = 3.6;
+      graphCtx.beginPath();
+      GRAPH_SERIES.forEach((point, index) => {
+        const x = xForAge(point.age);
+        const y = yForFamilies(point.families);
+        if (index === 0) graphCtx.moveTo(x, y);
+        else graphCtx.lineTo(x, y);
+      });
+      graphCtx.stroke();
+
+      graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+      GRAPH_SERIES.forEach((point) => {
+        const x = xForAge(point.age);
+        const y = yForFamilies(point.families);
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, point.age === 252 || point.age === 66 ? 3.6 : 2.4, 0, Math.PI * 2);
+        graphCtx.fill();
+      });
+
+      MASS_EXTINCTION_POINTS.forEach((event) => {
+        const selected = event.key === runtime.scenario;
+        const color = selected ? '#ff5f52' : 'rgba(255, 255, 255, 0.48)';
+        const x = xForAge(event.age);
+        const y = yForFamilies(event.families);
+
+        drawArrow(x, y - 12, color);
+
+        graphCtx.strokeStyle = color;
+        graphCtx.lineWidth = selected ? 2.4 : 1.3;
+        graphCtx.beginPath();
+        graphCtx.moveTo(x, margin.top);
+        graphCtx.lineTo(x, height - margin.bottom);
+        graphCtx.stroke();
+
+        graphCtx.fillStyle = color;
+        graphCtx.font = selected ? '700 12px Pretendard, SUIT, sans-serif' : '500 11px Pretendard, SUIT, sans-serif';
+        graphCtx.textAlign = 'center';
+        graphCtx.fillText('↓ 대멸종 시기', x, y - 42);
+        graphCtx.fillText(event.label, x, y - 28);
+
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, selected ? 6.4 : 4.8, 0, Math.PI * 2);
+        graphCtx.stroke();
+      });
+
+      const permianX = xForAge(252);
+      const permianY = yForFamilies(70);
+      graphCtx.fillStyle = 'rgba(255, 214, 146, 0.98)';
+      graphCtx.font = '600 11px Pretendard, SUIT, sans-serif';
+      graphCtx.textAlign = 'left';
+      graphCtx.fillText('고생대 시작 이후 가장 큰 규모의 대멸종', permianX + 10, permianY + 18);
+
+      graphCtx.strokeStyle = 'rgba(255,255,255,0.82)';
+      graphCtx.lineWidth = 1.5;
+      graphCtx.beginPath();
+      graphCtx.moveTo(margin.left, margin.top);
+      graphCtx.lineTo(margin.left, margin.top + plotHeight);
+      graphCtx.lineTo(width - margin.right, margin.top + plotHeight);
+      graphCtx.stroke();
+
+      graphCtx.fillStyle = 'rgba(255,255,255,0.9)';
+      graphCtx.font = '600 12px Pretendard, SUIT, sans-serif';
+      graphCtx.textAlign = 'center';
+      graphCtx.fillText('시간 (억 년 전)', margin.left + plotWidth * 0.5, height - 16);
+      graphCtx.save();
+      graphCtx.translate(22, margin.top + plotHeight * 0.5);
+      graphCtx.rotate(-Math.PI * 0.5);
+      graphCtx.fillText('해양 생물 과의 수', 0, 0);
+      graphCtx.restore();
+
+      graphCtx.font = '500 10px Pretendard, SUIT, sans-serif';
+      graphCtx.fillStyle = 'rgba(255,255,255,0.72)';
+      graphCtx.textAlign = 'center';
+      [5.39, 4, 3, 2, 1, 0].forEach((tick) => {
+        const age = tick * 100;
+        const x = xForAge(tick === 5.39 ? 539 : age);
+        graphCtx.fillText(String(tick), x, height - margin.bottom + 18);
+      });
+
+      graphCtx.textAlign = 'right';
+      for (let y = 0; y <= 900; y += 100) {
+        graphCtx.fillText(String(y), margin.left - 8, yForFamilies(y) + 4);
+      }
+    }
+
+    const gui = new GUI({ title: '대멸종 제어', width: 300 });
+    const params = {
+      시나리오: runtime.scenario,
+      대멸종가설: runtime.hypothesis,
+      상태: runtime.phase,
+      자동재생: () => startAutoPlay(),
+      초기화: () => resetAll()
+    };
+
+    const scenarioController = gui.add(params, '시나리오', SCENARIO_OPTIONS).name('시나리오');
+    const hypothesisController = gui.add(params, '대멸종가설', HYPOTHESIS_OPTIONS).name('대멸종 가설');
+    const phaseController = gui.add(params, '상태', PHASE_OPTIONS).name('상태');
+    gui.add(params, '자동재생').name('▶ 자동 재생');
+    gui.add(params, '초기화').name('↩ 초기화');
+
+    scenarioController.onChange((value) => {
+      runtime.autoPlaying = false;
+      runtime.scenario = value;
+      rebuildWorld();
+    });
+
+    hypothesisController.onChange((value) => {
+      runtime.autoPlaying = false;
+      runtime.hypothesis = value;
+      rebuildWorld(false);
+      updateUi(true);
+    });
+
+    phaseController.onChange((value) => {
+      runtime.autoPlaying = false;
+      runtime.phase = value;
+      rebuildWorld();
+    });
+
+    function startAutoPlay() {
+      runtime.autoPlaying = true;
+      runtime.autoProgress = 0;
+      runtime.phase = 'before';
+      rebuildWorld();
+    }
+
+    function resetAll() {
+      runtime.autoPlaying = false;
+      runtime.autoProgress = 0;
+      runtime.scenario = 'permian';
+      runtime.hypothesis = 'impact';
+      runtime.phase = 'before';
+      camera.position.set(13, 8, 16);
+      controls.target.set(0, 1.2, 0);
+      controls.update();
+      rebuildWorld();
+    }
+
+    function updateAutoPlay(dt) {
+      if (!runtime.autoPlaying) return;
+      runtime.autoProgress += dt;
+      const stageIndex = Math.min(2, Math.floor(runtime.autoProgress / 5));
+      const nextPhase = ['before', 'during', 'after'][stageIndex];
+      if (nextPhase !== runtime.phase) {
+        runtime.phase = nextPhase;
+        rebuildWorld();
+      }
+      if (runtime.autoProgress >= 15) {
+        runtime.autoPlaying = false;
+      }
+    }
+
+    dom.guideToggle.addEventListener('click', () => {
+      const isHidden = dom.guidePanel.classList.toggle('hidden');
+      dom.guideToggle.textContent = isHidden ? '📖 학습 가이드 열기' : '📖 학습 가이드 닫기';
+    });
+
+    dom.scenarioTabs.forEach((button) => {
+      button.addEventListener('click', () => {
+        runtime.autoPlaying = false;
+        runtime.scenario = button.dataset.scenario;
+        rebuildWorld();
+      });
+    });
+
+    function handleResize() {
+      resizeRenderer();
+      resizeGraphCanvas();
+      if (window.innerWidth < 760) gui.close();
+    }
+
+    window.addEventListener('resize', handleResize);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      runtime.elapsed += dt;
+      updateAutoPlay(dt);
+
+      currentBackground.lerp(targetBackground, 0.03);
+      scene.fog.color.copy(currentBackground);
+
+      runtime.updateCallbacks.forEach((callback) => callback(dt, runtime.elapsed));
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    handleResize();
+    rebuildWorld();
+    animate();
+  </script>
+</body>
+</html>

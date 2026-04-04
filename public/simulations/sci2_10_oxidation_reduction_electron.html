@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>산화와 환원 - 전자의 이동 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --panel: rgba(11, 15, 31, 0.88);
+    --panel-strong: rgba(8, 11, 24, 0.95);
+    --stroke: rgba(255, 255, 255, 0.11);
+    --text-main: rgba(255, 255, 255, 0.95);
+    --text-soft: rgba(255, 255, 255, 0.72);
+    --text-faint: rgba(255, 255, 255, 0.5);
+    --accent-blue: #6dc7ff;
+    --accent-gold: #ffd66d;
+    --accent-copper: #d17b46;
+    --accent-green: #93f0be;
+    --accent-red: #ff8f76;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 18% 14%, rgba(68, 120, 255, 0.14), transparent 25%),
+      radial-gradient(circle at 84% 16%, rgba(255, 153, 96, 0.12), transparent 24%),
+      radial-gradient(circle at 50% 92%, rgba(50, 176, 180, 0.1), transparent 30%),
+      linear-gradient(180deg, #1b1b2f, #141425 56%, #10101b);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #main-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass-panel {
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(12, 16, 34, 0.92), rgba(8, 11, 24, 0.82));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+  }
+
+  #title-card {
+    position: fixed;
+    left: 16px;
+    top: 16px;
+    z-index: 12;
+    width: min(460px, calc(100vw - 32px));
+    padding: 18px 20px;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  #title-card h1 {
+    margin-top: 7px;
+    font-size: 31px;
+    line-height: 1.04;
+    letter-spacing: -0.05em;
+  }
+
+  #scene-subtitle {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-soft);
+  }
+
+  #meta-row {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  #reaction-badge {
+    position: fixed;
+    left: 50%;
+    top: 20px;
+    z-index: 13;
+    transform: translateX(-50%);
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 11, 24, 0.72);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(14px);
+    font-size: 13px;
+    font-weight: 700;
+    pointer-events: none;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    z-index: 16;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: rgba(9, 13, 28, 0.82);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(14px);
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  #guide-toggle:hover {
+    transform: translateY(-1px);
+    background: rgba(18, 25, 50, 0.94);
+  }
+
+  #guide-panel {
+    position: fixed;
+    right: 16px;
+    top: 58px;
+    z-index: 15;
+    width: min(390px, calc(100vw - 32px));
+    max-height: min(70vh, 760px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    color: #c3e5ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 14px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd99a;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 12;
+    width: min(390px, calc(100vw - 32px));
+    padding: 17px 18px;
+    font-size: 12px;
+    line-height: 1.74;
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: var(--accent-blue);
+  }
+
+  .divider {
+    margin: 10px 0 12px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.28), rgba(255,255,255,0));
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .formula-value {
+    flex: 1;
+  }
+
+  .equation-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .equation-title {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffe1a6;
+  }
+
+  .equation-line {
+    font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  #status-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 12;
+    width: min(360px, calc(100vw - 32px));
+    padding: 17px 18px;
+  }
+
+  #status-panel h3 {
+    font-size: 15px;
+    color: var(--accent-gold);
+  }
+
+  #status-body {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.74;
+    color: var(--text-soft);
+  }
+
+  #status-extra {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #view-badges {
+    position: fixed;
+    inset: 0;
+    z-index: 11;
+    pointer-events: none;
+  }
+
+  .view-badge {
+    position: absolute;
+    left: 18px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(8, 11, 24, 0.62);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  #macro-badge {
+    top: 88px;
+  }
+
+  #micro-badge {
+    top: 55%;
+  }
+
+  #center-note {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    z-index: 11;
+    transform: translateX(-50%);
+    min-width: min(480px, calc(100vw - 32px));
+    max-width: min(760px, calc(100vw - 32px));
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(8, 11, 24, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(14px);
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.84);
+    pointer-events: none;
+  }
+
+  .lil-gui.root {
+    z-index: 20 !important;
+    --background-color: rgba(8, 11, 24, 0.94);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(255, 255, 255, 0.18);
+    --text-color: #f6f8ff;
+    --number-color: #9dd6ff;
+    --string-color: #ffd492;
+  }
+
+  @media (max-width: 1100px) {
+    #reaction-badge {
+      top: auto;
+      bottom: 132px;
+    }
+
+    #formula-panel,
+    #status-panel {
+      width: min(360px, calc(50vw - 24px));
+    }
+  }
+
+  @media (max-width: 860px) {
+    #title-card {
+      width: calc(100vw - 32px);
+    }
+
+    #title-card h1 {
+      font-size: 27px;
+    }
+
+    #formula-panel,
+    #status-panel,
+    #guide-panel {
+      width: calc(100vw - 32px);
+    }
+
+    #formula-panel {
+      bottom: 180px;
+    }
+
+    #status-panel {
+      bottom: 16px;
+    }
+
+    #reaction-badge {
+      top: auto;
+      bottom: 350px;
+      width: calc(100vw - 32px);
+      min-width: 0;
+      text-align: center;
+    }
+
+    #center-note {
+      bottom: 106px;
+      border-radius: 20px;
+    }
+
+    #macro-badge {
+      top: 106px;
+    }
+
+    #micro-badge {
+      top: 58%;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-card,
+    #guide-toggle,
+    #guide-panel,
+    #formula-panel,
+    #status-panel {
+      left: 12px;
+      right: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #title-card {
+      top: 12px;
+      padding: 16px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 12px;
+      left: auto;
+      width: auto;
+    }
+
+    #guide-panel {
+      top: 12px;
+      max-height: 72vh;
+    }
+
+    #formula-panel {
+      bottom: 176px;
+    }
+
+    #status-panel {
+      bottom: 88px;
+    }
+
+    #reaction-badge {
+      left: 12px;
+      right: 12px;
+      top: auto;
+      bottom: 392px;
+      transform: none;
+      width: auto;
+      font-size: 12px;
+    }
+
+    #center-note {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      min-width: 0;
+      width: auto;
+      bottom: 52px;
+      border-radius: 18px;
+      font-size: 11px;
+    }
+
+    .view-badge {
+      left: 12px;
+    }
+
+    #macro-badge {
+      top: 98px;
+    }
+
+    #micro-badge {
+      top: 57%;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="main-canvas"></canvas>
+
+<div id="title-card" class="glass-panel">
+  <div class="eyebrow">통합과학2 · 변화와 다양성 · 산화와 환원</div>
+  <h1>산화와 환원</h1>
+  <p id="scene-subtitle">산소가 직접 관여하지 않아도, 전자를 잃고 얻는 과정으로 산화와 환원 반응을 설명할 수 있습니다.</p>
+  <div id="meta-row">
+    <div class="chip" id="reaction-chip">현재 반응 · 아연 + 황산구리(II)</div>
+    <div class="chip" id="view-chip">현재 보기 · 분할 뷰</div>
+  </div>
+</div>
+
+<div id="reaction-badge">Zn + Cu²⁺ → Zn²⁺ + Cu</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p id="guide-principle"></p>
+
+  <h4>탐구 질문</h4>
+  <ul id="guide-questions"></ul>
+
+  <h4>실생활 예시</h4>
+  <ul id="guide-examples"></ul>
+
+  <h4>교과서 연계</h4>
+  <div class="guide-ref" id="guide-reference"></div>
+</div>
+
+<div id="formula-panel" class="glass-panel">
+  <h3>⚡ 산화와 환원 — 전자의 이동</h3>
+  <div class="divider"></div>
+  <div class="formula-row"><span class="formula-label">현재 반응:</span><span class="formula-value" id="fp-reaction">아연 + 황산구리(II)</span></div>
+  <div class="formula-row"><span class="formula-label">반응식:</span><span class="formula-value" id="fp-equation">Zn + Cu²⁺ → Zn²⁺ + Cu</span></div>
+  <div class="formula-row"><span class="formula-label">산화 물질:</span><span class="formula-value" id="fp-oxidation">Zn (전자를 잃음)</span></div>
+  <div class="formula-row"><span class="formula-label">환원 물질:</span><span class="formula-value" id="fp-reduction">Cu²⁺ (전자를 얻음)</span></div>
+
+  <div class="equation-block">
+    <div class="equation-title">규칙</div>
+    <div class="equation-line">산화: 물질이 전자를 잃는 반응</div>
+    <div class="equation-line">환원: 물질이 전자를 얻는 반응</div>
+    <div class="equation-line">→ 산화와 환원은 항상 동시에 일어난다</div>
+  </div>
+
+  <div class="equation-block">
+    <div class="equation-title">산소의 이동과 전자의 이동</div>
+    <div class="equation-line">산화 = 산소를 얻음 = 전자를 잃음</div>
+    <div class="equation-line">환원 = 산소를 잃음 = 전자를 얻음</div>
+  </div>
+</div>
+
+<div id="status-panel" class="glass-panel">
+  <h3 id="status-title">반응 준비</h3>
+  <p id="status-body">반응 재생 버튼을 누르면 전자를 잃는 입자와 전자를 얻는 입자가 동시에 어떻게 바뀌는지 단계별로 볼 수 있습니다.</p>
+  <div id="status-extra">분할 뷰에서는 위쪽 실험 장치와 아래쪽 입자 확대가 함께 렌더링됩니다. 입자 확대 뷰에서 OrbitControls로 전자 이동 경로를 자세히 회전해 보세요.</div>
+</div>
+
+<div id="view-badges">
+  <div class="view-badge" id="macro-badge">실험 장치 뷰</div>
+  <div class="view-badge" id="micro-badge">입자 확대 뷰</div>
+</div>
+
+<div id="center-note">아연, 마그네슘, 구리 중 어떤 물질이 전자를 잃는지 비교하며 산화와 환원이 항상 동시에 일어나는지 확인해 보세요.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const canvas = document.getElementById('main-canvas');
+const titleEl = document.querySelector('#title-card h1');
+const subtitleEl = document.getElementById('scene-subtitle');
+const reactionBadgeEl = document.getElementById('reaction-badge');
+const reactionChipEl = document.getElementById('reaction-chip');
+const viewChipEl = document.getElementById('view-chip');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+const statusExtraEl = document.getElementById('status-extra');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const guidePrincipleEl = document.getElementById('guide-principle');
+const guideQuestionsEl = document.getElementById('guide-questions');
+const guideExamplesEl = document.getElementById('guide-examples');
+const guideReferenceEl = document.getElementById('guide-reference');
+const formulaReactionEl = document.getElementById('fp-reaction');
+const formulaEquationEl = document.getElementById('fp-equation');
+const formulaOxidationEl = document.getElementById('fp-oxidation');
+const formulaReductionEl = document.getElementById('fp-reduction');
+const centerNoteEl = document.getElementById('center-note');
+const macroBadgeEl = document.getElementById('macro-badge');
+const microBadgeEl = document.getElementById('micro-badge');
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const macroScene = new THREE.Scene();
+const microScene = new THREE.Scene();
+macroScene.fog = new THREE.Fog(0x1a1a2e, 10, 22);
+microScene.fog = new THREE.Fog(0x1a1a2e, 10, 26);
+
+const macroCamera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+macroCamera.position.set(4.5, 3.2, 6.8);
+const microCamera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+microCamera.position.set(0, 2.8, 8.4);
+
+const macroControls = new OrbitControls(macroCamera, canvas);
+macroControls.enableDamping = true;
+macroControls.enablePan = false;
+macroControls.target.set(0, 1.1, 0);
+
+const microControls = new OrbitControls(microCamera, canvas);
+microControls.enableDamping = true;
+microControls.enablePan = false;
+microControls.enabled = false;
+microControls.target.set(0, 0.8, 0);
+
+const ambientMacro = new THREE.AmbientLight(0xffffff, 0.3);
+const pointMacro = new THREE.PointLight(0xffffff, 1, 40, 2);
+pointMacro.position.set(4.2, 6.4, 5.8);
+pointMacro.castShadow = true;
+macroScene.add(ambientMacro, pointMacro);
+
+const ambientMicro = new THREE.AmbientLight(0xffffff, 0.34);
+const pointMicro = new THREE.PointLight(0xffffff, 1.05, 40, 2);
+pointMicro.position.set(2.5, 5.2, 6.5);
+microScene.add(ambientMicro, pointMicro);
+
+const macroBase = new THREE.Group();
+const microBase = new THREE.Group();
+macroScene.add(macroBase);
+microScene.add(microBase);
+
+const macroFloor = new THREE.Mesh(
+  new THREE.CircleGeometry(7.4, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0x121525,
+    roughness: 0.94,
+    metalness: 0.05
+  })
+);
+macroFloor.rotation.x = -Math.PI / 2;
+macroFloor.position.y = -1.02;
+macroFloor.receiveShadow = true;
+macroScene.add(macroFloor);
+
+const microPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 10),
+  new THREE.MeshBasicMaterial({
+    color: 0x15182a,
+    transparent: true,
+    opacity: 0.6
+  })
+);
+microPlane.position.set(0, 0.4, -3.2);
+microScene.add(microPlane);
+
+const clock = new THREE.Clock();
+const tempVec = new THREE.Vector3();
+
+const REACTIONS = {
+  zincCopper: {
+    key: 'zincCopper',
+    label: '아연 + 황산구리(II)',
+    equation: 'Zn + Cu²⁺ → Zn²⁺ + Cu',
+    oxidation: 'Zn (전자를 잃음)',
+    reduction: 'Cu²⁺ (전자를 얻음)',
+    subtitle: '아연판을 황산 구리(II) 수용액에 넣으면, Cu²⁺가 줄어들어 푸른색이 옅어지고 구리가 석출됩니다.',
+    principle: '산소가 관여하지 않아도 산화·환원 반응은 일어납니다. 아연은 전자 2개를 잃어 Zn²⁺가 되고, 구리 이온은 그 전자 2개를 받아 금속 구리가 됩니다.',
+    questions: [
+      '아연판을 황산 구리(II) 수용액에 넣었을 때 수용액의 푸른색이 옅어지는 까닭을 전자의 이동으로 설명해 보세요.',
+      '아연이 전자를 잃을 때, 구리 이온은 왜 반드시 전자를 얻게 될까요?',
+      '용액 속 Zn²⁺와 Cu²⁺의 양은 반응이 진행되며 어떻게 달라질까요?'
+    ],
+    examples: [
+      '건전지: 전자 이동을 이용해 화학 에너지를 전기 에너지로 바꿉니다.',
+      '도금: 금속 이온이 전자를 받아 표면에 석출됩니다.',
+      '금속 부식: 금속이 전자를 잃는 산화 반응입니다.'
+    ],
+    reference: '미래엔 통합과학2 I편 p42~45 — 전자의 이동에 의한 산화·환원 반응, 그림 I-23~24',
+    note: '용액 색의 변화는 Cu²⁺ 이온이 줄어드는 것을 뜻합니다.'
+  },
+  magnesiumCombustion: {
+    key: 'magnesiumCombustion',
+    label: '마그네슘 연소',
+    equation: '2Mg + O₂ → 2MgO',
+    oxidation: 'Mg (전자를 잃음)',
+    reduction: 'O₂ (전자를 얻음)',
+    subtitle: '마그네슘은 전자를 잃고 산소는 전자를 얻어 밝은 빛과 함께 산화 마그네슘이 만들어집니다.',
+    principle: '산소가 관여하는 반응도 결국 전자의 이동으로 설명할 수 있습니다. 마그네슘은 Mg²⁺가 되며, 산소는 전자를 받아 O²⁻가 되어 MgO를 형성합니다.',
+    questions: [
+      '마그네슘이 연소할 때 전자를 잃는 물질과 전자를 얻는 물질은 각각 무엇인가요?',
+      '산소가 관여하는 반응을 전자의 이동으로도 설명할 수 있다는 점은 무엇을 뜻하나요?',
+      '연소 후 남는 흰색 고체가 생성되는 과정을 입자 수준에서 설명해 보세요.'
+    ],
+    examples: [
+      '불꽃놀이의 밝은 흰색 빛은 마그네슘과 같은 금속의 산화 반응과 관련이 있습니다.',
+      '금속 산화물은 내열성 재료나 세라믹 소재로 활용됩니다.',
+      '연소와 전자 이동은 배터리, 연료 전지와도 연결됩니다.'
+    ],
+    reference: '미래엔 통합과학2 I편 p43 — 마그네슘의 연소와 전자의 이동',
+    note: '산소를 얻는 반응은 전자를 잃는 과정과 같은 의미로 연결할 수 있습니다.'
+  },
+  copperSilver: {
+    key: 'copperSilver',
+    label: '구리 + 질산 은',
+    equation: 'Cu + 2Ag⁺ → Cu²⁺ + 2Ag',
+    oxidation: 'Cu (전자를 잃음)',
+    reduction: 'Ag⁺ (전자를 얻음)',
+    subtitle: '구리는 전자 2개를 잃어 Cu²⁺가 되고, 두 개의 은 이온은 각각 전자 1개씩 받아 금속 은으로 석출됩니다.',
+    principle: '한 물질이 잃은 전자는 다른 물질이 받아야 하므로 산화와 환원은 항상 동시에 일어납니다. 이 반응에서는 구리가 산화되고 은 이온이 환원됩니다.',
+    questions: [
+      '구리와 질산 은 수용액이 만나면 수용액이 푸른색으로 변하는 까닭을 전자의 이동으로 설명해 보세요.',
+      '은 이온 두 개가 각각 전자 1개를 받는 이유는 무엇인가요?',
+      '구리 표면에 은이 석출되는 현상은 어떤 종류의 환원 반응인가요?'
+    ],
+    examples: [
+      '은 거울 반응과 도금에서는 금속 이온이 환원되어 표면에 붙습니다.',
+      '금속의 이온화 경향 차이는 치환 반응의 방향을 결정합니다.',
+      '수용액 색 변화는 생성된 금속 이온의 존재를 알려 주는 단서가 됩니다.'
+    ],
+    reference: '미래엔 통합과학2 I편 p43 — 구리와 질산 은 수용액의 반응',
+    note: 'Ag⁺는 무색에 가깝지만, 생성된 Cu²⁺ 때문에 용액이 푸르게 변합니다.'
+  }
+};
+
+const params = {
+  reaction: 'zincCopper',
+  viewMode: 'split',
+  showElectrons: true,
+  speed: 1,
+  playReaction: () => playReaction(),
+  resetReaction: () => resetReaction()
+};
+
+let currentReactionState = null;
+let progress = 0;
+let isPlaying = false;
+
+const viewModeOptions = {
+  '실험 장치 뷰': 'macro',
+  '입자 확대 뷰': 'micro',
+  '분할 뷰': 'split'
+};
+
+const reactionOptions = {
+  '아연+황산구리': 'zincCopper',
+  '마그네슘 연소': 'magnesiumCombustion',
+  '구리+질산은': 'copperSilver'
+};
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.style.display = guidePanelEl.style.display === 'block' ? 'none' : 'block';
+});
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function seg(progressValue, start, end) {
+  return clamp01((progressValue - start) / (end - start));
+}
+
+function ease(value) {
+  const t = clamp01(value);
+  return t * t * (3 - 2 * t);
+}
+
+function smoothPulse(time, speed, min, max) {
+  return THREE.MathUtils.lerp(min, max, 0.5 + 0.5 * Math.sin(time * speed));
+}
+
+function clearGroup(group) {
+  while (group.children.length) {
+    const child = group.children.pop();
+    disposeObject(child);
+  }
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach((item) => disposeMaterial(item));
+    return;
+  }
+  if (material.map) material.map.dispose();
+  if (material.alphaMap) material.alphaMap.dispose();
+  if (material.emissiveMap) material.emissiveMap.dispose();
+  material.dispose();
+}
+
+function disposeObject(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) disposeMaterial(child.material);
+  });
+  if (object.parent) object.parent.remove(object);
+}
+
+function createRoundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    width = 256,
+    height = 96,
+    textColor = '#ffffff',
+    fill = 'rgba(10, 15, 30, 0.7)',
+    stroke = 'rgba(255,255,255,0.18)',
+    fontSize = 42
+  } = options;
+
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = width;
+  canvasEl.height = height;
+  const ctx = canvasEl.getContext('2d');
+
+  createRoundedRect(ctx, 6, 6, width - 12, height - 12, 22);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${fontSize}px Pretendard, sans-serif`;
+  ctx.fillText(text, width / 2, height / 2);
+
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.45, 0.54, 1);
+  return sprite;
+}
+
+function createGlowSprite(color, size = 1.4, opacity = 0.9) {
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = 256;
+  canvasEl.height = 256;
+  const ctx = canvasEl.getContext('2d');
+  const gradient = ctx.createRadialGradient(128, 128, 10, 128, 128, 120);
+  gradient.addColorStop(0, `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, ${opacity})`);
+  gradient.addColorStop(0.38, `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, ${opacity * 0.34})`);
+  gradient.addColorStop(1, `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 0)`);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 256, 256);
+  const texture = new THREE.CanvasTexture(canvasEl);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(size, size, 1);
+  return sprite;
+}
+
+function createAtom(radius, color, labelText, labelOptions = {}) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.28,
+    roughness: 0.28,
+    emissive: new THREE.Color(color).multiplyScalar(0.08)
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 32), material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+
+  if (labelText) {
+    const label = createTextSprite(labelText, labelOptions);
+    label.position.set(0, radius + 0.42, 0);
+    group.add(label);
+  }
+
+  return { group, mesh };
+}
+
+function createDashedCurveLine(points, color) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const curvePoints = curve.getPoints(80);
+  const geometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.12,
+    gapSize: 0.08,
+    transparent: true,
+    opacity: 0.92
+  });
+  const line = new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return { curve, line };
+}
+
+function createLiquidCylinder(color, opacity = 0.78, height = 1.58, radius = 1.1) {
+  const material = new THREE.MeshPhysicalMaterial({
+    color,
+    transparent: true,
+    opacity,
+    transmission: 0.3,
+    roughness: 0.1,
+    metalness: 0,
+    thickness: 0.5
+  });
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, height, 48, 1, false),
+    material
+  );
+  mesh.position.y = -0.18;
+  return mesh;
+}
+
+function createBeakerGroup() {
+  const group = new THREE.Group();
+
+  const glass = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 1.2, 2, 48, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xe5f4ff,
+      transparent: true,
+      opacity: 0.4,
+      transmission: 0.85,
+      roughness: 0.05,
+      ior: 1.5,
+      side: THREE.DoubleSide
+    })
+  );
+  glass.castShadow = true;
+  group.add(glass);
+
+  const rimMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcfe8ff,
+    metalness: 0.55,
+    roughness: 0.18
+  });
+  const topRim = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.03, 12, 72), rimMaterial);
+  topRim.rotation.x = Math.PI / 2;
+  topRim.position.y = 1;
+  const bottomRim = topRim.clone();
+  bottomRim.position.y = -1;
+  group.add(topRim, bottomRim);
+
+  return group;
+}
+
+function createPlate(width, height, depth, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.84,
+      roughness: 0.24
+    })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createIonCloud(count, color, area, labelText = '') {
+  const group = new THREE.Group();
+  const meshes = [];
+  const geometry = new THREE.SphereGeometry(0.06, 14, 14);
+  for (let i = 0; i < count; i += 1) {
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color,
+        metalness: 0.12,
+        roughness: 0.35,
+        emissive: new THREE.Color(color).multiplyScalar(0.12)
+      })
+    );
+    const seed = i * 1.31;
+    mesh.position.set(
+      THREE.MathUtils.randFloatSpread(area.x),
+      THREE.MathUtils.randFloat(-0.7, 0.7),
+      THREE.MathUtils.randFloatSpread(area.z)
+    );
+    mesh.userData = {
+      base: mesh.position.clone(),
+      seed
+    };
+    group.add(mesh);
+    meshes.push(mesh);
+  }
+
+  if (labelText) {
+    const label = createTextSprite(labelText, {
+      width: 220,
+      height: 88,
+      fontSize: 34,
+      textColor: '#9fd8ff',
+      fill: 'rgba(12, 20, 38, 0.68)'
+    });
+    label.position.set(0, 1.36, 0);
+    label.scale.set(1.25, 0.5, 1);
+    group.add(label);
+  }
+
+  return { group, meshes };
+}
+
+function animateIonCloud(meshes, time, amplitude = 0.08) {
+  meshes.forEach((mesh, index) => {
+    const { base, seed } = mesh.userData;
+    mesh.position.x = base.x + Math.sin(time * 0.9 + seed) * amplitude;
+    mesh.position.y = base.y + Math.cos(time * 1.2 + seed * 0.7) * amplitude;
+    mesh.position.z = base.z + Math.sin(time * 1.05 + index * 0.4) * amplitude;
+  });
+}
+
+function createReactionShell() {
+  const shell = new THREE.Group();
+  const halo = createGlowSprite(new THREE.Color(0x66bbff), 5.8, 0.18);
+  halo.position.set(0, 1.25, -1.2);
+  shell.add(halo);
+  macroBase.add(shell);
+  return shell;
+}
+
+function buildZincCopperReaction() {
+  const shell = createReactionShell();
+
+  const beaker = createBeakerGroup();
+  shell.add(beaker);
+
+  const solution = createLiquidCylinder(0x2266bb, 0.78, 1.58, 1.11);
+  solution.position.y = -0.18;
+  shell.add(solution);
+
+  const solutionSurface = new THREE.Mesh(
+    new THREE.CircleGeometry(1.11, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x4c90e4,
+      transparent: true,
+      opacity: 0.28
+    })
+  );
+  solutionSurface.rotation.x = -Math.PI / 2;
+  solutionSurface.position.y = 0.62;
+  shell.add(solutionSurface);
+
+  const zincPlate = createPlate(0.1, 1.8, 0.86, 0xbbbbbb);
+  zincPlate.position.set(-0.24, 0.02, 0.05);
+  shell.add(zincPlate);
+
+  const copperDeposits = [];
+  const depositGeometry = new THREE.SphereGeometry(0.035, 16, 16);
+  for (let i = 0; i < 18; i += 1) {
+    const deposit = new THREE.Mesh(
+      depositGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xcc6633,
+        metalness: 0.75,
+        roughness: 0.28
+      })
+    );
+    deposit.position.set(
+      0.065,
+      THREE.MathUtils.randFloat(-0.78, 0.82),
+      THREE.MathUtils.randFloat(-0.34, 0.34)
+    );
+    deposit.scale.setScalar(0.001);
+    zincPlate.add(deposit);
+    copperDeposits.push(deposit);
+  }
+
+  const cuCloud = createIonCloud(16, 0x3b88d6, { x: 1.65, z: 1.4 }, 'Cu²⁺');
+  cuCloud.group.position.set(0.22, 0.12, 0);
+  shell.add(cuCloud.group);
+
+  const sulfateCloud = createIonCloud(8, 0x88c4ff, { x: 1.6, z: 1.3 });
+  sulfateCloud.group.position.set(-0.05, -0.1, 0);
+  shell.add(sulfateCloud.group);
+
+  const microRoot = new THREE.Group();
+  microBase.add(microRoot);
+
+  const plateFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(3.4, 0.18, 2.3),
+    new THREE.MeshStandardMaterial({
+      color: 0x4a5160,
+      metalness: 0.4,
+      roughness: 0.62
+    })
+  );
+  plateFrame.position.set(-2.1, -0.85, 0);
+  plateFrame.rotation.z = 0.08;
+  microRoot.add(plateFrame);
+
+  const latticeAtoms = [];
+  for (let row = 0; row < 3; row += 1) {
+    for (let col = 0; col < 3; col += 1) {
+      const atom = createAtom(0.2, 0xbbbbbb, row === 1 && col === 1 ? 'Zn' : '', {
+        width: 180,
+        height: 80,
+        fontSize: 32
+      });
+      atom.group.position.set(-3 + col * 0.7, row * 0.62 - 0.2, (col % 2) * 0.18 - 0.18);
+      microRoot.add(atom.group);
+      latticeAtoms.push(atom);
+    }
+  }
+
+  const sourceAtom = latticeAtoms[4];
+  const zincIon = createAtom(0.19, 0xbbccdd, 'Zn²⁺', {
+    width: 200,
+    height: 88,
+    textColor: '#ccefff',
+    fill: 'rgba(11, 18, 32, 0.7)'
+  });
+  zincIon.group.visible = false;
+  zincIon.group.position.copy(sourceAtom.group.position);
+  microRoot.add(zincIon.group);
+
+  const copperIon = createAtom(0.18, 0x3388cc, 'Cu²⁺', {
+    width: 200,
+    height: 88,
+    textColor: '#89d2ff',
+    fill: 'rgba(11, 18, 32, 0.7)'
+  });
+  copperIon.group.position.set(1.95, 0.72, 0);
+  microRoot.add(copperIon.group);
+
+  const copperProduct = createAtom(0.19, 0xcc6633, 'Cu', {
+    width: 160,
+    height: 80,
+    textColor: '#ffd0aa',
+    fill: 'rgba(20, 12, 8, 0.74)'
+  });
+  copperProduct.group.visible = false;
+  copperProduct.group.position.copy(copperIon.group.position);
+  microRoot.add(copperProduct.group);
+
+  const backgroundIons = [];
+  for (let i = 0; i < 6; i += 1) {
+    const ion = createAtom(0.14, 0x3388cc, '', {});
+    ion.group.position.set(0.9 + (i % 3) * 0.72, -0.2 + Math.floor(i / 3) * 0.72, THREE.MathUtils.randFloatSpread(0.4));
+    microRoot.add(ion.group);
+    backgroundIons.push(ion.group);
+  }
+
+  const electronColor = 0xffff00;
+  const electronMaterials = [];
+  const electronPaths = [];
+  const electrons = [];
+  const electronStarts = [
+    new THREE.Vector3(-2.25, 0.9, 0.18),
+    new THREE.Vector3(-2.12, 0.38, -0.18)
+  ];
+  const electronEnd = copperIon.group.position.clone().add(new THREE.Vector3(-0.08, 0, 0));
+  electronStarts.forEach((start, index) => {
+    const mid1 = start.clone().lerp(electronEnd, 0.35).add(new THREE.Vector3(0.2, 0.65 - index * 0.3, 0));
+    const mid2 = start.clone().lerp(electronEnd, 0.7).add(new THREE.Vector3(-0.1, 0.38 - index * 0.22, 0));
+    const path = createDashedCurveLine([start, mid1, mid2, electronEnd], electronColor);
+    microRoot.add(path.line);
+    electronPaths.push(path);
+    const electron = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: electronColor,
+        emissive: 0xffe54f,
+        emissiveIntensity: 1
+      })
+    );
+    electron.visible = false;
+    microRoot.add(electron);
+    electrons.push(electron);
+    electronMaterials.push(electron.material);
+  });
+
+  const oxidationTag = createTextSprite('산화', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#ffb08e',
+    fill: 'rgba(30, 12, 10, 0.74)'
+  });
+  oxidationTag.position.set(-2.2, 2, 0);
+  microRoot.add(oxidationTag);
+
+  const reductionTag = createTextSprite('환원', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#8be2ff',
+    fill: 'rgba(8, 18, 30, 0.74)'
+  });
+  reductionTag.position.set(1.95, 2, 0);
+  microRoot.add(reductionTag);
+
+  function update(stateProgress, elapsed) {
+    const colorStart = new THREE.Color(0x2266bb);
+    const colorEnd = new THREE.Color(0x88bbcc);
+    solution.material.color.copy(colorStart).lerp(colorEnd, stateProgress);
+    solutionSurface.material.color.copy(new THREE.Color(0x4c90e4).lerp(new THREE.Color(0x9ecad6), stateProgress));
+    solutionSurface.material.opacity = THREE.MathUtils.lerp(0.28, 0.22, stateProgress);
+
+    animateIonCloud(cuCloud.meshes, elapsed, 0.065);
+    animateIonCloud(sulfateCloud.meshes, elapsed + 0.3, 0.05);
+
+    copperDeposits.forEach((deposit, index) => {
+      const local = clamp01((stateProgress - index * 0.035) / 0.32);
+      deposit.scale.setScalar(THREE.MathUtils.lerp(0.001, 1, ease(local)));
+    });
+
+    const dissolve = ease(seg(stateProgress, 0.55, 0.92));
+    cuCloud.meshes.forEach((mesh, index) => {
+      mesh.scale.setScalar(THREE.MathUtils.lerp(1, 0.45, stateProgress * 0.72 + index * 0.01));
+    });
+
+    const detach = ease(seg(stateProgress, 0.55, 0.76));
+    const transfer = ease(seg(stateProgress, 0.18, 0.56));
+    const deposit = ease(seg(stateProgress, 0.64, 0.92));
+
+    electrons.forEach((electron, index) => {
+      const spawn = seg(stateProgress, 0.06 + index * 0.02, 0.14 + index * 0.02);
+      const move = seg(stateProgress, 0.16 + index * 0.02, 0.56 + index * 0.03);
+      const alive = spawn > 0 && move < 1.02;
+      electron.visible = alive;
+      if (alive) {
+        const t = ease(move);
+        electron.position.copy(electronPaths[index].curve.getPoint(t));
+        electron.scale.setScalar(THREE.MathUtils.lerp(0.6, 1.1, spawn));
+      }
+      electronPaths[index].line.visible = params.showElectrons;
+    });
+
+    sourceAtom.mesh.material.color.copy(new THREE.Color(0xbbbbbb).lerp(new THREE.Color(0x84909f), detach * 0.7));
+    sourceAtom.group.position.set(-2.3 + detach * 0.15, 0.42 - detach * 0.22, 0);
+    sourceAtom.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.82, detach));
+
+    zincIon.group.visible = detach > 0.02;
+    zincIon.group.position.set(-2.05 + detach * 0.78, 0.22 - detach * 0.55, 0.05);
+    zincIon.group.scale.setScalar(THREE.MathUtils.lerp(0.78, 1, detach));
+
+    copperIon.group.position.set(1.95 - deposit * 2.85, 0.72 - deposit * 0.5, 0);
+    copperIon.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.72, deposit));
+    copperIon.mesh.material.color.copy(new THREE.Color(0x3388cc).lerp(new THREE.Color(0x67b6dc), 1 - transfer * 0.4));
+
+    copperProduct.group.visible = deposit > 0.02;
+    copperProduct.group.position.set(1.95 - deposit * 2.98, 0.72 - deposit * 0.54, 0);
+    copperProduct.group.scale.setScalar(THREE.MathUtils.lerp(0.64, 1, deposit));
+
+    backgroundIons.forEach((group, index) => {
+      group.position.y += Math.sin(elapsed * 1.1 + index) * 0.0018;
+      group.position.x += Math.cos(elapsed * 0.9 + index) * 0.0015;
+    });
+
+    return {
+      title: stateProgress >= 1 ? '반응 완료' : stateProgress > 0 ? '전자 이동 진행 중' : '반응 준비',
+      body: stateProgress > 0.65
+        ? 'Zn은 Zn²⁺가 되어 용액으로 이동하고, Cu²⁺는 전자 2개를 받아 금속 구리로 석출됩니다.'
+        : stateProgress > 0.18
+          ? '아연 원자에서 나온 전자 2개가 구리 이온으로 이동하고 있습니다.'
+          : '아연판 표면의 구리 석출과 용액의 색 변화가 함께 시작됩니다.'
+    };
+  }
+
+  return { update, dispose: () => { disposeObject(shell); disposeObject(microRoot); } };
+}
+
+function buildMagnesiumReaction() {
+  const shell = createReactionShell();
+  const baseDish = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.75, 1.85, 0.18, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0xb8bcc9,
+      roughness: 0.72,
+      metalness: 0.18
+    })
+  );
+  baseDish.position.y = -0.86;
+  baseDish.receiveShadow = true;
+  shell.add(baseDish);
+
+  const ribbon = new THREE.Mesh(
+    new THREE.BoxGeometry(2.7, 0.07, 0.18),
+    new THREE.MeshStandardMaterial({
+      color: 0xcfd5dc,
+      metalness: 0.82,
+      roughness: 0.24
+    })
+  );
+  ribbon.position.set(0, -0.52, 0);
+  ribbon.castShadow = true;
+  shell.add(ribbon);
+
+  const flameCore = new THREE.Mesh(
+    new THREE.ConeGeometry(0.22, 1.1, 20),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.82
+    })
+  );
+  flameCore.position.set(0, 0.05, 0);
+  shell.add(flameCore);
+
+  const flameGlow = createGlowSprite(new THREE.Color(0xfff0b3), 2.6, 0.55);
+  flameGlow.position.set(0, 0.22, 0);
+  shell.add(flameGlow);
+
+  const ashPieces = [];
+  const ashGeometry = new THREE.SphereGeometry(0.08, 14, 14);
+  for (let i = 0; i < 22; i += 1) {
+    const ash = new THREE.Mesh(
+      ashGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xf6f3e8,
+        roughness: 0.86,
+        metalness: 0.02
+      })
+    );
+    ash.position.set(
+      THREE.MathUtils.randFloatSpread(1.8),
+      -0.5 + THREE.MathUtils.randFloat(-0.02, 0.06),
+      THREE.MathUtils.randFloatSpread(0.34)
+    );
+    ash.scale.setScalar(0.001);
+    shell.add(ash);
+    ashPieces.push(ash);
+  }
+
+  const oxygenMolecules = [];
+  for (let i = 0; i < 4; i += 1) {
+    const group = new THREE.Group();
+    const atomA = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xff4d4d,
+        roughness: 0.32,
+        emissive: 0x771414,
+        emissiveIntensity: 0.42
+      })
+    );
+    const atomB = atomA.clone();
+    atomA.position.x = -0.14;
+    atomB.position.x = 0.14;
+    const bond = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.28, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0xffc7c7,
+        metalness: 0.1,
+        roughness: 0.4
+      })
+    );
+    bond.rotation.z = Math.PI / 2;
+    group.add(atomA, atomB, bond);
+    group.position.set(-1.2 + i * 0.8, 0.7 + (i % 2) * 0.38, THREE.MathUtils.randFloatSpread(0.9));
+    group.userData = { base: group.position.clone(), seed: i * 0.73 };
+    shell.add(group);
+    oxygenMolecules.push(group);
+  }
+
+  const microRoot = new THREE.Group();
+  microBase.add(microRoot);
+
+  const mgAtoms = [];
+  [-2.25, -1.2].forEach((x, index) => {
+    const atom = createAtom(0.22, 0xc7c9d3, `Mg${index === 0 ? '' : ''}`, {
+      width: 170,
+      height: 80,
+      fontSize: 32
+    });
+    atom.group.position.set(x, 0.2 + index * 0.65, 0);
+    microRoot.add(atom.group);
+    mgAtoms.push(atom);
+  });
+
+  const mgIons = mgAtoms.map((atom, index) => {
+    const ion = createAtom(0.2, 0xaeb7ca, 'Mg²⁺', {
+      width: 200,
+      height: 88,
+      textColor: '#f0f4ff',
+      fill: 'rgba(12, 18, 30, 0.7)'
+    });
+    ion.group.visible = false;
+    ion.group.position.copy(atom.group.position);
+    ion.group.position.y -= 0.08 * index;
+    microRoot.add(ion.group);
+    return ion;
+  });
+
+  const oAtoms = [];
+  [-0.06, 0.44].forEach((y, index) => {
+    const atom = createAtom(0.18, 0xff4444, index === 0 ? 'O₂' : '', {
+      width: 170,
+      height: 80,
+      fontSize: 32,
+      textColor: '#ffd5d5',
+      fill: 'rgba(32, 10, 10, 0.74)'
+    });
+    atom.group.position.set(2.2, y, index === 0 ? -0.16 : 0.16);
+    microRoot.add(atom.group);
+    oAtoms.push(atom);
+  });
+
+  const oIons = oAtoms.map((atom) => {
+    const ion = createAtom(0.18, 0xff7b7b, 'O²⁻', {
+      width: 190,
+      height: 88,
+      fontSize: 34,
+      textColor: '#ffd8d8',
+      fill: 'rgba(38, 10, 10, 0.74)'
+    });
+    ion.group.visible = false;
+    ion.group.position.copy(atom.group.position);
+    microRoot.add(ion.group);
+    return ion;
+  });
+
+  const productCluster = new THREE.Group();
+  productCluster.visible = false;
+  const productPositions = [
+    [-0.4, 0.55, -0.12, 0xf2f2f2, 'MgO'],
+    [0.08, 0.1, 0.12, 0xffb8b8, ''],
+    [0.56, 0.55, 0.08, 0xf2f2f2, ''],
+    [1.02, 0.1, -0.08, 0xffb8b8, '']
+  ];
+  productPositions.forEach(([x, y, z, color, label], index) => {
+    const atom = createAtom(index % 2 === 0 ? 0.19 : 0.17, color, label, {
+      width: 180,
+      height: 80,
+      fontSize: 34,
+      textColor: index % 2 === 0 ? '#fff4d8' : '#ffd8d8',
+      fill: 'rgba(12, 18, 30, 0.72)'
+    });
+    atom.group.position.set(x, y, z);
+    productCluster.add(atom.group);
+  });
+  microRoot.add(productCluster);
+
+  const electronSpecs = [
+    { start: mgAtoms[0].group.position.clone().add(new THREE.Vector3(0.1, 0.16, 0)), end: oAtoms[0].group.position.clone().add(new THREE.Vector3(-0.12, 0.02, 0)) },
+    { start: mgAtoms[0].group.position.clone().add(new THREE.Vector3(0.06, -0.12, 0)), end: oAtoms[0].group.position.clone().add(new THREE.Vector3(0.08, -0.04, 0)) },
+    { start: mgAtoms[1].group.position.clone().add(new THREE.Vector3(0.1, 0.16, 0)), end: oAtoms[1].group.position.clone().add(new THREE.Vector3(-0.12, 0.02, 0)) },
+    { start: mgAtoms[1].group.position.clone().add(new THREE.Vector3(0.06, -0.12, 0)), end: oAtoms[1].group.position.clone().add(new THREE.Vector3(0.08, -0.04, 0)) }
+  ];
+
+  const electronPaths = [];
+  const electrons = [];
+  electronSpecs.forEach((spec, index) => {
+    const points = [
+      spec.start,
+      spec.start.clone().lerp(spec.end, 0.3).add(new THREE.Vector3(0.1, 0.75 - index * 0.12, 0)),
+      spec.start.clone().lerp(spec.end, 0.7).add(new THREE.Vector3(-0.12, 0.42 - index * 0.08, 0)),
+      spec.end
+    ];
+    const path = createDashedCurveLine(points, 0xffeb3b);
+    microRoot.add(path.line);
+    electronPaths.push(path);
+    const electron = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff06a,
+        emissive: 0xffe54f,
+        emissiveIntensity: 1
+      })
+    );
+    electron.visible = false;
+    microRoot.add(electron);
+    electrons.push(electron);
+  });
+
+  const oxidationTag = createTextSprite('산화', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#ffcb9d',
+    fill: 'rgba(30, 12, 10, 0.74)'
+  });
+  oxidationTag.position.set(-1.8, 2, 0);
+  microRoot.add(oxidationTag);
+
+  const reductionTag = createTextSprite('환원', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#ffdddd',
+    fill: 'rgba(42, 8, 8, 0.74)'
+  });
+  reductionTag.position.set(2.2, 2, 0);
+  microRoot.add(reductionTag);
+
+  function update(stateProgress, elapsed) {
+    const burn = ease(seg(stateProgress, 0.12, 0.6));
+    const combine = ease(seg(stateProgress, 0.58, 0.92));
+
+    ribbon.material.color.copy(new THREE.Color(0xcfd5dc).lerp(new THREE.Color(0xf7f3dd), burn));
+    ribbon.material.emissive.copy(new THREE.Color(0xfff7d6).multiplyScalar(0.22 + burn * 0.85));
+    ribbon.scale.x = THREE.MathUtils.lerp(1, 0.84, combine);
+
+    flameCore.visible = stateProgress > 0.04 && stateProgress < 0.92;
+    flameGlow.visible = flameCore.visible;
+    flameCore.scale.set(
+      smoothPulse(elapsed, 10, 0.85, 1.15),
+      THREE.MathUtils.lerp(0.4, 1.15, burn),
+      smoothPulse(elapsed + 0.3, 8.5, 0.8, 1.1)
+    );
+    flameGlow.scale.setScalar(THREE.MathUtils.lerp(1.4, 2.8, burn) * smoothPulse(elapsed, 6, 0.95, 1.06));
+    flameGlow.material.opacity = THREE.MathUtils.lerp(0.08, 0.62, burn);
+
+    ashPieces.forEach((ash, index) => {
+      const local = clamp01((stateProgress - 0.45 - index * 0.015) / 0.24);
+      ash.scale.setScalar(THREE.MathUtils.lerp(0.001, 1, ease(local)));
+    });
+
+    oxygenMolecules.forEach((group, index) => {
+      const { base, seed } = group.userData;
+      group.position.x = THREE.MathUtils.lerp(base.x, -0.2 + index * 0.12, burn);
+      group.position.y = base.y + Math.sin(elapsed * 1.2 + seed) * 0.09;
+      group.rotation.z += 0.012;
+      group.scale.setScalar(THREE.MathUtils.lerp(1, 0.4, combine));
+      group.visible = combine < 0.94;
+    });
+
+    electrons.forEach((electron, index) => {
+      const move = ease(seg(stateProgress, 0.18 + index * 0.03, 0.56 + index * 0.04));
+      electron.visible = move > 0 && move < 1;
+      if (electron.visible) {
+        electron.position.copy(electronPaths[index].curve.getPoint(move));
+      }
+      electronPaths[index].line.visible = params.showElectrons;
+    });
+
+    mgAtoms.forEach((atom, index) => {
+      const fade = ease(seg(stateProgress, 0.42 + index * 0.04, 0.7 + index * 0.05));
+      atom.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.76, fade));
+      atom.mesh.material.color.copy(new THREE.Color(0xc7c9d3).lerp(new THREE.Color(0x8d96ac), fade));
+      mgIons[index].group.visible = fade > 0.02;
+      mgIons[index].group.position.copy(atom.group.position).add(new THREE.Vector3(0.55 + combine * 0.5, -0.18, 0));
+    });
+
+    oAtoms.forEach((atom, index) => {
+      const gain = ease(seg(stateProgress, 0.38 + index * 0.05, 0.66 + index * 0.06));
+      atom.group.position.x = THREE.MathUtils.lerp(2.2, 1.6 - index * 0.18, gain);
+      atom.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.72, gain));
+      oIons[index].group.visible = gain > 0.02;
+      oIons[index].group.position.copy(atom.group.position).add(new THREE.Vector3(-0.18 - combine * 0.4, -0.12, 0));
+    });
+
+    productCluster.visible = combine > 0.02;
+    productCluster.position.set(-0.2 + combine * 0.3, -0.1 + combine * 0.08, 0);
+    productCluster.scale.setScalar(THREE.MathUtils.lerp(0.5, 1, combine));
+    productCluster.rotation.y = elapsed * 0.25;
+
+    return {
+      title: stateProgress >= 1 ? '반응 완료' : stateProgress > 0 ? '연소 반응 진행 중' : '반응 준비',
+      body: stateProgress > 0.62
+        ? 'Mg은 전자를 잃어 Mg²⁺가 되고, O₂는 전자를 받아 O²⁻가 되어 MgO 고체를 이룹니다.'
+        : stateProgress > 0.18
+          ? '마그네슘 원자 두 개에서 나온 전자 4개가 산소 분자로 이동하고 있습니다.'
+          : '산소 이동으로 설명하던 연소 반응을 전자 이동으로 다시 읽어 보는 장면입니다.'
+    };
+  }
+
+  return { update, dispose: () => { disposeObject(shell); disposeObject(microRoot); } };
+}
+
+function buildCopperSilverReaction() {
+  const shell = createReactionShell();
+
+  const beaker = createBeakerGroup();
+  shell.add(beaker);
+
+  const solution = createLiquidCylinder(0xdbe7fb, 0.58, 1.58, 1.11);
+  shell.add(solution);
+
+  const solutionSurface = new THREE.Mesh(
+    new THREE.CircleGeometry(1.11, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xe8f3ff,
+      transparent: true,
+      opacity: 0.3
+    })
+  );
+  solutionSurface.rotation.x = -Math.PI / 2;
+  solutionSurface.position.y = 0.62;
+  shell.add(solutionSurface);
+
+  const copperPlate = createPlate(0.12, 1.82, 0.88, 0xcc6633);
+  copperPlate.position.set(-0.2, 0, 0.03);
+  shell.add(copperPlate);
+
+  const silverDeposits = [];
+  const silverGeometry = new THREE.SphereGeometry(0.038, 16, 16);
+  for (let i = 0; i < 20; i += 1) {
+    const deposit = new THREE.Mesh(
+      silverGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xe4edf5,
+        metalness: 0.88,
+        roughness: 0.18
+      })
+    );
+    deposit.position.set(
+      0.075,
+      THREE.MathUtils.randFloat(-0.78, 0.82),
+      THREE.MathUtils.randFloat(-0.34, 0.34)
+    );
+    deposit.scale.setScalar(0.001);
+    copperPlate.add(deposit);
+    silverDeposits.push(deposit);
+  }
+
+  const silverCloud = createIonCloud(14, 0xf3f7ff, { x: 1.65, z: 1.35 }, 'Ag⁺');
+  silverCloud.group.position.set(0.2, 0.12, 0);
+  shell.add(silverCloud.group);
+
+  const nitrateCloud = createIonCloud(8, 0xb5d1ff, { x: 1.5, z: 1.25 });
+  nitrateCloud.group.position.set(-0.02, -0.12, 0);
+  shell.add(nitrateCloud.group);
+
+  const microRoot = new THREE.Group();
+  microBase.add(microRoot);
+
+  const copperSurface = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 0.18, 2.2),
+    new THREE.MeshStandardMaterial({
+      color: 0xcc6633,
+      metalness: 0.75,
+      roughness: 0.28
+    })
+  );
+  copperSurface.position.set(-2.05, -0.84, 0);
+  copperSurface.rotation.z = 0.06;
+  microRoot.add(copperSurface);
+
+  const copperAtom = createAtom(0.22, 0xcc6633, 'Cu', {
+    width: 150,
+    height: 80,
+    fontSize: 34,
+    textColor: '#ffd9bc',
+    fill: 'rgba(34, 16, 10, 0.74)'
+  });
+  copperAtom.group.position.set(-2.28, 0.46, 0);
+  microRoot.add(copperAtom.group);
+
+  const copperIon = createAtom(0.19, 0x7eb6ff, 'Cu²⁺', {
+    width: 200,
+    height: 88,
+    textColor: '#d7ebff',
+    fill: 'rgba(11, 18, 32, 0.74)'
+  });
+  copperIon.group.visible = false;
+  copperIon.group.position.copy(copperAtom.group.position);
+  microRoot.add(copperIon.group);
+
+  const silverIons = [];
+  const silverAtoms = [];
+  [0.88, -0.04].forEach((y, index) => {
+    const ion = createAtom(0.17, 0xf2f6ff, 'Ag⁺', {
+      width: 180,
+      height: 82,
+      fontSize: 34,
+      textColor: '#ffffff',
+      fill: 'rgba(20, 22, 30, 0.74)'
+    });
+    ion.group.position.set(2.05, y, index === 0 ? -0.16 : 0.16);
+    microRoot.add(ion.group);
+    silverIons.push(ion);
+
+    const atom = createAtom(0.17, 0xf2f6ff, 'Ag', {
+      width: 160,
+      height: 80,
+      fontSize: 34,
+      textColor: '#ffffff',
+      fill: 'rgba(20, 22, 30, 0.74)'
+    });
+    atom.group.visible = false;
+    atom.group.position.copy(ion.group.position);
+    microRoot.add(atom.group);
+    silverAtoms.push(atom);
+  });
+
+  const electronPaths = [];
+  const electrons = [];
+  [
+    { start: copperAtom.group.position.clone().add(new THREE.Vector3(0.12, 0.12, 0)), end: silverIons[0].group.position.clone().add(new THREE.Vector3(-0.08, 0, 0)) },
+    { start: copperAtom.group.position.clone().add(new THREE.Vector3(0.12, -0.12, 0)), end: silverIons[1].group.position.clone().add(new THREE.Vector3(-0.08, 0, 0)) }
+  ].forEach((spec, index) => {
+    const path = createDashedCurveLine([
+      spec.start,
+      spec.start.clone().lerp(spec.end, 0.38).add(new THREE.Vector3(0.22, 0.7 - index * 0.3, 0)),
+      spec.start.clone().lerp(spec.end, 0.7).add(new THREE.Vector3(-0.15, 0.36 - index * 0.18, 0)),
+      spec.end
+    ], 0xffeb3b);
+    microRoot.add(path.line);
+    electronPaths.push(path);
+
+    const electron = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 18, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff06a,
+        emissive: 0xffe54f,
+        emissiveIntensity: 1
+      })
+    );
+    electron.visible = false;
+    microRoot.add(electron);
+    electrons.push(electron);
+  });
+
+  const oxidationTag = createTextSprite('산화', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#ffb88e',
+    fill: 'rgba(30, 12, 10, 0.74)'
+  });
+  oxidationTag.position.set(-2.2, 2, 0);
+  microRoot.add(oxidationTag);
+
+  const reductionTag = createTextSprite('환원', {
+    width: 180,
+    height: 82,
+    fontSize: 36,
+    textColor: '#dcecff',
+    fill: 'rgba(14, 18, 30, 0.74)'
+  });
+  reductionTag.position.set(2, 2, 0);
+  microRoot.add(reductionTag);
+
+  function update(stateProgress, elapsed) {
+    solution.material.color.copy(new THREE.Color(0xdbe7fb).lerp(new THREE.Color(0x66a9eb), stateProgress));
+    solutionSurface.material.color.copy(new THREE.Color(0xe8f3ff).lerp(new THREE.Color(0x8fc2ff), stateProgress));
+    silverDeposits.forEach((deposit, index) => {
+      const local = clamp01((stateProgress - index * 0.03) / 0.3);
+      deposit.scale.setScalar(THREE.MathUtils.lerp(0.001, 1, ease(local)));
+    });
+
+    animateIonCloud(silverCloud.meshes, elapsed, 0.06);
+    animateIonCloud(nitrateCloud.meshes, elapsed + 0.5, 0.05);
+
+    electrons.forEach((electron, index) => {
+      const move = ease(seg(stateProgress, 0.18 + index * 0.03, 0.58 + index * 0.04));
+      electron.visible = move > 0 && move < 1;
+      if (electron.visible) {
+        electron.position.copy(electronPaths[index].curve.getPoint(move));
+      }
+      electronPaths[index].line.visible = params.showElectrons;
+    });
+
+    const dissolve = ease(seg(stateProgress, 0.5, 0.84));
+    const plateOut = ease(seg(stateProgress, 0.6, 0.9));
+
+    copperAtom.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.74, dissolve));
+    copperAtom.mesh.material.color.copy(new THREE.Color(0xcc6633).lerp(new THREE.Color(0x8c6f5d), dissolve));
+    copperIon.group.visible = dissolve > 0.02;
+    copperIon.group.position.set(-1.76 + dissolve * 0.74, 0.34 - dissolve * 0.42, 0);
+    copperIon.group.scale.setScalar(THREE.MathUtils.lerp(0.7, 1, dissolve));
+
+    silverIons.forEach((ion, index) => {
+      ion.group.position.set(2.05 - plateOut * (3.1 - index * 0.22), ion.group.position.y, ion.group.position.z);
+      ion.group.scale.setScalar(THREE.MathUtils.lerp(1, 0.74, plateOut));
+      silverAtoms[index].group.visible = plateOut > 0.02;
+      silverAtoms[index].group.position.set(2.05 - plateOut * (3.28 - index * 0.22), index === 0 ? 0.88 - plateOut * 0.54 : -0.04 - plateOut * 0.1, index === 0 ? -0.16 : 0.16);
+      silverAtoms[index].group.scale.setScalar(THREE.MathUtils.lerp(0.72, 1, plateOut));
+    });
+
+    return {
+      title: stateProgress >= 1 ? '반응 완료' : stateProgress > 0 ? '전자 이동 진행 중' : '반응 준비',
+      body: stateProgress > 0.6
+        ? '구리는 Cu²⁺가 되어 용액으로 이동하고, Ag⁺ 두 개는 각각 전자 1개를 받아 금속 은이 됩니다.'
+        : stateProgress > 0.18
+          ? '구리 원자 한 개가 내놓은 전자 2개가 두 개의 은 이온으로 나뉘어 이동하고 있습니다.'
+          : '처음에는 무색에 가까운 질산 은 수용액과 구리 금속이 만나기 전 상태입니다.'
+    };
+  }
+
+  return { update, dispose: () => { disposeObject(shell); disposeObject(microRoot); } };
+}
+
+function buildReactionState(key) {
+  if (currentReactionState && currentReactionState.dispose) {
+    currentReactionState.dispose();
+  }
+  clearGroup(macroBase);
+  clearGroup(microBase);
+
+  if (key === 'magnesiumCombustion') {
+    currentReactionState = buildMagnesiumReaction();
+  } else if (key === 'copperSilver') {
+    currentReactionState = buildCopperSilverReaction();
+  } else {
+    currentReactionState = buildZincCopperReaction();
+  }
+}
+
+function refreshGuide() {
+  const reaction = REACTIONS[params.reaction];
+  titleEl.textContent = reaction.label;
+  subtitleEl.textContent = reaction.subtitle;
+  reactionBadgeEl.textContent = reaction.equation;
+  reactionChipEl.textContent = `현재 반응 · ${reaction.label}`;
+  viewChipEl.textContent = `현재 보기 · ${Object.entries(viewModeOptions).find(([, value]) => value === params.viewMode)?.[0] ?? '분할 뷰'}`;
+  formulaReactionEl.textContent = reaction.label;
+  formulaEquationEl.textContent = reaction.equation;
+  formulaOxidationEl.textContent = reaction.oxidation;
+  formulaReductionEl.textContent = reaction.reduction;
+  guidePrincipleEl.textContent = reaction.principle;
+  guideReferenceEl.textContent = reaction.reference;
+  centerNoteEl.textContent = reaction.note;
+
+  guideQuestionsEl.innerHTML = '';
+  reaction.questions.forEach((question) => {
+    const li = document.createElement('li');
+    li.textContent = question;
+    guideQuestionsEl.appendChild(li);
+  });
+
+  guideExamplesEl.innerHTML = '';
+  reaction.examples.forEach((example) => {
+    const li = document.createElement('li');
+    li.textContent = example;
+    guideExamplesEl.appendChild(li);
+  });
+}
+
+function resetReaction() {
+  progress = 0;
+  isPlaying = false;
+  if (currentReactionState && currentReactionState.update) {
+    const info = currentReactionState.update(progress, clock.getElapsedTime());
+    statusTitleEl.textContent = info.title;
+    statusBodyEl.textContent = info.body;
+  }
+  statusExtraEl.textContent = params.reaction === 'zincCopper'
+    ? 'Cu²⁺가 줄어들수록 용액의 푸른색이 옅어지고, 아연판에는 구리 석출이 늘어납니다.'
+    : params.reaction === 'magnesiumCombustion'
+      ? '연소 반응은 산소의 이동으로도, 전자의 이동으로도 설명할 수 있습니다.'
+      : 'Ag⁺ 두 개가 전자 1개씩 받아 은으로 석출되고, Cu²⁺가 생성되며 용액이 파랗게 변합니다.';
+}
+
+function playReaction() {
+  progress = 0;
+  isPlaying = true;
+}
+
+function rebuildReaction() {
+  buildReactionState(params.reaction);
+  refreshGuide();
+  resetReaction();
+}
+
+function updateControlsByViewMode() {
+  const useMicro = params.viewMode === 'micro';
+  macroControls.enabled = !useMicro;
+  microControls.enabled = useMicro;
+
+  const showSplitBadges = params.viewMode === 'split';
+  macroBadgeEl.style.opacity = showSplitBadges ? '1' : '0';
+  microBadgeEl.style.opacity = showSplitBadges ? '1' : '0';
+}
+
+function renderViewport(scene, camera, x, y, width, height) {
+  renderer.setViewport(x, y, width, height);
+  renderer.setScissor(x, y, width, height);
+  renderer.setScissorTest(true);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.addEventListener('resize', onResize);
+
+const gui = new GUI({ title: '산화·환원 제어', width: 312 });
+gui.add(params, 'reaction', reactionOptions).name('반응').onChange(() => {
+  rebuildReaction();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+});
+gui.add(params, 'playReaction').name('반응 재생');
+gui.add(params, 'showElectrons').name('전자 이동 표시');
+gui.add(params, 'viewMode', viewModeOptions).name('입자 뷰').onChange(() => {
+  updateControlsByViewMode();
+  refreshGuide();
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+});
+gui.add(params, 'speed', 0.5, 3, 0.1).name('반응 속도');
+gui.add(params, 'resetReaction').name('초기화');
+
+if (window.innerWidth < 760) {
+  gui.close();
+}
+
+rebuildReaction();
+updateControlsByViewMode();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const elapsed = clock.elapsedTime;
+
+  if (isPlaying) {
+    progress += (delta / 5) * params.speed;
+    if (progress >= 1) {
+      progress = 1;
+      isPlaying = false;
+    }
+  }
+
+  const info = currentReactionState.update(progress, elapsed);
+  statusTitleEl.textContent = info.title;
+  statusBodyEl.textContent = info.body;
+
+  macroControls.update();
+  microControls.update();
+
+  renderer.setClearColor(0x000000, 0);
+  renderer.clear();
+
+  if (params.viewMode === 'macro') {
+    renderViewport(macroScene, macroCamera, 0, 0, window.innerWidth, window.innerHeight);
+  } else if (params.viewMode === 'micro') {
+    renderViewport(microScene, microCamera, 0, 0, window.innerWidth, window.innerHeight);
+  } else {
+    const topHeight = Math.round(window.innerHeight * 0.57);
+    const bottomHeight = window.innerHeight - topHeight;
+    renderViewport(macroScene, macroCamera, 0, bottomHeight, window.innerWidth, topHeight);
+    renderViewport(microScene, microCamera, 0, 0, window.innerWidth, bottomHeight);
+  }
+
+  renderer.setScissorTest(false);
+}
+
+animate();
+</script>
+</body>
+</html>

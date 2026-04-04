@@ -1,0 +1,1905 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>엔트로피와 무질서도 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --scene-bg: #eef0f5;
+    --panel-dark: rgba(11, 20, 34, 0.82);
+    --panel-light: rgba(255, 255, 255, 0.72);
+    --panel-border: rgba(255, 255, 255, 0.18);
+    --text-main: #f7f9fd;
+    --text-dim: rgba(247, 249, 253, 0.72);
+    --text-dark: #16212e;
+    --text-dark-dim: rgba(22, 33, 46, 0.66);
+    --accent-blue: #4d86ff;
+    --accent-red: #ff6154;
+    --accent-gold: #ffbc42;
+    --accent-cyan: #53c7d8;
+    --accent-ice: #71b9ff;
+    --accent-warn: #ff936b;
+    --shadow-soft: 0 18px 42px rgba(19, 30, 46, 0.18);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 16% 12%, rgba(255, 170, 108, 0.16), transparent 22%),
+      radial-gradient(circle at 86% 14%, rgba(129, 173, 255, 0.22), transparent 24%),
+      linear-gradient(180deg, #f2f4f8 0%, #edf1f7 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 44vw);
+  }
+
+  #scene-panel,
+  #info-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 16%, rgba(255, 224, 169, 0.42), transparent 24%),
+      radial-gradient(circle at 82% 18%, rgba(132, 176, 255, 0.34), transparent 22%),
+      linear-gradient(180deg, #f1f3f7 0%, #e9eef6 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.58);
+  }
+
+  #scene-panel::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 34%;
+    background: linear-gradient(180deg, rgba(238, 240, 245, 0), rgba(227, 233, 241, 0.54) 70%, rgba(220, 227, 237, 0.88));
+    pointer-events: none;
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  #info-panel {
+    overflow-y: auto;
+    padding: 112px 18px 18px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(246, 248, 252, 0.94)),
+      radial-gradient(circle at 22% 16%, rgba(255, 226, 179, 0.32), transparent 22%),
+      radial-gradient(circle at 84% 20%, rgba(162, 199, 255, 0.25), transparent 24%);
+  }
+
+  .glass-dark,
+  .glass-light {
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .glass-dark {
+    background: var(--panel-dark);
+    color: var(--text-main);
+  }
+
+  .glass-light {
+    background: var(--panel-light);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: var(--text-dark);
+    box-shadow: 0 18px 40px rgba(136, 151, 174, 0.18);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 60;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(10, 18, 30, 0.88);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 58;
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(72vh, 720px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    color: #d3e8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #ffe49a;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .ref-box {
+    margin-top: 14px;
+    padding: 11px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 54;
+    width: min(720px, calc(100vw - 196px));
+    padding: 12px 18px 14px;
+    border-radius: 24px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  #status-banner {
+    position: fixed;
+    top: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 52;
+    width: min(640px, calc(100vw - 36px));
+    padding: 10px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.94);
+    pointer-events: none;
+  }
+
+  #status-banner.info {
+    background: rgba(12, 21, 36, 0.82);
+  }
+
+  #status-banner.warn {
+    background: rgba(94, 36, 20, 0.84);
+  }
+
+  #status-banner.success {
+    background: rgba(18, 67, 42, 0.82);
+  }
+
+  #scene-note {
+    position: absolute;
+    top: 108px;
+    left: 18px;
+    z-index: 18;
+    width: min(290px, calc(100% - 36px));
+    padding: 14px 15px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #scene-note .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #d8e9ff;
+  }
+
+  #scene-note strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #fff;
+  }
+
+  #scene-note .accent {
+    display: block;
+    margin-top: 9px;
+    color: #ffd58f;
+    font-weight: 700;
+  }
+
+  #formula-panel {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    z-index: 18;
+    width: min(372px, calc(100% - 36px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+
+  .formula-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .formula-line span {
+    color: rgba(247, 249, 253, 0.74);
+  }
+
+  .formula-line strong {
+    color: #fff;
+    text-align: right;
+  }
+
+  .formula-divider {
+    height: 1px;
+    margin: 10px 0;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .formula-note {
+    margin-top: 10px;
+    color: rgba(247, 249, 253, 0.74);
+  }
+
+  .formula-note strong {
+    color: #ffe49a;
+  }
+
+  .panel-card {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .panel-card + .panel-card {
+    margin-top: 16px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(22, 33, 46, 0.08);
+    color: rgba(22, 33, 46, 0.74);
+  }
+
+  #summary-panel h2,
+  #entropy-panel h2,
+  #microstate-panel h2,
+  #universe-panel h2 {
+    margin-top: 10px;
+    font-size: 20px;
+    line-height: 1.35;
+  }
+
+  #summary-panel p,
+  #entropy-panel p,
+  #microstate-panel p,
+  #universe-panel p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dark-dim);
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .metric {
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(22, 33, 46, 0.07);
+  }
+
+  .metric .label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(22, 33, 46, 0.52);
+  }
+
+  .metric strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 15px;
+    line-height: 1.35;
+    color: var(--text-dark);
+  }
+
+  .metric small {
+    display: block;
+    margin-top: 5px;
+    font-size: 10px;
+    color: rgba(22, 33, 46, 0.56);
+  }
+
+  #entropy-panel.hidden,
+  #microstate-panel.hidden,
+  #universe-panel.hidden {
+    display: none;
+  }
+
+  #entropy-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+    margin-top: 14px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.2));
+    border: 1px solid rgba(22, 33, 46, 0.08);
+  }
+
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: rgba(22, 33, 46, 0.68);
+  }
+
+  .legend-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .legend-before {
+    color: var(--accent-blue);
+  }
+
+  .legend-current {
+    color: var(--accent-gold);
+  }
+
+  .legend-after {
+    color: var(--accent-red);
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .micro-card {
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(22, 33, 46, 0.07);
+  }
+
+  .micro-card .kicker {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(22, 33, 46, 0.52);
+  }
+
+  .micro-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 17px;
+    line-height: 1.35;
+  }
+
+  .micro-card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(22, 33, 46, 0.56);
+  }
+
+  #micro-caption {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.54);
+    border: 1px solid rgba(22, 33, 46, 0.07);
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #universe-timeline {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .timeline-node {
+    position: relative;
+    padding: 14px 12px 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(22, 33, 46, 0.07);
+    font-size: 11px;
+    line-height: 1.68;
+  }
+
+  .timeline-node::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -10px;
+    width: 20px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(22, 33, 46, 0.18), rgba(22, 33, 46, 0.05));
+  }
+
+  .timeline-node:last-child::after {
+    display: none;
+  }
+
+  .timeline-node strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+  }
+
+  .tiny-note {
+    margin-top: 12px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(22, 33, 46, 0.62);
+  }
+
+  @media (max-width: 1120px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(360px, 54vh) auto;
+    }
+
+    #scene-panel {
+      border-right: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.58);
+    }
+
+    #info-panel {
+      padding-top: 26px;
+    }
+  }
+
+  @media (max-width: 820px) {
+    #title-card {
+      width: calc(100vw - 112px);
+      top: 12px;
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #status-banner {
+      top: 100px;
+      width: calc(100vw - 24px);
+    }
+
+    #scene-note {
+      top: 138px;
+    }
+
+    #formula-panel {
+      width: calc(100% - 24px);
+      left: 12px;
+      bottom: 12px;
+    }
+
+    .metric-grid,
+    .three-col,
+    #universe-timeline {
+      grid-template-columns: 1fr;
+    }
+
+    #info-panel {
+      padding: 26px 12px 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+<div id="guide-panel" class="glass-dark">
+  <h3>엔트로피는 왜 늘어날까요?</h3>
+  <p>엔트로피는 계가 가질 수 있는 미시 상태의 수와 연결된 물리량입니다. 분자 배열이 더 자유로워질수록 가능한 배치 수 Ω가 커지고, <strong>S = k<sub>B</sub> ln(Ω)</strong> 에 따라 엔트로피도 증가합니다.</p>
+  <h4>핵심 원리</h4>
+  <p>자발적으로 일어나는 비가역 과정에서 고립계의 총 엔트로피는 감소하지 않습니다. 확산, 용융, 섞임은 모두 더 많은 미시 상태를 허용하는 방향으로 진행됩니다.</p>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>방이 저절로 어질러지는 현상을 엔트로피 관점에서 설명할 수 있을까요?</li>
+    <li>생물은 내부 질서를 유지하는데, 이것이 열역학 제2법칙과 모순되지 않는 이유는 무엇일까요?</li>
+    <li>우주의 열죽음은 어떤 상태이며, 왜 최대 엔트로피와 연결될까요?</li>
+  </ul>
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>정리 정돈은 에너지를 들여 질서를 회복하는 과정입니다.</li>
+    <li>음식 부패와 노화는 자연스럽게 더 많은 미시 상태 쪽으로 진행됩니다.</li>
+    <li>얼음이 녹거나 향수가 방 안에 퍼지는 현상은 비가역 과정의 대표적인 예입니다.</li>
+  </ul>
+  <div class="ref-box">교과서 연계: 역학과 에너지 II편 p92~97 — 비가역 현상과 엔트로피</div>
+</div>
+
+<div id="title-card" class="glass-dark">
+  <div class="eyebrow">Mechanics &amp; Energy · Entropy</div>
+  <h1>엔트로피와 무질서도</h1>
+  <p>기체 확산, 얼음 녹음, 카드 섞기 비유를 통해 “미시 상태 수가 큰 배치가 왜 더 자연스러운가”를 3D로 탐구합니다.</p>
+</div>
+
+<div id="status-banner" class="glass-dark info">칸막이가 있는 기체 상자부터 살펴보세요. 과정 시작을 누르면 자발적 확산이 재생됩니다.</div>
+
+<div id="app">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+
+    <div id="scene-note" class="glass-dark">
+      <div class="tag" id="scene-stage-tag">질서 상태</div>
+      <strong id="scene-note-title">분자가 한쪽에만 모여 있습니다.</strong>
+      <p id="scene-note-body">가능한 배치 수가 적기 때문에 엔트로피가 낮습니다. 칸막이를 제거하면 분자는 양쪽으로 퍼지며 더 많은 미시 상태를 차지합니다.</p>
+      <span class="accent" id="scene-note-accent">높은 질서 = 낮은 엔트로피</span>
+    </div>
+
+    <div id="formula-panel" class="glass-dark">
+      <h2>📊 엔트로피와 무질서도</h2>
+      <div class="formula-line"><span>시나리오</span><strong id="formula-scenario">기체 확산</strong></div>
+      <div class="formula-line"><span>엔트로피 식</span><strong id="formula-equation">S = k<sub>B</sub> ln(Ω)</strong></div>
+      <div class="formula-divider"></div>
+      <div class="formula-line"><span>S<sub>전</sub></span><strong id="formula-before">0.00</strong></div>
+      <div class="formula-line"><span>S<sub>현재</sub></span><strong id="formula-current">0.00</strong></div>
+      <div class="formula-line"><span>S<sub>후</sub></span><strong id="formula-after">18.86</strong></div>
+      <div class="formula-line"><span>ΔS</span><strong id="formula-delta">+18.86</strong></div>
+      <div class="formula-divider"></div>
+      <div class="formula-line"><span>열 교환</span><strong id="formula-heat">ΔS = Q/T</strong></div>
+      <p class="formula-note" id="formula-note"><strong>엔트로피 증가 법칙:</strong> 고립계에서 ΔS ≥ 0, 자발적 과정은 ΔS &gt; 0 입니다.</p>
+    </div>
+  </section>
+
+  <aside id="info-panel">
+    <section id="summary-panel" class="panel-card glass-light">
+      <div class="badge" id="summary-badge">질서 상태</div>
+      <h2 id="summary-title">분자가 한쪽에만 있는 상태는 매우 드문 배치입니다.</h2>
+      <p id="summary-body">좌우 두 칸 중 한쪽에만 30개 분자가 몰린 상태는 가능한 미시 상태가 거의 없는 경우입니다. 칸막이를 제거하면 훨씬 많은 배치를 허용하는 혼합 상태로 향합니다.</p>
+      <div class="metric-grid">
+        <div class="metric">
+          <span class="label">현재 단계</span>
+          <strong id="metric-stage">질서 상태</strong>
+          <small id="metric-stage-sub">엔트로피가 낮은 시작점</small>
+        </div>
+        <div class="metric">
+          <span class="label">ΔS</span>
+          <strong id="metric-delta">+18.86</strong>
+          <small id="metric-delta-sub">자발적 과정의 방향</small>
+        </div>
+        <div class="metric">
+          <span class="label">미시 상태 Ω</span>
+          <strong id="metric-micro">1.55×10^8</strong>
+          <small id="metric-micro-sub">현재 또는 목표 상태</small>
+        </div>
+        <div class="metric">
+          <span class="label">되돌림 확률</span>
+          <strong id="metric-probability">9.31×10^-10</strong>
+          <small id="metric-probability-sub">자발적으로는 사실상 불가</small>
+        </div>
+      </div>
+    </section>
+
+    <section id="entropy-panel" class="panel-card glass-light">
+      <div class="badge">엔트로피 막대그래프</div>
+      <h2>과정 전후 엔트로피 비교</h2>
+      <p id="entropy-description">왼쪽 막대는 시작 상태, 가운데는 현재 상태, 오른쪽은 목표 상태입니다. 자발적 과정일수록 더 큰 미시 상태 수와 더 높은 엔트로피 쪽으로 이동합니다.</p>
+      <svg id="entropy-chart" viewBox="0 0 360 240" aria-label="엔트로피 비교 그래프">
+        <g opacity="0.25" stroke="#7f8b9c" stroke-width="1">
+          <line x1="34" y1="190" x2="330" y2="190"></line>
+          <line x1="34" y1="156" x2="330" y2="156"></line>
+          <line x1="34" y1="122" x2="330" y2="122"></line>
+          <line x1="34" y1="88" x2="330" y2="88"></line>
+          <line x1="34" y1="54" x2="330" y2="54"></line>
+        </g>
+        <line x1="34" y1="28" x2="34" y2="190" stroke="#465261" stroke-width="1.4"></line>
+        <line x1="34" y1="190" x2="330" y2="190" stroke="#465261" stroke-width="1.4"></line>
+        <text x="18" y="35" font-size="10" fill="#516072" id="chart-unit-label">S / kB</text>
+        <g>
+          <rect id="bar-before" x="64" y="190" width="54" height="0" rx="12" fill="#4d86ff"></rect>
+          <text x="91" y="208" text-anchor="middle" font-size="11" fill="#2b3949">전</text>
+          <text id="bar-before-value" x="91" y="184" text-anchor="middle" font-size="10" fill="#2b3949">0.00</text>
+        </g>
+        <g>
+          <rect id="bar-current" x="154" y="190" width="54" height="0" rx="12" fill="#ffbc42"></rect>
+          <text x="181" y="208" text-anchor="middle" font-size="11" fill="#2b3949">현재</text>
+          <text id="bar-current-value" x="181" y="184" text-anchor="middle" font-size="10" fill="#2b3949">0.00</text>
+        </g>
+        <g>
+          <rect id="bar-after" x="244" y="190" width="54" height="0" rx="12" fill="#ff6154"></rect>
+          <text x="271" y="208" text-anchor="middle" font-size="11" fill="#2b3949">후</text>
+          <text id="bar-after-value" x="271" y="184" text-anchor="middle" font-size="10" fill="#2b3949">18.86</text>
+        </g>
+      </svg>
+      <div class="chart-legend">
+        <span class="legend-dot legend-before">시작 상태</span>
+        <span class="legend-dot legend-current">현재 상태</span>
+        <span class="legend-dot legend-after">최대 또는 목표 상태</span>
+      </div>
+      <p class="tiny-note" id="entropy-caption">고립계에서 자발적 과정은 엔트로피가 더 큰 방향으로 진행됩니다.</p>
+    </section>
+
+    <section id="microstate-panel" class="panel-card glass-light">
+      <div class="badge">미시 상태 수</div>
+      <h2>볼츠만 관점에서 보기</h2>
+      <p id="micro-description">같은 거시 상태라도 분자의 배치 방법은 매우 많을 수 있습니다. Ω가 커질수록 그 상태의 확률이 커지고, 엔트로피도 증가합니다.</p>
+      <div class="three-col">
+        <div class="micro-card">
+          <div class="kicker">Before</div>
+          <strong id="micro-before">1</strong>
+          <span id="micro-before-sub">질서 정연한 배치</span>
+        </div>
+        <div class="micro-card">
+          <div class="kicker">Current</div>
+          <strong id="micro-current">1</strong>
+          <span id="micro-current-sub">현재 관측된 배치</span>
+        </div>
+        <div class="micro-card">
+          <div class="kicker">After</div>
+          <strong id="micro-after">1.55×10^8</strong>
+          <span id="micro-after-sub">가능한 배치가 압도적으로 많음</span>
+        </div>
+      </div>
+      <div id="micro-caption">단순화 모형: 좌우 두 칸에 분자를 배치하는 경우만 세어도 균등 분포의 Ω가 가장 큽니다.</div>
+    </section>
+
+    <section id="universe-panel" class="panel-card glass-light hidden">
+      <div class="badge">우주의 열죽음</div>
+      <h2>빅뱅 이후 우주의 엔트로피는 계속 증가합니다.</h2>
+      <p>우주 전체를 큰 고립계로 보면, 에너지는 점점 더 균등하게 퍼지고 사용할 수 있는 자유 에너지는 줄어듭니다. 최대 엔트로피 상태에서는 거시적 변화가 거의 일어나지 않습니다.</p>
+      <div id="universe-timeline">
+        <div class="timeline-node">
+          <strong>빅뱅</strong>
+          낮은 엔트로피와 큰 온도 차이로 인해 변화가 활발합니다.
+        </div>
+        <div class="timeline-node">
+          <strong>현재 우주</strong>
+          별과 행성, 생명 활동은 남아 있는 에너지 구배를 사용합니다.
+        </div>
+        <div class="timeline-node">
+          <strong>열죽음</strong>
+          최대 엔트로피에 가까워져 더 이상 유의미한 과정이 지속되기 어렵습니다.
+        </div>
+      </div>
+      <p class="tiny-note">핵심 메시지: 계 전체로 범위를 넓히면 엔트로피는 자연스럽게 증가하는 방향을 따릅니다.</p>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const LATENT_HEAT = 3.34e5;
+  const ICE_MASS = 0.05;
+  const ICE_MOLECULES = 20;
+  const CARD_TOTAL = 52;
+  const DEFAULTS = {
+    scenario: '기체 확산',
+    moleculeCount: 30,
+    temperature: 278,
+    showMicrostates: true,
+    showEntropyBars: true,
+    showHeatDeath: false,
+  };
+
+  const scenePanel = document.getElementById('scene-panel');
+  const canvas = document.getElementById('scene-canvas');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const statusBanner = document.getElementById('status-banner');
+  const entropyPanel = document.getElementById('entropy-panel');
+  const microPanel = document.getElementById('microstate-panel');
+  const universePanel = document.getElementById('universe-panel');
+
+  const ui = {
+    sceneStageTag: document.getElementById('scene-stage-tag'),
+    sceneNoteTitle: document.getElementById('scene-note-title'),
+    sceneNoteBody: document.getElementById('scene-note-body'),
+    sceneNoteAccent: document.getElementById('scene-note-accent'),
+    formulaScenario: document.getElementById('formula-scenario'),
+    formulaEquation: document.getElementById('formula-equation'),
+    formulaBefore: document.getElementById('formula-before'),
+    formulaCurrent: document.getElementById('formula-current'),
+    formulaAfter: document.getElementById('formula-after'),
+    formulaDelta: document.getElementById('formula-delta'),
+    formulaHeat: document.getElementById('formula-heat'),
+    formulaNote: document.getElementById('formula-note'),
+    summaryBadge: document.getElementById('summary-badge'),
+    summaryTitle: document.getElementById('summary-title'),
+    summaryBody: document.getElementById('summary-body'),
+    metricStage: document.getElementById('metric-stage'),
+    metricStageSub: document.getElementById('metric-stage-sub'),
+    metricDelta: document.getElementById('metric-delta'),
+    metricDeltaSub: document.getElementById('metric-delta-sub'),
+    metricMicro: document.getElementById('metric-micro'),
+    metricMicroSub: document.getElementById('metric-micro-sub'),
+    metricProbability: document.getElementById('metric-probability'),
+    metricProbabilitySub: document.getElementById('metric-probability-sub'),
+    entropyDescription: document.getElementById('entropy-description'),
+    entropyCaption: document.getElementById('entropy-caption'),
+    chartUnitLabel: document.getElementById('chart-unit-label'),
+    barBefore: document.getElementById('bar-before'),
+    barCurrent: document.getElementById('bar-current'),
+    barAfter: document.getElementById('bar-after'),
+    barBeforeValue: document.getElementById('bar-before-value'),
+    barCurrentValue: document.getElementById('bar-current-value'),
+    barAfterValue: document.getElementById('bar-after-value'),
+    microDescription: document.getElementById('micro-description'),
+    microBefore: document.getElementById('micro-before'),
+    microCurrent: document.getElementById('micro-current'),
+    microAfter: document.getElementById('micro-after'),
+    microBeforeSub: document.getElementById('micro-before-sub'),
+    microCurrentSub: document.getElementById('micro-current-sub'),
+    microAfterSub: document.getElementById('micro-after-sub'),
+    microCaption: document.getElementById('micro-caption'),
+  };
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xeef0f5, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xeef0f5);
+  scene.fog = new THREE.Fog(0xeef0f5, 12, 30);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(8, 5.4, 8);
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.target.set(0, 0, 0);
+  controls.minDistance = 5;
+  controls.maxDistance = 18;
+  controls.maxPolarAngle = Math.PI * 0.48;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambientLight);
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  directionalLight.position.set(8, 10, 6);
+  scene.add(directionalLight);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(12, 72),
+    new THREE.MeshStandardMaterial({
+      color: 0xd7dde8,
+      roughness: 0.92,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.92,
+    }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2.05;
+  scene.add(floor);
+
+  const params = {
+    scenario: DEFAULTS.scenario,
+    moleculeCount: DEFAULTS.moleculeCount,
+    temperature: DEFAULTS.temperature,
+    showMicrostates: DEFAULTS.showMicrostates,
+    showEntropyBars: DEFAULTS.showEntropyBars,
+    showHeatDeath: DEFAULTS.showHeatDeath,
+    processStart: () => {
+      if (!activeScenario) return;
+      activeScenario.start();
+      syncGui();
+    },
+    reverseAttempt: () => {
+      if (!activeScenario) return;
+      activeScenario.reverseAttempt?.();
+      setStatus('❌ 자발적으로 불가! 더 높은 엔트로피 상태는 외부 조작 없이는 저절로 되돌아가지 않습니다.', 'warn');
+    },
+    reset: () => {
+      if (!activeScenario) return;
+      activeScenario.reset();
+      setStatus(activeScenario.resetMessage, 'info');
+      syncGui();
+    },
+  };
+
+  let activeScenario = null;
+  const clock = new THREE.Clock();
+  let statusTimeout = 0;
+
+  const gui = new GUI({ title: '엔트로피 실험 패널' });
+  gui.domElement.style.zIndex = '64';
+  gui.domElement.style.position = 'fixed';
+  gui.domElement.style.top = '14px';
+  gui.domElement.style.right = '14px';
+
+  const scenarioController = gui.add(params, 'scenario', ['기체 확산', '얼음 녹음', '카드 섞기']).name('시나리오');
+  gui.add(params, 'processStart').name('과정 시작');
+  gui.add(params, 'reverseAttempt').name('역과정 시도');
+  const moleculeController = gui.add(params, 'moleculeCount', 10, 50, 1).name('분자 수');
+  const temperatureController = gui.add(params, 'temperature', 255, 305, 1).name('온도 (K)');
+  gui.add(params, 'showMicrostates').name('미시 상태 수 표시');
+  gui.add(params, 'showEntropyBars').name('엔트로피 막대');
+  gui.add(params, 'showHeatDeath').name('우주 열죽음');
+  gui.add(params, 'reset').name('초기화');
+
+  scenarioController.onChange((value) => {
+    switchScenario(value);
+    setStatus(getScenarioStatus(value), 'info');
+  });
+
+  moleculeController.onFinishChange((value) => {
+    params.moleculeCount = Math.round(value);
+    if (params.scenario === '기체 확산') {
+      switchScenario('기체 확산', { preserveCamera: true });
+      setStatus(`기체 분자 수를 ${params.moleculeCount}개로 바꾸었습니다.`, 'info');
+    }
+  });
+
+  temperatureController.onChange((value) => {
+    params.temperature = Math.round(value);
+    if (activeScenario && activeScenario.setTemperature) {
+      activeScenario.setTemperature(params.temperature);
+    }
+  });
+
+  gui.onChange(() => {
+    updatePanelVisibility();
+  });
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+  });
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function smoothstep(edge0, edge1, value) {
+    const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+  function formatSigned(value, digits = 2) {
+    const prefix = value > 0 ? '+' : value < 0 ? '' : '';
+    return `${prefix}${value.toFixed(digits)}`;
+  }
+
+  function formatScientific(value, digits = 2) {
+    if (!Number.isFinite(value)) return '∞';
+    if (value === 0) return '0';
+    const abs = Math.abs(value);
+    if (abs >= 0.01 && abs < 1000) {
+      return value.toFixed(digits);
+    }
+    const exponent = Math.floor(Math.log10(abs));
+    const mantissa = value / 10 ** exponent;
+    return `${mantissa.toFixed(digits)}×10^${exponent}`;
+  }
+
+  function formatScientificFromLog10(log10Value, digits = 2) {
+    if (!Number.isFinite(log10Value)) return '0';
+    if (log10Value < 4 && log10Value > -3) {
+      return (10 ** log10Value).toFixed(Math.max(0, 2 - Math.floor(log10Value)));
+    }
+    const exponent = Math.floor(log10Value);
+    const mantissa = 10 ** (log10Value - exponent);
+    return `${mantissa.toFixed(digits)}×10^${exponent}`;
+  }
+
+  function formatOmegaFromLn(lnValue, digits = 2) {
+    if (!Number.isFinite(lnValue) || lnValue <= 1e-9) return '1';
+    return formatScientificFromLog10(lnValue / Math.LN10, digits);
+  }
+
+  const logFactorialCache = new Map([[0, 0], [1, 0]]);
+  function logFactorial(n) {
+    if (logFactorialCache.has(n)) return logFactorialCache.get(n);
+    const maxKnown = Math.max(...logFactorialCache.keys());
+    let sum = logFactorialCache.get(maxKnown);
+    for (let i = maxKnown + 1; i <= n; i += 1) {
+      sum += Math.log(i);
+      logFactorialCache.set(i, sum);
+    }
+    return logFactorialCache.get(n);
+  }
+
+  function lnCombination(n, k) {
+    if (k < 0 || k > n) return -Infinity;
+    return logFactorial(n) - logFactorial(k) - logFactorial(n - k);
+  }
+
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    if (material.map) material.map.dispose();
+    material.dispose();
+  }
+
+  function disposeObject(root) {
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) disposeMaterial(child.material);
+      if (child.userData && child.userData.texture) child.userData.texture.dispose();
+    });
+  }
+
+  function setStatus(message, type = 'info') {
+    statusBanner.textContent = message;
+    statusBanner.classList.remove('info', 'warn', 'success');
+    statusBanner.classList.add(type);
+    window.clearTimeout(statusTimeout);
+    statusTimeout = window.setTimeout(() => {
+      if (activeScenario) {
+        statusBanner.textContent = activeScenario.statusHint;
+        statusBanner.classList.remove('warn', 'success');
+        statusBanner.classList.add('info');
+      }
+    }, 3200);
+  }
+
+  function updatePanelVisibility() {
+    entropyPanel.classList.toggle('hidden', !params.showEntropyBars);
+    microPanel.classList.toggle('hidden', !params.showMicrostates);
+    universePanel.classList.toggle('hidden', !params.showHeatDeath);
+  }
+
+  function setControllerVisibility(controller, visible) {
+    const row = controller.domElement.closest('.controller') || controller.domElement.parentElement || controller.domElement;
+    row.style.display = visible ? '' : 'none';
+  }
+
+  function syncGui() {
+    updatePanelVisibility();
+    setControllerVisibility(moleculeController, params.scenario === '기체 확산');
+    setControllerVisibility(temperatureController, params.scenario === '얼음 녹음');
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function drawBar(rect, label, value, maxValue, offset = 0) {
+    const baseline = 190;
+    const maxHeight = 126;
+    const height = maxValue > 0 ? (value / maxValue) * maxHeight : 0;
+    rect.setAttribute('y', String(baseline - height));
+    rect.setAttribute('height', String(height));
+    label.setAttribute('y', String(Math.max(28, baseline - height - 8 - offset)));
+  }
+
+  function updateUi(snapshot) {
+    ui.sceneStageTag.textContent = snapshot.stageTag;
+    ui.sceneNoteTitle.textContent = snapshot.noteTitle;
+    ui.sceneNoteBody.textContent = snapshot.noteBody;
+    ui.sceneNoteAccent.textContent = snapshot.accentNote;
+    ui.formulaScenario.textContent = snapshot.name;
+    ui.formulaEquation.innerHTML = snapshot.formulaEquation;
+    ui.formulaBefore.innerHTML = snapshot.beforeText;
+    ui.formulaCurrent.innerHTML = snapshot.currentText;
+    ui.formulaAfter.innerHTML = snapshot.afterText;
+    ui.formulaDelta.innerHTML = snapshot.deltaText;
+    ui.formulaHeat.innerHTML = snapshot.heatText;
+    ui.formulaNote.innerHTML = snapshot.formulaNote;
+    ui.summaryBadge.textContent = snapshot.stageTag;
+    ui.summaryTitle.textContent = snapshot.summaryTitle;
+    ui.summaryBody.textContent = snapshot.summaryBody;
+    ui.metricStage.textContent = snapshot.metricStage;
+    ui.metricStageSub.textContent = snapshot.metricStageSub;
+    ui.metricDelta.textContent = snapshot.metricDelta;
+    ui.metricDeltaSub.textContent = snapshot.metricDeltaSub;
+    ui.metricMicro.textContent = snapshot.metricMicro;
+    ui.metricMicroSub.textContent = snapshot.metricMicroSub;
+    ui.metricProbability.textContent = snapshot.metricProbability;
+    ui.metricProbabilitySub.textContent = snapshot.metricProbabilitySub;
+    ui.entropyDescription.textContent = snapshot.entropyDescription;
+    ui.chartUnitLabel.textContent = snapshot.chartUnit;
+    ui.entropyCaption.textContent = snapshot.entropyCaption;
+
+    const maxEntropy = Math.max(snapshot.beforeValue, snapshot.currentValue, snapshot.afterValue, 1e-6);
+    drawBar(ui.barBefore, ui.barBeforeValue, snapshot.beforeValue, maxEntropy, 0);
+    drawBar(ui.barCurrent, ui.barCurrentValue, snapshot.currentValue, maxEntropy, 4);
+    drawBar(ui.barAfter, ui.barAfterValue, snapshot.afterValue, maxEntropy, 0);
+    ui.barBeforeValue.textContent = snapshot.beforeBarLabel;
+    ui.barCurrentValue.textContent = snapshot.currentBarLabel;
+    ui.barAfterValue.textContent = snapshot.afterBarLabel;
+
+    ui.microDescription.textContent = snapshot.microDescription;
+    ui.microBefore.textContent = snapshot.microBefore;
+    ui.microCurrent.textContent = snapshot.microCurrent;
+    ui.microAfter.textContent = snapshot.microAfter;
+    ui.microBeforeSub.textContent = snapshot.microBeforeSub;
+    ui.microCurrentSub.textContent = snapshot.microCurrentSub;
+    ui.microAfterSub.textContent = snapshot.microAfterSub;
+    ui.microCaption.textContent = snapshot.microCaption;
+  }
+
+  function setCameraPose(position, target) {
+    camera.position.copy(position);
+    controls.target.copy(target);
+    controls.update();
+  }
+
+  function getScenarioStatus(name) {
+    if (name === '기체 확산') return '칸막이가 있는 기체 상자입니다. 과정 시작을 누르면 분자가 더 많은 배치를 향해 퍼집니다.';
+    if (name === '얼음 녹음') return '온도를 조절해 보세요. 과정 시작을 누르면 선택한 온도 조건에서 상변화가 재생됩니다.';
+    return '정렬된 카드 배열입니다. 과정 시작을 누르면 52장의 순서가 섞이며 엔트로피 비유가 펼쳐집니다.';
+  }
+
+  function createGasScenario() {
+    const group = new THREE.Group();
+    const moleculeCount = params.moleculeCount;
+    const dummy = new THREE.Object3D();
+    const bounds = { minX: -2.86, maxX: 2.86, minY: -1.55, maxY: 2.15, minZ: -1.86, maxZ: 1.86 };
+    const leftLimit = -0.1;
+    let started = false;
+    let progress = 0;
+    let leftCount = moleculeCount;
+
+    const chamber = new THREE.Mesh(
+      new THREE.BoxGeometry(6, 4, 4),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.08,
+        transmission: 0.18,
+        roughness: 0.2,
+        metalness: 0.03,
+        side: THREE.DoubleSide,
+      }),
+    );
+    chamber.position.y = 0.3;
+    group.add(chamber);
+
+    const chamberEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(6, 4, 4)),
+      new THREE.LineBasicMaterial({ color: 0x76859a }),
+    );
+    chamberEdges.position.copy(chamber.position);
+    group.add(chamberEdges);
+
+    const partitionMaterial = new THREE.MeshStandardMaterial({
+      color: 0x888888,
+      transparent: true,
+      opacity: 0.72,
+      side: THREE.DoubleSide,
+      roughness: 0.75,
+    });
+    const partition = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), partitionMaterial);
+    partition.rotation.y = Math.PI / 2;
+    partition.position.set(0, 0.3, 0);
+    group.add(partition);
+
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.8, 3.8),
+      new THREE.MeshBasicMaterial({ color: 0xffe2c5, transparent: true, opacity: 0.08, side: THREE.DoubleSide }),
+    );
+    glow.position.set(-1.45, 0.3, -2.02);
+    group.add(glow);
+
+    const molecules = new Array(moleculeCount).fill(null).map(() => ({
+      anchor: new THREE.Vector3(),
+      position: new THREE.Vector3(),
+      velocity: new THREE.Vector3(),
+    }));
+
+    const moleculeMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.28, metalness: 0.04 }),
+      moleculeCount,
+    );
+    moleculeMesh.position.y = 0.3;
+    group.add(moleculeMesh);
+
+    function layoutAnchors() {
+      const cols = 5;
+      const rows = 5;
+      const layers = Math.ceil(moleculeCount / (cols * rows));
+      const xStart = -2.3;
+      const yStart = -1.1;
+      const zStart = -1.15;
+      let index = 0;
+      for (let layer = 0; layer < layers; layer += 1) {
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            if (index >= moleculeCount) return;
+            molecules[index].anchor.set(xStart + col * 0.38, yStart + row * 0.56, zStart + layer * 0.58);
+            index += 1;
+          }
+        }
+      }
+    }
+
+    function resetVelocities() {
+      molecules.forEach((molecule, index) => {
+        molecule.position.copy(molecule.anchor);
+        const bias = index % 2 === 0 ? 1 : -1;
+        molecule.velocity.set(0.42 + Math.random() * 0.7 * bias, (Math.random() - 0.5) * 1.1, (Math.random() - 0.5) * 1.1);
+        if (index % 3 === 0) molecule.velocity.x = Math.abs(molecule.velocity.x);
+      });
+    }
+
+    function writeMatrices(time = 0) {
+      leftCount = 0;
+      molecules.forEach((molecule, index) => {
+        const wobble = started ? 0 : Math.sin(time * 1.8 + index * 0.35) * 0.02;
+        const position = started ? molecule.position : molecule.anchor.clone().add(new THREE.Vector3(0, wobble, 0));
+        if (position.x < 0) leftCount += 1;
+        dummy.position.copy(position);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        moleculeMesh.setMatrixAt(index, dummy.matrix);
+      });
+      moleculeMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    layoutAnchors();
+    resetVelocities();
+    writeMatrices();
+
+    const beforeLn = 0;
+    const targetLeft = Math.floor(moleculeCount / 2);
+    const afterLn = lnCombination(moleculeCount, targetLeft);
+
+    return {
+      key: '기체 확산',
+      group,
+      cameraPosition: new THREE.Vector3(7.8, 5.2, 8.2),
+      cameraTarget: new THREE.Vector3(0, 0.3, 0),
+      statusHint: getScenarioStatus('기체 확산'),
+      resetMessage: '분자를 다시 왼쪽 칸에 정렬했습니다.',
+      start() {
+        started = true;
+        progress = 0;
+        resetVelocities();
+        setStatus('칸막이를 제거했습니다. 분자는 더 많은 미시 상태를 향해 퍼져 나갑니다.', 'success');
+      },
+      reset() {
+        started = false;
+        progress = 0;
+        partitionMaterial.opacity = 0.72;
+        resetVelocities();
+        writeMatrices();
+      },
+      reverseAttempt() {
+        setStatus(`확산된 기체가 ${moleculeCount}개 모두 다시 한쪽으로 모일 확률은 거의 0에 가깝습니다.`, 'warn');
+      },
+      update(delta, elapsed) {
+        if (started) {
+          progress = Math.min(1, progress + delta / 7.8);
+          partitionMaterial.opacity = 0.72 * (1 - smoothstep(0, 0.18, progress));
+          molecules.forEach((molecule) => {
+            molecule.position.addScaledVector(molecule.velocity, delta * 1.18);
+            if (molecule.position.y < bounds.minY || molecule.position.y > bounds.maxY) {
+              molecule.velocity.y *= -1;
+              molecule.position.y = clamp(molecule.position.y, bounds.minY, bounds.maxY);
+            }
+            if (molecule.position.z < bounds.minZ || molecule.position.z > bounds.maxZ) {
+              molecule.velocity.z *= -1;
+              molecule.position.z = clamp(molecule.position.z, bounds.minZ, bounds.maxZ);
+            }
+            const xMax = progress < 0.14 ? leftLimit : bounds.maxX;
+            if (molecule.position.x < bounds.minX || molecule.position.x > xMax) {
+              molecule.velocity.x *= -1;
+              molecule.position.x = clamp(molecule.position.x, bounds.minX, xMax);
+            }
+            if (progress > 0.18) {
+              molecule.velocity.x += (Math.random() - 0.5) * 0.04;
+              molecule.velocity.y += (Math.random() - 0.5) * 0.025;
+              molecule.velocity.z += (Math.random() - 0.5) * 0.025;
+              molecule.velocity.clampLength(0.5, 1.7);
+            }
+          });
+        }
+        writeMatrices(elapsed);
+      },
+      snapshot() {
+        const currentLn = started ? Math.max(0, lnCombination(moleculeCount, leftCount)) : 0;
+        const stageTag = !started || progress < 0.04 ? '질서 상태' : progress < 0.94 ? '확산 진행' : '무질서 상태';
+        const stageTitle = !started || progress < 0.04
+          ? '분자가 한쪽에만 모여 있습니다.'
+          : progress < 0.94
+            ? '칸막이가 사라지자 분자가 양쪽으로 퍼집니다.'
+            : '양쪽에 고르게 퍼진 상태가 훨씬 자연스럽습니다.';
+        const stageBody = !started || progress < 0.04
+          ? '모든 분자가 왼쪽에만 있는 배치는 가능한 경우의 수가 적으므로 낮은 엔트로피 상태입니다.'
+          : progress < 0.94
+            ? `현재 왼쪽 ${leftCount}개, 오른쪽 ${moleculeCount - leftCount}개입니다. 좌우 배치 경우의 수가 증가하면서 엔트로피도 올라갑니다.`
+            : '모든 분자가 다시 한쪽으로 몰려드는 배치는 확률이 매우 작기 때문에 자발적으로는 거의 관찰되지 않습니다.';
+        return {
+          name: '기체 확산',
+          stageTag,
+          noteTitle: stageTitle,
+          noteBody: stageBody,
+          accentNote: stageTag === '질서 상태' ? '높은 질서 = 낮은 엔트로피' : '높은 무질서 = 높은 엔트로피',
+          formulaEquation: 'S = k<sub>B</sub> ln(Ω)',
+          beforeValue: beforeLn,
+          currentValue: currentLn,
+          afterValue: afterLn,
+          beforeText: `${beforeLn.toFixed(2)} <small>(Ω = 1)</small>`,
+          currentText: `${currentLn.toFixed(2)} <small>(Ω = C(${moleculeCount}, ${leftCount}))</small>`,
+          afterText: `${afterLn.toFixed(2)} <small>(Ω = C(${moleculeCount}, ${targetLeft}))</small>`,
+          deltaText: `${formatSigned(afterLn - beforeLn)} <small>k<sub>B</sub> 단위</small>`,
+          heatText: '고립계 확산: 외부 일 없이도 더 큰 Ω 쪽으로 진행',
+          formulaNote: `<strong>엔트로피 증가 법칙:</strong> 분자 ${moleculeCount}개가 좌우에 배치될 때, ${targetLeft}:${moleculeCount - targetLeft} 분포가 가장 많은 미시 상태를 가집니다.`,
+          summaryTitle: '한쪽에 몰린 기체는 드문 상태, 퍼진 기체는 매우 흔한 상태입니다.',
+          summaryBody: `좌우 두 영역만 세는 단순화 모형에서도 Ω는 ${formatOmegaFromLn(afterLn)}까지 커집니다. 그래서 분자는 자발적으로 퍼지고, 반대 과정은 거의 일어나지 않습니다.`,
+          metricStage: stageTag,
+          metricStageSub: stageTag === '질서 상태' ? '질서가 큰 시작점' : '미시 상태 수가 증가 중',
+          metricDelta: `${formatSigned(afterLn - beforeLn)} kB`,
+          metricDeltaSub: '자발적 확산 방향',
+          metricMicro: formatOmegaFromLn(currentLn),
+          metricMicroSub: `현재 배치 Ω = C(${moleculeCount}, ${leftCount})`,
+          metricProbability: formatScientificFromLog10(-moleculeCount * Math.log10(2)),
+          metricProbabilitySub: '다시 한쪽으로 모일 확률',
+          entropyDescription: '그래프는 S/kB = lnΩ 기준입니다. 시작 상태와 달리 균등 혼합 상태는 가능한 배치 수가 압도적으로 많습니다.',
+          chartUnit: 'S / kB',
+          entropyCaption: `왼쪽 ${leftCount}개 / 오른쪽 ${moleculeCount - leftCount}개. 가장 가능성 높은 분포는 ${targetLeft}:${moleculeCount - targetLeft} 입니다.`,
+          beforeBarLabel: beforeLn.toFixed(2),
+          currentBarLabel: currentLn.toFixed(2),
+          afterBarLabel: afterLn.toFixed(2),
+          microDescription: '기체 분자를 좌우 두 칸에 배치하는 단순 모형으로만 세어도, 균등 혼합 상태의 Ω가 최대가 됩니다.',
+          microBefore: '1',
+          microCurrent: formatOmegaFromLn(currentLn),
+          microAfter: formatOmegaFromLn(afterLn),
+          microBeforeSub: '모두 왼쪽',
+          microCurrentSub: `현재 ${leftCount}:${moleculeCount - leftCount}`,
+          microAfterSub: `${targetLeft}:${moleculeCount - targetLeft} 분포`,
+          microCaption: '모형: 좌우 배치만 세는 이항 분포 관점. S = kB lnΩ 이므로 Ω가 큰 쪽이 더 높은 엔트로피를 가집니다.',
+        };
+      },
+      dispose() {
+        disposeObject(group);
+      },
+    };
+  }
+
+  function createIceScenario() {
+    const group = new THREE.Group();
+    let meltProgress = 0;
+    let targetMelt = clamp((params.temperature - 270) / 14, 0, 1);
+    let started = false;
+
+    const stand = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.1, 2.25, 0.24, 48),
+      new THREE.MeshStandardMaterial({ color: 0xc9d4e2, roughness: 0.82 }),
+    );
+    stand.position.set(0, -1.88, 0);
+    group.add(stand);
+
+    const vessel = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.8, 1.8, 3.4, 48, 1, true),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.16,
+        transmission: 0.42,
+        roughness: 0.12,
+        side: THREE.DoubleSide,
+      }),
+    );
+    vessel.position.set(0, -0.18, 0);
+    group.add(vessel);
+
+    const vesselEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.CylinderGeometry(1.8, 1.8, 3.4, 24)),
+      new THREE.LineBasicMaterial({ color: 0x7a8ca2 }),
+    );
+    vesselEdges.position.copy(vessel.position);
+    group.add(vesselEdges);
+
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x4488cc,
+      transparent: true,
+      opacity: 0.54,
+      roughness: 0.08,
+      transmission: 0.22,
+    });
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.1, 48), waterMaterial);
+    group.add(water);
+
+    const iceMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xaaddff,
+      transparent: true,
+      opacity: 0.84,
+      roughness: 0.16,
+      transmission: 0.24,
+    });
+    const iceBlock = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.7, 1.7), iceMaterial);
+    iceBlock.position.set(0, 0.08, 0);
+    group.add(iceBlock);
+
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(1.95, 24, 24),
+      new THREE.MeshBasicMaterial({ color: 0xb7e6ff, transparent: true, opacity: 0.08 }),
+    );
+    halo.position.copy(iceBlock.position);
+    group.add(halo);
+
+    const dummy = new THREE.Object3D();
+    const moleculeMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.09, 14, 14),
+      new THREE.MeshStandardMaterial({ color: 0xeaf7ff, roughness: 0.2 }),
+      ICE_MOLECULES,
+    );
+    group.add(moleculeMesh);
+
+    const molecules = new Array(ICE_MOLECULES).fill(null).map(() => ({
+      lattice: new THREE.Vector3(),
+      liquid: new THREE.Vector3(),
+      velocity: new THREE.Vector3(),
+      current: new THREE.Vector3(),
+    }));
+
+    function layoutLattice() {
+      let index = 0;
+      for (let y = 0; y < 2; y += 1) {
+        for (let z = 0; z < 2; z += 1) {
+          for (let x = 0; x < 5; x += 1) {
+            molecules[index].lattice.set(-0.72 + x * 0.36, -0.42 + y * 0.72, -0.38 + z * 0.76);
+            index += 1;
+          }
+        }
+      }
+    }
+
+    function randomizeLiquid() {
+      molecules.forEach((molecule) => {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 1.28;
+        molecule.liquid.set(Math.cos(angle) * radius, -1.0 + Math.random() * 2.3, Math.sin(angle) * radius);
+        molecule.velocity.set((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9);
+      });
+    }
+
+    function updateWaterLevel() {
+      const height = lerp(0.3, 2.5, meltProgress);
+      water.scale.y = height;
+      water.position.set(0, -1.66 + height * 0.5, 0);
+      water.material.opacity = 0.25 + meltProgress * 0.32;
+      iceBlock.scale.setScalar(1 - meltProgress * 0.35);
+      iceBlock.material.opacity = 0.84 - meltProgress * 0.44;
+      iceBlock.position.y = 0.08 - meltProgress * 0.14;
+      halo.material.opacity = 0.08 + meltProgress * 0.06;
+      halo.scale.setScalar(1 + meltProgress * 0.12);
+      halo.position.copy(iceBlock.position);
+    }
+
+    function writeMatrices(elapsed) {
+      molecules.forEach((molecule, index) => {
+        const vibration = new THREE.Vector3(
+          Math.sin(elapsed * 2.4 + index) * 0.03,
+          Math.cos(elapsed * 2.8 + index * 0.4) * 0.03,
+          Math.sin(elapsed * 2.2 + index * 0.7) * 0.03,
+        );
+        const ordered = molecule.lattice.clone().add(vibration);
+        const mixed = smoothstep(0.08, 0.95, meltProgress);
+        molecule.current.copy(ordered).lerp(molecule.liquid, mixed);
+        dummy.position.copy(molecule.current);
+        dummy.scale.setScalar(1);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        moleculeMesh.setMatrixAt(index, dummy.matrix);
+      });
+      moleculeMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    layoutLattice();
+    randomizeLiquid();
+    updateWaterLevel();
+    writeMatrices(0);
+
+    return {
+      key: '얼음 녹음',
+      group,
+      cameraPosition: new THREE.Vector3(6.4, 4.8, 6.9),
+      cameraTarget: new THREE.Vector3(0, -0.2, 0),
+      statusHint: getScenarioStatus('얼음 녹음'),
+      resetMessage: '얼음을 다시 단단한 격자 상태로 되돌렸습니다.',
+      start() {
+        started = true;
+        meltProgress = targetMelt < 0.5 ? 1 : 0;
+        setStatus(`온도 ${params.temperature} K 조건에서 상변화를 재생합니다.`, 'success');
+      },
+      setTemperature(value) {
+        targetMelt = clamp((value - 270) / 14, 0, 1);
+        if (started) {
+          setStatus(`온도를 ${value} K로 조절했습니다. 열 교환에 따라 새 평형 상태로 이동합니다.`, 'info');
+        }
+      },
+      reset() {
+        started = false;
+        meltProgress = 0;
+        targetMelt = clamp((params.temperature - 270) / 14, 0, 1);
+        randomizeLiquid();
+        updateWaterLevel();
+        writeMatrices(0);
+      },
+      reverseAttempt() {
+        setStatus('얼음으로 되돌리려면 외부로 열을 빼앗아야 합니다. 고립계에서는 저절로 되돌아가지 않습니다.', 'warn');
+      },
+      update(delta, elapsed) {
+        molecules.forEach((molecule) => {
+          molecule.liquid.addScaledVector(molecule.velocity, delta * 0.85);
+          const radial = Math.hypot(molecule.liquid.x, molecule.liquid.z);
+          if (radial > 1.45) {
+            const normalX = molecule.liquid.x / radial;
+            const normalZ = molecule.liquid.z / radial;
+            const dot = molecule.velocity.x * normalX + molecule.velocity.z * normalZ;
+            molecule.velocity.x -= 2 * dot * normalX;
+            molecule.velocity.z -= 2 * dot * normalZ;
+            molecule.liquid.x = normalX * 1.45;
+            molecule.liquid.z = normalZ * 1.45;
+          }
+          if (molecule.liquid.y < -1.3 || molecule.liquid.y > 1.2) {
+            molecule.velocity.y *= -1;
+            molecule.liquid.y = clamp(molecule.liquid.y, -1.3, 1.2);
+          }
+          molecule.velocity.clampLength(0.18, 0.95);
+        });
+
+        if (started) {
+          meltProgress = THREE.MathUtils.damp(meltProgress, targetMelt, 2.6, delta);
+        }
+
+        updateWaterLevel();
+        writeMatrices(elapsed);
+      },
+      snapshot() {
+        const beforeS = 18;
+        const afterDelta = (LATENT_HEAT * ICE_MASS * targetMelt) / Math.max(params.temperature, 1);
+        const currentS = beforeS + (LATENT_HEAT * ICE_MASS * meltProgress) / Math.max(params.temperature, 1);
+        const afterS = beforeS + afterDelta;
+        const currentSites = Math.max(ICE_MOLECULES, Math.round(24 + 96 * meltProgress));
+        const targetSites = Math.max(ICE_MOLECULES, Math.round(24 + 96 * targetMelt));
+        const beforeLn = lnCombination(24, ICE_MOLECULES);
+        const currentLn = lnCombination(currentSites, ICE_MOLECULES);
+        const afterLn = lnCombination(targetSites, ICE_MOLECULES);
+        const cooling = targetMelt < meltProgress;
+        const stageTag = meltProgress < 0.18 ? '질서 상태' : meltProgress < 0.82 ? '상변화 진행' : '무질서 상태';
+        return {
+          name: '얼음 녹음',
+          stageTag,
+          noteTitle: stageTag === '질서 상태'
+            ? '얼음 격자에서 분자가 제자리 진동합니다.'
+            : stageTag === '상변화 진행'
+              ? '열을 주고받으며 격자가 풀리고 있습니다.'
+              : '분자가 액체 상태로 더 자유롭게 움직입니다.',
+          noteBody: stageTag === '질서 상태'
+            ? '격자에 묶인 분자는 가능한 배치 수가 적어 엔트로피가 낮습니다.'
+            : stageTag === '상변화 진행'
+              ? `현재 온도는 ${params.temperature} K, 녹은 정도는 ${(meltProgress * 100).toFixed(0)}% 입니다. 배치 가능한 자리가 늘어나며 Ω가 증가합니다.`
+              : '액체는 분자의 위치와 운동이 더 자유로워 미시 상태 수가 매우 큽니다.',
+          accentNote: cooling ? '냉각은 외부와의 열교환이 필요' : '열 흡수 → 무질서 증가 → ΔS > 0',
+          formulaEquation: 'ΔS = Q/T, &nbsp; S = k<sub>B</sub> ln(Ω)',
+          beforeValue: beforeS,
+          currentValue: currentS,
+          afterValue: afterS,
+          beforeText: `${beforeS.toFixed(1)} <small>J/K</small>`,
+          currentText: `${currentS.toFixed(1)} <small>J/K</small>`,
+          afterText: `${afterS.toFixed(1)} <small>J/K</small>`,
+          deltaText: `${formatSigned(afterS - beforeS, 1)} <small>J/K</small>`,
+          heatText: `Q = ${(LATENT_HEAT * ICE_MASS * targetMelt).toFixed(0)} J, T = ${params.temperature.toFixed(0)} K`,
+          formulaNote: cooling
+            ? '<strong>주의:</strong> 얼음이 다시 생기려면 주변으로 열이 빠져나가야 합니다. 계의 엔트로피는 줄어들 수 있어도, 주변까지 포함한 전체 엔트로피는 감소하지 않습니다.'
+            : '<strong>용융 엔트로피:</strong> ΔS = Q/T = L<sub>f</sub>m/T. 같은 질량이라도 온도가 낮을수록 같은 열량이 더 큰 엔트로피 변화를 만듭니다.',
+          summaryTitle: cooling ? '질서를 회복하려면 외부로 열을 내보내야 합니다.' : '얼음에서 물로 갈수록 분자의 가능한 배치 수가 급격히 늘어납니다.',
+          summaryBody: cooling
+            ? '냉각은 외부 환경이 엔트로피를 더 많이 받아 주어야 가능한 변화입니다. 따라서 열역학 제2법칙과 모순되지 않습니다.'
+            : `모형에서 가능한 자리 수를 24칸에서 ${targetSites}칸으로 늘리면 Ω가 ${formatOmegaFromLn(afterLn)}까지 커집니다. 격자가 풀릴수록 더 많은 미시 상태가 열립니다.`,
+          metricStage: stageTag,
+          metricStageSub: `${params.temperature} K 조건`,
+          metricDelta: `${formatSigned(afterS - beforeS, 1)} J/K`,
+          metricDeltaSub: '선택한 온도에서의 목표 변화',
+          metricMicro: formatOmegaFromLn(currentLn),
+          metricMicroSub: `가능한 자리 ${currentSites}칸`,
+          metricProbability: cooling ? '외부 냉각 필요' : '가열 시 자발적',
+          metricProbabilitySub: cooling ? '주변계 포함 필요' : '용융이 더 흔한 방향',
+          entropyDescription: '이 그래프는 ΔS = Q/T 모형의 엔트로피 변화량을 사용합니다. 용융이 진행될수록 막대가 높아집니다.',
+          chartUnit: 'J/K',
+          entropyCaption: cooling ? '국소적 엔트로피 감소는 외부로 열을 보내는 과정과 함께 이해해야 합니다.' : '열을 흡수해 얼음이 녹을수록 계의 엔트로피가 증가합니다.',
+          beforeBarLabel: beforeS.toFixed(1),
+          currentBarLabel: currentS.toFixed(1),
+          afterBarLabel: afterS.toFixed(1),
+          microDescription: '분자가 들어갈 수 있는 자리 수가 많아질수록 Ω가 증가합니다. 액체는 결정 격자보다 훨씬 많은 배치를 허용합니다.',
+          microBefore: formatOmegaFromLn(beforeLn),
+          microCurrent: formatOmegaFromLn(currentLn),
+          microAfter: formatOmegaFromLn(afterLn),
+          microBeforeSub: '24칸 중 20개 점유',
+          microCurrentSub: `${currentSites}칸 중 20개 점유`,
+          microAfterSub: `${targetSites}칸 중 20개 점유`,
+          microCaption: '단순화 모형: 가능한 분자 자리 수를 늘려 조합 Ω = C(N, 20)로 비교했습니다. 실제 물은 이보다 훨씬 많은 미시 상태를 가집니다.',
+        };
+      },
+      dispose() {
+        disposeObject(group);
+      },
+    };
+  }
+
+  function createCardTexture(rank, suit, color) {
+    const cardCanvas = document.createElement('canvas');
+    cardCanvas.width = 256;
+    cardCanvas.height = 384;
+    const ctx = cardCanvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cardCanvas.width, cardCanvas.height);
+    ctx.strokeStyle = '#d6dde8';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(12, 12, cardCanvas.width - 24, cardCanvas.height - 24);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 42px Pretendard';
+    ctx.fillText(rank, 28, 58);
+    ctx.font = '36px Pretendard';
+    ctx.fillText(suit, 30, 102);
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 116px Pretendard';
+    ctx.fillText(suit, cardCanvas.width / 2, 214);
+    ctx.font = 'bold 58px Pretendard';
+    ctx.fillText(rank, cardCanvas.width / 2, 298);
+    ctx.textAlign = 'left';
+    const texture = new THREE.CanvasTexture(cardCanvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  function createCardScenario() {
+    const group = new THREE.Group();
+    let progress = 0;
+    let started = false;
+    const cards = [];
+    const cardGeometry = new THREE.PlaneGeometry(0.6, 0.9);
+    const table = new THREE.Mesh(
+      new THREE.BoxGeometry(9.6, 0.26, 5.4),
+      new THREE.MeshStandardMaterial({ color: 0x496d52, roughness: 0.92 }),
+    );
+    table.position.set(0, -1.05, 0);
+    group.add(table);
+
+    const gridShadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(9.4, 5.2),
+      new THREE.MeshBasicMaterial({ color: 0x254035, transparent: true, opacity: 0.12 }),
+    );
+    gridShadow.rotation.x = -Math.PI / 2;
+    gridShadow.position.set(0, -0.91, 0);
+    group.add(gridShadow);
+
+    const suits = [
+      { label: '♠', color: '#1f2937' },
+      { label: '♥', color: '#d64745' },
+      { label: '♦', color: '#cf4b3b' },
+      { label: '♣', color: '#1f2937' },
+    ];
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const ordered = [];
+    suits.forEach((suit) => {
+      ranks.forEach((rank) => ordered.push({ rank, suit: suit.label, color: suit.color }));
+    });
+
+    function orderedTransform(index) {
+      const row = Math.floor(index / 13);
+      const col = index % 13;
+      return {
+        position: new THREE.Vector3(-3.75 + col * 0.63, -0.72, -1.55 + row * 1.03),
+        rotation: new THREE.Euler(-Math.PI / 2, 0, 0),
+      };
+    }
+
+    function shuffledTransform(index) {
+      const col = index % 8;
+      const row = Math.floor(index / 8);
+      return {
+        position: new THREE.Vector3(
+          -3.1 + col * 0.9 + (Math.random() - 0.5) * 0.18,
+          -0.72 + (index % 5) * 0.01,
+          -1.85 + row * 0.78 + (Math.random() - 0.5) * 0.16,
+        ),
+        lift: new THREE.Vector3((Math.random() - 0.5) * 6.5, 1.5 + Math.random() * 1.3, (Math.random() - 0.5) * 4.4),
+        rotation: new THREE.Euler(-Math.PI / 2 + (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.7),
+        liftRotation: new THREE.Euler(-0.9 + (Math.random() - 0.5) * 1.8, (Math.random() - 0.5) * Math.PI, (Math.random() - 0.5) * Math.PI),
+      };
+    }
+
+    ordered.forEach((cardData, index) => {
+      const texture = createCardTexture(cardData.rank, cardData.suit, cardData.color);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: texture,
+        roughness: 0.55,
+        metalness: 0.04,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(cardGeometry, material);
+      mesh.userData.texture = texture;
+      const orderedPose = orderedTransform(index);
+      mesh.position.copy(orderedPose.position);
+      mesh.rotation.copy(orderedPose.rotation);
+      group.add(mesh);
+      cards.push({ mesh, orderedPose, shuffledPose: null });
+    });
+
+    function generateShuffleTargets() {
+      cards.forEach((card, visualIndex) => {
+        card.shuffledPose = shuffledTransform(visualIndex);
+      });
+    }
+
+    function applyPose(time) {
+      const t = easeInOutCubic(progress);
+      cards.forEach((card, index) => {
+        const start = card.orderedPose;
+        const target = card.shuffledPose;
+        const startQuat = new THREE.Quaternion().setFromEuler(start.rotation);
+        const liftQuat = new THREE.Quaternion().setFromEuler(target.liftRotation);
+        const endQuat = new THREE.Quaternion().setFromEuler(target.rotation);
+        const currentQuat = new THREE.Quaternion();
+        const localPos = new THREE.Vector3();
+        if (t < 0.45) {
+          const liftT = easeInOutCubic(t / 0.45);
+          localPos.copy(start.position).lerp(target.lift, liftT);
+          currentQuat.copy(startQuat).slerp(liftQuat, liftT);
+        } else {
+          const settleT = easeInOutCubic((t - 0.45) / 0.55);
+          localPos.copy(target.lift).lerp(target.position, settleT);
+          currentQuat.copy(liftQuat).slerp(endQuat, settleT);
+        }
+        if (!started) {
+          localPos.copy(start.position);
+          currentQuat.copy(startQuat);
+        } else if (progress >= 1) {
+          localPos.copy(target.position);
+          localPos.y += Math.sin(time * 1.6 + index * 0.2) * 0.012;
+          currentQuat.copy(endQuat);
+        }
+        card.mesh.position.copy(localPos);
+        card.mesh.quaternion.copy(currentQuat);
+      });
+    }
+
+    generateShuffleTargets();
+    applyPose(0);
+    const afterLn = logFactorial(CARD_TOTAL);
+
+    return {
+      key: '카드 섞기',
+      group,
+      cameraPosition: new THREE.Vector3(8.2, 5.9, 8.3),
+      cameraTarget: new THREE.Vector3(0, -0.75, 0),
+      statusHint: getScenarioStatus('카드 섞기'),
+      resetMessage: '카드를 다시 정렬된 순서로 놓았습니다.',
+      start() {
+        started = true;
+        progress = 0;
+        generateShuffleTargets();
+        setStatus('정렬된 카드가 무작위 순서로 섞이고 있습니다. 가능한 순열 수가 폭발적으로 증가합니다.', 'success');
+      },
+      reset() {
+        started = false;
+        progress = 0;
+        generateShuffleTargets();
+        applyPose(0);
+      },
+      reverseAttempt() {
+        setStatus('52!개의 순열 중 정렬 상태는 단 1가지입니다. 자발적으로 원래 순서가 복원될 확률은 사실상 0입니다.', 'warn');
+      },
+      update(delta, elapsed) {
+        if (started) progress = Math.min(1, progress + delta / 3.8);
+        applyPose(elapsed);
+      },
+      snapshot() {
+        const currentLn = afterLn * easeInOutCubic(progress);
+        const stageTag = !started || progress < 0.02 ? '정렬 상태' : progress < 0.96 ? '섞는 중' : '무질서 상태';
+        return {
+          name: '카드 섞기',
+          stageTag,
+          noteTitle: stageTag === '정렬 상태'
+            ? '모든 카드가 규칙적인 순서에 놓여 있습니다.'
+            : stageTag === '섞는 중'
+              ? '카드 순열이 빠르게 늘어나고 있습니다.'
+              : '무작위 배열은 압도적으로 많은 미시 상태를 가집니다.',
+          noteBody: stageTag === '정렬 상태'
+            ? '스페이드 A~K, 하트 A~K처럼 정렬된 상태는 사실상 1가지뿐입니다.'
+            : stageTag === '섞는 중'
+              ? '카드를 공중으로 올려 섞을수록 가능한 순열이 기하급수적으로 늘어납니다.'
+              : '섞인 상태 중 다시 정확히 정렬 상태로 돌아오는 경우는 1/52!에 불과합니다.',
+          accentNote: '자발적 정렬 확률 = 1 / 52! ≈ 0',
+          formulaEquation: 'S = k<sub>B</sub> ln(Ω), &nbsp; Ω = 52!',
+          beforeValue: 0,
+          currentValue: currentLn,
+          afterValue: afterLn,
+          beforeText: '0.00 <small>(Ω = 1)</small>',
+          currentText: `${currentLn.toFixed(2)} <small>(현재 섞임 정도)</small>`,
+          afterText: `${afterLn.toFixed(2)} <small>(Ω = 52!)</small>`,
+          deltaText: `${formatSigned(afterLn)} <small>k<sub>B</sub> 단위</small>`,
+          heatText: `52! ≈ ${formatOmegaFromLn(afterLn)}`,
+          formulaNote: '<strong>비유의 핵심:</strong> 카드 배열처럼 “질서 있게 딱 한 가지인 상태”보다 “대충 섞여 있는 수많은 상태”가 훨씬 많기 때문에 무질서한 상태가 더 자연스럽습니다.',
+          summaryTitle: '정렬된 카드보다 섞인 카드가 훨씬 “많은 방식으로” 존재합니다.',
+          summaryBody: `카드 52장의 모든 순서를 미시 상태로 보면, 정렬은 1가지이고 섞인 배열은 ${formatOmegaFromLn(afterLn)}가지입니다. 그래서 자발적 정렬은 거의 일어나지 않습니다.`,
+          metricStage: stageTag,
+          metricStageSub: '카드 순열 비유',
+          metricDelta: `${formatSigned(afterLn)} kB`,
+          metricDeltaSub: '정렬 대비 최대 섞임',
+          metricMicro: stageTag === '정렬 상태' ? '1' : formatOmegaFromLn(currentLn),
+          metricMicroSub: '현재 추정 순열 수',
+          metricProbability: formatScientificFromLog10(-afterLn / Math.LN10),
+          metricProbabilitySub: '정렬로 정확히 복귀할 확률',
+          entropyDescription: '카드 섞기 비유에서는 엔트로피를 S/kB = lnΩ로 봅니다. 정렬 1가지와 52!개의 섞인 상태를 비교해 보세요.',
+          chartUnit: 'S / kB',
+          entropyCaption: '카드를 섞을수록 가능한 순열 Ω가 기하급수적으로 증가합니다.',
+          beforeBarLabel: '0.00',
+          currentBarLabel: currentLn.toFixed(2),
+          afterBarLabel: afterLn.toFixed(2),
+          microDescription: '정렬 상태는 1가지뿐이지만, 카드가 뒤섞인 상태는 52!개의 순열을 가질 수 있습니다.',
+          microBefore: '1',
+          microCurrent: stageTag === '정렬 상태' ? '1' : formatOmegaFromLn(currentLn),
+          microAfter: formatOmegaFromLn(afterLn),
+          microBeforeSub: '정렬',
+          microCurrentSub: '섞이는 중',
+          microAfterSub: '완전 섞임',
+          microCaption: '정렬로 되돌아갈 확률은 1/52! ≈ 1.24×10^-68 입니다. “저절로 정리되는 덱”을 보기 어려운 이유가 여기에 있습니다.',
+        };
+      },
+      dispose() {
+        disposeObject(group);
+      },
+    };
+  }
+
+  function switchScenario(name, options = {}) {
+    if (activeScenario && activeScenario.dispose) {
+      scene.remove(activeScenario.group);
+      activeScenario.dispose();
+    }
+    activeScenario = name === '기체 확산' ? createGasScenario() : name === '얼음 녹음' ? createIceScenario() : createCardScenario();
+    scene.add(activeScenario.group);
+    if (!options.preserveCamera) setCameraPose(activeScenario.cameraPosition, activeScenario.cameraTarget);
+    statusBanner.textContent = activeScenario.statusHint;
+    statusBanner.classList.remove('warn', 'success');
+    statusBanner.classList.add('info');
+    syncGui();
+  }
+
+  function onResize() {
+    const width = Math.max(scenePanel.clientWidth, 1);
+    const height = Math.max(scenePanel.clientHeight, 1);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.033);
+    const elapsed = clock.getElapsedTime();
+    if (activeScenario) {
+      activeScenario.update(delta, elapsed);
+      updateUi(activeScenario.snapshot());
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  switchScenario(params.scenario);
+  updatePanelVisibility();
+  syncGui();
+  onResize();
+  window.addEventListener('resize', onResize);
+  animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>용수철 진자와 단진동 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --scene-bg: linear-gradient(180deg, rgba(255, 247, 236, 0.96) 0%, rgba(239, 241, 246, 0.96) 50%, rgba(228, 233, 241, 0.98) 100%);
+    --graph-bg: linear-gradient(180deg, #0f1727 0%, #070d17 100%);
+    --panel-glass: rgba(10, 18, 31, 0.88);
+    --panel-soft: rgba(255, 255, 255, 0.06);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f4f8ff;
+    --text-dim: rgba(244, 248, 255, 0.68);
+    --scene-text: #22354d;
+    --scene-dim: rgba(34, 53, 77, 0.74);
+    --accent-blue: #5ea8ff;
+    --accent-green: #67e39b;
+    --accent-red: #ff6b6b;
+    --accent-gold: #ffd479;
+    --accent-secondary: #8fc4ff;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 11%, rgba(255, 212, 120, 0.18), transparent 22%),
+      linear-gradient(180deg, #f5f5f7 0%, #eef0f5 100%);
+    color: var(--text-main);
+    font-family: 'Pretendard', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background: var(--scene-bg);
+    border-right: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 14% 10%, rgba(94, 168, 255, 0.16), transparent 22%),
+      var(--graph-bg);
+  }
+
+  #scene-canvas,
+  #graph-canvas,
+  #label-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #label-layer {
+    z-index: 14;
+    pointer-events: none;
+  }
+
+  #scene-head {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    max-width: min(420px, calc(100% - 36px));
+    z-index: 12;
+    padding: 16px 18px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.52);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow: 0 18px 40px rgba(79, 92, 115, 0.14);
+    backdrop-filter: blur(16px);
+    color: var(--scene-text);
+  }
+
+  #scene-head .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(34, 53, 77, 0.58);
+  }
+
+  #scene-head h1 {
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #scene-head p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: var(--scene-dim);
+  }
+
+  #scene-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(34, 53, 77, 0.08);
+    color: rgba(24, 45, 69, 0.92);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .chip[data-tone="accent"] {
+    background: rgba(255, 227, 176, 0.74);
+  }
+
+  #energy-panel {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    z-index: 12;
+    width: min(344px, calc(100% - 36px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    background: rgba(9, 18, 31, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(14px);
+  }
+
+  #energy-panel.hidden,
+  .hidden {
+    display: none !important;
+  }
+
+  #energy-panel h2 {
+    font-size: 14px;
+    color: #dff0ff;
+  }
+
+  #energy-panel p {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #energy-cards {
+    margin-top: 12px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .energy-card {
+    padding: 12px 12px 10px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .energy-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  .energy-meta .title {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  .energy-meta strong {
+    font-size: 15px;
+    color: #ffffff;
+  }
+
+  .energy-stage {
+    position: relative;
+    margin-top: 12px;
+    height: 118px;
+    padding: 10px 12px 18px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+
+  .energy-bars {
+    position: absolute;
+    inset: 12px 12px 20px;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+  }
+
+  .bar-wrap {
+    position: relative;
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .bar {
+    width: 100%;
+    max-width: 54px;
+    height: 0;
+    border-radius: 12px 12px 6px 6px;
+    transition: height 0.12s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .bar-label {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.68);
+    white-space: nowrap;
+  }
+
+  .bar.energy-kinetic {
+    background: linear-gradient(180deg, rgba(255, 122, 122, 0.96) 0%, rgba(210, 64, 64, 0.94) 100%);
+  }
+
+  .bar.energy-potential {
+    background: linear-gradient(180deg, rgba(95, 168, 255, 0.96) 0%, rgba(55, 114, 230, 0.94) 100%);
+  }
+
+  .energy-total-line {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(103, 227, 155, 0.16), rgba(103, 227, 155, 0.94), rgba(103, 227, 155, 0.16));
+    box-shadow: 0 0 12px rgba(103, 227, 155, 0.34);
+  }
+
+  .energy-total-label {
+    position: absolute;
+    right: 14px;
+    transform: translateY(-12px);
+    font-size: 10px;
+    color: rgba(103, 227, 155, 0.96);
+    font-weight: 700;
+  }
+
+  .energy-readout {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.76);
+  }
+
+  .overlay-label {
+    position: absolute;
+    padding: 5px 9px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .overlay-label.mass {
+    background: rgba(9, 18, 31, 0.78);
+    color: #f5f8ff;
+  }
+
+  .overlay-label.reference {
+    background: rgba(255, 255, 255, 0.78);
+    color: #23405d;
+  }
+
+  .overlay-label.reference.accent {
+    background: rgba(255, 236, 192, 0.9);
+  }
+
+  #graph-head {
+    position: absolute;
+    top: 18px;
+    left: 20px;
+    right: 20px;
+    z-index: 12;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    pointer-events: none;
+  }
+
+  #graph-head h2 {
+    font-size: 23px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    max-width: 460px;
+  }
+
+  #legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 290px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11px;
+  }
+
+  .legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #metrics {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 18px;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .metric-card {
+    min-height: 92px;
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 6px;
+    font-size: 10px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 28;
+    width: min(394px, calc(100vw - 36px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(9, 18, 31, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+    font-size: 11px;
+    line-height: 1.78;
+  }
+
+  #formula-panel h3 {
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #dff0ff;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .formula-row .label {
+    width: 88px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.94);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .formula-block strong {
+    color: #fff0b3;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(9, 18, 31, 0.88);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 39;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(72vh, 680px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 16, 28, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    line-height: 1.8;
+    backdrop-filter: blur(16px);
+    display: none;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #dff0ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #fff0b3;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  .guide-card {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(8, 16, 28, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.06);
+    --text-color: #f4f8ff;
+    --title-background-color: rgba(95, 168, 255, 0.18);
+    --title-text-color: #ffffff;
+    --focus-color: rgba(95, 168, 255, 0.36);
+    position: fixed !important;
+    top: 14px;
+    right: 14px;
+    z-index: 41;
+    backdrop-filter: blur(16px);
+  }
+
+  @media (max-width: 1180px) {
+    #metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 980px) {
+    #layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.02fr) minmax(360px, 0.98fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    #formula-panel {
+      width: min(430px, calc(100vw - 24px));
+      left: 12px;
+      bottom: 12px;
+    }
+  }
+
+  @media (max-width: 700px) {
+    #scene-head,
+    #energy-panel,
+    #graph-head,
+    #metrics {
+      left: 12px;
+      right: 12px;
+      width: auto;
+    }
+
+    #scene-head {
+      max-width: none;
+    }
+
+    #scene-head h1 {
+      font-size: 21px;
+    }
+
+    #graph-head {
+      top: 16px;
+      flex-direction: column;
+    }
+
+    #legend {
+      justify-content: flex-start;
+      max-width: none;
+    }
+
+    #metrics {
+      grid-template-columns: 1fr;
+      bottom: 12px;
+    }
+
+    #formula-panel {
+      width: calc(100vw - 20px);
+      left: 10px;
+      bottom: 10px;
+      font-size: 10px;
+      padding: 14px 14px 12px;
+    }
+
+    .lil-gui.root {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+      max-height: 44vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="layout">
+    <section id="scene-panel">
+      <canvas id="scene-canvas"></canvas>
+      <div id="label-layer"></div>
+
+      <div id="scene-head">
+        <div class="eyebrow">Mechanics &amp; Energy</div>
+        <h1>용수철 진자와 단진동</h1>
+        <p>질량과 용수철 상수를 바꾸며 <strong>주기 T = 2π√(m/k)</strong>가 어떻게 달라지는지 관찰해 보세요. 단진동에서는 항상 <strong>a = -ω²x</strong>라서 가속도와 변위의 방향이 반대입니다.</p>
+        <div id="scene-chips">
+          <span class="chip" id="chip-mode">수직 모드</span>
+          <span class="chip" id="chip-relation" data-tone="accent">a와 x는 항상 반대 방향</span>
+        </div>
+      </div>
+
+      <section id="energy-panel" aria-live="polite">
+        <h2>에너지 시각화</h2>
+        <p>평형 위치에서는 운동 에너지가 최대, 최대 변위에서는 탄성 위치 에너지가 최대입니다. 총에너지는 일정하게 유지됩니다.</p>
+        <div id="energy-cards">
+          <div class="energy-card" id="energy-card-primary">
+            <div class="energy-meta">
+              <span class="title" id="energy-primary-title">기본 진자</span>
+              <strong id="energy-primary-total">E = 0.00 J</strong>
+            </div>
+            <div class="energy-stage">
+              <div class="energy-total-line" id="energy-primary-line"></div>
+              <div class="energy-total-label" id="energy-primary-line-label">총 E</div>
+              <div class="energy-bars">
+                <div class="bar-wrap">
+                  <div class="bar energy-kinetic" id="energy-primary-ek"></div>
+                  <span class="bar-label">Ek</span>
+                </div>
+                <div class="bar-wrap">
+                  <div class="bar energy-potential" id="energy-primary-ep"></div>
+                  <span class="bar-label">Ep</span>
+                </div>
+              </div>
+            </div>
+            <div class="energy-readout" id="energy-primary-readout">Ek 0.00 J · Ep 0.00 J</div>
+          </div>
+
+          <div class="energy-card hidden" id="energy-card-secondary">
+            <div class="energy-meta">
+              <span class="title" id="energy-secondary-title">비교 진자</span>
+              <strong id="energy-secondary-total">E = 0.00 J</strong>
+            </div>
+            <div class="energy-stage">
+              <div class="energy-total-line" id="energy-secondary-line"></div>
+              <div class="energy-total-label" id="energy-secondary-line-label">총 E</div>
+              <div class="energy-bars">
+                <div class="bar-wrap">
+                  <div class="bar energy-kinetic" id="energy-secondary-ek"></div>
+                  <span class="bar-label">Ek</span>
+                </div>
+                <div class="bar-wrap">
+                  <div class="bar energy-potential" id="energy-secondary-ep"></div>
+                  <span class="bar-label">Ep</span>
+                </div>
+              </div>
+            </div>
+            <div class="energy-readout" id="energy-secondary-readout">Ek 0.00 J · Ep 0.00 J</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="graph-panel">
+      <div id="graph-head">
+        <div>
+          <h2>실시간 그래프 분석</h2>
+          <p id="graph-summary">x-t, v-t, a-t 그래프를 동시에 비교하고, 필요하면 a-x 그래프에서 <strong>기울기 = -ω²</strong>를 바로 읽어 보세요. 세로 점선은 현재 시각을 나타냅니다.</p>
+        </div>
+        <div id="legend">
+          <span class="legend-chip"><span class="legend-dot" style="background:#5ea8ff;"></span>x(t)</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#67e39b;"></span>v(t)</span>
+          <span class="legend-chip"><span class="legend-dot" style="background:#ff6b6b;"></span>a(t)</span>
+          <span class="legend-chip" id="legend-compare"><span class="legend-dot" style="background:#8fc4ff;"></span>비교 곡선</span>
+        </div>
+      </div>
+
+      <canvas id="graph-canvas"></canvas>
+
+      <div id="metrics">
+        <div class="metric-card">
+          <span class="label">현재 변위</span>
+          <strong id="metric-x">0.00 m</strong>
+          <p id="metric-x-desc">평형 위치에서 멀수록 복원력이 커집니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">현재 속도</span>
+          <strong id="metric-v">0.00 m/s</strong>
+          <p id="metric-v-desc">x=0일 때 속도가 최대가 됩니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">주기 / 각진동수</span>
+          <strong id="metric-period">T = 0.00 s</strong>
+          <p id="metric-period-desc">k가 커지면 빠르고, m이 커지면 느려집니다.</p>
+        </div>
+        <div class="metric-card">
+          <span class="label">핵심 관계</span>
+          <strong id="metric-relation">a = -ω²x</strong>
+          <p id="metric-relation-desc">가속도는 변위에 비례하고 항상 반대 방향입니다.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section id="formula-panel" aria-live="polite">
+    <h3>🔄 용수철 진자와 단진동</h3>
+    <div class="formula-row"><span class="label">조건</span><span class="value" id="formula-setup">수직, m = 1.0 kg, k = 20 N/m, A = 0.5 m</span></div>
+    <div class="formula-row"><span class="label">변위</span><span class="value" id="formula-x">x = A sin(ωt) = 0.00 m</span></div>
+    <div class="formula-row"><span class="label">속도</span><span class="value" id="formula-v">v = Aω cos(ωt) = 0.00 m/s</span></div>
+    <div class="formula-row"><span class="label">가속도</span><span class="value" id="formula-a">a = -ω²x = 0.00 m/s²</span></div>
+    <div class="formula-block">
+      <div class="formula-row"><span class="label">각진동수</span><span class="value" id="formula-omega">ω = √(k/m) = 0.00 rad/s</span></div>
+      <div class="formula-row"><span class="label">주기</span><span class="value" id="formula-period">T = 2π√(m/k) = 0.00 s</span></div>
+      <div class="formula-row"><span class="label">진동수</span><span class="value" id="formula-frequency">f = 1/T = 0.00 Hz</span></div>
+    </div>
+    <div class="formula-block">
+      <strong>단진동 조건</strong><br>
+      <span id="formula-condition">a = -ω²x, 즉 가속도는 항상 평형 위치를 향합니다.</span>
+    </div>
+    <div class="formula-block">
+      <strong>에너지</strong><br>
+      <span id="formula-energy">E = 1/2kA² = 0.00 J, Ek = 0.00 J, Ep = 0.00 J</span>
+    </div>
+    <div class="formula-block hidden" id="formula-compare-block">
+      <strong>비교 진자</strong><br>
+      <span id="formula-compare">두 번째 진자의 주기와 기울기를 비교해 보세요.</span>
+    </div>
+  </section>
+
+  <button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+  <aside id="guide-panel" aria-hidden="true">
+    <h3>학습 가이드</h3>
+    <h4>핵심 원리</h4>
+    <p>단진동에서 가속도는 변위에 비례하고 항상 평형 위치를 향합니다. 그래서 <strong>a = -ω²x</strong>가 성립하며, 용수철 진자의 주기 <strong>T = 2π√(m/k)</strong>는 질량과 용수철 상수에만 의존하고 진폭에는 무관합니다.</p>
+
+    <div class="guide-card">
+      <h4>탐구 질문</h4>
+      <ul>
+        <li>용수철 상수를 4배로 키우면 주기는 몇 배가 될까요?</li>
+        <li>단진동에서 가속도가 0인 순간의 속도와 변위는 각각 어떤 상태인가요?</li>
+        <li>x-t, v-t, a-t 그래프에서 세 물리량의 위상 관계를 설명할 수 있나요?</li>
+      </ul>
+    </div>
+
+    <div class="guide-card">
+      <h4>실생활 예시</h4>
+      <ul>
+        <li>자동차 서스펜션과 진동 감쇠기</li>
+        <li>태엽 시계와 스프링 완충 장치</li>
+        <li>악기 현과 공명 장치의 진동</li>
+        <li>실험실의 질량-용수철 계</li>
+      </ul>
+    </div>
+
+    <div class="guide-card">
+      <h4>교과서 연계</h4>
+      <p>역학과 에너지 III편 p92~99의 용수철 진자와 단진동 개념을 3D 장면, 벡터, 에너지 막대, 실시간 그래프로 재구성했습니다.</p>
+    </div>
+  </aside>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const MASS_RADIUS = 0.28;
+const SPRING_TURNS = 12;
+const SPRING_TUBULAR_SEGMENTS = 96;
+const GRAPH_TOP = 118;
+const GRAPH_BOTTOM = 126;
+const GRAPH_SIDE = 22;
+const GRAPH_GAP = 16;
+const COLORS = {
+  x: '#5ea8ff',
+  v: '#67e39b',
+  a: '#ff6b6b',
+  compare: '#8fc4ff',
+  text: 'rgba(244,248,255,0.9)',
+  dim: 'rgba(244,248,255,0.54)',
+  grid: 'rgba(255,255,255,0.09)',
+  panel: 'rgba(255,255,255,0.05)',
+  zero: 'rgba(255,255,255,0.18)',
+};
+
+const controlState = {
+  direction: '수직',
+  mass: 1,
+  springConstant: 20,
+  amplitude: 0.5,
+  compareMode: false,
+  compareBy: '질량 비교',
+  showVectors: true,
+  showEnergyBars: true,
+  showAXGraph: true,
+  start() {
+    startSimulation();
+  },
+  reset() {
+    resetSimulation();
+  },
+};
+
+const simulation = {
+  time: 0,
+  running: false,
+  lastFrame: performance.now(),
+};
+
+const dom = {
+  scenePanel: document.getElementById('scene-panel'),
+  sceneCanvas: document.getElementById('scene-canvas'),
+  labelLayer: document.getElementById('label-layer'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  chipMode: document.getElementById('chip-mode'),
+  chipRelation: document.getElementById('chip-relation'),
+  graphSummary: document.getElementById('graph-summary'),
+  legendCompare: document.getElementById('legend-compare'),
+  metricX: document.getElementById('metric-x'),
+  metricXDesc: document.getElementById('metric-x-desc'),
+  metricV: document.getElementById('metric-v'),
+  metricVDesc: document.getElementById('metric-v-desc'),
+  metricPeriod: document.getElementById('metric-period'),
+  metricPeriodDesc: document.getElementById('metric-period-desc'),
+  metricRelation: document.getElementById('metric-relation'),
+  metricRelationDesc: document.getElementById('metric-relation-desc'),
+  formulaSetup: document.getElementById('formula-setup'),
+  formulaX: document.getElementById('formula-x'),
+  formulaV: document.getElementById('formula-v'),
+  formulaA: document.getElementById('formula-a'),
+  formulaOmega: document.getElementById('formula-omega'),
+  formulaPeriod: document.getElementById('formula-period'),
+  formulaFrequency: document.getElementById('formula-frequency'),
+  formulaCondition: document.getElementById('formula-condition'),
+  formulaEnergy: document.getElementById('formula-energy'),
+  formulaCompareBlock: document.getElementById('formula-compare-block'),
+  formulaCompare: document.getElementById('formula-compare'),
+  energyPanel: document.getElementById('energy-panel'),
+  energyCardSecondary: document.getElementById('energy-card-secondary'),
+  energyPrimaryTitle: document.getElementById('energy-primary-title'),
+  energyPrimaryTotal: document.getElementById('energy-primary-total'),
+  energyPrimaryReadout: document.getElementById('energy-primary-readout'),
+  energyPrimaryEk: document.getElementById('energy-primary-ek'),
+  energyPrimaryEp: document.getElementById('energy-primary-ep'),
+  energyPrimaryLine: document.getElementById('energy-primary-line'),
+  energyPrimaryLineLabel: document.getElementById('energy-primary-line-label'),
+  energySecondaryTitle: document.getElementById('energy-secondary-title'),
+  energySecondaryTotal: document.getElementById('energy-secondary-total'),
+  energySecondaryReadout: document.getElementById('energy-secondary-readout'),
+  energySecondaryEk: document.getElementById('energy-secondary-ek'),
+  energySecondaryEp: document.getElementById('energy-secondary-ep'),
+  energySecondaryLine: document.getElementById('energy-secondary-line'),
+  energySecondaryLineLabel: document.getElementById('energy-secondary-line-label'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+};
+
+function createOverlayLabel(className) {
+  const element = document.createElement('div');
+  element.className = className;
+  dom.labelLayer.appendChild(element);
+  return element;
+}
+
+const overlayLabels = {
+  primaryMass: createOverlayLabel('overlay-label mass'),
+  secondaryMass: createOverlayLabel('overlay-label mass'),
+  equilibrium: createOverlayLabel('overlay-label reference'),
+  positive: createOverlayLabel('overlay-label reference accent'),
+  negative: createOverlayLabel('overlay-label reference accent'),
+};
+
+const graphCtx = dom.graphCanvas.getContext('2d');
+const tempVec = new THREE.Vector3();
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: dom.sceneCanvas,
+  antialias: true,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(7.2, 3.8, 8.8);
+
+const controls = new OrbitControls(camera, dom.sceneCanvas);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 5;
+controls.maxDistance = 16;
+controls.maxPolarAngle = Math.PI / 2.04;
+controls.target.set(0, 2.1, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(7, 10, 6);
+scene.add(directionalLight);
+
+const world = new THREE.Group();
+scene.add(world);
+
+const backdrop = new THREE.Mesh(
+  new THREE.BoxGeometry(18, 11, 0.3),
+  new THREE.MeshStandardMaterial({ color: 0xf0e7db, roughness: 0.96 })
+);
+backdrop.position.set(0, 3.2, -2.8);
+world.add(backdrop);
+
+const floor = new THREE.Mesh(
+  new THREE.BoxGeometry(18, 0.16, 8),
+  new THREE.MeshStandardMaterial({ color: 0xd4d9e1, roughness: 0.95 })
+);
+floor.position.set(0, -0.08, 0);
+world.add(floor);
+
+const verticalBeam = new THREE.Mesh(
+  new THREE.BoxGeometry(11.4, 0.22, 0.56),
+  new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.78, metalness: 0.24 })
+);
+verticalBeam.position.set(0, 5.14, 0);
+world.add(verticalBeam);
+
+const horizontalDeck = new THREE.Mesh(
+  new THREE.BoxGeometry(14, 0.18, 3.2),
+  new THREE.MeshStandardMaterial({ color: 0xd5dbe3, roughness: 0.94 })
+);
+horizontalDeck.position.set(0, 0.24, 0);
+world.add(horizontalDeck);
+
+const floorGrid = new THREE.GridHelper(16, 16, 0xc7ced9, 0xdbe1e9);
+floorGrid.position.y = 0.001;
+floorGrid.material.opacity = 0.42;
+floorGrid.material.transparent = true;
+world.add(floorGrid);
+
+const verticalRuler = new THREE.Mesh(
+  new THREE.BoxGeometry(0.14, 4.8, 0.1),
+  new THREE.MeshStandardMaterial({ color: 0xaab3bf, roughness: 0.82 })
+);
+verticalRuler.position.set(-4.9, 2.7, -0.95);
+world.add(verticalRuler);
+
+for (let index = 0; index <= 8; index += 1) {
+  const tick = new THREE.Mesh(
+    new THREE.BoxGeometry(0.28, 0.04, 0.04),
+    new THREE.MeshStandardMaterial({ color: 0x6b7a8e, roughness: 0.76 })
+  );
+  tick.position.set(-4.84, 0.32 + index * 0.55, -0.88);
+  world.add(tick);
+}
+
+function makeTextSprite(text, color = '#334a63') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = '700 34px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.9, 0.34, 1);
+  return sprite;
+}
+
+const verticalRulerLabel = makeTextSprite('기준선', '#4b5e74');
+verticalRulerLabel.position.set(-4.88, 5.2, -0.86);
+world.add(verticalRulerLabel);
+
+function createDashedLine(color) {
+  const material = new THREE.LineDashedMaterial({
+    color,
+    dashSize: 0.18,
+    gapSize: 0.12,
+    transparent: true,
+    opacity: 0.82,
+  });
+  return new THREE.Line(new THREE.BufferGeometry(), material);
+}
+
+function setLineGeometry(line, points) {
+  if (line.geometry) line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  line.computeLineDistances();
+}
+
+function createOscillatorView(palette) {
+  const root = new THREE.Group();
+  world.add(root);
+
+  const supportMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8b95a3,
+    roughness: 0.78,
+    metalness: 0.2,
+  });
+
+  const springMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcc6633,
+    roughness: 0.5,
+    metalness: 0.35,
+  });
+
+  const trackMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc7cfda,
+    roughness: 0.92,
+  });
+
+  const anchor = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 0.5), supportMaterial);
+  root.add(anchor);
+
+  const guide = new THREE.Mesh(new THREE.BoxGeometry(0.05, 4.85, 0.05), supportMaterial);
+  root.add(guide);
+
+  const track = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.12, 1.16), trackMaterial);
+  root.add(track);
+
+  const trackEdgeA = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.18, 0.06), supportMaterial);
+  const trackEdgeB = trackEdgeA.clone();
+  root.add(trackEdgeA, trackEdgeB);
+
+  const stopper = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.4, 0.9), supportMaterial);
+  root.add(stopper);
+
+  const spring = new THREE.Mesh(new THREE.BufferGeometry(), springMaterial);
+  root.add(spring);
+
+  const mass = new THREE.Mesh(
+    new THREE.SphereGeometry(MASS_RADIUS, 36, 36),
+    new THREE.MeshStandardMaterial({
+      color: palette.mass,
+      roughness: 0.3,
+      metalness: 0.08,
+      emissive: palette.mass,
+      emissiveIntensity: 0.1,
+    })
+  );
+  root.add(mass);
+
+  const eqLine = createDashedLine(0x61728a);
+  const posLine = createDashedLine(0xd0a24a);
+  const negLine = createDashedLine(0xd0a24a);
+  root.add(eqLine, posLine, negLine);
+
+  const velocityArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0x28d17c, 0.26, 0.16);
+  const accelerationArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0xff5d5d, 0.26, 0.16);
+  const forceArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0x4d8dff, 0.26, 0.16);
+  root.add(velocityArrow, accelerationArrow, forceArrow);
+
+  return {
+    root,
+    anchor,
+    guide,
+    track,
+    trackEdgeA,
+    trackEdgeB,
+    stopper,
+    spring,
+    mass,
+    eqLine,
+    posLine,
+    negLine,
+    velocityArrow,
+    accelerationArrow,
+    forceArrow,
+  };
+}
+
+const primaryView = createOscillatorView({ mass: 0xff4444 });
+const secondaryView = createOscillatorView({ mass: 0x6ca7ff });
+
+function formatNumber(value, digits = 2) {
+  const fixed = Number(value.toFixed(digits));
+  return fixed.toLocaleString('ko-KR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatSigned(value, digits = 2) {
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${formatNumber(Math.abs(value), digits)}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function niceStep(span, tickCount = 4) {
+  const rough = span / Math.max(1, tickCount);
+  const exponent = Math.floor(Math.log10(Math.max(rough, 1e-6)));
+  const base = 10 ** exponent;
+  for (const step of [1, 2, 5, 10]) {
+    if (rough <= step * base) return step * base;
+  }
+  return 10 * base;
+}
+
+function niceRange(min, max, options = {}) {
+  const { includeZero = false, minimumSpan = 1 } = options;
+  let rangeMin = Number.isFinite(min) ? min : 0;
+  let rangeMax = Number.isFinite(max) ? max : 1;
+  if (includeZero) {
+    rangeMin = Math.min(rangeMin, 0);
+    rangeMax = Math.max(rangeMax, 0);
+  }
+  if (Math.abs(rangeMax - rangeMin) < 1e-6) {
+    rangeMax += minimumSpan / 2;
+    rangeMin -= minimumSpan / 2;
+  }
+  const span = Math.max(rangeMax - rangeMin, minimumSpan);
+  const step = niceStep(span);
+  return {
+    min: Math.floor((rangeMin - span * 0.08) / step) * step,
+    max: Math.ceil((rangeMax + span * 0.08) / step) * step,
+    step,
+  };
+}
+
+function getPrimaryConfig() {
+  return {
+    label: '기본 진자',
+    mass: controlState.mass,
+    springConstant: controlState.springConstant,
+    amplitude: controlState.amplitude,
+  };
+}
+
+function getCompareConfig() {
+  if (!controlState.compareMode) return null;
+  const base = getPrimaryConfig();
+  if (controlState.compareBy === '질량 비교') {
+    return {
+      label: '비교 진자',
+      mass: clamp(base.mass * 1.8, 0.1, 5),
+      springConstant: base.springConstant,
+      amplitude: base.amplitude,
+    };
+  }
+  return {
+    label: '비교 진자',
+    mass: base.mass,
+    springConstant: clamp(base.springConstant * 1.8, 1, 100),
+    amplitude: base.amplitude,
+  };
+}
+
+function evaluateState(config, time) {
+  const omega = Math.sqrt(config.springConstant / config.mass);
+  const period = (2 * Math.PI) / omega;
+  const frequency = 1 / period;
+  const x = config.amplitude * Math.sin(omega * time);
+  const v = config.amplitude * omega * Math.cos(omega * time);
+  const a = -(omega ** 2) * x;
+  const force = -config.springConstant * x;
+  const kinetic = 0.5 * config.mass * v * v;
+  const potential = 0.5 * config.springConstant * x * x;
+  const totalEnergy = 0.5 * config.springConstant * config.amplitude * config.amplitude;
+  return {
+    ...config,
+    omega,
+    period,
+    frequency,
+    x,
+    v,
+    a,
+    force,
+    kinetic,
+    potential,
+    totalEnergy,
+  };
+}
+
+function getDirectionLayout(direction) {
+  if (direction === '수평') {
+    return {
+      positiveAxis: new THREE.Vector3(1, 0, 0),
+      springStart: new THREE.Vector3(-2.88, 0.96, 0),
+      equilibrium: new THREE.Vector3(0, 0.96, 0),
+      anchorPosition: new THREE.Vector3(-3.26, 0.96, 0),
+      guidePosition: new THREE.Vector3(0, 0, 0),
+      trackPosition: new THREE.Vector3(0, 0.34, 0),
+      trackEdgeA: new THREE.Vector3(0, 0.48, -0.55),
+      trackEdgeB: new THREE.Vector3(0, 0.48, 0.55),
+      stopperPosition: new THREE.Vector3(-3.5, 0.84, 0),
+      referenceMin: new THREE.Vector3(0, 0.6, 0),
+      referenceMax: new THREE.Vector3(0, 1.85, 0),
+      referenceOffset: new THREE.Vector3(0, 0.84, 0.18),
+      cameraPosition: new THREE.Vector3(6.4, 3.0, 8.8),
+      cameraTarget: new THREE.Vector3(0, 0.95, 0),
+    };
+  }
+  return {
+    positiveAxis: new THREE.Vector3(0, -1, 0),
+    springStart: new THREE.Vector3(0, 5.02, 0),
+    equilibrium: new THREE.Vector3(0, 2.2, 0),
+    anchorPosition: new THREE.Vector3(0, 5.14, 0),
+    guidePosition: new THREE.Vector3(0, 2.72, -0.6),
+    trackPosition: new THREE.Vector3(0, 0, 0),
+    trackEdgeA: new THREE.Vector3(0, 0, 0),
+    trackEdgeB: new THREE.Vector3(0, 0, 0),
+    stopperPosition: new THREE.Vector3(0, 0, 0),
+    referenceMin: new THREE.Vector3(-1.1, 0, 0),
+    referenceMax: new THREE.Vector3(1.1, 0, 0),
+    referenceOffset: new THREE.Vector3(1.32, 0, 0.18),
+    cameraPosition: new THREE.Vector3(7.2, 3.8, 8.8),
+    cameraTarget: new THREE.Vector3(0, 2.1, 0),
+  };
+}
+
+function createSpringGeometry(start, end) {
+  const axis = new THREE.Vector3().subVectors(end, start);
+  const length = Math.max(axis.length(), 0.38);
+  const direction = axis.normalize();
+  const guide = Math.abs(direction.dot(new THREE.Vector3(0, 1, 0))) > 0.92
+    ? new THREE.Vector3(1, 0, 0)
+    : new THREE.Vector3(0, 1, 0);
+  const normal = new THREE.Vector3().crossVectors(direction, guide).normalize();
+  const binormal = new THREE.Vector3().crossVectors(direction, normal).normalize();
+  const coilRadius = clamp(length * 0.13, 0.1, 0.3);
+  const endCap = Math.min(0.18, length * 0.18);
+  const coilLength = Math.max(0.02, length - endCap * 2);
+  const points = [start.clone()];
+  for (let step = 0; step <= SPRING_TUBULAR_SEGMENTS; step += 1) {
+    const t = step / SPRING_TUBULAR_SEGMENTS;
+    const angle = t * Math.PI * 2 * SPRING_TURNS;
+    const axial = endCap + coilLength * t;
+    const taper = Math.sin(Math.PI * t);
+    const radial = coilRadius * lerp(0.38, 1, taper);
+    const point = start.clone()
+      .addScaledVector(direction, axial)
+      .addScaledVector(normal, Math.cos(angle) * radial)
+      .addScaledVector(binormal, Math.sin(angle) * radial);
+    points.push(point);
+  }
+  points.push(end.clone());
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), SPRING_TUBULAR_SEGMENTS, 0.055, 12, false);
+}
+
+function updateArrow(arrow, origin, axis, magnitude, scale, visible) {
+  if (!visible || Math.abs(magnitude) < 1e-4) {
+    arrow.visible = false;
+    return;
+  }
+  arrow.visible = true;
+  arrow.position.copy(origin);
+  arrow.setDirection(axis.clone().multiplyScalar(Math.sign(magnitude)).normalize());
+  arrow.setLength(0.38 + Math.min(Math.abs(magnitude) * scale, 1.9), 0.24, 0.14);
+}
+
+function updateReferenceLines(view, layout, amplitude) {
+  if (controlState.direction === '수평') {
+    setLineGeometry(view.eqLine, [
+      new THREE.Vector3(layout.equilibrium.x, layout.referenceMin.y, 0),
+      new THREE.Vector3(layout.equilibrium.x, layout.referenceMax.y, 0),
+    ]);
+    setLineGeometry(view.posLine, [
+      new THREE.Vector3(layout.equilibrium.x + amplitude, layout.referenceMin.y, 0),
+      new THREE.Vector3(layout.equilibrium.x + amplitude, layout.referenceMax.y, 0),
+    ]);
+    setLineGeometry(view.negLine, [
+      new THREE.Vector3(layout.equilibrium.x - amplitude, layout.referenceMin.y, 0),
+      new THREE.Vector3(layout.equilibrium.x - amplitude, layout.referenceMax.y, 0),
+    ]);
+    return;
+  }
+
+  setLineGeometry(view.eqLine, [
+    new THREE.Vector3(layout.referenceMin.x, layout.equilibrium.y, 0),
+    new THREE.Vector3(layout.referenceMax.x, layout.equilibrium.y, 0),
+  ]);
+  setLineGeometry(view.posLine, [
+    new THREE.Vector3(layout.referenceMin.x, layout.equilibrium.y - amplitude, 0),
+    new THREE.Vector3(layout.referenceMax.x, layout.equilibrium.y - amplitude, 0),
+  ]);
+  setLineGeometry(view.negLine, [
+    new THREE.Vector3(layout.referenceMin.x, layout.equilibrium.y + amplitude, 0),
+    new THREE.Vector3(layout.referenceMax.x, layout.equilibrium.y + amplitude, 0),
+  ]);
+}
+
+function updateOscillator(view, state, xOffset) {
+  const layout = getDirectionLayout(controlState.direction);
+  view.root.position.set(xOffset, 0, 0);
+  view.anchor.position.copy(layout.anchorPosition);
+  view.guide.position.copy(layout.guidePosition);
+  view.track.position.copy(layout.trackPosition);
+  view.trackEdgeA.position.copy(layout.trackEdgeA);
+  view.trackEdgeB.position.copy(layout.trackEdgeB);
+  view.stopper.position.copy(layout.stopperPosition);
+
+  const horizontalMode = controlState.direction === '수평';
+  view.guide.visible = !horizontalMode;
+  view.track.visible = horizontalMode;
+  view.trackEdgeA.visible = horizontalMode;
+  view.trackEdgeB.visible = horizontalMode;
+  view.stopper.visible = horizontalMode;
+
+  const massPosition = layout.equilibrium.clone().addScaledVector(layout.positiveAxis, state.x);
+  view.mass.position.copy(massPosition);
+  const springEnd = massPosition.clone().addScaledVector(layout.positiveAxis, -MASS_RADIUS);
+  if (view.spring.geometry) view.spring.geometry.dispose();
+  view.spring.geometry = createSpringGeometry(layout.springStart, springEnd);
+  updateReferenceLines(view, layout, state.amplitude);
+
+  updateArrow(view.velocityArrow, massPosition.clone().add(new THREE.Vector3(0, 0, 0.36)), layout.positiveAxis, state.v, 0.22, controlState.showVectors);
+  updateArrow(view.accelerationArrow, massPosition.clone(), layout.positiveAxis, state.a, 0.08, controlState.showVectors);
+  updateArrow(view.forceArrow, massPosition.clone().add(new THREE.Vector3(0, 0, -0.36)), layout.positiveAxis, state.force, 0.028, controlState.showVectors);
+
+  return {
+    layout,
+    massWorld: view.mass.getWorldPosition(new THREE.Vector3()),
+  };
+}
+
+function setCameraForDirection() {
+  const layout = getDirectionLayout(controlState.direction);
+  camera.position.copy(layout.cameraPosition);
+  controls.target.copy(layout.cameraTarget);
+  controls.update();
+}
+
+function updateOverlay(element, worldPosition, text) {
+  element.textContent = text;
+  const rect = dom.scenePanel.getBoundingClientRect();
+  tempVec.copy(worldPosition).project(camera);
+  const visible = tempVec.z < 1 && tempVec.z > -1;
+  if (!visible) {
+    element.style.display = 'none';
+    return;
+  }
+  const x = (tempVec.x * 0.5 + 0.5) * rect.width;
+  const y = (-tempVec.y * 0.5 + 0.5) * rect.height;
+  element.style.display = 'block';
+  element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+}
+
+function updateLabels(primaryState, primaryMeta, compareState, compareMeta) {
+  const layout = primaryMeta.layout;
+  const eqWorld = primaryView.root.localToWorld(layout.equilibrium.clone().add(layout.referenceOffset));
+  let posWorld;
+  let negWorld;
+
+  if (controlState.direction === '수평') {
+    posWorld = primaryView.root.localToWorld(layout.equilibrium.clone().add(new THREE.Vector3(primaryState.amplitude, 0.84, 0.18)));
+    negWorld = primaryView.root.localToWorld(layout.equilibrium.clone().add(new THREE.Vector3(-primaryState.amplitude, 0.84, 0.18)));
+  } else {
+    posWorld = primaryView.root.localToWorld(layout.equilibrium.clone().add(new THREE.Vector3(1.32, -primaryState.amplitude, 0.18)));
+    negWorld = primaryView.root.localToWorld(layout.equilibrium.clone().add(new THREE.Vector3(1.32, primaryState.amplitude, 0.18)));
+  }
+
+  updateOverlay(overlayLabels.primaryMass, primaryMeta.massWorld.clone().add(new THREE.Vector3(0, 0.64, 0)), `1번 m=${formatNumber(primaryState.mass, 1)}kg, k=${formatNumber(primaryState.springConstant, 0)}N/m`);
+  updateOverlay(overlayLabels.equilibrium, eqWorld, 'x = 0');
+  updateOverlay(overlayLabels.positive, posWorld, `x = +A (${formatNumber(primaryState.amplitude, 1)}m)`);
+  updateOverlay(overlayLabels.negative, negWorld, `x = -A (${formatNumber(primaryState.amplitude, 1)}m)`);
+
+  if (compareState && compareMeta) {
+    updateOverlay(overlayLabels.secondaryMass, compareMeta.massWorld.clone().add(new THREE.Vector3(0, 0.64, 0)), `2번 m=${formatNumber(compareState.mass, 1)}kg, k=${formatNumber(compareState.springConstant, 0)}N/m`);
+  } else {
+    overlayLabels.secondaryMass.style.display = 'none';
+  }
+}
+
+function resizeCanvases() {
+  const sceneRect = dom.scenePanel.getBoundingClientRect();
+  camera.aspect = sceneRect.width / sceneRect.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(sceneRect.width, sceneRect.height, false);
+
+  const graphRect = dom.graphCanvas.getBoundingClientRect();
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  dom.graphCanvas.width = Math.max(1, Math.round(graphRect.width * ratio));
+  dom.graphCanvas.height = Math.max(1, Math.round(graphRect.height * ratio));
+  graphCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+
+function getGraphWindow(primaryState, compareState) {
+  const maxPeriod = compareState ? Math.max(primaryState.period, compareState.period) : primaryState.period;
+  return clamp(maxPeriod * 2.6, 4.8, 12);
+}
+
+function makeArea(x, y, width, height, title) {
+  return {
+    x,
+    y,
+    width,
+    height,
+    title,
+    plotX: x + 48,
+    plotY: y + 34,
+    plotWidth: width - 64,
+    plotHeight: height - 56,
+  };
+}
+
+function getGraphAreas(width, height) {
+  const usableTop = GRAPH_TOP;
+  const usableBottom = height - GRAPH_BOTTOM;
+  const usableHeight = Math.max(150, usableBottom - usableTop);
+  const usableWidth = width - GRAPH_SIDE * 2;
+
+  if (controlState.showAXGraph) {
+    const columnWidth = (usableWidth - GRAPH_GAP) / 2;
+    const rowHeight = (usableHeight - GRAPH_GAP) / 2;
+    return [
+      makeArea(GRAPH_SIDE, usableTop, columnWidth, rowHeight, 'x-t 그래프'),
+      makeArea(GRAPH_SIDE + columnWidth + GRAPH_GAP, usableTop, columnWidth, rowHeight, 'v-t 그래프'),
+      makeArea(GRAPH_SIDE, usableTop + rowHeight + GRAPH_GAP, columnWidth, rowHeight, 'a-t 그래프'),
+      makeArea(GRAPH_SIDE + columnWidth + GRAPH_GAP, usableTop + rowHeight + GRAPH_GAP, columnWidth, rowHeight, 'a-x 그래프'),
+    ];
+  }
+
+  const rowHeight = (usableHeight - GRAPH_GAP * 2) / 3;
+  return [
+    makeArea(GRAPH_SIDE, usableTop, usableWidth, rowHeight, 'x-t 그래프'),
+    makeArea(GRAPH_SIDE, usableTop + rowHeight + GRAPH_GAP, usableWidth, rowHeight, 'v-t 그래프'),
+    makeArea(GRAPH_SIDE, usableTop + (rowHeight + GRAPH_GAP) * 2, usableWidth, rowHeight, 'a-t 그래프'),
+  ];
+}
+
+function mapTimeX(area, time, maxTime) {
+  return area.plotX + (time / maxTime) * area.plotWidth;
+}
+
+function mapValueY(area, value, range) {
+  return area.plotY + area.plotHeight - ((value - range.min) / (range.max - range.min)) * area.plotHeight;
+}
+
+function drawAreaBase(area, subtitle) {
+  graphCtx.fillStyle = COLORS.panel;
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+  graphCtx.beginPath();
+  graphCtx.roundRect(area.x, area.y, area.width, area.height, 18);
+  graphCtx.fill();
+  graphCtx.stroke();
+  graphCtx.fillStyle = COLORS.text;
+  graphCtx.font = '700 13px Pretendard';
+  graphCtx.fillText(area.title, area.x + 14, area.y + 20);
+  graphCtx.fillStyle = COLORS.dim;
+  graphCtx.font = '11px Pretendard';
+  graphCtx.fillText(subtitle, area.x + area.width - 14 - graphCtx.measureText(subtitle).width, area.y + 20);
+  graphCtx.strokeStyle = COLORS.grid;
+  graphCtx.beginPath();
+  graphCtx.moveTo(area.plotX, area.plotY);
+  graphCtx.lineTo(area.plotX, area.plotY + area.plotHeight);
+  graphCtx.lineTo(area.plotX + area.plotWidth, area.plotY + area.plotHeight);
+  graphCtx.stroke();
+}
+
+function drawTicks(area, timeWindow, range, axisLabel) {
+  graphCtx.font = '11px Pretendard';
+  graphCtx.fillStyle = COLORS.dim;
+  graphCtx.strokeStyle = COLORS.grid;
+
+  const xStep = niceStep(timeWindow, 4);
+  for (let tick = 0; tick <= timeWindow + 1e-6; tick += xStep) {
+    const x = mapTimeX(area, tick, timeWindow);
+    graphCtx.beginPath();
+    graphCtx.moveTo(x, area.plotY);
+    graphCtx.lineTo(x, area.plotY + area.plotHeight);
+    graphCtx.stroke();
+    graphCtx.fillText(formatNumber(tick, tick % 1 === 0 ? 0 : 1), x - 4, area.plotY + area.plotHeight + 16);
+  }
+
+  const yStep = range.step;
+  for (let tick = range.min; tick <= range.max + 1e-6; tick += yStep) {
+    const y = mapValueY(area, tick, range);
+    graphCtx.beginPath();
+    graphCtx.moveTo(area.plotX, y);
+    graphCtx.lineTo(area.plotX + area.plotWidth, y);
+    graphCtx.stroke();
+    graphCtx.fillText(formatNumber(tick, Math.abs(yStep) < 1 ? 1 : 0), area.plotX - 40, y + 4);
+  }
+
+  if (range.min < 0 && range.max > 0) {
+    const zeroY = mapValueY(area, 0, range);
+    graphCtx.strokeStyle = COLORS.zero;
+    graphCtx.setLineDash([6, 6]);
+    graphCtx.beginPath();
+    graphCtx.moveTo(area.plotX, zeroY);
+    graphCtx.lineTo(area.plotX + area.plotWidth, zeroY);
+    graphCtx.stroke();
+    graphCtx.setLineDash([]);
+  }
+
+  graphCtx.fillText('t(s)', area.plotX + area.plotWidth - 22, area.plotY + area.plotHeight + 16);
+  graphCtx.fillText(axisLabel, area.plotX - 34, area.plotY - 10);
+}
+
+function drawCurrentTimeMarker(area, currentTime, timeWindow) {
+  const x = mapTimeX(area, currentTime, timeWindow);
+  graphCtx.strokeStyle = 'rgba(255,255,255,0.42)';
+  graphCtx.setLineDash([6, 6]);
+  graphCtx.beginPath();
+  graphCtx.moveTo(x, area.plotY);
+  graphCtx.lineTo(x, area.plotY + area.plotHeight);
+  graphCtx.stroke();
+  graphCtx.setLineDash([]);
+}
+
+function drawPeriodMarker(area, timeWindow, period, color, label, row = 0) {
+  if (!Number.isFinite(period) || period <= 0 || period > timeWindow) return;
+  const startX = mapTimeX(area, 0, timeWindow);
+  const endX = mapTimeX(area, period, timeWindow);
+  const y = area.plotY + area.plotHeight - 12 - row * 16;
+
+  graphCtx.strokeStyle = color;
+  graphCtx.fillStyle = color;
+  graphCtx.lineWidth = 1.4;
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(startX, y);
+  graphCtx.lineTo(endX, y);
+  graphCtx.stroke();
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(startX, y - 5);
+  graphCtx.lineTo(startX, y + 5);
+  graphCtx.moveTo(endX, y - 5);
+  graphCtx.lineTo(endX, y + 5);
+  graphCtx.stroke();
+
+  graphCtx.font = '11px Pretendard';
+  graphCtx.fillText(label, startX + 4, y - 6);
+}
+
+function drawLineSeries(area, range, timeWindow, getter, color, currentTime, dashed = false) {
+  graphCtx.strokeStyle = color;
+  graphCtx.lineWidth = 2.4;
+  if (dashed) graphCtx.setLineDash([8, 6]);
+  graphCtx.beginPath();
+  for (let index = 0; index <= 220; index += 1) {
+    const t = timeWindow * (index / 220);
+    const value = getter(t);
+    const x = mapTimeX(area, t, timeWindow);
+    const y = mapValueY(area, value, range);
+    if (index === 0) graphCtx.moveTo(x, y);
+    else graphCtx.lineTo(x, y);
+  }
+  graphCtx.stroke();
+  graphCtx.setLineDash([]);
+  const value = getter(currentTime);
+  const x = mapTimeX(area, currentTime, timeWindow);
+  const y = mapValueY(area, value, range);
+  graphCtx.fillStyle = color;
+  graphCtx.beginPath();
+  graphCtx.arc(x, y, dashed ? 3.5 : 4.5, 0, Math.PI * 2);
+  graphCtx.fill();
+}
+
+function drawStraightRelation(area, xRange, aRange, omegaSquared, color, currentX, currentA, label) {
+  graphCtx.strokeStyle = color;
+  graphCtx.lineWidth = 2.2;
+  graphCtx.beginPath();
+  const x1 = xRange.min;
+  const y1 = -omegaSquared * x1;
+  const x2 = xRange.max;
+  const y2 = -omegaSquared * x2;
+  graphCtx.moveTo(
+    area.plotX + ((x1 - xRange.min) / (xRange.max - xRange.min)) * area.plotWidth,
+    area.plotY + area.plotHeight - ((y1 - aRange.min) / (aRange.max - aRange.min)) * area.plotHeight
+  );
+  graphCtx.lineTo(
+    area.plotX + ((x2 - xRange.min) / (xRange.max - xRange.min)) * area.plotWidth,
+    area.plotY + area.plotHeight - ((y2 - aRange.min) / (aRange.max - aRange.min)) * area.plotHeight
+  );
+  graphCtx.stroke();
+
+  const pointX = area.plotX + ((currentX - xRange.min) / (xRange.max - xRange.min)) * area.plotWidth;
+  const pointY = area.plotY + area.plotHeight - ((currentA - aRange.min) / (aRange.max - aRange.min)) * area.plotHeight;
+  graphCtx.fillStyle = color;
+  graphCtx.beginPath();
+  graphCtx.arc(pointX, pointY, 4.2, 0, Math.PI * 2);
+  graphCtx.fill();
+
+  if (label) {
+    graphCtx.font = '11px Pretendard';
+    graphCtx.fillText(label, area.x + 14, area.y + area.height - 14);
+  }
+}
+
+function drawAXGraph(area, primaryState, compareState, xRange, aRange) {
+  drawAreaBase(area, `-ω² = -${formatNumber(primaryState.omega ** 2, 2)}`);
+  graphCtx.font = '11px Pretendard';
+  graphCtx.fillStyle = COLORS.dim;
+  graphCtx.strokeStyle = COLORS.grid;
+
+  const xStep = xRange.step;
+  for (let tick = xRange.min; tick <= xRange.max + 1e-6; tick += xStep) {
+    const px = area.plotX + ((tick - xRange.min) / (xRange.max - xRange.min)) * area.plotWidth;
+    graphCtx.beginPath();
+    graphCtx.moveTo(px, area.plotY);
+    graphCtx.lineTo(px, area.plotY + area.plotHeight);
+    graphCtx.stroke();
+    graphCtx.fillText(formatNumber(tick, Math.abs(xStep) < 1 ? 1 : 0), px - 6, area.plotY + area.plotHeight + 16);
+  }
+
+  const yStep = aRange.step;
+  for (let tick = aRange.min; tick <= aRange.max + 1e-6; tick += yStep) {
+    const py = area.plotY + area.plotHeight - ((tick - aRange.min) / (aRange.max - aRange.min)) * area.plotHeight;
+    graphCtx.beginPath();
+    graphCtx.moveTo(area.plotX, py);
+    graphCtx.lineTo(area.plotX + area.plotWidth, py);
+    graphCtx.stroke();
+    graphCtx.fillText(formatNumber(tick, Math.abs(yStep) < 1 ? 1 : 0), area.plotX - 40, py + 4);
+  }
+
+  graphCtx.fillText('x(m)', area.plotX + area.plotWidth - 28, area.plotY + area.plotHeight + 16);
+  graphCtx.fillText('a(m/s²)', area.plotX - 40, area.plotY - 10);
+
+  drawStraightRelation(area, xRange, aRange, primaryState.omega ** 2, COLORS.a, primaryState.x, primaryState.a, `기울기 = -${formatNumber(primaryState.omega ** 2, 2)}`);
+  if (compareState) {
+    drawStraightRelation(area, xRange, aRange, compareState.omega ** 2, COLORS.compare, compareState.x, compareState.a, '');
+  }
+}
+
+function drawGraphs(primaryState, compareState) {
+  const rect = dom.graphCanvas.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  graphCtx.clearRect(0, 0, width, height);
+
+  const timeWindow = getGraphWindow(primaryState, compareState);
+  const currentTime = simulation.time % timeWindow;
+  const areas = getGraphAreas(width, height);
+  const maxAmplitude = compareState ? Math.max(primaryState.amplitude, compareState.amplitude) : primaryState.amplitude;
+  const maxVelocity = compareState ? Math.max(primaryState.amplitude * primaryState.omega, compareState.amplitude * compareState.omega) : primaryState.amplitude * primaryState.omega;
+  const maxAcceleration = compareState ? Math.max(primaryState.amplitude * primaryState.omega ** 2, compareState.amplitude * compareState.omega ** 2) : primaryState.amplitude * primaryState.omega ** 2;
+  const xRange = niceRange(-maxAmplitude, maxAmplitude, { includeZero: true, minimumSpan: 1 });
+  const vRange = niceRange(-maxVelocity, maxVelocity, { includeZero: true, minimumSpan: 1 });
+  const aRange = niceRange(-maxAcceleration, maxAcceleration, { includeZero: true, minimumSpan: 1 });
+
+  const items = [
+    {
+      area: areas[0],
+      range: xRange,
+      axis: 'x(m)',
+      getter: (t) => evaluateState(primaryState, t).x,
+      compareGetter: compareState ? (t) => evaluateState(compareState, t).x : null,
+      color: COLORS.x,
+      subtitle: `T=${formatNumber(primaryState.period, 2)}s`,
+    },
+    {
+      area: areas[1],
+      range: vRange,
+      axis: 'v(m/s)',
+      getter: (t) => evaluateState(primaryState, t).v,
+      compareGetter: compareState ? (t) => evaluateState(compareState, t).v : null,
+      color: COLORS.v,
+      subtitle: 'x보다 π/2 앞섬',
+    },
+    {
+      area: areas[2],
+      range: aRange,
+      axis: 'a(m/s²)',
+      getter: (t) => evaluateState(primaryState, t).a,
+      compareGetter: compareState ? (t) => evaluateState(compareState, t).a : null,
+      color: COLORS.a,
+      subtitle: 'x와 반대 위상',
+    },
+  ];
+
+  for (const item of items) {
+    drawAreaBase(item.area, item.subtitle);
+    drawTicks(item.area, timeWindow, item.range, item.axis);
+    drawCurrentTimeMarker(item.area, currentTime, timeWindow);
+    drawLineSeries(item.area, item.range, timeWindow, item.getter, item.color, currentTime, false);
+    if (item === items[0]) {
+      drawPeriodMarker(item.area, timeWindow, primaryState.period, item.color, `T₁ = ${formatNumber(primaryState.period, 2)} s`, 0);
+    }
+    if (item.compareGetter) {
+      drawLineSeries(item.area, item.range, timeWindow, item.compareGetter, COLORS.compare, currentTime, true);
+      if (item === items[0]) {
+        drawPeriodMarker(item.area, timeWindow, compareState.period, COLORS.compare, `T₂ = ${formatNumber(compareState.period, 2)} s`, 1);
+      }
+    }
+  }
+
+  if (controlState.showAXGraph) {
+    drawAXGraph(areas[3], primaryState, compareState, xRange, aRange);
+  }
+}
+
+function updateEnergyCard(options) {
+  const { titleEl, totalEl, readoutEl, ekEl, epEl, lineEl, lineLabelEl, title, state } = options;
+  const scaleMax = Math.max(state.totalEnergy * 1.1, 0.1);
+  const ekRatio = clamp(state.kinetic / scaleMax, 0, 1);
+  const epRatio = clamp(state.potential / scaleMax, 0, 1);
+  const totalRatio = clamp(state.totalEnergy / scaleMax, 0, 1);
+  titleEl.textContent = title;
+  totalEl.textContent = `E = ${formatNumber(state.totalEnergy, 2)} J`;
+  readoutEl.textContent = `Ek ${formatNumber(state.kinetic, 2)} J · Ep ${formatNumber(state.potential, 2)} J`;
+  ekEl.style.height = `${ekRatio * 100}%`;
+  epEl.style.height = `${epRatio * 100}%`;
+  lineEl.style.top = `${100 - totalRatio * 100}%`;
+  lineLabelEl.style.top = `${100 - totalRatio * 100}%`;
+}
+
+function updatePanels(primaryState, compareState) {
+  dom.chipMode.textContent = `${controlState.direction} 모드`;
+  dom.chipRelation.textContent = primaryState.x === 0 ? 'x = 0이면 a = 0' : `x ${primaryState.x > 0 ? '양' : '음'} → a ${primaryState.a > 0 ? '양' : '음'}`;
+  dom.graphSummary.innerHTML = controlState.showAXGraph
+    ? 'x-t, v-t, a-t 그래프를 동시에 비교하고, <strong>a-x 그래프</strong>에서 기울기 <strong>= -ω²</strong>를 확인해 보세요.'
+    : 'x-t, v-t, a-t 그래프의 위상 관계를 읽어 보세요. 세로 점선은 현재 시각을 나타냅니다.';
+  dom.legendCompare.style.display = compareState ? 'inline-flex' : 'none';
+
+  dom.metricX.textContent = `${formatSigned(primaryState.x)} m`;
+  dom.metricXDesc.textContent = compareState
+    ? `비교 진자 x₂ = ${formatSigned(compareState.x)} m, a-x 직선 기울기는 서로 다를 수 있습니다.`
+    : '평형 위치에서 멀수록 복원력과 가속도 크기가 커집니다.';
+  dom.metricV.textContent = `${formatSigned(primaryState.v)} m/s`;
+  dom.metricVDesc.textContent = compareState
+    ? `비교 진자 v₂ = ${formatSigned(compareState.v)} m/s, x=0일 때 두 진자 모두 속도가 최대입니다.`
+    : '평형 위치를 지날 때 속도가 최대, 최대 변위에서는 0이 됩니다.';
+  dom.metricPeriod.textContent = compareState
+    ? `T₁=${formatNumber(primaryState.period, 2)}s · T₂=${formatNumber(compareState.period, 2)}s`
+    : `T = ${formatNumber(primaryState.period, 2)} s`;
+  dom.metricPeriodDesc.textContent = compareState
+    ? `${controlState.compareBy === '질량 비교' ? 'm↑ → T↑' : 'k↑ → T↓'} 를 두 진자의 속도 차이로 비교할 수 있습니다.`
+    : '질량이 커지면 느려지고, 용수철 상수가 커지면 빨라집니다. 진폭은 주기를 바꾸지 않습니다.';
+  dom.metricRelation.textContent = `a = -${formatNumber(primaryState.omega ** 2, 2)}x`;
+  dom.metricRelationDesc.textContent = compareState
+    ? `비교 기울기: -${formatNumber(compareState.omega ** 2, 2)}. a-x 직선의 기울기가 곧 -ω²입니다.`
+    : '단진동 판별식 a = -ω²x가 성립하면 변위와 가속도는 항상 반대 방향입니다.';
+
+  dom.formulaSetup.textContent = `${controlState.direction}, m = ${formatNumber(primaryState.mass, 1)} kg, k = ${formatNumber(primaryState.springConstant, 0)} N/m, A = ${formatNumber(primaryState.amplitude, 1)} m`;
+  dom.formulaX.textContent = `x = A sin(ωt) = ${formatSigned(primaryState.x)} m`;
+  dom.formulaV.textContent = `v = Aω cos(ωt) = ${formatSigned(primaryState.v)} m/s`;
+  dom.formulaA.textContent = `a = -ω²x = ${formatSigned(primaryState.a)} m/s²`;
+  dom.formulaOmega.textContent = `ω = √(k/m) = ${formatNumber(primaryState.omega, 3)} rad/s`;
+  dom.formulaPeriod.textContent = `T = 2π√(m/k) = ${formatNumber(primaryState.period, 3)} s`;
+  dom.formulaFrequency.textContent = `f = 1/T = ${formatNumber(primaryState.frequency, 3)} Hz`;
+  dom.formulaCondition.textContent = primaryState.x === 0
+    ? '지금은 x = 0이라 a = 0입니다. 이 순간 속도는 최대입니다.'
+    : `현재 x ${primaryState.x > 0 ? '>' : '<'} 0, 그래서 a ${primaryState.a > 0 ? '>' : '<'} 0 입니다. 두 방향은 항상 반대입니다.`;
+  dom.formulaEnergy.textContent = `E = 1/2kA² = ${formatNumber(primaryState.totalEnergy, 2)} J, Ek = ${formatNumber(primaryState.kinetic, 2)} J, Ep = ${formatNumber(primaryState.potential, 2)} J`;
+
+  if (compareState) {
+    dom.formulaCompareBlock.classList.remove('hidden');
+    dom.formulaCompare.textContent = `${controlState.compareBy === '질량 비교' ? '질량을 키운' : '용수철을 더 강하게 한'} 비교 진자: m = ${formatNumber(compareState.mass, 1)} kg, k = ${formatNumber(compareState.springConstant, 0)} N/m, T = ${formatNumber(compareState.period, 3)} s, 기울기 = -${formatNumber(compareState.omega ** 2, 2)}`;
+  } else {
+    dom.formulaCompareBlock.classList.add('hidden');
+  }
+
+  updateEnergyCard({
+    titleEl: dom.energyPrimaryTitle,
+    totalEl: dom.energyPrimaryTotal,
+    readoutEl: dom.energyPrimaryReadout,
+    ekEl: dom.energyPrimaryEk,
+    epEl: dom.energyPrimaryEp,
+    lineEl: dom.energyPrimaryLine,
+    lineLabelEl: dom.energyPrimaryLineLabel,
+    title: '기본 진자',
+    state: primaryState,
+  });
+
+  if (compareState) {
+    dom.energyCardSecondary.classList.remove('hidden');
+    updateEnergyCard({
+      titleEl: dom.energySecondaryTitle,
+      totalEl: dom.energySecondaryTotal,
+      readoutEl: dom.energySecondaryReadout,
+      ekEl: dom.energySecondaryEk,
+      epEl: dom.energySecondaryEp,
+      lineEl: dom.energySecondaryLine,
+      lineLabelEl: dom.energySecondaryLineLabel,
+      title: `${controlState.compareBy === '질량 비교' ? '질량 비교' : '강성 비교'}`,
+      state: compareState,
+    });
+  } else {
+    dom.energyCardSecondary.classList.add('hidden');
+  }
+
+  dom.energyPanel.classList.toggle('hidden', !controlState.showEnergyBars);
+}
+
+function renderFrame() {
+  const primaryConfig = getPrimaryConfig();
+  const compareConfig = getCompareConfig();
+  const primaryState = evaluateState(primaryConfig, simulation.time);
+  const compareState = compareConfig ? evaluateState(compareConfig, simulation.time) : null;
+
+  verticalBeam.visible = controlState.direction === '수직';
+  verticalRuler.visible = controlState.direction === '수직';
+  verticalRulerLabel.visible = controlState.direction === '수직';
+  horizontalDeck.visible = controlState.direction === '수평';
+  floorGrid.visible = controlState.direction === '수평';
+
+  const primaryMeta = updateOscillator(primaryView, primaryState, compareState ? -2.35 : 0);
+  let compareMeta = null;
+  if (compareState) {
+    secondaryView.root.visible = true;
+    compareMeta = updateOscillator(secondaryView, compareState, 2.35);
+  } else {
+    secondaryView.root.visible = false;
+    overlayLabels.secondaryMass.style.display = 'none';
+  }
+
+  updatePanels(primaryState, compareState);
+  drawGraphs(primaryState, compareState);
+  controls.update();
+  renderer.render(scene, camera);
+  updateLabels(primaryState, primaryMeta, compareState, compareMeta);
+}
+
+function resetSimulation() {
+  simulation.running = false;
+  simulation.time = 0;
+  simulation.lastFrame = performance.now();
+  setCameraForDirection();
+  syncGUI();
+  renderFrame();
+}
+
+function startSimulation() {
+  simulation.time = 0;
+  simulation.running = true;
+  simulation.lastFrame = performance.now();
+  syncGUI();
+}
+
+function syncGUI() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function handleParameterChange(resetTime = false) {
+  if (resetTime) simulation.time = 0;
+  setCameraForDirection();
+  renderFrame();
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  const open = dom.guidePanel.classList.toggle('open');
+  dom.guideToggle.setAttribute('aria-expanded', String(open));
+  dom.guidePanel.setAttribute('aria-hidden', String(!open));
+});
+
+window.addEventListener('resize', () => {
+  resizeCanvases();
+  renderFrame();
+});
+
+const gui = new GUI({ title: '용수철 진자 제어', width: 312 });
+gui.add(controlState, 'direction', ['수직', '수평']).name('방향').onChange(() => handleParameterChange(true));
+gui.add(controlState, 'mass', 0.1, 5, 0.1).name('질량 m (kg)').onChange(() => handleParameterChange(true));
+gui.add(controlState, 'springConstant', 1, 100, 1).name('용수철 상수 k').onChange(() => handleParameterChange(true));
+gui.add(controlState, 'amplitude', 0.1, 2, 0.1).name('진폭 A (m)').onChange(() => handleParameterChange(false));
+gui.add(controlState, 'start').name('시뮬레이션 시작');
+gui.add(controlState, 'compareMode').name('비교 모드').onChange(() => handleParameterChange(true));
+gui.add(controlState, 'compareBy', ['질량 비교', '용수철 비교']).name('비교 기준').onChange(() => handleParameterChange(true));
+gui.add(controlState, 'showVectors').name('벡터 표시').onChange(() => renderFrame());
+gui.add(controlState, 'showEnergyBars').name('에너지 막대').onChange(() => renderFrame());
+gui.add(controlState, 'showAXGraph').name('a-x 그래프').onChange(() => renderFrame());
+gui.add(controlState, 'reset').name('초기화');
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const delta = Math.min((now - simulation.lastFrame) / 1000, 0.04);
+  simulation.lastFrame = now;
+  if (simulation.running) {
+    simulation.time += delta;
+    if (simulation.time > 200) simulation.time %= 50;
+  }
+  renderFrame();
+}
+
+resizeCanvases();
+setCameraForDirection();
+renderFrame();
+animate(performance.now());
+</script>
+</body>
+</html>

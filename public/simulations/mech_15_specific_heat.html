@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비열과 열용량 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --panel: rgba(10, 20, 36, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.74);
+    --text-dark: #1d2430;
+    --text-muted: #6a7483;
+    --shadow: 0 22px 54px rgba(10, 22, 38, 0.22);
+    --shadow-soft: 0 16px 40px rgba(21, 31, 43, 0.18);
+    --water: #59a6ff;
+    --metal: #ff8c6f;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 218, 176, 0.46), transparent 22%),
+      radial-gradient(circle at 84% 12%, rgba(104, 162, 255, 0.25), transparent 20%),
+      linear-gradient(180deg, #f8f4eb 0%, #eef0f5 34%, #dae3ef 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+
+  #hero {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 18;
+    width: min(620px, calc(100vw - 260px));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #hero .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(27, 39, 56, 0.56);
+    font-weight: 700;
+  }
+
+  #hero h1 {
+    margin-top: 5px;
+    font-size: 30px;
+    line-height: 1.12;
+    color: rgba(22, 32, 47, 0.96);
+    letter-spacing: -0.04em;
+    text-shadow: 0 5px 18px rgba(255, 255, 255, 0.42);
+  }
+
+  #hero p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: rgba(33, 46, 66, 0.7);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 32;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(8, 19, 35, 0.86);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 31;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(74vh, 780px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #a9d7ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul,
+  #guide-panel ol {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 98px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 17;
+    width: min(640px, calc(100vw - 42px));
+    min-height: 58px;
+    padding: 11px 16px;
+    border-radius: 18px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #fff;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 18;
+    width: min(390px, calc(100vw - 28px));
+    max-height: min(40vh, 360px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255, 251, 244, 0.97), rgba(246, 241, 232, 0.92));
+    color: var(--text-dark);
+    border: 1px solid rgba(102, 85, 65, 0.12);
+    box-shadow: 0 22px 48px rgba(93, 74, 54, 0.18);
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #9a5423;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(154, 84, 35, 0.4), rgba(154, 84, 35, 0.04));
+  }
+
+  #formula-panel .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  #formula-panel .row span:first-child {
+    color: var(--text-muted);
+  }
+
+  #formula-panel .row span:last-child {
+    font-weight: 700;
+  }
+
+  #formula-panel .note {
+    margin-top: 10px;
+    color: #685e52;
+    line-height: 1.7;
+  }
+
+  #dashboard {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 20;
+    width: min(390px, calc(100vw - 28px));
+    padding: 18px;
+    border-radius: 26px;
+    overflow-y: auto;
+  }
+
+  #dashboard h2 {
+    font-size: 22px;
+    color: #fff;
+  }
+
+  #dashboard p {
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.68;
+  }
+
+  .panel-block {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .panel-block h3 {
+    font-size: 15px;
+    color: #f9fbff;
+  }
+
+  .panel-block .sub {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  #graph-wrap {
+    margin-top: 12px;
+    height: 280px;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+      radial-gradient(circle at 18% 22%, rgba(104, 171, 255, 0.18), transparent 26%),
+      linear-gradient(180deg, rgba(19, 31, 49, 0.96), rgba(12, 18, 28, 0.98));
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #legend {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .legend-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #table-section.hidden {
+    display: none;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  th,
+  td {
+    padding: 9px 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  th {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.62);
+    font-weight: 600;
+  }
+
+  tr.active-row td {
+    color: #ffffff;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  #effects-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .effect-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .effect-card h4 {
+    font-size: 13px;
+    color: #fff;
+  }
+
+  .effect-card p {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11px;
+  }
+
+  .warn {
+    color: #ffc79c;
+  }
+
+  .ok {
+    color: #a9f0be;
+  }
+
+  .lil-gui.root {
+    --widget-height: 24px;
+    --width: 286px;
+    z-index: 50;
+  }
+
+  @media (max-width: 980px) {
+    #hero {
+      width: min(620px, calc(100vw - 32px));
+    }
+
+    #status-chip {
+      top: 124px;
+    }
+
+    #dashboard {
+      top: auto;
+      bottom: 14px;
+      height: min(48vh, 520px);
+    }
+
+    #formula-panel {
+      bottom: min(50vh, 536px);
+    }
+  }
+
+  @media (max-width: 720px) {
+    #hero {
+      top: 72px;
+    }
+
+    #hero h1 {
+      font-size: 24px;
+    }
+
+    #status-chip {
+      top: 164px;
+      width: calc(100vw - 28px);
+    }
+
+    #dashboard {
+      width: calc(100vw - 20px);
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      height: min(44vh, 460px);
+      padding: 14px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      width: calc(100vw - 20px);
+      bottom: calc(min(44vh, 460px) + 20px);
+      max-height: min(24vh, 220px);
+      padding: 15px;
+    }
+
+    .lil-gui.root {
+      --width: min(260px, calc(100vw - 20px));
+      top: 14px !important;
+      right: 10px !important;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<header id="hero">
+  <div class="eyebrow">Mechanics & Energy · II. 열과 에너지</div>
+  <h1>비열과 열용량</h1>
+  <p>같은 열량을 가해도 비열이 큰 물질은 온도가 천천히 올라가고, 열평형에서는 뜨거운 물체와 차가운 물체가 같은 온도로 수렴합니다.</p>
+</header>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<section id="guide-panel" class="glass">
+  <h3>핵심 원리</h3>
+  <p>비열은 물질 1kg의 온도를 1K 높이는 데 필요한 열량입니다. 식은 <strong>Q = cmΔT</strong>이고, 열용량은 <strong>C = cm</strong>입니다. 물의 비열은 대부분의 금속보다 크기 때문에 같은 열량을 받아도 온도 변화가 작습니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ol>
+    <li>같은 질량의 물과 구리에 같은 열량을 가하면 어느 것의 온도가 더 많이 올라가나요? 그 까닭은 무엇인가요?</li>
+    <li>해안 도시가 내륙 도시보다 일교차가 작은 까닭을 물의 비열과 연결해 설명해 보세요.</li>
+    <li>80°C 구리 100g을 20°C 물 200g에 넣으면 최종 온도는 몇 °C가 될지 식을 세워 예측해 보세요.</li>
+  </ol>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>자동차 냉각수로 물을 쓰는 이유: 같은 질량으로 더 많은 열을 흡수할 수 있기 때문</li>
+    <li>해안 기후: 바닷물의 큰 비열이 낮과 밤, 계절 사이 온도 변화를 완만하게 만듦</li>
+    <li>온돌과 바닥 열용량: 열을 저장했다가 천천히 방출해 실내 온도를 안정적으로 유지</li>
+  </ul>
+
+  <h3>교과서 연계</h3>
+  <p>역학과 에너지 II편 p70~75 · 열에 의한 물질의 변화, 비열과 열용량</p>
+</section>
+
+<div id="status-chip" class="glass"></div>
+<section id="formula-panel"></section>
+
+<aside id="dashboard" class="glass">
+  <div class="pill" id="mode-pill">모드 · 비열 비교 실험</div>
+  <h2 id="dashboard-title">온도-시간 그래프</h2>
+  <p id="dashboard-copy">같은 열량을 공급할 때 비열이 큰 물질일수록 그래프의 기울기가 완만해집니다.</p>
+
+  <section class="panel-block">
+    <h3>실시간 그래프</h3>
+    <div class="sub">X축: 시간(초) · Y축: 온도(°C)</div>
+    <div id="graph-wrap">
+      <canvas id="graph-canvas"></canvas>
+    </div>
+    <div id="legend"></div>
+  </section>
+
+  <section id="table-section" class="panel-block">
+    <h3>비열 비교 표</h3>
+    <div class="sub">선택한 물질은 강조 표시됩니다.</div>
+    <table>
+      <thead>
+        <tr>
+          <th>물질</th>
+          <th>비열 J/(kg·K)</th>
+          <th>순위</th>
+        </tr>
+      </thead>
+      <tbody id="specific-heat-body"></tbody>
+    </table>
+  </section>
+
+  <section class="panel-block">
+    <h3>물의 높은 비열의 영향</h3>
+    <div class="sub">비열이 크면 온도 변화가 느리고 안정적입니다.</div>
+    <div id="effects-list">
+      <article class="effect-card">
+        <h4>해안 도시 vs 내륙 도시</h4>
+        <p>바닷물은 많은 열을 저장하고 천천히 방출해 해안 지역의 일교차와 연교차를 줄여 줍니다.</p>
+      </article>
+      <article class="effect-card">
+        <h4>자동차 냉각수</h4>
+        <p>물은 열을 많이 흡수해 엔진에서 생긴 열을 효과적으로 옮길 수 있어 냉각수의 핵심 성분으로 쓰입니다.</p>
+      </article>
+      <article class="effect-card">
+        <h4>수영장과 바다</h4>
+        <p>큰 물 덩어리는 햇빛을 받아도 천천히 데워지고, 밤에는 천천히 식기 때문에 온도 변화가 완만합니다.</p>
+      </article>
+    </div>
+  </section>
+</aside>
+
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const COMPARE_MODE = '비열 비교 실험';
+  const EQUILIBRIUM_MODE = '열평형';
+  const START_TEMP_COMPARE = 20;
+  const DURATION = 120;
+
+  const liquidMaterials = {
+    '물': { c: 4186, color: 0x4488cc, warmColor: 0x6cbcff },
+    '식용유': { c: 2000, color: 0xddcc44, warmColor: 0xffd870 },
+    '알코올': { c: 2440, color: 0x9ad8f6, warmColor: 0xd7f4ff }
+  };
+
+  const metalMaterials = {
+    '알루미늄': { c: 900, color: 0xaabbcc, hotColor: 0xe48a6c },
+    '구리': { c: 390, color: 0xc7865f, hotColor: 0xf0a37a },
+    '철': { c: 450, color: 0x7f8b99, hotColor: 0xdb765c },
+    '납': { c: 130, color: 0x6b6779, hotColor: 0xd06a72 }
+  };
+
+  const tableRows = [
+    { name: '물', c: 4186, rank: '매우 큼' },
+    { name: '식용유', c: 2000, rank: '중간' },
+    { name: '알코올', c: 2440, rank: '중간' },
+    { name: '알루미늄', c: 900, rank: '작음' },
+    { name: '구리', c: 390, rank: '매우 작음' },
+    { name: '철', c: 450, rank: '작음' },
+    { name: '납', c: 130, rank: '극히 작음' }
+  ];
+
+  const canvas = document.getElementById('scene-canvas');
+  const statusChip = document.getElementById('status-chip');
+  const formulaPanel = document.getElementById('formula-panel');
+  const modePill = document.getElementById('mode-pill');
+  const dashboardTitle = document.getElementById('dashboard-title');
+  const dashboardCopy = document.getElementById('dashboard-copy');
+  const legend = document.getElementById('legend');
+  const tableSection = document.getElementById('table-section');
+  const tableBody = document.getElementById('specific-heat-body');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const graphCanvas = document.getElementById('graph-canvas');
+  const graphCtx = graphCanvas.getContext('2d');
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xeef0f5);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0.8, 4.3, 11);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.target.set(-1.1, 1.8, 0);
+  controls.minDistance = 6;
+  controls.maxDistance = 14;
+  controls.maxPolarAngle = Math.PI * 0.47;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  directionalLight.position.set(5, 8, 6);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.left = -12;
+  directionalLight.shadow.camera.right = 12;
+  directionalLight.shadow.camera.top = 12;
+  directionalLight.shadow.camera.bottom = -6;
+  scene.add(directionalLight);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xc8d0e0, 0.28));
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(34, 22),
+    new THREE.MeshStandardMaterial({ color: 0xdfe5ee, roughness: 0.95, metalness: 0.02 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const podium = new THREE.Mesh(
+    new THREE.BoxGeometry(12.8, 0.6, 6.4),
+    new THREE.MeshStandardMaterial({ color: 0xf6efe4, roughness: 0.88, metalness: 0.02 })
+  );
+  podium.position.set(-1.0, 0.3, 0);
+  podium.receiveShadow = true;
+  podium.castShadow = true;
+  scene.add(podium);
+
+  const backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 9),
+    new THREE.MeshStandardMaterial({ color: 0xe8edf4, roughness: 1 })
+  );
+  backWall.position.set(-1.0, 4.2, -2.8);
+  backWall.receiveShadow = true;
+  scene.add(backWall);
+
+  const warmLight = new THREE.PointLight(0xffd5b8, 0.45, 9);
+  warmLight.position.set(-4.7, 5.3, 2.2);
+  scene.add(warmLight);
+
+  const coolLight = new THREE.PointLight(0x8ac0ff, 0.4, 9);
+  coolLight.position.set(2.4, 5.1, 2.0);
+  scene.add(coolLight);
+
+  const params = {
+    mode: COMPARE_MODE,
+    materialA: '물',
+    materialB: '알루미늄',
+    mass: 0.5,
+    supplyHeat: 10000,
+    metalInitialTemp: 80,
+    liquidInitialTemp: 20,
+    showTable: true,
+    startSimulation: () => startSimulation(),
+    reset: () => resetSimulation()
+  };
+
+  const state = {
+    running: false,
+    elapsed: 0,
+    historyA: [],
+    historyB: [],
+    currentTempA: START_TEMP_COMPARE,
+    currentTempB: START_TEMP_COMPARE,
+    equilibriumTarget: 0,
+    currentHeat: 0,
+    modeRoot: null,
+    visuals: null,
+    sampleWarning: false
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function round(value, digits = 1) {
+    const factor = 10 ** digits;
+    return Math.round(value * factor) / factor;
+  }
+
+  function formatNumber(value, digits = 1) {
+    return round(value, digits).toLocaleString('ko-KR', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+  }
+
+  function getLiquid() {
+    return liquidMaterials[params.materialA];
+  }
+
+  function getMetal() {
+    return metalMaterials[params.materialB];
+  }
+
+  function computeHeatCapacity(c) {
+    return c * params.mass;
+  }
+
+  function computeEquilibriumTarget() {
+    const liquid = getLiquid();
+    const metal = getMetal();
+    const liquidEnergy = liquid.c * params.mass * params.liquidInitialTemp;
+    const metalEnergy = metal.c * params.mass * params.metalInitialTemp;
+    return (liquidEnergy + metalEnergy) / (liquid.c * params.mass + metal.c * params.mass);
+  }
+
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    material.dispose();
+  }
+
+  function disposeObject(root) {
+    if (!root) return;
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) disposeMaterial(child.material);
+    });
+    if (root.parent) root.parent.remove(root);
+  }
+
+  function createThermometer(height = 1.7) {
+    const group = new THREE.Group();
+    const outer = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, height, 20),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.08,
+        transmission: 0.9,
+        transparent: true,
+        opacity: 0.85
+      })
+    );
+    outer.castShadow = true;
+    group.add(outer);
+
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 20, 20),
+      new THREE.MeshStandardMaterial({ color: 0xd93f45, emissive: 0x581214, emissiveIntensity: 0.25 })
+    );
+    bulb.position.y = -height * 0.5 - 0.08;
+    group.add(bulb);
+
+    const mercury = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 1, 16),
+      new THREE.MeshStandardMaterial({ color: 0xff565e, emissive: 0x7a1821, emissiveIntensity: 0.28 })
+    );
+    mercury.position.y = -height * 0.5 + 0.5;
+    group.add(mercury);
+
+    return { group, mercury, height };
+  }
+
+  function setThermometerLevel(thermo, temp, min = 20, max = 100) {
+    const span = Math.max(5, max - min);
+    const level = clamp((temp - min) / span, 0.08, 0.98);
+    thermo.mercury.scale.y = level;
+    thermo.mercury.position.y = -thermo.height * 0.5 + level * 0.5;
+  }
+
+  function createFlameCluster() {
+    const group = new THREE.Group();
+    const parts = [];
+    const flameColors = [0xffad52, 0xff7b42, 0xffd37d];
+
+    for (let i = 0; i < 6; i += 1) {
+      const geometry = new THREE.SphereGeometry(0.12 + Math.random() * 0.07, 14, 14);
+      const material = new THREE.MeshStandardMaterial({
+        color: flameColors[i % flameColors.length],
+        emissive: flameColors[i % flameColors.length],
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.88
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      const radius = i % 2 === 0 ? 0.08 : 0.15;
+      mesh.position.set(Math.cos(i * 1.1) * radius, 0.1 + i * 0.05, Math.sin(i * 1.3) * radius);
+      group.add(mesh);
+      parts.push({ mesh, phase: Math.random() * Math.PI * 2 });
+    }
+
+    return { group, parts };
+  }
+
+  function createLamp() {
+    const group = new THREE.Group();
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.38, 0.44, 0.18, 28),
+      new THREE.MeshStandardMaterial({ color: 0x7b4c3d, roughness: 0.75 })
+    );
+    base.castShadow = true;
+    group.add(base);
+
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.33, 0.42, 28),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x72a9df,
+        transparent: true,
+        opacity: 0.52,
+        roughness: 0.12,
+        transmission: 0.3
+      })
+    );
+    body.position.y = 0.22;
+    body.castShadow = true;
+    group.add(body);
+
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.14, 0.16, 20),
+      new THREE.MeshStandardMaterial({ color: 0xd0c6b5, metalness: 0.35, roughness: 0.35 })
+    );
+    cap.position.y = 0.52;
+    cap.castShadow = true;
+    group.add(cap);
+
+    const wick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.12, 8),
+      new THREE.MeshStandardMaterial({ color: 0x33261e })
+    );
+    wick.position.y = 0.64;
+    group.add(wick);
+
+    const flame = createFlameCluster();
+    flame.group.position.y = 0.75;
+    group.add(flame.group);
+    return { group, flameParts: flame.parts };
+  }
+
+  function createStand() {
+    const group = new THREE.Group();
+    const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x505b66, roughness: 0.45, metalness: 0.45 });
+    for (let i = 0; i < 3; i += 1) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.5, 12), poleMaterial);
+      const angle = (i / 3) * Math.PI * 2;
+      leg.position.set(Math.cos(angle) * 0.5, 0.75, Math.sin(angle) * 0.5);
+      leg.castShadow = true;
+      group.add(leg);
+    }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.04, 12, 28), poleMaterial);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 1.48;
+    ring.castShadow = true;
+    group.add(ring);
+    return group;
+  }
+
+  function createBeaker(fillKind, materialConfig) {
+    const group = new THREE.Group();
+    const beakerHeight = 1.6;
+    const massFactor = clamp((params.mass - 0.1) / 1.9, 0, 1);
+
+    const shell = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.82, 0.82, beakerHeight, 40, 1, true),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.05,
+        transmission: 0.92,
+        transparent: true,
+        opacity: 0.8
+      })
+    );
+    shell.castShadow = true;
+    group.add(shell);
+
+    const bottom = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.82, 0.82, 0.05, 40),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xf7fbff,
+        roughness: 0.08,
+        transmission: 0.8,
+        transparent: true,
+        opacity: 0.8
+      })
+    );
+    bottom.position.y = -beakerHeight * 0.5 + 0.03;
+    bottom.castShadow = true;
+    group.add(bottom);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.82, 0.04, 10, 32),
+      new THREE.MeshStandardMaterial({ color: 0xdfe9f6, roughness: 0.25, metalness: 0.22 })
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = beakerHeight * 0.5;
+    group.add(rim);
+
+    let sampleMaterial;
+
+    if (fillKind === 'liquid') {
+      sampleMaterial = new THREE.MeshPhysicalMaterial({
+        color: materialConfig.color,
+        transparent: true,
+        opacity: 0.84,
+        roughness: 0.1,
+        transmission: 0.22
+      });
+
+      const sample = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.72, 0.74, 1, 32),
+        sampleMaterial
+      );
+      const height = lerp(0.58, 1.18, massFactor);
+      sample.scale.y = height;
+      sample.position.y = -beakerHeight * 0.5 + 0.03 + height * 0.5;
+      sample.castShadow = true;
+      group.add(sample);
+
+      const surface = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.72, 0.72, 0.03, 32),
+        new THREE.MeshStandardMaterial({ color: materialConfig.warmColor, transparent: true, opacity: 0.9 })
+      );
+      surface.position.y = sample.position.y + height * 0.5 - 0.02;
+      group.add(surface);
+      group.userData.surface = surface;
+    } else {
+      sampleMaterial = new THREE.MeshStandardMaterial({
+        color: materialConfig.color,
+        roughness: 0.42,
+        metalness: 0.58
+      });
+      const sample = new THREE.Mesh(
+        new THREE.BoxGeometry(1, lerp(0.46, 1.05, massFactor), 1),
+        sampleMaterial
+      );
+      sample.position.y = -0.35;
+      sample.castShadow = true;
+      group.add(sample);
+    }
+
+    return { group, sampleMaterial };
+  }
+
+  function createHeatParticles(count = 12) {
+    const particles = [];
+    const geometry = new THREE.SphereGeometry(0.06, 12, 12);
+    for (let i = 0; i < count; i += 1) {
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xffbb72,
+        emissive: 0xff7f32,
+        emissiveIntensity: 0.65,
+        transparent: true,
+        opacity: 0.75
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.visible = false;
+      scene.add(mesh);
+      particles.push({ mesh, phase: Math.random() * Math.PI * 2, speed: 0.5 + Math.random() * 0.6 });
+    }
+    return particles;
+  }
+
+  function buildCompareScene() {
+    const root = new THREE.Group();
+    root.position.set(-1.2, 0, 0);
+    scene.add(root);
+
+    const desk = new THREE.Mesh(
+      new THREE.BoxGeometry(8.6, 0.2, 3.5),
+      new THREE.MeshStandardMaterial({ color: 0xd2b694, roughness: 0.9 })
+    );
+    desk.position.set(-0.15, 1.1, 0);
+    desk.receiveShadow = true;
+    desk.castShadow = true;
+    root.add(desk);
+
+    const standA = createStand();
+    standA.position.set(-2.3, 1.1, 0);
+    root.add(standA);
+
+    const standB = createStand();
+    standB.position.set(2.0, 1.1, 0);
+    root.add(standB);
+
+    const beakerA = createBeaker('liquid', getLiquid());
+    beakerA.group.position.set(-2.3, 2.33, 0);
+    root.add(beakerA.group);
+
+    const beakerB = createBeaker('metal', getMetal());
+    beakerB.group.position.set(2.0, 2.3, 0);
+    root.add(beakerB.group);
+
+    const lampA = createLamp();
+    lampA.group.position.set(-2.3, 1.25, 0);
+    root.add(lampA.group);
+
+    const lampB = createLamp();
+    lampB.group.position.set(2.0, 1.25, 0);
+    root.add(lampB.group);
+
+    const thermoA = createThermometer();
+    thermoA.group.position.set(-1.35, 2.15, 0.22);
+    thermoA.group.rotation.z = THREE.MathUtils.degToRad(4);
+    root.add(thermoA.group);
+
+    const thermoB = createThermometer();
+    thermoB.group.position.set(2.95, 2.15, 0.22);
+    thermoB.group.rotation.z = THREE.MathUtils.degToRad(4);
+    root.add(thermoB.group);
+
+    state.modeRoot = root;
+    state.visuals = {
+      type: 'compare',
+      lampFlames: [...lampA.flameParts, ...lampB.flameParts],
+      liquidMaterial: beakerA.sampleMaterial,
+      metalMaterial: beakerB.sampleMaterial,
+      liquidSurface: beakerA.group.userData.surface,
+      thermometerA: thermoA,
+      thermometerB: thermoB
+    };
+  }
+
+  function buildEquilibriumScene() {
+    const root = new THREE.Group();
+    root.position.set(-1.0, 0, 0);
+    scene.add(root);
+
+    const desk = new THREE.Mesh(
+      new THREE.BoxGeometry(7.8, 0.2, 3.2),
+      new THREE.MeshStandardMaterial({ color: 0xd2b694, roughness: 0.9 })
+    );
+    desk.position.set(-0.2, 1.1, 0);
+    desk.receiveShadow = true;
+    desk.castShadow = true;
+    root.add(desk);
+
+    const foamMaterial = new THREE.MeshStandardMaterial({ color: 0xdddcc8, roughness: 0.95 });
+    const basinBase = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.28, 2.2), foamMaterial);
+    basinBase.position.set(-0.2, 1.34, 0);
+    root.add(basinBase);
+
+    [
+      { x: -0.2, y: 1.98, z: 1.02, sx: 2.9, sy: 1.0, sz: 0.18 },
+      { x: -0.2, y: 1.98, z: -1.02, sx: 2.9, sy: 1.0, sz: 0.18 },
+      { x: 1.18, y: 1.98, z: 0, sx: 0.18, sy: 1.0, sz: 1.86 },
+      { x: -1.58, y: 1.98, z: 0, sx: 0.18, sy: 1.0, sz: 1.86 }
+    ].forEach((spec) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(spec.sx, spec.sy, spec.sz), foamMaterial);
+      wall.position.set(spec.x, spec.y, spec.z);
+      wall.castShadow = true;
+      root.add(wall);
+    });
+
+    const liquid = getLiquid();
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: liquid.color,
+      transparent: true,
+      opacity: 0.84,
+      transmission: 0.2,
+      roughness: 0.1
+    });
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 1.08, 36), waterMaterial);
+    water.position.set(-0.2, 1.8, 0);
+    water.castShadow = true;
+    root.add(water);
+
+    const waterSurface = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.95, 0.95, 0.03, 36),
+      new THREE.MeshStandardMaterial({ color: liquid.warmColor, transparent: true, opacity: 0.92 })
+    );
+    waterSurface.position.set(-0.2, 2.33, 0);
+    root.add(waterSurface);
+
+    const metal = getMetal();
+    const blockMaterial = new THREE.MeshStandardMaterial({
+      color: metal.color,
+      roughness: 0.36,
+      metalness: 0.64
+    });
+    const block = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), blockMaterial);
+    block.position.set(1.45, 3.1, 0);
+    block.castShadow = true;
+    root.add(block);
+
+    const support = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 1.8, 12),
+      new THREE.MeshStandardMaterial({ color: 0x5f6771, roughness: 0.45, metalness: 0.45 })
+    );
+    support.position.set(2.05, 2.1, 0);
+    support.castShadow = true;
+    root.add(support);
+
+    const arm = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 0.08, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x5f6771, roughness: 0.45, metalness: 0.45 })
+    );
+    arm.position.set(1.35, 2.96, 0);
+    root.add(arm);
+
+    const thermoLiquid = createThermometer();
+    thermoLiquid.group.position.set(-1.55, 2.15, 0.45);
+    root.add(thermoLiquid.group);
+
+    const thermoMetal = createThermometer();
+    thermoMetal.group.position.set(2.5, 2.5, 0.3);
+    root.add(thermoMetal.group);
+
+    state.modeRoot = root;
+    state.visuals = {
+      type: 'equilibrium',
+      waterMaterial,
+      waterSurface,
+      block,
+      blockMaterial,
+      thermometerA: thermoLiquid,
+      thermometerB: thermoMetal,
+      heatParticles: createHeatParticles()
+    };
+  }
+
+  function buildModeScene() {
+    disposeObject(state.modeRoot);
+    if (state.visuals && state.visuals.heatParticles) {
+      state.visuals.heatParticles.forEach(({ mesh }) => {
+        if (mesh.parent) mesh.parent.remove(mesh);
+        mesh.geometry.dispose();
+        disposeMaterial(mesh.material);
+      });
+    }
+
+    state.modeRoot = null;
+    state.visuals = null;
+
+    if (params.mode === COMPARE_MODE) {
+      buildCompareScene();
+      controls.target.set(-1.1, 1.9, 0);
+      camera.position.set(0.8, 4.3, 11);
+    } else {
+      buildEquilibriumScene();
+      controls.target.set(-0.7, 2.0, 0);
+      camera.position.set(1.7, 4.4, 10.4);
+    }
+
+    controls.update();
+    resetSimulation();
+  }
+
+  function renderSpecificHeatTable() {
+    tableBody.innerHTML = '';
+    tableRows.forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.dataset.name = row.name;
+      tr.innerHTML = `
+        <td>${row.name}</td>
+        <td>${row.c.toLocaleString('ko-KR')}</td>
+        <td>${row.rank}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function updateTableHighlights() {
+    [...tableBody.querySelectorAll('tr')].forEach((row) => {
+      const active = row.dataset.name === params.materialA || row.dataset.name === params.materialB;
+      row.classList.toggle('active-row', active);
+    });
+  }
+
+  function syncVisuals(timeSeconds = 0) {
+    if (!state.visuals) return;
+
+    if (state.visuals.type === 'compare') {
+      const liquidBase = new THREE.Color(getLiquid().color);
+      const liquidWarm = new THREE.Color(getLiquid().warmColor);
+      const metalBase = new THREE.Color(getMetal().color);
+      const metalWarm = new THREE.Color(getMetal().hotColor);
+      const liquidMix = clamp((state.currentTempA - 20) / 80, 0, 1);
+      const metalMix = clamp((state.currentTempB - 20) / 80, 0, 1);
+
+      state.visuals.liquidMaterial.color.copy(liquidBase.clone().lerp(liquidWarm, 0.35 * liquidMix));
+      state.visuals.liquidSurface.material.color.copy(liquidBase.clone().lerp(liquidWarm, 0.8 * liquidMix));
+      state.visuals.metalMaterial.color.copy(metalBase.clone().lerp(metalWarm, 0.7 * metalMix));
+
+      const thermoMax = Math.max(100, state.currentTempA, state.currentTempB);
+      setThermometerLevel(state.visuals.thermometerA, state.currentTempA, 20, thermoMax);
+      setThermometerLevel(state.visuals.thermometerB, state.currentTempB, 20, thermoMax);
+
+      state.visuals.lampFlames.forEach((part, index) => {
+        const pulse = 0.75 + 0.25 * Math.sin(timeSeconds * 6 + part.phase + index * 0.3);
+        const activeBoost = state.running ? 1 : 0.55;
+        part.mesh.scale.setScalar(pulse * activeBoost);
+        part.mesh.position.y = 0.08 + index * 0.05 + 0.06 * Math.sin(timeSeconds * 4 + part.phase);
+        part.mesh.material.opacity = clamp(0.52 + pulse * 0.3, 0.3, 0.95);
+      });
+    } else {
+      const liquidBase = new THREE.Color(getLiquid().color);
+      const liquidWarm = new THREE.Color(getLiquid().warmColor);
+      const metalBase = new THREE.Color(getMetal().color);
+      const metalWarm = new THREE.Color(getMetal().hotColor);
+      const liquidMix = clamp((state.currentTempA - params.liquidInitialTemp) / Math.max(1, state.equilibriumTarget - params.liquidInitialTemp), 0, 1);
+      const hotSpan = Math.max(1, params.metalInitialTemp - state.equilibriumTarget);
+      const metalMix = clamp((state.currentTempB - state.equilibriumTarget) / hotSpan, 0, 1);
+
+      state.visuals.waterMaterial.color.copy(liquidBase.clone().lerp(liquidWarm, 0.45 * liquidMix));
+      state.visuals.waterSurface.material.color.copy(liquidBase.clone().lerp(liquidWarm, 0.8 * liquidMix));
+      state.visuals.waterSurface.position.y = 2.33 + 0.02 * Math.sin(timeSeconds * 2.4);
+      state.visuals.blockMaterial.color.copy(metalBase.clone().lerp(metalWarm, metalMix));
+
+      const immersion = state.running ? clamp(state.elapsed / 2.5, 0, 1) : 0;
+      state.visuals.block.position.set(1.45 - 1.6 * immersion, 3.1 - 1.35 * immersion, 0);
+      setThermometerLevel(state.visuals.thermometerA, state.currentTempA, 10, Math.max(100, params.metalInitialTemp));
+      setThermometerLevel(state.visuals.thermometerB, state.currentTempB, 10, Math.max(100, params.metalInitialTemp));
+
+      const heatVisible = state.running && Math.abs(state.currentTempB - state.currentTempA) > 0.2;
+      const from = state.visuals.block.position.clone();
+      const to = new THREE.Vector3(-0.2, 2.15, 0);
+
+      state.visuals.heatParticles.forEach((particle, index) => {
+        particle.mesh.visible = heatVisible;
+        if (!heatVisible) return;
+        const travel = (timeSeconds * particle.speed + index / state.visuals.heatParticles.length) % 1;
+        const arc = Math.sin(travel * Math.PI) * 0.7;
+        particle.mesh.position.lerpVectors(from, to, travel);
+        particle.mesh.position.y += arc;
+        particle.mesh.position.z += 0.25 * Math.sin(timeSeconds * 2 + particle.phase);
+        particle.mesh.material.opacity = 0.28 + 0.5 * Math.sin(travel * Math.PI);
+      });
+    }
+  }
+
+  function pushHistoryPoint(force = false) {
+    const time = round(state.elapsed, 1);
+    const last = state.historyA[state.historyA.length - 1];
+    if (!force && last && time - last.t < 0.3) return;
+    state.historyA.push({ t: time, value: state.currentTempA });
+    state.historyB.push({ t: time, value: state.currentTempB });
+  }
+
+  function resetSimulation() {
+    state.running = false;
+    state.elapsed = 0;
+    state.currentHeat = 0;
+    state.historyA = [];
+    state.historyB = [];
+    state.sampleWarning = false;
+
+    if (params.mode === COMPARE_MODE) {
+      state.currentTempA = START_TEMP_COMPARE;
+      state.currentTempB = START_TEMP_COMPARE;
+      state.equilibriumTarget = 0;
+    } else {
+      state.currentTempA = params.liquidInitialTemp;
+      state.currentTempB = params.metalInitialTemp;
+      state.equilibriumTarget = computeEquilibriumTarget();
+    }
+
+    pushHistoryPoint(true);
+    syncVisuals();
+    updatePanels();
+    drawGraph();
+  }
+
+  function startSimulation() {
+    resetSimulation();
+    state.running = true;
+  }
+
+  function stepCompare(dt) {
+    state.elapsed = clamp(state.elapsed + dt, 0, DURATION);
+    const q = params.supplyHeat * (state.elapsed / DURATION);
+    state.currentHeat = q;
+    state.currentTempA = START_TEMP_COMPARE + q / (getLiquid().c * params.mass);
+    state.currentTempB = START_TEMP_COMPARE + q / (getMetal().c * params.mass);
+    state.sampleWarning = state.currentTempA > 100 || state.currentTempB > 100;
+    if (state.elapsed >= DURATION) state.running = false;
+  }
+
+  function stepEquilibrium(dt) {
+    state.elapsed = clamp(state.elapsed + dt, 0, DURATION);
+    const liquid = getLiquid();
+    const metal = getMetal();
+    const delta = state.currentTempB - state.currentTempA;
+    const dq = 38 * delta * dt;
+    state.currentTempB -= dq / (metal.c * params.mass);
+    state.currentTempA += dq / (liquid.c * params.mass);
+    state.currentHeat = liquid.c * params.mass * (state.currentTempA - params.liquidInitialTemp);
+
+    if (Math.abs(delta) < 0.04 || state.elapsed >= DURATION) {
+      state.running = false;
+      state.currentTempA = state.equilibriumTarget;
+      state.currentTempB = state.equilibriumTarget;
+    }
+  }
+
+  function updatePanels() {
+    updateTableHighlights();
+    tableSection.classList.toggle('hidden', !params.showTable);
+
+    if (params.mode === COMPARE_MODE) {
+      const liquid = getLiquid();
+      const metal = getMetal();
+      const capacityA = computeHeatCapacity(liquid.c);
+      const capacityB = computeHeatCapacity(metal.c);
+      const deltaA = state.currentTempA - START_TEMP_COMPARE;
+      const deltaB = state.currentTempB - START_TEMP_COMPARE;
+
+      modePill.textContent = `모드 · ${COMPARE_MODE}`;
+      dashboardTitle.textContent = '온도-시간 그래프';
+      dashboardCopy.textContent = '같은 열량을 공급할 때 비열이 큰 물질일수록 그래프의 기울기가 완만해집니다.';
+
+      legend.innerHTML = `
+        <div class="legend-item"><span class="legend-swatch" style="background:#59a6ff"></span>${params.materialA} · ${liquid.c.toLocaleString('ko-KR')} J/(kg·K)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#ff8c6f"></span>${params.materialB} · ${metal.c.toLocaleString('ko-KR')} J/(kg·K)</div>
+      `;
+
+      statusChip.innerHTML = state.running
+        ? `<strong>${formatNumber(state.elapsed, 1)}초</strong> 동안 누적 <strong>${Math.round(state.currentHeat).toLocaleString('ko-KR')} J</strong>가 공급되었습니다. 같은 질량이라면 비열이 작은 <strong>${params.materialB}</strong>의 온도가 더 빠르게 상승합니다.${state.sampleWarning ? ' <span class="warn">100°C 이상 구간은 상변화를 제외한 단순 계산 결과입니다.</span>' : ''}`
+        : `시뮬레이션을 시작하면 같은 열량이 두 물질에 동시에 공급됩니다. <strong>ΔT = Q/(cm)</strong> 이므로 <strong>c</strong>가 클수록 온도 상승이 작습니다.`;
+
+      formulaPanel.innerHTML = `
+        <h2>🌡️ 비열과 열용량</h2>
+        <div class="divider"></div>
+        <div class="row"><span>모드</span><span>${COMPARE_MODE}</span></div>
+        <div class="row"><span>${params.materialA} 비열 c</span><span>${liquid.c.toLocaleString('ko-KR')} J/(kg·K)</span></div>
+        <div class="row"><span>${params.materialA} 열용량 C=cm</span><span>${formatNumber(capacityA, 1)} J/K</span></div>
+        <div class="row"><span>${params.materialB} 비열 c</span><span>${metal.c.toLocaleString('ko-KR')} J/(kg·K)</span></div>
+        <div class="row"><span>${params.materialB} 열용량 C=cm</span><span>${formatNumber(capacityB, 1)} J/K</span></div>
+        <div class="divider"></div>
+        <div class="row"><span>열량 Q</span><span>${Math.round(state.currentHeat).toLocaleString('ko-KR')} J</span></div>
+        <div class="row"><span>질량 m</span><span>${formatNumber(params.mass, 2)} kg</span></div>
+        <div class="row"><span>${params.materialA} ΔT</span><span>${formatNumber(deltaA, 2)} K → ${formatNumber(state.currentTempA, 2)} °C</span></div>
+        <div class="row"><span>${params.materialB} ΔT</span><span>${formatNumber(deltaB, 2)} K → ${formatNumber(state.currentTempB, 2)} °C</span></div>
+        <div class="note">식 <strong>Q = cmΔT</strong>에서 같은 <strong>Q</strong>, 같은 <strong>m</strong>이라면 비열이 큰 ${params.materialA}의 온도 상승은 더 작습니다. 현재 계산상 ${params.materialB} 쪽 곡선이 더 가파릅니다.</div>
+      `;
+    } else {
+      const liquid = getLiquid();
+      const metal = getMetal();
+      const lostHeat = metal.c * params.mass * (params.metalInitialTemp - state.currentTempB);
+      const gainedHeat = liquid.c * params.mass * (state.currentTempA - params.liquidInitialTemp);
+      const gap = Math.abs(state.currentTempB - state.currentTempA);
+
+      modePill.textContent = `모드 · ${EQUILIBRIUM_MODE}`;
+      dashboardTitle.textContent = '열평형 그래프';
+      dashboardCopy.textContent = '뜨거운 금속이 잃는 열량과 차가운 액체가 얻는 열량이 같아지며 두 온도는 같은 값으로 수렴합니다.';
+
+      legend.innerHTML = `
+        <div class="legend-item"><span class="legend-swatch" style="background:#59a6ff"></span>${params.materialA} 온도 · ${liquid.c.toLocaleString('ko-KR')} J/(kg·K)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#ff8c6f"></span>${params.materialB} 온도 · ${metal.c.toLocaleString('ko-KR')} J/(kg·K)</div>
+      `;
+
+      statusChip.innerHTML = state.running
+        ? `<strong>${params.materialB}</strong>에서 <strong>${params.materialA}</strong>로 열이 이동하고 있습니다. 현재 온도 차는 <strong>${formatNumber(gap, 2)}°C</strong>이며, 계산된 열평형 온도는 <strong>${formatNumber(state.equilibriumTarget, 2)}°C</strong>입니다.`
+        : `열평형에서는 뜨거운 물체가 잃는 열량과 차가운 물체가 얻는 열량이 같습니다. <strong>Q_잃음 = Q_얻음</strong>을 만족하는 온도가 최종 평형 온도입니다.`;
+
+      formulaPanel.innerHTML = `
+        <h2>🌡️ 비열과 열용량</h2>
+        <div class="divider"></div>
+        <div class="row"><span>모드</span><span>${EQUILIBRIUM_MODE}</span></div>
+        <div class="row"><span>${params.materialA} 초기 온도</span><span>${formatNumber(params.liquidInitialTemp, 1)} °C</span></div>
+        <div class="row"><span>${params.materialB} 초기 온도</span><span>${formatNumber(params.metalInitialTemp, 1)} °C</span></div>
+        <div class="row"><span>${params.materialA} 현재 온도</span><span>${formatNumber(state.currentTempA, 2)} °C</span></div>
+        <div class="row"><span>${params.materialB} 현재 온도</span><span>${formatNumber(state.currentTempB, 2)} °C</span></div>
+        <div class="divider"></div>
+        <div class="row"><span>열 잃음</span><span>${formatNumber(lostHeat, 2)} J</span></div>
+        <div class="row"><span>열 얻음</span><span>${formatNumber(gainedHeat, 2)} J</span></div>
+        <div class="row"><span>식</span><span>c₁m₁ΔT₁ = c₂m₂ΔT₂</span></div>
+        <div class="row"><span>평형 온도 T<sub>f</sub></span><span class="ok">${formatNumber(state.equilibriumTarget, 2)} °C</span></div>
+        <div class="note">${params.materialB}이(가) 냉각되고 ${params.materialA}이(가) 가열되면서 두 곡선이 만납니다. 현재 모델은 열손실이 없는 단열 용기를 가정합니다.</div>
+      `;
+    }
+  }
+
+  function drawGraph() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = graphCanvas.getBoundingClientRect();
+    const width = Math.max(240, Math.floor(rect.width * dpr));
+    const height = Math.max(160, Math.floor(rect.height * dpr));
+    if (graphCanvas.width !== width || graphCanvas.height !== height) {
+      graphCanvas.width = width;
+      graphCanvas.height = height;
+    }
+
+    graphCtx.setTransform(1, 0, 0, 1, 0, 0);
+    graphCtx.scale(dpr, dpr);
+    const w = rect.width;
+    const h = rect.height;
+    graphCtx.clearRect(0, 0, w, h);
+
+    const gradient = graphCtx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, 'rgba(20, 33, 54, 0.98)');
+    gradient.addColorStop(1, 'rgba(11, 17, 27, 0.98)');
+    graphCtx.fillStyle = gradient;
+    graphCtx.fillRect(0, 0, w, h);
+
+    const margin = { top: 18, right: 16, bottom: 30, left: 48 };
+    const plotW = w - margin.left - margin.right;
+    const plotH = h - margin.top - margin.bottom;
+
+    const values = [...state.historyA.map((d) => d.value), ...state.historyB.map((d) => d.value)];
+    const observedMin = values.length ? Math.min(...values, params.mode === COMPARE_MODE ? 20 : 10) : 20;
+    const observedMax = values.length ? Math.max(...values, 100) : 100;
+    const yStep = observedMax > 300 ? 100 : observedMax > 180 ? 20 : 10;
+    const yMin = Math.floor(observedMin / 10) * 10;
+    const yMax = Math.ceil((observedMax + 4) / yStep) * yStep;
+
+    graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    graphCtx.lineWidth = 1;
+
+    for (let i = 0; i <= 5; i += 1) {
+      const y = margin.top + (plotH / 5) * i;
+      graphCtx.beginPath();
+      graphCtx.moveTo(margin.left, y);
+      graphCtx.lineTo(margin.left + plotW, y);
+      graphCtx.stroke();
+    }
+
+    for (let i = 0; i <= 6; i += 1) {
+      const x = margin.left + (plotW / 6) * i;
+      graphCtx.beginPath();
+      graphCtx.moveTo(x, margin.top);
+      graphCtx.lineTo(x, margin.top + plotH);
+      graphCtx.stroke();
+    }
+
+    graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, margin.top);
+    graphCtx.lineTo(margin.left, margin.top + plotH);
+    graphCtx.lineTo(margin.left + plotW, margin.top + plotH);
+    graphCtx.stroke();
+
+    graphCtx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+    graphCtx.font = '11px Pretendard';
+    graphCtx.textAlign = 'right';
+    graphCtx.textBaseline = 'middle';
+    for (let i = 0; i <= 5; i += 1) {
+      const value = yMax - ((yMax - yMin) / 5) * i;
+      const y = margin.top + (plotH / 5) * i;
+      graphCtx.fillText(`${Math.round(value)}°`, margin.left - 8, y);
+    }
+
+    graphCtx.textAlign = 'center';
+    graphCtx.textBaseline = 'top';
+    for (let i = 0; i <= 6; i += 1) {
+      const x = margin.left + (plotW / 6) * i;
+      const value = Math.round((DURATION / 6) * i);
+      graphCtx.fillText(`${value}s`, x, margin.top + plotH + 8);
+    }
+
+    function drawSeries(points, color) {
+      if (!points.length) return;
+      graphCtx.strokeStyle = color;
+      graphCtx.lineWidth = 2.8;
+      graphCtx.lineJoin = 'round';
+      graphCtx.lineCap = 'round';
+      graphCtx.beginPath();
+
+      points.forEach((point, index) => {
+        const x = margin.left + (point.t / DURATION) * plotW;
+        const y = margin.top + ((yMax - point.value) / (yMax - yMin)) * plotH;
+        if (index === 0) graphCtx.moveTo(x, y);
+        else graphCtx.lineTo(x, y);
+      });
+
+      graphCtx.stroke();
+
+      const last = points[points.length - 1];
+      const x = margin.left + (last.t / DURATION) * plotW;
+      const y = margin.top + ((yMax - last.value) / (yMax - yMin)) * plotH;
+      graphCtx.fillStyle = color;
+      graphCtx.beginPath();
+      graphCtx.arc(x, y, 4.4, 0, Math.PI * 2);
+      graphCtx.fill();
+    }
+
+    drawSeries(state.historyA, '#59a6ff');
+    drawSeries(state.historyB, '#ff8c6f');
+
+    graphCtx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    graphCtx.font = '600 12px Pretendard';
+    graphCtx.textAlign = 'left';
+    graphCtx.fillText('온도 T', margin.left, 12);
+    graphCtx.textAlign = 'right';
+    graphCtx.fillText('시간 t', w - 16, h - 10);
+  }
+
+  function setControllerVisibility(controller, visible) {
+    const row = controller.domElement.closest('.controller') || controller.domElement.parentElement;
+    if (row) row.style.display = visible ? '' : 'none';
+  }
+
+  const gui = new GUI({ title: '실험 컨트롤' });
+  const modeController = gui.add(params, 'mode', [COMPARE_MODE, EQUILIBRIUM_MODE]).name('모드');
+  const materialAController = gui.add(params, 'materialA', Object.keys(liquidMaterials)).name('물질 A');
+  const materialBController = gui.add(params, 'materialB', Object.keys(metalMaterials)).name('물질 B');
+  const massController = gui.add(params, 'mass', 0.1, 2, 0.1).name('질량 (kg)');
+  const supplyHeatController = gui.add(params, 'supplyHeat', 1000, 50000, 500).name('공급 열량 (J)');
+  const hotTempController = gui.add(params, 'metalInitialTemp', 50, 100, 1).name('금속 초기 온도');
+  const coldTempController = gui.add(params, 'liquidInitialTemp', 10, 30, 1).name('물 초기 온도');
+  const showTableController = gui.add(params, 'showTable').name('비열 표');
+  gui.add(params, 'startSimulation').name('시뮬레이션 시작');
+  gui.add(params, 'reset').name('초기화');
+
+  function syncGuiByMode() {
+    const compare = params.mode === COMPARE_MODE;
+    setControllerVisibility(supplyHeatController, compare);
+    setControllerVisibility(hotTempController, !compare);
+    setControllerVisibility(coldTempController, !compare);
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  modeController.onChange(() => {
+    syncGuiByMode();
+    buildModeScene();
+  });
+  materialAController.onChange(() => buildModeScene());
+  materialBController.onChange(() => buildModeScene());
+  massController.onFinishChange(() => buildModeScene());
+  supplyHeatController.onChange(() => resetSimulation());
+  hotTempController.onChange(() => resetSimulation());
+  coldTempController.onChange(() => resetSimulation());
+  showTableController.onChange(() => updatePanels());
+
+  guideToggle.addEventListener('click', () => {
+    guidePanel.classList.toggle('open');
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    drawGraph();
+  });
+
+  renderSpecificHeatTable();
+  syncGuiByMode();
+  buildModeScene();
+
+  let lastTime = performance.now();
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    if (state.running) {
+      if (params.mode === COMPARE_MODE) stepCompare(dt);
+      else stepEquilibrium(dt);
+      pushHistoryPoint();
+      updatePanels();
+      drawGraph();
+    }
+
+    syncVisuals(now * 0.001);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>

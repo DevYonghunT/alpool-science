@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>갈라파고스 핀치의 적응 방산 - 3D 시뮬레이션</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --sky: #88ccdd;
+      --sea: rgba(43, 125, 149, 0.28);
+      --panel: rgba(11, 36, 44, 0.74);
+      --panel-strong: rgba(8, 27, 34, 0.9);
+      --stroke: rgba(255, 255, 255, 0.14);
+      --text: rgba(248, 252, 255, 0.96);
+      --soft: rgba(235, 248, 255, 0.72);
+      --faint: rgba(235, 248, 255, 0.52);
+      --warm: #ffd58c;
+      --mint: #7ef2d2;
+      --shadow: 0 22px 54px rgba(6, 19, 24, 0.26);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.34), transparent 20%),
+        radial-gradient(circle at 83% 10%, rgba(255, 244, 198, 0.22), transparent 22%),
+        linear-gradient(180deg, #b7e6ef 0%, #92d6df 26%, #88ccdd 55%, #71c2d3 100%);
+      color: var(--text);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      position: relative;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      display: block;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    .panel {
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(241, 255, 255, 0.88);
+    }
+
+    #hero {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 22;
+      width: min(430px, calc(100vw - 32px));
+      padding: 18px 20px;
+      border-radius: 26px;
+    }
+
+    #hero h1 {
+      margin-top: 10px;
+      font-size: clamp(30px, 3.3vw, 44px);
+      line-height: 0.98;
+      letter-spacing: -0.05em;
+      text-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    #hero-copy {
+      margin-top: 11px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--soft);
+    }
+
+    #hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .hero-badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: rgba(248, 252, 255, 0.9);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #status-chip {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      z-index: 26;
+      transform: translateX(-50%) translateY(-10px);
+      opacity: 0;
+      pointer-events: none;
+      padding: 10px 15px;
+      border-radius: 999px;
+      background: rgba(8, 25, 31, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: rgba(245, 252, 255, 0.94);
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+
+    #status-chip.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #guide-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 28;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(8, 29, 37, 0.84);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 0.16s ease, background 0.16s ease;
+    }
+
+    #guide-toggle:hover,
+    #guide-toggle:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+      background: rgba(8, 29, 37, 0.96);
+    }
+
+    #guide-panel {
+      position: fixed;
+      top: 64px;
+      right: 16px;
+      z-index: 27;
+      width: min(420px, calc(100vw - 32px));
+      max-height: min(76vh, 780px);
+      overflow: auto;
+      display: none;
+      padding: 18px;
+      border-radius: 22px;
+      background: var(--panel-strong);
+      line-height: 1.72;
+      font-size: 12px;
+    }
+
+    #guide-panel.open {
+      display: block;
+    }
+
+    #guide-panel h3,
+    #map-panel h3,
+    #comparison-panel h3,
+    #timeline-panel h3,
+    #formula-panel h3 {
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #effcff;
+    }
+
+    #guide-panel h4 {
+      margin-top: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--warm);
+    }
+
+    #guide-panel ul {
+      padding-left: 18px;
+    }
+
+    #guide-panel li {
+      margin-bottom: 5px;
+    }
+
+    .guide-ref {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--faint);
+    }
+
+    #map-panel {
+      position: fixed;
+      top: 170px;
+      left: 16px;
+      z-index: 21;
+      width: min(280px, calc(100vw - 32px));
+      padding: 16px;
+      border-radius: 22px;
+    }
+
+    #map-panel p,
+    #comparison-panel p,
+    #timeline-panel p {
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.66;
+    }
+
+    #map-svg {
+      width: 100%;
+      height: auto;
+      margin-top: 10px;
+      overflow: visible;
+    }
+
+    .mainland-shape,
+    .island-shape,
+    .route-line {
+      transition: opacity 0.22s ease, transform 0.22s ease, fill 0.22s ease, stroke 0.22s ease;
+    }
+
+    .mainland-shape {
+      fill: rgba(255, 213, 140, 0.42);
+      stroke: rgba(255, 226, 178, 0.9);
+      stroke-width: 2;
+    }
+
+    .mainland-shape.active {
+      fill: rgba(255, 220, 150, 0.7);
+    }
+
+    .route-line {
+      stroke: rgba(255, 255, 255, 0.34);
+      stroke-width: 3;
+      stroke-dasharray: 8 10;
+      fill: none;
+      opacity: 0.52;
+    }
+
+    .route-line.active {
+      stroke: rgba(255, 255, 255, 0.88);
+      opacity: 1;
+    }
+
+    .island-shape {
+      fill: rgba(126, 242, 210, 0.18);
+      stroke: rgba(193, 255, 238, 0.6);
+      stroke-width: 2;
+      opacity: 0.72;
+      transform-origin: center;
+    }
+
+    .island-shape.active {
+      fill: rgba(126, 242, 210, 0.44);
+      stroke: rgba(216, 255, 244, 0.98);
+      opacity: 1;
+      transform: scale(1.08);
+    }
+
+    .map-label {
+      fill: rgba(241, 250, 255, 0.8);
+      font-size: 11px;
+    }
+
+    #map-caption {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(244, 251, 255, 0.86);
+      font-size: 12px;
+      line-height: 1.58;
+    }
+
+    #comparison-panel {
+      position: fixed;
+      top: 108px;
+      right: 16px;
+      z-index: 21;
+      width: min(308px, calc(100vw - 32px));
+      padding: 16px;
+      border-radius: 22px;
+    }
+
+    #comparison-mode {
+      margin-top: -2px;
+      margin-bottom: 10px;
+      font-size: 11px;
+      color: var(--faint);
+    }
+
+    #compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .compare-card {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 12px 10px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .compare-card:hover,
+    .compare-card:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .compare-card.active {
+      border-color: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .compare-head {
+      position: relative;
+      width: 58px;
+      height: 36px;
+      margin-bottom: 9px;
+      border-radius: 999px;
+      background: rgba(58, 66, 72, 0.88);
+      overflow: visible;
+    }
+
+    .compare-head::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.8) inset;
+    }
+
+    .compare-beak {
+      position: absolute;
+      top: 50%;
+      left: calc(100% - 4px);
+      width: var(--beak-w);
+      height: var(--beak-h);
+      transform: translateY(-50%);
+      transform-origin: left center;
+      background: var(--beak-c);
+      clip-path: polygon(0 50%, 100% 0, 100% 100%);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .compare-card strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .compare-card span {
+      display: block;
+      margin-top: 4px;
+      color: var(--faint);
+      font-size: 11px;
+      line-height: 1.48;
+    }
+
+    #timeline-panel {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      z-index: 21;
+      transform: translateX(-50%);
+      width: min(640px, calc(100vw - 32px));
+      padding: 16px 18px;
+      border-radius: 24px;
+    }
+
+    #timeline-steps {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .timeline-step {
+      min-width: 0;
+      padding: 10px 8px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(247, 252, 255, 0.88);
+      font-size: 11px;
+      cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .timeline-step:hover,
+    .timeline-step:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .timeline-step.active {
+      background: linear-gradient(135deg, rgba(255, 217, 140, 0.36), rgba(126, 242, 210, 0.24));
+      border-color: rgba(255, 255, 255, 0.26);
+    }
+
+    #timeline-title {
+      margin-top: 14px;
+      font-size: 15px;
+      color: #fffdf5;
+    }
+
+    #timeline-body {
+      margin-top: 8px;
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    #formula-panel {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 21;
+      width: min(370px, calc(100vw - 32px));
+      padding: 18px 18px 16px;
+      border-radius: 24px;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .label {
+      flex: 0 0 96px;
+      color: var(--faint);
+    }
+
+    .value {
+      flex: 1;
+      color: var(--text);
+    }
+
+    .block {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .mono {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      letter-spacing: -0.02em;
+    }
+
+    .formula-line {
+      margin-top: 4px;
+      color: rgba(248, 252, 255, 0.8);
+    }
+
+    .formula-line strong {
+      color: var(--warm);
+    }
+
+    .accent {
+      color: var(--mint);
+    }
+
+    .textbook-ref {
+      margin-top: 12px;
+      color: var(--faint);
+      font-size: 11px;
+    }
+
+    .lil-gui.root {
+      z-index: 30 !important;
+    }
+
+    @media (max-width: 1100px) {
+      #comparison-panel {
+        top: 122px;
+        width: min(286px, calc(100vw - 32px));
+      }
+
+      #timeline-panel {
+        width: min(560px, calc(100vw - 32px));
+      }
+    }
+
+    @media (max-width: 900px) {
+      #hero {
+        width: calc(100vw - 32px);
+      }
+
+      #map-panel,
+      #comparison-panel,
+      #formula-panel,
+      #timeline-panel,
+      #guide-panel {
+        width: calc(100vw - 32px);
+      }
+
+      #map-panel {
+        top: auto;
+        bottom: 292px;
+      }
+
+      #comparison-panel {
+        top: auto;
+        bottom: 468px;
+      }
+
+      #timeline-panel {
+        left: 16px;
+        right: 16px;
+        transform: none;
+      }
+
+      #timeline-steps {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #hero {
+        padding: 16px;
+      }
+
+      #hero h1 {
+        font-size: 28px;
+      }
+
+      #comparison-panel {
+        bottom: 452px;
+      }
+
+      #map-panel {
+        bottom: 274px;
+      }
+
+      #timeline-steps {
+        grid-template-columns: 1fr;
+      }
+
+      .label {
+        flex-basis: 88px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="hero" class="panel">
+    <span class="eyebrow">Darwin · Adaptive Radiation</span>
+    <h1>갈라파고스 핀치의<br>적응 방산</h1>
+    <p id="hero-copy">
+      처음 갈라파고스에 정착한 핀치 집단 안에는 다양한 부리 변이가 있었습니다.
+      서로 다른 먹이 환경에서 생존에 유리한 변이가 자연선택되면서, 같은 조상에서 여러 종의 핀치로 분화해 갔습니다.
+    </p>
+    <div id="hero-badges">
+      <span class="hero-badge" id="hero-badge-type">현재 핀치 · 짧고 단단한 부리</span>
+      <span class="hero-badge" id="hero-badge-env">환경 · 곤충이 많은 환경</span>
+      <span class="hero-badge" id="hero-badge-stage">단계 · 1단계 이동과 정착</span>
+    </div>
+  </div>
+
+  <div id="status-chip"></div>
+
+  <button id="guide-toggle" type="button">📖 학습 가이드</button>
+  <div id="guide-panel" class="panel">
+    <h3>학습 가이드</h3>
+    <h4>핵심 원리</h4>
+    <p>
+      갈라파고스 제도에 처음 정착한 핀치 집단에서 다양한 부리 변이가 있었습니다.
+      오랜 세월 동안 서로 다른 먹이 환경에 적합한 변이를 가진 개체가 자연선택되는 과정을 거쳐 여러 종의 핀치로 진화했습니다.
+    </p>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>같은 조상에서 유래한 핀치가 여러 종으로 분화한 까닭을 먹이 환경과 관련지어 설명해 보세요.</li>
+      <li>선인장이 잘 자라는 환경에서 길고 뾰족한 부리를 가진 핀치가 생존에 유리한 까닭은 무엇인가요?</li>
+      <li>변이가 적은 생물집단은 환경 변화에 적응하기 유리할까요, 불리할까요?</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <p>
+      다윈의 비글호 탐사(1831~1836), 『종의 기원』(1859), 기린의 목 길이 진화 사례를 함께 떠올려 보세요.
+      환경이 달라지면 생존에 유리한 형질도 달라질 수 있습니다.
+    </p>
+
+    <div class="guide-ref">
+      미래엔 통합과학2 I편 p24~25 · 진화와 다양한 생물의 출현 · 그림 I-13~14
+    </div>
+  </div>
+
+  <div id="map-panel" class="panel">
+    <h3>갈라파고스 제도</h3>
+    <p>남아메리카에서 건너온 핀치 집단이 여러 섬에서 서로 다른 먹이 환경을 만났습니다.</p>
+    <svg id="map-svg" viewBox="0 0 320 220" aria-label="갈라파고스 지도">
+      <defs>
+        <marker id="map-arrow" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto">
+          <path d="M0,0 L12,6 L0,12 Z" fill="rgba(255,255,255,0.78)"></path>
+        </marker>
+      </defs>
+      <path class="mainland-shape" id="mainland-shape" d="M36 54 C22 92, 24 144, 54 180 C76 160, 86 132, 90 88 C84 58, 68 40, 36 54 Z"></path>
+      <path class="route-line" id="route-line" d="M96 116 C140 108, 176 104, 222 92" marker-end="url(#map-arrow)"></path>
+      <ellipse class="island-shape" data-key="shortStout" cx="224" cy="88" rx="20" ry="14"></ellipse>
+      <ellipse class="island-shape" data-key="slender" cx="254" cy="118" rx="15" ry="11"></ellipse>
+      <ellipse class="island-shape" data-key="longPointed" cx="236" cy="148" rx="18" ry="13"></ellipse>
+      <ellipse class="island-shape" data-key="largeThick" cx="280" cy="92" rx="14" ry="10"></ellipse>
+      <text class="map-label" x="26" y="38">남아메리카</text>
+      <text class="map-label" x="210" y="54">갈라파고스</text>
+      <text class="map-label" x="200" y="112">곤충</text>
+      <text class="map-label" x="248" y="140">나무 구멍</text>
+      <text class="map-label" x="212" y="178">선인장</text>
+      <text class="map-label" x="270" y="68">큰 씨앗</text>
+    </svg>
+    <div id="map-caption">1단계에서는 남아메리카의 핀치 일부가 바람과 먹이 흐름을 따라 갈라파고스로 이동합니다.</div>
+  </div>
+
+  <div id="comparison-panel" class="panel">
+    <h3>부리 비교</h3>
+    <p id="comparison-mode">비교 모드 꺼짐 · 카드 또는 GUI에서 핀치 종류를 바꿔 보세요.</p>
+    <div id="compare-grid">
+      <button class="compare-card active" data-key="shortStout" type="button">
+        <div class="compare-head">
+          <div class="compare-beak" style="--beak-w:22px; --beak-h:16px; --beak-c:#dd8844;"></div>
+        </div>
+        <strong>짧고 단단한 부리</strong>
+        <span>곤충이 많은 환경</span>
+      </button>
+      <button class="compare-card" data-key="slender" type="button">
+        <div class="compare-head">
+          <div class="compare-beak" style="--beak-w:32px; --beak-h:9px; --beak-c:#cc7733;"></div>
+        </div>
+        <strong>뾰족하고 가느다란 부리</strong>
+        <span>나무 구멍 속 곤충</span>
+      </button>
+      <button class="compare-card" data-key="longPointed" type="button">
+        <div class="compare-head">
+          <div class="compare-beak" style="--beak-w:36px; --beak-h:10px; --beak-c:#bb6622;"></div>
+        </div>
+        <strong>길고 뾰족한 부리</strong>
+        <span>선인장이 잘 자라는 환경</span>
+      </button>
+      <button class="compare-card" data-key="largeThick" type="button">
+        <div class="compare-head">
+          <div class="compare-beak" style="--beak-w:24px; --beak-h:18px; --beak-c:#aa5511;"></div>
+        </div>
+        <strong>크고 두꺼운 부리</strong>
+        <span>크고 단단한 씨앗 환경</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="timeline-panel" class="panel">
+    <h3>진화 과정 타임라인</h3>
+    <p>각 단계 버튼을 눌러 장면을 고정해서 보고, GUI의 "진화 과정 보기"로 4초 간격 자동 재생도 할 수 있습니다.</p>
+    <div id="timeline-steps">
+      <button class="timeline-step active" type="button" data-step="0">1. 이동과 정착</button>
+      <button class="timeline-step" type="button" data-step="1">2. 변이의 등장</button>
+      <button class="timeline-step" type="button" data-step="2">3. 경쟁과 분화</button>
+      <button class="timeline-step" type="button" data-step="3">4. 자연선택</button>
+      <button class="timeline-step" type="button" data-step="4">5. 적응 방산</button>
+    </div>
+    <div id="timeline-title">1단계 · 남아메리카에서 갈라파고스로 이동</div>
+    <div id="timeline-body">
+      같은 조상 집단의 일부가 갈라파고스 제도로 이동해 새로운 환경에 정착합니다.
+      이후 각 섬의 먹이 자원과 서식지가 핀치의 부리 형태를 다르게 선택하게 됩니다.
+    </div>
+  </div>
+
+  <div id="formula-panel" class="panel">
+    <h3>🐦 갈라파고스 핀치의 적응 방산</h3>
+    <div class="row">
+      <div class="label">현재 핀치</div>
+      <div class="value" id="fp-name">짧고 단단한 부리</div>
+    </div>
+    <div class="row">
+      <div class="label">부리 특징</div>
+      <div class="value" id="fp-feature">짧고 단단하며 곤충을 집기 좋음</div>
+    </div>
+    <div class="row">
+      <div class="label">먹이 환경</div>
+      <div class="value" id="fp-environment">곤충이 많은 환경</div>
+    </div>
+    <div class="row">
+      <div class="label">부리 길이</div>
+      <div class="value" id="fp-length">1.2 cm</div>
+    </div>
+    <div class="row">
+      <div class="label">현재 단계</div>
+      <div class="value" id="fp-stage">1단계 · 남아메리카에서 갈라파고스로 이동</div>
+    </div>
+
+    <div class="block">
+      <div class="mono">진화:</div>
+      <div class="formula-line">
+        생물집단에서 오랜 세월 동안 여러 세대를 거치면서
+      </div>
+      <div class="formula-line">
+        원래의 종과 다른 새로운 종이 생겨나는 과정
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="mono">자연선택 해석:</div>
+      <div class="formula-line" id="fp-selection">
+        <strong>적합한 부리</strong>를 가진 개체가 더 잘 살아남아 더 많은 자손을 남깁니다.
+      </div>
+      <div class="formula-line accent" id="fp-advantage">
+        현재 환경에서는 짧고 단단한 부리가 곤충을 빠르게 집는 데 유리합니다.
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="mono">다윈 (1859):</div>
+      <div class="formula-line">
+        자연선택을 거듭하면서 진화가 일어난다
+      </div>
+    </div>
+
+    <div class="textbook-ref">
+      미래엔 통합과학2 I편 p24~25 · 갈라파고스 핀치의 부리 모양과 자연선택
+    </div>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const FINCH_ORDER = ['shortStout', 'slender', 'longPointed', 'largeThick'];
+
+    const FINCH_TYPES = {
+      shortStout: {
+        label: '짧고 단단한 부리',
+        feature: '짧고 단단하며 곤충을 집기 좋음',
+        environment: '곤충이 많은 환경',
+        advantage: '현재 환경에서는 짧고 단단한 부리가 곤충을 빠르게 집는 데 유리합니다.',
+        cm: 1.2,
+        color: 0xdd8844,
+        environmentKey: 'insects',
+        beak: { radius: 0.08, height: 0.12, yScale: 1.08, tilt: 0.02, lift: 0.01 },
+      },
+      slender: {
+        label: '뾰족하고 가느다란 부리',
+        feature: '가늘고 길어 나무 구멍 속 먹이를 찾기 좋음',
+        environment: '나무 구멍 속 곤충 환경',
+        advantage: '좁은 틈을 깊숙이 찌를 수 있는 가느다란 부리가 나무 구멍 속 곤충을 찾는 데 유리합니다.',
+        cm: 2.5,
+        color: 0xcc7733,
+        environmentKey: 'treeHoles',
+        beak: { radius: 0.03, height: 0.25, yScale: 0.7, tilt: -0.06, lift: 0.005 },
+      },
+      longPointed: {
+        label: '길고 뾰족한 부리',
+        feature: '길고 뾰족해 선인장 열매와 꽃 속 먹이에 유리함',
+        environment: '선인장이 잘 자라는 환경',
+        advantage: '길고 뾰족한 부리는 선인장 꽃과 열매 사이의 먹이에 닿기 쉽습니다.',
+        cm: 3.0,
+        color: 0xbb6622,
+        environmentKey: 'cactus',
+        beak: { radius: 0.04, height: 0.3, yScale: 0.78, tilt: 0.04, lift: 0.018 },
+      },
+      largeThick: {
+        label: '크고 두꺼운 부리',
+        feature: '넓고 강해 큰 씨앗 껍질을 깨기 좋음',
+        environment: '크고 단단한 씨앗 환경',
+        advantage: '두껍고 큰 부리는 단단한 씨앗 껍질을 깨서 먹을 때 큰 힘을 냅니다.',
+        cm: 1.7,
+        color: 0xaa5511,
+        environmentKey: 'seeds',
+        beak: { radius: 0.1, height: 0.15, yScale: 1.18, tilt: 0.0, lift: 0.008 },
+      },
+    };
+
+    const TIMELINE_STAGES = [
+      {
+        title: '1단계 · 남아메리카에서 갈라파고스로 이동',
+        short: '1단계 이동과 정착',
+        body: '같은 조상 집단의 일부가 갈라파고스 제도로 이동해 새로운 환경에 정착합니다. 이후 각 섬의 먹이 자원과 서식지가 핀치의 부리 형태를 다르게 선택하게 됩니다.',
+        mapCopy: '1단계에서는 남아메리카의 핀치 일부가 바람과 먹이 흐름을 따라 갈라파고스로 이동합니다.',
+      },
+      {
+        title: '2단계 · 다양한 부리 변이가 나타남',
+        short: '2단계 변이의 등장',
+        body: '정착한 집단 안에서는 짧은 부리, 긴 부리, 두꺼운 부리처럼 다양한 변이가 나타납니다. 자연선택의 재료가 되는 것은 바로 이러한 개체 간 차이입니다.',
+        mapCopy: '2단계에서는 각 섬의 작은 집단 안에서 여러 부리 변이가 함께 나타납니다.',
+      },
+      {
+        title: '3단계 · 먹이와 서식지를 두고 경쟁',
+        short: '3단계 경쟁과 분화',
+        body: '핀치들은 곤충, 나무 구멍 속 먹이, 선인장, 큰 씨앗처럼 서로 다른 자원을 이용하려고 경쟁합니다. 먹이 종류가 다르면 유리한 부리 모양도 달라집니다.',
+        mapCopy: '3단계에서는 섬마다 먹이 환경이 달라지고, 그에 따라 경쟁의 방향도 달라집니다.',
+      },
+      {
+        title: '4단계 · 자연선택으로 유리한 부리가 살아남음',
+        short: '4단계 자연선택',
+        body: '해당 환경에 더 잘 맞는 부리를 가진 개체는 생존과 번식에 유리합니다. 반대로 불리한 형질은 세대를 거치며 비율이 낮아집니다.',
+        mapCopy: '4단계에서는 각 환경에서 가장 적합한 부리를 가진 집단이 더 많이 살아남습니다.',
+      },
+      {
+        title: '5단계 · 여러 종의 핀치로 적응 방산',
+        short: '5단계 적응 방산',
+        body: '오랜 세월 뒤에는 같은 조상에서 유래했더라도 서로 다른 환경에 적응한 여러 종의 핀치가 나타납니다. 이것이 적응 방산의 대표 사례입니다.',
+        mapCopy: '5단계에서는 섬별 먹이 환경에 맞춘 여러 핀치 집단이 뚜렷하게 분화해 번성합니다.',
+      },
+    ];
+
+    const canvas = document.getElementById('scene');
+    const statusChip = document.getElementById('status-chip');
+    const guideToggle = document.getElementById('guide-toggle');
+    const guidePanel = document.getElementById('guide-panel');
+    const heroBadgeType = document.getElementById('hero-badge-type');
+    const heroBadgeEnv = document.getElementById('hero-badge-env');
+    const heroBadgeStage = document.getElementById('hero-badge-stage');
+    const mapCaption = document.getElementById('map-caption');
+    const mainlandShape = document.getElementById('mainland-shape');
+    const routeLine = document.getElementById('route-line');
+    const compareCards = [...document.querySelectorAll('.compare-card')];
+    const comparisonMode = document.getElementById('comparison-mode');
+    const timelineSteps = [...document.querySelectorAll('.timeline-step')];
+    const timelineTitle = document.getElementById('timeline-title');
+    const timelineBody = document.getElementById('timeline-body');
+    const fpName = document.getElementById('fp-name');
+    const fpFeature = document.getElementById('fp-feature');
+    const fpEnvironment = document.getElementById('fp-environment');
+    const fpLength = document.getElementById('fp-length');
+    const fpStage = document.getElementById('fp-stage');
+    const fpSelection = document.getElementById('fp-selection');
+    const fpAdvantage = document.getElementById('fp-advantage');
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance',
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.02;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x88ccdd);
+    scene.fog = new THREE.Fog(0x88ccdd, 7.5, 16);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.set(4.6, 2.5, 6.4);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 3.2;
+    controls.maxDistance = 10;
+    controls.minPolarAngle = Math.PI * 0.18;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.8;
+    controls.target.set(0, 0.45, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    sunLight.position.set(5.5, 8, 4.5);
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0xdff7ff, 0.22);
+    fillLight.position.set(-4, 3, -2);
+    scene.add(fillLight);
+
+    const world = new THREE.Group();
+    scene.add(world);
+
+    const ocean = new THREE.Mesh(
+      new THREE.CylinderGeometry(7.2, 7.6, 0.18, 56),
+      new THREE.MeshStandardMaterial({
+        color: 0x58b7c9,
+        transparent: true,
+        opacity: 0.44,
+        roughness: 0.28,
+        metalness: 0.04,
+      })
+    );
+    ocean.position.y = -0.92;
+    world.add(ocean);
+
+    const oceanRing = new THREE.Mesh(
+      new THREE.TorusGeometry(6.2, 0.08, 18, 80),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.2,
+      })
+    );
+    oceanRing.rotation.x = Math.PI / 2;
+    oceanRing.position.y = -0.82;
+    world.add(oceanRing);
+
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.5, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x17343d,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+      })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(0, -0.78, 0.2);
+    shadow.scale.set(1.7, 1.1, 1);
+    world.add(shadow);
+
+    const cloudPuffs = [];
+    const backgroundClouds = createCloudField();
+    world.add(backgroundClouds);
+
+    const environmentRoot = new THREE.Group();
+    world.add(environmentRoot);
+
+    const environments = {
+      insects: createInsectEnvironment(),
+      treeHoles: createTreeHoleEnvironment(),
+      cactus: createCactusEnvironment(),
+      seeds: createSeedEnvironment(),
+    };
+
+    Object.values(environments).forEach((env) => {
+      env.group.visible = false;
+      environmentRoot.add(env.group);
+    });
+
+    const birdAnchor = new THREE.Group();
+    birdAnchor.position.set(0, 0, 0.25);
+    world.add(birdAnchor);
+
+    const mainBird = createMainBird();
+    birdAnchor.add(mainBird.group);
+
+    const compareRack = createCompareRack();
+    compareRack.group.position.set(2.7, -0.1, -0.35);
+    compareRack.group.visible = false;
+    world.add(compareRack.group);
+
+    const timelineEffects = createTimelineEffects();
+    world.add(timelineEffects.root);
+
+    const clock = new THREE.Clock();
+
+    const state = {
+      finchType: 'shortStout',
+      timelineStage: 0,
+      compareMode: false,
+      autoRotate: true,
+      timelinePlaying: false,
+    };
+
+    const beakMotion = {
+      current: { ...FINCH_TYPES.shortStout.beak },
+      start: { ...FINCH_TYPES.shortStout.beak },
+      target: { ...FINCH_TYPES.shortStout.beak },
+      elapsed: 0,
+      duration: 0.75,
+      active: false,
+      startColor: new THREE.Color(FINCH_TYPES.shortStout.color),
+      targetColor: new THREE.Color(FINCH_TYPES.shortStout.color),
+    };
+
+    let statusTimer = 0;
+    let playToken = 0;
+
+    const guiState = {
+      finchType: 'shortStout',
+      playTimeline: () => playEvolutionTimeline(),
+      compareMode: false,
+      rotate: true,
+      reset: () => resetScene(),
+    };
+
+    const gui = new GUI({ title: '핀치 조작 패널', width: 300 });
+    const finchController = gui.add(guiState, 'finchType', {
+      '짧고 단단한 부리': 'shortStout',
+      '뾰족하고 가느다란 부리': 'slender',
+      '길고 뾰족한 부리': 'longPointed',
+      '크고 두꺼운 부리': 'largeThick',
+    }).name('핀치 종류');
+    gui.add(guiState, 'playTimeline').name('진화 과정 보기');
+    const compareController = gui.add(guiState, 'compareMode').name('부리 비교 모드');
+    const rotateController = gui.add(guiState, 'rotate').name('회전');
+    gui.add(guiState, 'reset').name('초기화');
+
+    if (window.innerWidth < 960) {
+      gui.close();
+    }
+
+    finchController.onChange((value) => {
+      setFinchType(value, true, true);
+    });
+
+    compareController.onChange((value) => {
+      state.compareMode = value;
+      updateCompareMode(true);
+    });
+
+    rotateController.onChange((value) => {
+      state.autoRotate = value;
+      controls.autoRotate = value;
+    });
+
+    guideToggle.addEventListener('click', () => {
+      guidePanel.classList.toggle('open');
+    });
+
+    compareCards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const key = card.dataset.key;
+        if (!key) return;
+        guiState.finchType = key;
+        refreshGui();
+        setFinchType(key, true, true);
+      });
+    });
+
+    timelineSteps.forEach((button) => {
+      button.addEventListener('click', () => {
+        const step = Number(button.dataset.step);
+        if (Number.isNaN(step)) return;
+        stopTimelinePlayback();
+        setTimelineStage(step, true);
+      });
+    });
+
+    window.addEventListener('resize', handleResize);
+
+    rebuildMainBeak(FINCH_TYPES.shortStout.beak);
+    setFinchType('shortStout', false, false);
+    setTimelineStage(0, false);
+    updateCompareMode(false);
+    showStatus('핀치 종류를 바꾸고 진화 과정을 재생해 보세요.');
+    animate();
+
+    function createCloudField() {
+      const group = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.18,
+        roughness: 1,
+      });
+
+      for (let i = 0; i < 10; i++) {
+        const puff = new THREE.Group();
+        const parts = 3 + Math.floor(Math.random() * 3);
+        for (let j = 0; j < parts; j++) {
+          const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35 + Math.random() * 0.24, 18, 18),
+            mat.clone()
+          );
+          mesh.scale.set(1.2 + Math.random(), 0.65 + Math.random() * 0.35, 1);
+          mesh.position.set(j * 0.3, Math.random() * 0.1, THREE.MathUtils.randFloatSpread(0.26));
+          puff.add(mesh);
+        }
+        puff.position.set(
+          THREE.MathUtils.randFloat(-5.4, 5.6),
+          THREE.MathUtils.randFloat(2.6, 4.6),
+          THREE.MathUtils.randFloat(-4.8, -1.8)
+        );
+        puff.rotation.y = Math.random() * Math.PI * 2;
+        puff.userData.baseX = puff.position.x;
+        puff.userData.baseY = puff.position.y;
+        puff.userData.phase = Math.random() * Math.PI * 2;
+        puff.userData.speed = 0.08 + Math.random() * 0.08;
+        cloudPuffs.push(puff);
+        group.add(puff);
+      }
+
+      return group;
+    }
+
+    function createIslandBase(topColor, sideColor) {
+      const group = new THREE.Group();
+      const island = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.28, 1.56, 0.42, 26),
+        new THREE.MeshStandardMaterial({
+          color: sideColor,
+          roughness: 0.9,
+        })
+      );
+      island.position.y = -0.62;
+      group.add(island);
+
+      const top = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.18, 1.28, 0.12, 26),
+        new THREE.MeshStandardMaterial({
+          color: topColor,
+          roughness: 0.95,
+        })
+      );
+      top.position.y = -0.37;
+      group.add(top);
+
+      return group;
+    }
+
+    function createInsectEnvironment() {
+      const group = createIslandBase(0x78b45a, 0x7d684d);
+      const insects = [];
+
+      for (let i = 0; i < 24; i++) {
+        const grass = new THREE.Mesh(
+          new THREE.ConeGeometry(0.04, 0.2 + Math.random() * 0.18, 6),
+          new THREE.MeshStandardMaterial({ color: 0x578536, roughness: 0.95 })
+        );
+        const angle = (i / 24) * Math.PI * 2;
+        const radius = 0.46 + Math.random() * 0.55;
+        grass.position.set(Math.cos(angle) * radius, -0.22, Math.sin(angle) * radius);
+        group.add(grass);
+      }
+
+      for (let i = 0; i < 10; i++) {
+        const bug = new THREE.Mesh(
+          new THREE.SphereGeometry(0.02, 12, 12),
+          new THREE.MeshStandardMaterial({
+            color: 0x322d08,
+            emissive: 0x221700,
+            roughness: 0.7,
+          })
+        );
+        bug.userData.angle = Math.random() * Math.PI * 2;
+        bug.userData.radius = 0.45 + Math.random() * 0.45;
+        bug.userData.height = 0.22 + Math.random() * 0.28;
+        bug.userData.speed = 1 + Math.random() * 1.3;
+        insects.push(bug);
+        group.add(bug);
+      }
+
+      return { group, insects, holeBugs: [], cactusTips: [], seeds: [] };
+    }
+
+    function createTreeHoleEnvironment() {
+      const group = createIslandBase(0x8d744e, 0x6d5436);
+      const holeBugs = [];
+
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.28, 0.36, 1.5, 18),
+        new THREE.MeshStandardMaterial({ color: 0x705436, roughness: 0.92 })
+      );
+      trunk.position.set(-0.08, 0.08, 0);
+      group.add(trunk);
+
+      for (let i = 0; i < 3; i++) {
+        const hole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.075, 0.075, 0.08, 18),
+          new THREE.MeshBasicMaterial({ color: 0x111111 })
+        );
+        hole.rotation.z = Math.PI / 2;
+        hole.position.set(0.15, 0.2 + i * 0.28, i === 1 ? 0.06 : -0.06);
+        group.add(hole);
+
+        const bug = new THREE.Mesh(
+          new THREE.SphereGeometry(0.018, 10, 10),
+          new THREE.MeshStandardMaterial({ color: 0x2b2a09, emissive: 0x1a1300 })
+        );
+        bug.userData.hole = hole.position.clone();
+        bug.userData.phase = Math.random() * Math.PI * 2;
+        holeBugs.push(bug);
+        group.add(bug);
+      }
+
+      const branch = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 1.2, 14),
+        new THREE.MeshStandardMaterial({ color: 0x7a5d3d, roughness: 0.9 })
+      );
+      branch.rotation.z = -0.78;
+      branch.position.set(-0.46, 0.54, 0.14);
+      group.add(branch);
+
+      return { group, insects: [], holeBugs, cactusTips: [], seeds: [] };
+    }
+
+    function createCactusEnvironment() {
+      const group = createIslandBase(0xd3b36d, 0x8f7353);
+      const cactusTips = [];
+
+      function addCactus(x, z, height) {
+        const cactus = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.11, 0.13, height, 18),
+          new THREE.MeshStandardMaterial({ color: 0x3f9960, roughness: 0.85 })
+        );
+        cactus.position.set(x, -0.1 + height * 0.5, z);
+        group.add(cactus);
+
+        const arm = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.05, 0.06, height * 0.45, 14),
+          new THREE.MeshStandardMaterial({ color: 0x3f9960, roughness: 0.85 })
+        );
+        arm.rotation.z = x < 0 ? -0.8 : 0.8;
+        arm.position.set(x + (x < 0 ? -0.16 : 0.16), -0.03 + height * 0.54, z);
+        group.add(arm);
+
+        for (let i = 0; i < 6; i++) {
+          const spine = new THREE.Mesh(
+            new THREE.SphereGeometry(0.014, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xe7f5d0, roughness: 0.6 })
+          );
+          const spineY = -0.06 + height * 0.62 + Math.sin(i) * 0.06;
+          const angle = (i / 6) * Math.PI * 2;
+          spine.position.set(
+            x + Math.cos(angle) * 0.12,
+            spineY,
+            z + Math.sin(angle) * 0.12
+          );
+          spine.userData.baseY = spineY;
+          cactusTips.push(spine);
+          group.add(spine);
+        }
+      }
+
+      addCactus(-0.35, -0.16, 1.1);
+      addCactus(0.34, 0.18, 0.92);
+      addCactus(0.04, 0.42, 0.74);
+
+      return { group, insects: [], holeBugs: [], cactusTips, seeds: [] };
+    }
+
+    function createSeedEnvironment() {
+      const group = createIslandBase(0xc89a54, 0x7b5e3f);
+      const seeds = [];
+
+      for (let i = 0; i < 8; i++) {
+        const seed = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 18, 18),
+          new THREE.MeshStandardMaterial({
+            color: 0x886633,
+            roughness: 0.82,
+          })
+        );
+        seed.scale.set(1.25, 0.86, 0.78);
+        const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+        const radius = 0.35 + Math.random() * 0.48;
+        seed.position.set(Math.cos(angle) * radius, -0.16 + Math.random() * 0.05, Math.sin(angle) * radius);
+        seed.rotation.z = Math.random() * Math.PI;
+        seed.userData.baseY = seed.position.y;
+        seed.userData.phase = Math.random() * Math.PI * 2;
+        seeds.push(seed);
+        group.add(seed);
+      }
+
+      return { group, insects: [], holeBugs: [], cactusTips: [], seeds };
+    }
+
+    function createBeakMesh(params, material) {
+      const mesh = new THREE.Mesh(
+        new THREE.ConeGeometry(params.radius, params.height, 28, 1),
+        material
+      );
+      mesh.rotation.z = -Math.PI / 2 + params.tilt;
+      mesh.scale.y = params.yScale;
+      mesh.position.set(params.height * 0.46, params.lift, 0);
+      return mesh;
+    }
+
+    function createSimpleBird(typeKey, scale = 0.35, muted = false) {
+      const type = FINCH_TYPES[typeKey];
+      const group = new THREE.Group();
+
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: muted ? 0x4c4c4c : 0x333333,
+        roughness: 0.8,
+      });
+      const headMaterial = new THREE.MeshStandardMaterial({
+        color: muted ? 0x555555 : 0x353535,
+        roughness: 0.78,
+      });
+      const wingMaterial = new THREE.MeshStandardMaterial({
+        color: muted ? 0x50565b : 0x454c52,
+        roughness: 0.9,
+      });
+      const beakMaterial = new THREE.MeshStandardMaterial({
+        color: muted ? 0x8b8179 : type.color,
+        roughness: 0.45,
+      });
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.3 * scale, 18, 18), bodyMaterial);
+      body.scale.set(1.18, 0.92, 0.95);
+      group.add(body);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18 * scale, 16, 16), headMaterial);
+      head.position.set(0.31 * scale, 0.17 * scale, 0);
+      group.add(head);
+
+      const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.17 * scale, 12, 12), wingMaterial);
+      wingL.scale.set(1.2, 0.36, 1.5);
+      wingL.position.set(-0.02 * scale, 0.06 * scale, 0.16 * scale);
+      wingL.rotation.x = 0.25;
+      group.add(wingL);
+
+      const wingR = wingL.clone();
+      wingR.position.z *= -1;
+      wingR.rotation.x = -0.25;
+      group.add(wingR);
+
+      const tail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2 * scale, 0.06 * scale, 0.17 * scale),
+        wingMaterial
+      );
+      tail.position.set(-0.33 * scale, 0.05 * scale, 0);
+      tail.rotation.z = 0.18;
+      group.add(tail);
+
+      const beakHolder = new THREE.Group();
+      beakHolder.position.set(0.31 * scale + 0.18 * scale, 0.17 * scale, 0);
+      beakHolder.add(createBeakMesh({
+        radius: type.beak.radius * scale,
+        height: type.beak.height * scale,
+        yScale: type.beak.yScale,
+        tilt: type.beak.tilt,
+        lift: type.beak.lift * scale,
+      }, beakMaterial));
+      group.add(beakHolder);
+
+      group.userData = {
+        wingL,
+        wingR,
+        phase: Math.random() * Math.PI * 2,
+        typeKey,
+      };
+      return group;
+    }
+
+    function createMainBird() {
+      const group = new THREE.Group();
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x333333,
+        roughness: 0.72,
+      });
+      const headMaterial = new THREE.MeshStandardMaterial({
+        color: 0x363636,
+        roughness: 0.72,
+      });
+      const wingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x444b52,
+        roughness: 0.84,
+      });
+      const legMaterial = new THREE.MeshStandardMaterial({
+        color: 0x886644,
+        roughness: 0.9,
+      });
+      const beakMaterial = new THREE.MeshStandardMaterial({
+        color: FINCH_TYPES.shortStout.color,
+        roughness: 0.42,
+      });
+
+      const branch = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.11, 1.3, 18),
+        new THREE.MeshStandardMaterial({ color: 0x76583c, roughness: 0.94 })
+      );
+      branch.rotation.z = Math.PI / 2;
+      branch.position.set(0.05, -0.55, 0);
+      group.add(branch);
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 24), bodyMaterial);
+      body.scale.set(1.25, 0.92, 0.96);
+      group.add(body);
+
+      const chest = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17, 20, 20),
+        new THREE.MeshStandardMaterial({
+          color: 0x565656,
+          roughness: 0.84,
+          transparent: true,
+          opacity: 0.7,
+        })
+      );
+      chest.scale.set(1.05, 0.95, 0.9);
+      chest.position.set(0.16, -0.02, 0);
+      group.add(chest);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 24, 24), headMaterial);
+      head.position.set(0.34, 0.19, 0);
+      group.add(head);
+
+      const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), wingMaterial);
+      wingL.scale.set(1.4, 0.36, 1.85);
+      wingL.position.set(-0.02, 0.07, 0.2);
+      wingL.rotation.x = 0.2;
+      group.add(wingL);
+
+      const wingR = wingL.clone();
+      wingR.position.z = -0.2;
+      wingR.rotation.x = -0.2;
+      group.add(wingR);
+
+      const tail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.23, 0.07, 0.19),
+        wingMaterial
+      );
+      tail.position.set(-0.34, 0.06, 0);
+      tail.rotation.z = 0.18;
+      group.add(tail);
+
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.3, 12), legMaterial);
+      legL.position.set(0.03, -0.34, 0.07);
+      legL.rotation.z = 0.08;
+      group.add(legL);
+
+      const legR = legL.clone();
+      legR.position.z = -0.07;
+      legR.rotation.z = -0.08;
+      group.add(legR);
+
+      const footGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.12, 8);
+      const footL = new THREE.Mesh(footGeo, legMaterial);
+      footL.rotation.z = Math.PI / 2;
+      footL.position.set(0.07, -0.49, 0.09);
+      group.add(footL);
+
+      const footR = footL.clone();
+      footR.position.z = -0.09;
+      group.add(footR);
+
+      const eyeWhiteL = new THREE.Mesh(
+        new THREE.SphereGeometry(0.032, 12, 12),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.18 })
+      );
+      eyeWhiteL.position.set(0.4, 0.23, 0.09);
+      group.add(eyeWhiteL);
+
+      const eyeWhiteR = eyeWhiteL.clone();
+      eyeWhiteR.position.z = -0.09;
+      group.add(eyeWhiteR);
+
+      const pupilL = new THREE.Mesh(
+        new THREE.SphereGeometry(0.013, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3 })
+      );
+      pupilL.position.set(0.42, 0.23, 0.102);
+      group.add(pupilL);
+
+      const pupilR = pupilL.clone();
+      pupilR.position.z = -0.102;
+      group.add(pupilR);
+
+      const beakHolder = new THREE.Group();
+      beakHolder.position.set(0.52, 0.19, 0);
+      group.add(beakHolder);
+
+      return {
+        group,
+        wingL,
+        wingR,
+        beakHolder,
+        beakMaterial,
+        beakMesh: null,
+        phase: Math.random() * Math.PI * 2,
+      };
+    }
+
+    function createFoodIcon(environmentKey, scale = 0.55) {
+      const group = new THREE.Group();
+
+      if (environmentKey === 'insects') {
+        const stem = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.03 * scale, 0.03 * scale, 0.32 * scale, 8),
+          new THREE.MeshStandardMaterial({ color: 0x69964a, roughness: 0.95 })
+        );
+        stem.position.y = 0.12 * scale;
+        group.add(stem);
+
+        for (let i = 0; i < 3; i++) {
+          const bug = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05 * scale, 10, 10),
+            new THREE.MeshStandardMaterial({ color: 0x392e11, roughness: 0.8 })
+          );
+          bug.position.set((i - 1) * 0.08 * scale, 0.28 * scale + Math.sin(i) * 0.02, 0);
+          group.add(bug);
+        }
+      } else if (environmentKey === 'treeHoles') {
+        const trunk = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12 * scale, 0.14 * scale, 0.54 * scale, 12),
+          new THREE.MeshStandardMaterial({ color: 0x735539, roughness: 0.95 })
+        );
+        group.add(trunk);
+
+        const hole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.05 * scale, 0.05 * scale, 0.04 * scale, 12),
+          new THREE.MeshBasicMaterial({ color: 0x111111 })
+        );
+        hole.rotation.z = Math.PI / 2;
+        hole.position.set(0.11 * scale, 0.06 * scale, 0);
+        group.add(hole);
+      } else if (environmentKey === 'cactus') {
+        const cactus = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.1 * scale, 0.12 * scale, 0.64 * scale, 12),
+          new THREE.MeshStandardMaterial({ color: 0x429b5d, roughness: 0.88 })
+        );
+        cactus.position.y = 0.16 * scale;
+        group.add(cactus);
+      } else if (environmentKey === 'seeds') {
+        for (let i = 0; i < 2; i++) {
+          const seed = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12 * scale, 12, 12),
+            new THREE.MeshStandardMaterial({ color: 0x8a6737, roughness: 0.82 })
+          );
+          seed.scale.set(1.2, 0.82, 0.7);
+          seed.position.set((i - 0.5) * 0.18 * scale, i * 0.02 * scale, 0);
+          seed.rotation.z = i * 0.6;
+          group.add(seed);
+        }
+      }
+
+      return group;
+    }
+
+    function createCompareRack() {
+      const group = new THREE.Group();
+      const slots = [];
+
+      FINCH_ORDER.forEach((key, index) => {
+        const slot = new THREE.Group();
+        slot.position.set((index - 1.5) * 0.98, 0, 0);
+
+        const base = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.18, 0.22, 0.16, 22),
+          new THREE.MeshStandardMaterial({
+            color: 0x5b5c60,
+            roughness: 0.88,
+            emissive: 0x000000,
+          })
+        );
+        base.position.y = -0.38;
+        slot.add(base);
+
+        const head = new THREE.Mesh(
+          new THREE.SphereGeometry(0.14, 18, 18),
+          new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.75 })
+        );
+        head.position.y = 0.02;
+        slot.add(head);
+
+        const beakHolder = new THREE.Group();
+        beakHolder.position.set(0.13, 0.01, 0);
+        beakHolder.add(createBeakMesh({
+          radius: FINCH_TYPES[key].beak.radius * 0.8,
+          height: FINCH_TYPES[key].beak.height * 0.8,
+          yScale: FINCH_TYPES[key].beak.yScale,
+          tilt: FINCH_TYPES[key].beak.tilt,
+          lift: FINCH_TYPES[key].beak.lift * 0.8,
+        }, new THREE.MeshStandardMaterial({
+          color: FINCH_TYPES[key].color,
+          roughness: 0.42,
+        })));
+        slot.add(beakHolder);
+
+        slots.push({ key, slot, base });
+        group.add(slot);
+      });
+
+      return { group, slots };
+    }
+
+    function createTimelineEffects() {
+      const root = new THREE.Group();
+      const travelBirds = [];
+      const variationBirds = [];
+      const competitionActors = [];
+      const selectionBirds = [];
+      const flourishBirds = [];
+
+      const travelGroup = new THREE.Group();
+      for (let i = 0; i < 6; i++) {
+        const bird = createSimpleBird('shortStout', 0.3, true);
+        bird.userData.start = new THREE.Vector3(-5.6 - i * 0.34, 1 + Math.random() * 0.8, -1.8 + Math.random() * 0.5);
+        bird.userData.end = new THREE.Vector3(-1.1 + i * 0.18, 0.8 + Math.random() * 0.4, -0.8 + Math.random() * 0.4);
+        bird.position.copy(bird.userData.start);
+        travelBirds.push(bird);
+        travelGroup.add(bird);
+      }
+      root.add(travelGroup);
+
+      const variationGroup = new THREE.Group();
+      FINCH_ORDER.forEach((key, index) => {
+        const bird = createSimpleBird(key, 0.32, false);
+        bird.userData.angleOffset = (index / FINCH_ORDER.length) * Math.PI * 2;
+        variationBirds.push(bird);
+        variationGroup.add(bird);
+      });
+      root.add(variationGroup);
+
+      const competitionGroup = new THREE.Group();
+      FINCH_ORDER.forEach((key, index) => {
+        const angle = (index / FINCH_ORDER.length) * Math.PI * 2 + Math.PI * 0.12;
+        const food = createFoodIcon(FINCH_TYPES[key].environmentKey, 0.7);
+        food.position.set(Math.cos(angle) * 1.8, -0.1, Math.sin(angle) * 1.16);
+        competitionGroup.add(food);
+
+        const bird = createSimpleBird(key, 0.3, false);
+        bird.userData.baseAngle = angle;
+        bird.userData.radius = 1.12;
+        bird.userData.foodPosition = food.position.clone();
+        competitionActors.push({ bird, food });
+        competitionGroup.add(bird);
+      });
+      root.add(competitionGroup);
+
+      const selectionGroup = new THREE.Group();
+      const selectionRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.05, 16, 80),
+        new THREE.MeshBasicMaterial({
+          color: 0xffe09e,
+          transparent: true,
+          opacity: 0.5,
+        })
+      );
+      selectionRing.rotation.x = Math.PI / 2;
+      selectionRing.position.set(0, -0.15, 0.3);
+      selectionGroup.add(selectionRing);
+
+      FINCH_ORDER.forEach((key, index) => {
+        const bird = createSimpleBird(key, 0.28, false);
+        bird.position.set(-1.25 + index * 0.82, 0.92 - Math.abs(index - 1.5) * 0.14, -0.8);
+        selectionBirds.push({ key, bird });
+        selectionGroup.add(bird);
+      });
+      root.add(selectionGroup);
+
+      const flourishGroup = new THREE.Group();
+      for (let i = 0; i < 9; i++) {
+        const bird = createSimpleBird('shortStout', 0.28, false);
+        bird.userData.angleOffset = (i / 9) * Math.PI * 2;
+        flourishBirds.push(bird);
+        flourishGroup.add(bird);
+      }
+      root.add(flourishGroup);
+
+      return {
+        root,
+        travelGroup,
+        travelBirds,
+        variationGroup,
+        variationBirds,
+        competitionGroup,
+        competitionActors,
+        selectionGroup,
+        selectionRing,
+        selectionBirds,
+        flourishGroup,
+        flourishBirds,
+        flourishType: null,
+      };
+    }
+
+    function rebuildMainBeak(params) {
+      if (mainBird.beakMesh) {
+        mainBird.beakHolder.remove(mainBird.beakMesh);
+        mainBird.beakMesh.geometry.dispose();
+      }
+      mainBird.beakMesh = createBeakMesh(params, mainBird.beakMaterial);
+      mainBird.beakHolder.add(mainBird.beakMesh);
+    }
+
+    function refreshGui() {
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+    }
+
+    function showStatus(message) {
+      statusChip.textContent = message;
+      statusChip.classList.add('show');
+      window.clearTimeout(statusTimer);
+      statusTimer = window.setTimeout(() => {
+        statusChip.classList.remove('show');
+      }, 1700);
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function stopTimelinePlayback() {
+      playToken += 1;
+      state.timelinePlaying = false;
+    }
+
+    function playEvolutionTimeline() {
+      stopTimelinePlayback();
+      state.timelinePlaying = true;
+      const currentToken = playToken;
+      showStatus('진화 과정을 5단계로 자동 재생합니다.');
+
+      TIMELINE_STAGES.forEach((_, index) => {
+        window.setTimeout(() => {
+          if (!state.timelinePlaying || currentToken !== playToken) return;
+          setTimelineStage(index, index !== 0);
+          if (index === TIMELINE_STAGES.length - 1) {
+            state.timelinePlaying = false;
+            showStatus('적응 방산 단계까지 재생을 마쳤습니다.');
+          }
+        }, index * 4000);
+      });
+    }
+
+    function setFinchType(key, animate = true, announce = true) {
+      if (!FINCH_TYPES[key]) return;
+
+      state.finchType = key;
+      const type = FINCH_TYPES[key];
+      guiState.finchType = key;
+
+      if (animate) {
+        beakMotion.start = { ...beakMotion.current };
+        beakMotion.target = { ...type.beak };
+        beakMotion.elapsed = 0;
+        beakMotion.active = true;
+        beakMotion.startColor = mainBird.beakMaterial.color.clone();
+        beakMotion.targetColor = new THREE.Color(type.color);
+      } else {
+        beakMotion.current = { ...type.beak };
+        mainBird.beakMaterial.color.set(type.color);
+        rebuildMainBeak(type.beak);
+      }
+
+      Object.entries(environments).forEach(([envKey, env]) => {
+        env.group.visible = envKey === type.environmentKey;
+      });
+
+      updatePanels();
+      updateCompareCards();
+      updateMapPanel();
+      updateCompareRack();
+      updateTimelineVisuals();
+      refreshGui();
+
+      if (announce) {
+        showStatus(`${type.label}로 전환했습니다.`);
+      }
+    }
+
+    function setTimelineStage(index, announce = true) {
+      state.timelineStage = THREE.MathUtils.clamp(index, 0, TIMELINE_STAGES.length - 1);
+      updatePanels();
+      updateMapPanel();
+      updateTimelineVisuals();
+      timelineSteps.forEach((button, buttonIndex) => {
+        button.classList.toggle('active', buttonIndex === state.timelineStage);
+      });
+
+      if (announce) {
+        showStatus(TIMELINE_STAGES[state.timelineStage].title);
+      }
+    }
+
+    function updateCompareMode(announce = true) {
+      compareRack.group.visible = state.compareMode;
+      guiState.compareMode = state.compareMode;
+      refreshGui();
+      if (announce) {
+        showStatus(state.compareMode ? '4가지 부리 비교 모드를 켰습니다.' : '부리 비교 모드를 껐습니다.');
+      }
+      comparisonMode.textContent = state.compareMode
+        ? '비교 모드 켜짐 · 장면 오른쪽에 4가지 부리가 나란히 표시됩니다.'
+        : '비교 모드 꺼짐 · 카드 또는 GUI에서 핀치 종류를 바꿔 보세요.';
+    }
+
+    function updatePanels() {
+      const type = FINCH_TYPES[state.finchType];
+      const stage = TIMELINE_STAGES[state.timelineStage];
+
+      heroBadgeType.textContent = `현재 핀치 · ${type.label}`;
+      heroBadgeEnv.textContent = `환경 · ${type.environment}`;
+      heroBadgeStage.textContent = `단계 · ${stage.short}`;
+
+      timelineTitle.textContent = stage.title;
+      timelineBody.textContent = stage.body;
+
+      fpName.textContent = type.label;
+      fpFeature.textContent = type.feature;
+      fpEnvironment.textContent = type.environment;
+      fpLength.textContent = `${type.cm.toFixed(1)} cm`;
+      fpStage.textContent = stage.title;
+      fpSelection.innerHTML = `<strong>적합한 부리</strong>를 가진 개체가 더 잘 살아남아 더 많은 자손을 남깁니다.`;
+      fpAdvantage.textContent = type.advantage;
+    }
+
+    function updateMapPanel() {
+      const stage = TIMELINE_STAGES[state.timelineStage];
+      mapCaption.textContent = stage.mapCopy;
+      mainlandShape.classList.toggle('active', state.timelineStage === 0);
+      routeLine.classList.toggle('active', state.timelineStage <= 1);
+      document.querySelectorAll('.island-shape').forEach((node) => {
+        const isActive = node.dataset.key === state.finchType || state.timelineStage >= 1;
+        node.classList.toggle('active', isActive);
+      });
+    }
+
+    function updateCompareCards() {
+      compareCards.forEach((card) => {
+        card.classList.toggle('active', card.dataset.key === state.finchType);
+      });
+    }
+
+    function updateCompareRack() {
+      compareRack.slots.forEach(({ key, base }) => {
+        const active = key === state.finchType;
+        base.material.color.set(active ? 0x8a7b63 : 0x5b5c60);
+        base.material.emissive.set(active ? FINCH_TYPES[key].color : 0x000000);
+        base.material.emissiveIntensity = active ? 0.35 : 0;
+      });
+    }
+
+    function updateFlourishBirdTypes() {
+      if (timelineEffects.flourishType === state.finchType) return;
+
+      timelineEffects.flourishBirds.forEach((bird, index) => {
+        timelineEffects.flourishGroup.remove(bird);
+        disposeGroup(bird);
+        const nextBird = createSimpleBird(state.finchType, 0.28 + (index % 2) * 0.02, false);
+        nextBird.userData.angleOffset = (index / timelineEffects.flourishBirds.length) * Math.PI * 2;
+        timelineEffects.flourishBirds[index] = nextBird;
+        timelineEffects.flourishGroup.add(nextBird);
+      });
+      timelineEffects.flourishType = state.finchType;
+    }
+
+    function updateTimelineVisuals() {
+      const stageIndex = state.timelineStage;
+      timelineEffects.travelGroup.visible = stageIndex === 0;
+      timelineEffects.variationGroup.visible = stageIndex === 1;
+      timelineEffects.competitionGroup.visible = stageIndex === 2;
+      timelineEffects.selectionGroup.visible = stageIndex === 3;
+      timelineEffects.flourishGroup.visible = stageIndex === 4;
+
+      timelineEffects.selectionRing.material.color.set(FINCH_TYPES[state.finchType].color);
+      timelineEffects.selectionBirds.forEach(({ key, bird }) => {
+        const isActive = key === state.finchType;
+        bird.children.forEach((child) => {
+          if (child.material?.color) {
+            child.material.opacity = isActive ? 1 : 0.42;
+            child.material.transparent = !isActive;
+          }
+        });
+        bird.position.y = isActive ? 1.02 : 0.82;
+        bird.scale.setScalar(isActive ? 1.08 : 0.94);
+      });
+
+      updateFlourishBirdTypes();
+      updateCompareRack();
+    }
+
+    function disposeGroup(object) {
+      object.traverse((child) => {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((material) => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
+
+    function resetScene() {
+      stopTimelinePlayback();
+      state.compareMode = false;
+      state.autoRotate = true;
+      controls.autoRotate = true;
+      guiState.rotate = true;
+      guiState.compareMode = false;
+      setFinchType('shortStout', true, false);
+      setTimelineStage(0, false);
+      updateCompareMode(false);
+      refreshGui();
+      showStatus('기본 상태로 초기화했습니다.');
+    }
+
+    function updateBeakTransition(delta) {
+      if (!beakMotion.active) return;
+
+      beakMotion.elapsed += delta;
+      const t = Math.min(beakMotion.elapsed / beakMotion.duration, 1);
+      const eased = easeInOutCubic(t);
+
+      const next = {
+        radius: THREE.MathUtils.lerp(beakMotion.start.radius, beakMotion.target.radius, eased),
+        height: THREE.MathUtils.lerp(beakMotion.start.height, beakMotion.target.height, eased),
+        yScale: THREE.MathUtils.lerp(beakMotion.start.yScale, beakMotion.target.yScale, eased),
+        tilt: THREE.MathUtils.lerp(beakMotion.start.tilt, beakMotion.target.tilt, eased),
+        lift: THREE.MathUtils.lerp(beakMotion.start.lift, beakMotion.target.lift, eased),
+      };
+
+      beakMotion.current = next;
+      mainBird.beakMaterial.color.copy(beakMotion.startColor).lerp(beakMotion.targetColor, eased);
+      rebuildMainBeak(next);
+
+      if (t >= 1) {
+        beakMotion.active = false;
+      }
+    }
+
+    function updateEnvironmentAnimation(elapsed) {
+      environments.insects.insects.forEach((bug) => {
+        const angle = elapsed * bug.userData.speed + bug.userData.angle;
+        bug.position.set(
+          Math.cos(angle) * bug.userData.radius,
+          bug.userData.height + Math.sin(angle * 2.1) * 0.05,
+          Math.sin(angle) * bug.userData.radius * 0.7
+        );
+      });
+
+      environments.treeHoles.holeBugs.forEach((bug) => {
+        const offset = Math.sin(elapsed * 2.6 + bug.userData.phase) * 0.04;
+        bug.position.set(
+          bug.userData.hole.x - 0.02 + offset,
+          bug.userData.hole.y + Math.cos(elapsed * 2.4 + bug.userData.phase) * 0.016,
+          bug.userData.hole.z
+        );
+      });
+
+      environments.cactus.cactusTips.forEach((tip, index) => {
+        tip.position.y = tip.userData.baseY + Math.sin(elapsed * 1.8 + index) * 0.01;
+      });
+
+      environments.seeds.seeds.forEach((seed) => {
+        seed.position.y = seed.userData.baseY + Math.sin(elapsed * 1.6 + seed.userData.phase) * 0.02;
+        seed.rotation.z += 0.002;
+      });
+    }
+
+    function updateTimelineAnimation(elapsed, delta) {
+      timelineEffects.travelBirds.forEach((bird, index) => {
+        const cycle = (elapsed * 0.18 + index * 0.1) % 1;
+        bird.position.lerpVectors(bird.userData.start, bird.userData.end, cycle);
+        bird.rotation.y = -0.65;
+        animateBirdWings(bird, elapsed, 0.24, 8);
+      });
+
+      timelineEffects.variationBirds.forEach((bird, index) => {
+        const angle = elapsed * 0.5 + bird.userData.angleOffset;
+        bird.position.set(Math.cos(angle) * 1.4, 0.78 + Math.sin(elapsed * 2 + index) * 0.06, Math.sin(angle) * 0.9);
+        bird.rotation.y = -angle + Math.PI * 0.45;
+        animateBirdWings(bird, elapsed, 0.18, 7);
+      });
+
+      timelineEffects.competitionActors.forEach(({ bird, food }, index) => {
+        const phase = elapsed * 1.2 + index;
+        const radius = 1.02 + Math.sin(phase) * 0.08;
+        bird.position.set(Math.cos(bird.userData.baseAngle) * radius, 0.45 + Math.sin(phase * 2) * 0.06, Math.sin(bird.userData.baseAngle) * radius * 0.72);
+        bird.lookAt(food.position);
+        bird.rotation.y += Math.PI;
+        animateBirdWings(bird, elapsed, 0.16, 6);
+      });
+
+      timelineEffects.selectionRing.rotation.z += delta * 0.65;
+      timelineEffects.selectionBirds.forEach(({ bird }, index) => {
+        bird.position.z = -0.84 + Math.sin(elapsed * 1.8 + index) * 0.08;
+        animateBirdWings(bird, elapsed, 0.15, 6);
+      });
+
+      timelineEffects.flourishBirds.forEach((bird, index) => {
+        const angle = elapsed * 0.54 + bird.userData.angleOffset;
+        bird.position.set(Math.cos(angle) * 2.1, 0.7 + Math.sin(elapsed * 2.2 + index) * 0.1, Math.sin(angle) * 1.25);
+        bird.rotation.y = -angle + Math.PI * 0.5;
+        animateBirdWings(bird, elapsed, 0.2, 7.5);
+      });
+    }
+
+    function animateBirdWings(bird, elapsed, amplitude, speed) {
+      const wingL = bird.userData.wingL;
+      const wingR = bird.userData.wingR;
+      if (!wingL || !wingR) return;
+      const flap = Math.sin(elapsed * speed + bird.userData.phase) * amplitude;
+      wingL.rotation.y = flap;
+      wingR.rotation.y = -flap;
+    }
+
+    function handleResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.033);
+      const elapsed = clock.elapsedTime;
+
+      updateBeakTransition(delta);
+      updateEnvironmentAnimation(elapsed);
+      updateTimelineAnimation(elapsed, delta);
+
+      mainBird.group.position.y = Math.sin(elapsed * 1.7) * 0.035 + 0.02;
+      mainBird.group.rotation.y = 0.22 + Math.sin(elapsed * 0.8) * 0.05;
+      const mainFlap = Math.sin(elapsed * 4 + mainBird.phase) * 0.08;
+      mainBird.wingL.rotation.y = mainFlap;
+      mainBird.wingR.rotation.y = -mainFlap;
+
+      const birdOffsetTarget = state.compareMode ? -1.15 : 0;
+      birdAnchor.position.x += (birdOffsetTarget - birdAnchor.position.x) * 0.08;
+      const compareYTarget = state.compareMode ? -0.1 : -1.8;
+      compareRack.group.position.y += (compareYTarget - compareRack.group.position.y) * 0.08;
+      const focusX = state.compareMode ? 0.45 : 0;
+      controls.target.x += (focusX - controls.target.x) * 0.08;
+
+      cloudPuffs.forEach((puff, index) => {
+        puff.position.x = puff.userData.baseX + Math.sin(elapsed * puff.userData.speed + puff.userData.phase) * 0.5;
+        puff.position.y = puff.userData.baseY + Math.cos(elapsed * 0.22 + index) * 0.04;
+      });
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

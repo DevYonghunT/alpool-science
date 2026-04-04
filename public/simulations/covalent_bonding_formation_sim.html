@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>공유 결합 형성 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep: #0a0e1e;
+    --panel-bg: rgba(12, 18, 40, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #eef5ff;
+    --text-soft: rgba(238, 245, 255, 0.72);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 18%, rgba(90, 142, 255, 0.18), transparent 26%),
+      radial-gradient(circle at 84% 14%, rgba(255, 120, 120, 0.12), transparent 24%),
+      radial-gradient(circle at 50% 80%, rgba(87, 191, 255, 0.08), transparent 28%),
+      #0a0e1e;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #scene-root {
+    position: fixed;
+    inset: 0;
+  }
+
+  #scene-root canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass-panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(16px);
+  }
+
+  #hero-badge {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(520px, calc(100vw - 32px));
+    padding: 14px 18px;
+    border-radius: 18px;
+    text-align: center;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  #hero-formula {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #hero-summary {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-soft);
+  }
+
+  #molecule-panel {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: min(320px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 20px;
+    z-index: 30;
+  }
+
+  .panel-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.48);
+  }
+
+  .panel-title {
+    margin-top: 6px;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .panel-desc {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-soft);
+  }
+
+  #molecule-buttons {
+    margin-top: 14px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .molecule-button {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+
+  .molecule-button:hover,
+  .molecule-button:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(255, 221, 68, 0.5);
+    background: rgba(255, 255, 255, 0.08);
+    outline: none;
+  }
+
+  .molecule-button.active {
+    border-color: rgba(255, 221, 68, 0.72);
+    background:
+      linear-gradient(135deg, rgba(255, 221, 68, 0.2), rgba(255, 255, 255, 0.02)),
+      rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 26px rgba(255, 206, 58, 0.12);
+  }
+
+  .molecule-button strong {
+    display: block;
+    font-size: 15px;
+  }
+
+  .molecule-button span {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(238, 245, 255, 0.7);
+  }
+
+  #panel-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+  }
+
+  #panel-actions button {
+    flex: 1;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  #panel-actions button:hover,
+  #guide-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #compare-panel {
+    position: fixed;
+    top: 118px;
+    right: 16px;
+    width: min(340px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 20px;
+    z-index: 30;
+  }
+
+  #compare-panel.is-disabled {
+    opacity: 0.78;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .chip {
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  #compare-note {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-soft);
+  }
+
+  #compare-rows {
+    margin-top: 12px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .compare-row {
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .compare-row strong {
+    display: block;
+    font-size: 13px;
+  }
+
+  .compare-row .before-after {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .compare-row .stable {
+    margin-top: 5px;
+    font-size: 11px;
+    color: #9ef4c6;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 20px;
+    z-index: 30;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #ffe684;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+    font-size: 11px;
+    line-height: 1.65;
+  }
+
+  .formula-label {
+    width: 80px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .formula-value {
+    flex: 1;
+  }
+
+  #formula-config {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  #formula-config .config-line + .config-line {
+    margin-top: 6px;
+  }
+
+  .formula-principle {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(103, 183, 255, 0.08);
+    border: 1px solid rgba(103, 183, 255, 0.18);
+    font-size: 11px;
+    line-height: 1.75;
+    color: rgba(238, 245, 255, 0.88);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 16, 38, 0.78);
+    color: #fff;
+    cursor: pointer;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 104px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(660px, calc(100vw - 32px));
+    max-height: 62vh;
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    z-index: 39;
+    display: none;
+  }
+
+  #guide-panel h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #9fd7ff;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    font-size: 12px;
+    line-height: 1.75;
+    color: rgba(238, 245, 255, 0.86);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  .guide-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    z-index: 28;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.66);
+    background: rgba(12, 18, 40, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+  }
+
+  .lil-gui {
+    z-index: 45 !important;
+  }
+
+  @media (max-width: 1180px) {
+    #compare-panel {
+      top: 148px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    #hero-badge {
+      top: 84px;
+      width: calc(100vw - 24px);
+    }
+
+    #molecule-panel,
+    #compare-panel,
+    #formula-panel {
+      width: calc(100vw - 24px);
+      left: 12px;
+      right: 12px;
+    }
+
+    #molecule-panel {
+      top: 12px;
+    }
+
+    #compare-panel {
+      top: auto;
+      bottom: 202px;
+    }
+
+    #formula-panel {
+      bottom: 12px;
+    }
+
+    #hint-chip {
+      left: 12px;
+      right: 12px;
+      bottom: 168px;
+      max-width: none;
+      border-radius: 16px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    #hero-formula {
+      font-size: 20px;
+    }
+
+    .panel-title {
+      font-size: 17px;
+    }
+
+    #guide-panel {
+      top: 92px;
+      max-height: 68vh;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-root"></div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="hero-badge" class="glass-panel">
+  <div id="hero-formula">H₂O · 공유 결합 형성</div>
+  <div id="hero-summary">산소와 수소가 전자쌍을 공유하며 18족과 같은 안정한 전자 배치를 이룹니다.</div>
+</div>
+
+<section id="molecule-panel" class="glass-panel">
+  <div class="panel-eyebrow">Molecule Select</div>
+  <div class="panel-title">분자 선택 패널</div>
+  <div class="panel-desc">물 분자, 산소 분자, 플루오린화 수소를 오가며 공유 전자쌍과 비공유 전자쌍의 차이를 비교하세요.</div>
+  <div id="molecule-buttons"></div>
+  <div id="panel-actions">
+    <button id="replay-button" type="button">결합 과정 재생</button>
+    <button id="reset-button" type="button">초기화</button>
+  </div>
+</section>
+
+<section id="compare-panel" class="glass-panel">
+  <div class="panel-eyebrow">Electron Compare</div>
+  <div class="panel-title">전자 배치 비교 패널</div>
+  <div class="chip-row">
+    <span class="chip" id="compare-bond-chip">단일 결합</span>
+    <span class="chip" id="compare-pair-chip">공유 전자쌍 2쌍</span>
+    <span class="chip" id="compare-mode-chip">보어 원자 모형</span>
+  </div>
+  <div id="compare-note">공유 전자쌍을 포함해 각 원자가 18족 원소와 같은 안정한 전자 배치를 가지는지 확인합니다.</div>
+  <div id="compare-rows"></div>
+</section>
+
+<section id="formula-panel" class="glass-panel">
+  <h3>🔗 공유 결합 형성</h3>
+  <div class="formula-row"><span class="formula-label">선택 분자:</span><span class="formula-value" id="fp-molecule">H₂O (물)</span></div>
+  <div class="formula-row"><span class="formula-label">결합 유형:</span><span class="formula-value" id="fp-bond-type">단일 결합</span></div>
+  <div class="formula-row"><span class="formula-label">공유 전자쌍:</span><span class="formula-value" id="fp-shared-pairs">2쌍</span></div>
+  <div class="formula-row"><span class="formula-label">비공유 전자쌍:</span><span class="formula-value" id="fp-lone-pairs">2쌍</span></div>
+  <div id="formula-config"></div>
+  <div class="formula-principle">비금속 원소의 원자들은 전자쌍을 공유하여 18족 원소와 같은 안정한 전자 배치를 갖습니다. 공유하는 전자쌍의 수에 따라 단일 결합과 이중 결합으로 구분됩니다.</div>
+</section>
+
+<div id="guide-panel" class="glass-panel">
+  <h3>공유 결합 학습 가이드</h3>
+  <h4>🔑 핵심 원리</h4>
+  <p>비금속 원소의 원자들은 전자쌍을 공유하여 18족 원소와 같은 안정한 전자 배치를 가집니다. 수소는 1개의 전자쌍을, 산소는 2개의 전자쌍을 공유할 수 있어 물 분자와 산소 분자처럼 다양한 공유 결합 구조를 만듭니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>물 분자에서 산소는 수소와 몇 쌍의 전자를 공유하나요?</li>
+    <li>산소 분자 O₂가 이중 결합이 되는 까닭은 무엇인가요?</li>
+    <li>공유 결합과 이온 결합은 전자를 다루는 방식에서 어떻게 다를까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li>물 H₂O: 생명 활동과 기후 조절의 핵심 물질</li>
+    <li>산소 O₂: 호흡과 연소 반응에 필수</li>
+    <li>이산화 탄소 CO₂, 설탕 C₁₂H₂₂O₁₁, 뷰테인 C₄H₁₀도 공유 결합으로 이루어진 분자입니다.</li>
+  </ul>
+
+  <div class="guide-ref">📚 교과서 연계: 미래엔 통합과학1 II편 p70~71 — 공유 결합, 물 분자(그림 II-22), 산소 분자(그림 II-23), 탐구(공유 결합 모형)</div>
+</div>
+
+<div id="hint-chip">드래그로 분자를 회전하고, GUI에서 보어 모형과 공-막대 모형을 전환할 수 있습니다. 전자쌍 표시와 18족 비교를 함께 켜면 안정화 과정을 더 쉽게 볼 수 있습니다.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DISPLAY_MODES = ['보어 원자 모형', '공-막대 모형'];
+const SHELL_ROTATIONS = [
+  { x: 0.28, z: 0.18 },
+  { x: -0.22, z: 0.35 }
+];
+const ORBIT_SPEEDS = [1.35, 0.92];
+const ELECTRON_BLUE = new THREE.Color(0x4488cc);
+const ELECTRON_BLUE_EMISSIVE = new THREE.Color(0x1d4f88);
+const ELECTRON_YELLOW = new THREE.Color(0xffdd44);
+const ELECTRON_YELLOW_EMISSIVE = new THREE.Color(0xaa8c14);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+const ELEMENTS = {
+  H: {
+    symbol: 'H',
+    nameKo: '수소',
+    charge: '+1',
+    shells: [{ radius: 0.5, count: 1, capacity: 2 }],
+    nucleusRadius: 0.2,
+    ballRadius: 0.3,
+    ballColor: 0xffffff,
+    emissive: 0x303847
+  },
+  O: {
+    symbol: 'O',
+    nameKo: '산소',
+    charge: '+8',
+    shells: [{ radius: 0.7, count: 2, capacity: 2 }, { radius: 1.3, count: 6, capacity: 8 }],
+    nucleusRadius: 0.35,
+    ballRadius: 0.5,
+    ballColor: 0xff2222,
+    emissive: 0x611414
+  },
+  F: {
+    symbol: 'F',
+    nameKo: '플루오린',
+    charge: '+9',
+    shells: [{ radius: 0.7, count: 2, capacity: 2 }, { radius: 1.3, count: 7, capacity: 8 }],
+    nucleusRadius: 0.3,
+    ballRadius: 0.45,
+    ballColor: 0x88ff88,
+    emissive: 0x1e5e30
+  }
+};
+
+const MOLECULES = {
+  H2O: {
+    key: 'H2O',
+    formulaHtml: 'H<sub>2</sub>O',
+    formulaDisplay: 'H₂O',
+    title: '물 분자',
+    sceneLabel: 'H₂O (물 분자)',
+    heroText: '산소가 수소 2개와 각각 전자쌍 1쌍을 공유하며 굽은 구조를 형성합니다.',
+    bondType: '단일 결합',
+    sharedPairCount: 2,
+    lonePairCount: 2,
+    atoms: [
+      { id: 'O', element: 'O', start: [0, 0, 0], end: [0, 0, 0] },
+      { id: 'H1', element: 'H', start: [-4, 0, 0], end: [-1.22, 0.95, 0] },
+      { id: 'H2', element: 'H', start: [4, 0, 0], end: [1.22, 0.95, 0] }
+    ],
+    bonds: [
+      {
+        id: 'OH1',
+        atoms: ['O', 'H1'],
+        order: 1,
+        pairs: [{ angleOffset: 0, laneOffset: 0 }],
+        lengthLabel: 'O-H 단일 결합'
+      },
+      {
+        id: 'OH2',
+        atoms: ['O', 'H2'],
+        order: 1,
+        pairs: [{ angleOffset: 0, laneOffset: 0 }],
+        lengthLabel: 'O-H 단일 결합'
+      }
+    ],
+    lonePairs: [
+      { id: 'O-lp1', atom: 'O', angle: 238, radius: 1.56 },
+      { id: 'O-lp2', atom: 'O', angle: 302, radius: 1.56 }
+    ],
+    angleArc: { center: 'O', atoms: ['H1', 'H2'], text: '104.5°' },
+    comparisonRows: [
+      { label: '산소 O', before: '2 + 6', after: '2, 8', stable: '네온(Ne)과 동일 ✅' },
+      { label: '수소 H ×2', before: '1', after: '2', stable: '헬륨(He)과 동일 ✅' }
+    ],
+    configRows: [
+      'O: 2 + 6 + 공유 전자 2개 = 2, 8 (Ne와 동일 ✅)',
+      'H: 1 + 공유 전자 1개 = 2 (He와 동일 ✅)'
+    ]
+  },
+  O2: {
+    key: 'O2',
+    formulaHtml: 'O<sub>2</sub>',
+    formulaDisplay: 'O₂',
+    title: '산소 분자',
+    sceneLabel: 'O₂ (산소 분자) — 이중 결합',
+    heroText: '산소 원자 2개가 전자쌍 2쌍을 공유하여 이중 결합을 형성합니다.',
+    bondType: '이중 결합',
+    sharedPairCount: 2,
+    lonePairCount: 4,
+    atoms: [
+      { id: 'O1', element: 'O', start: [-4, 0, 0], end: [-1.18, 0, 0] },
+      { id: 'O2', element: 'O', start: [4, 0, 0], end: [1.18, 0, 0] }
+    ],
+    bonds: [
+      {
+        id: 'OO',
+        atoms: ['O1', 'O2'],
+        order: 2,
+        pairs: [
+          { angleOffset: 0.18, laneOffset: 0.22 },
+          { angleOffset: -0.18, laneOffset: -0.22 }
+        ],
+        lengthLabel: 'O=O 이중 결합'
+      }
+    ],
+    lonePairs: [
+      { id: 'O1-lp1', atom: 'O1', angle: 130, radius: 1.56 },
+      { id: 'O1-lp2', atom: 'O1', angle: 230, radius: 1.56 },
+      { id: 'O2-lp1', atom: 'O2', angle: 50, radius: 1.56 },
+      { id: 'O2-lp2', atom: 'O2', angle: -50, radius: 1.56 }
+    ],
+    comparisonRows: [
+      { label: '산소 O ×2', before: '2 + 6', after: '2, 8', stable: '네온(Ne)과 동일 ✅' }
+    ],
+    configRows: [
+      '각 산소: 2 + 6 + 공유 전자 2개 = 2, 8 (Ne와 동일 ✅)'
+    ]
+  },
+  HF: {
+    key: 'HF',
+    formulaHtml: 'HF',
+    formulaDisplay: 'HF',
+    title: '플루오린화 수소',
+    sceneLabel: 'HF (플루오린화 수소)',
+    heroText: '플루오린과 수소가 전자쌍 1쌍을 공유하여 각각 Ne, He와 같은 안정한 배치를 이룹니다.',
+    bondType: '단일 결합',
+    sharedPairCount: 1,
+    lonePairCount: 3,
+    atoms: [
+      { id: 'H', element: 'H', start: [-3.8, 0, 0], end: [-1.1, 0, 0] },
+      { id: 'F', element: 'F', start: [3.8, 0, 0], end: [1.0, 0, 0] }
+    ],
+    bonds: [
+      {
+        id: 'HF',
+        atoms: ['H', 'F'],
+        order: 1,
+        pairs: [{ angleOffset: 0, laneOffset: 0 }],
+        lengthLabel: 'H-F 단일 결합'
+      }
+    ],
+    lonePairs: [
+      { id: 'F-lp1', atom: 'F', angle: 55, radius: 1.56 },
+      { id: 'F-lp2', atom: 'F', angle: 0, radius: 1.58 },
+      { id: 'F-lp3', atom: 'F', angle: -55, radius: 1.56 }
+    ],
+    comparisonRows: [
+      { label: '플루오린 F', before: '2 + 7', after: '2, 8', stable: '네온(Ne)과 동일 ✅' },
+      { label: '수소 H', before: '1', after: '2', stable: '헬륨(He)과 동일 ✅' }
+    ],
+    configRows: [
+      'F: 2 + 7 + 공유 전자 1개 = 2, 8 (Ne와 동일 ✅)',
+      'H: 1 + 공유 전자 1개 = 2 (He와 동일 ✅)'
+    ]
+  }
+};
+
+const MOLECULE_LABELS = Object.fromEntries(
+  Object.values(MOLECULES).map((molecule) => [molecule.key, `${molecule.formulaDisplay} (${molecule.title})`])
+);
+
+const dom = {
+  sceneRoot: document.getElementById('scene-root'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  heroFormula: document.getElementById('hero-formula'),
+  heroSummary: document.getElementById('hero-summary'),
+  moleculeButtons: document.getElementById('molecule-buttons'),
+  replayButton: document.getElementById('replay-button'),
+  resetButton: document.getElementById('reset-button'),
+  comparePanel: document.getElementById('compare-panel'),
+  compareBondChip: document.getElementById('compare-bond-chip'),
+  comparePairChip: document.getElementById('compare-pair-chip'),
+  compareModeChip: document.getElementById('compare-mode-chip'),
+  compareNote: document.getElementById('compare-note'),
+  compareRows: document.getElementById('compare-rows'),
+  fpMolecule: document.getElementById('fp-molecule'),
+  fpBondType: document.getElementById('fp-bond-type'),
+  fpSharedPairs: document.getElementById('fp-shared-pairs'),
+  fpLonePairs: document.getElementById('fp-lone-pairs'),
+  formulaConfig: document.getElementById('formula-config')
+};
+
+const orbitGeometryCache = new Map();
+const sharedGeometries = {
+  electron: new THREE.SphereGeometry(0.06, 18, 18),
+  bondCylinder: new THREE.CylinderGeometry(1, 1, 1, 20, 1, true),
+  placeholder: new THREE.RingGeometry(0.055, 0.085, 28)
+};
+
+const state = {
+  currentMoleculeKey: 'H2O',
+  currentMolecule: null,
+  sceneGroup: null,
+  atomRefs: new Map(),
+  sharedPairs: [],
+  lonePairs: [],
+  bondRefs: [],
+  buttonRefs: new Map(),
+  angleArc: null,
+  moleculeLabel: null,
+  animationDuration: 1.5,
+  animationStart: 0,
+  isAnimating: false,
+  progress: 1,
+  gui: null
+};
+
+const params = {
+  molecule: MOLECULE_LABELS.H2O,
+  displayMode: DISPLAY_MODES[0],
+  showPairLabels: true,
+  showNobleGasComparison: true,
+  orbitSpeed: 1
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e1e);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0.8, 8.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.style.touchAction = 'none';
+dom.sceneRoot.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 12;
+controls.target.set(0, 0.35, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.65);
+directionalLight.position.set(4.8, 5.5, 3.2);
+scene.add(directionalLight);
+
+const pointLight = new THREE.PointLight(0xffffff, 1.0, 18, 2);
+pointLight.position.set(0, 0, 0);
+scene.add(pointLight);
+
+const fillLight = new THREE.HemisphereLight(0x7fb3ff, 0x101626, 0.35);
+scene.add(fillLight);
+
+const clock = new THREE.Clock();
+
+createStarField();
+createMoleculeButtons();
+buildGui();
+setupGuidePanel();
+setupPanelButtons();
+window.addEventListener('resize', handleResize);
+handleResize();
+setMolecule('H2O', true);
+animate();
+
+function setupPanelButtons() {
+  dom.replayButton.addEventListener('click', () => startBondAnimation());
+  dom.resetButton.addEventListener('click', () => resetSimulation());
+}
+
+function createMoleculeButtons() {
+  Object.values(MOLECULES).forEach((molecule) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'molecule-button';
+    button.innerHTML = `
+      <strong>${molecule.formulaHtml} · ${molecule.title}</strong>
+      <span>${molecule.bondType} · 공유 전자쌍 ${molecule.sharedPairCount}쌍 · 비공유 전자쌍 ${molecule.lonePairCount}쌍</span>
+    `;
+    button.addEventListener('click', () => setMolecule(molecule.key, true));
+    dom.moleculeButtons.appendChild(button);
+    state.buttonRefs.set(molecule.key, button);
+  });
+}
+
+function buildGui() {
+  const gui = new GUI({ title: '공유 결합 형성', width: 300 });
+  state.gui = gui;
+
+  gui.add(params, 'molecule', Object.values(MOLECULE_LABELS)).name('분자 선택').onChange((label) => {
+    const key = Object.keys(MOLECULE_LABELS).find((candidate) => MOLECULE_LABELS[candidate] === label);
+    if (key) setMolecule(key, true);
+  });
+
+  gui.add(params, 'displayMode', DISPLAY_MODES).name('표시 모드').onChange(() => {
+    updateModeVisibility();
+    updateComparePanel();
+  });
+
+  const actions = {
+    결합_과정_재생: () => startBondAnimation(),
+    초기화: () => resetSimulation()
+  };
+
+  gui.add(actions, '결합_과정_재생').name('결합 과정 재생');
+  gui.add(params, 'showPairLabels').name('전자쌍 표시').onChange(() => updatePairLabelVisibility());
+  gui.add(params, 'showNobleGasComparison').name('18족 비교').onChange(() => updateComparePanel());
+  gui.add(params, 'orbitSpeed', 0, 5, 0.25).name('공전 속도');
+  gui.add(actions, '초기화').name('초기화');
+
+  if (window.innerWidth < 1100) {
+    gui.close();
+  }
+}
+
+function setupGuidePanel() {
+  dom.guideToggle.addEventListener('click', () => {
+    const isOpen = dom.guidePanel.style.display === 'block';
+    dom.guidePanel.style.display = isOpen ? 'none' : 'block';
+  });
+}
+
+function resetSimulation() {
+  params.molecule = MOLECULE_LABELS.H2O;
+  params.displayMode = DISPLAY_MODES[0];
+  params.showPairLabels = true;
+  params.showNobleGasComparison = true;
+  params.orbitSpeed = 1;
+
+  camera.position.set(0, 0.8, 8.5);
+  controls.target.set(0, 0.35, 0);
+  controls.update();
+
+  setMolecule('H2O', true);
+  state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setMolecule(key, replay = true) {
+  const molecule = MOLECULES[key];
+  if (!molecule) return;
+
+  state.currentMoleculeKey = key;
+  state.currentMolecule = molecule;
+  params.molecule = MOLECULE_LABELS[key];
+
+  buildMoleculeScene(molecule);
+  updateTextPanels();
+  updateComparePanel();
+  refreshMoleculeButtons();
+  updateModeVisibility();
+  updatePairLabelVisibility();
+
+  if (replay) {
+    startBondAnimation();
+  } else {
+    state.progress = 1;
+    state.isAnimating = false;
+    updateSceneState(1, clock.getElapsedTime());
+  }
+
+  if (state.gui) {
+    state.gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+}
+
+function refreshMoleculeButtons() {
+  state.buttonRefs.forEach((button, key) => {
+    button.classList.toggle('active', key === state.currentMoleculeKey);
+  });
+}
+
+function updateTextPanels() {
+  const molecule = state.currentMolecule;
+  dom.heroFormula.textContent = `${molecule.formulaDisplay} · ${molecule.title}`;
+  dom.heroSummary.textContent = molecule.heroText;
+
+  dom.fpMolecule.innerHTML = `${molecule.formulaHtml} (${molecule.title})`;
+  dom.fpBondType.textContent = molecule.bondType;
+  dom.fpSharedPairs.textContent = `${molecule.sharedPairCount}쌍`;
+  dom.fpLonePairs.textContent = `${molecule.lonePairCount}쌍`;
+  dom.formulaConfig.innerHTML = molecule.configRows
+    .map((line) => `<div class="config-line">${line}</div>`)
+    .join('');
+}
+
+function updateComparePanel() {
+  const molecule = state.currentMolecule;
+  if (!molecule) return;
+
+  dom.compareBondChip.textContent = molecule.bondType;
+  dom.comparePairChip.textContent = `공유 전자쌍 ${molecule.sharedPairCount}쌍`;
+  dom.compareModeChip.textContent = params.displayMode;
+
+  if (params.showNobleGasComparison) {
+    dom.comparePanel.classList.remove('is-disabled');
+    dom.compareNote.textContent = '공유한 전자쌍까지 포함해 각 원자가 18족 원소와 같은 안정한 전자 배치를 이루는지 비교합니다.';
+    dom.compareRows.innerHTML = molecule.comparisonRows.map((row) => `
+      <div class="compare-row">
+        <strong>${row.label}</strong>
+        <div class="before-after">${row.before} → ${row.after}</div>
+        <div class="stable">${row.stable}</div>
+      </div>
+    `).join('');
+  } else {
+    dom.comparePanel.classList.add('is-disabled');
+    dom.compareNote.textContent = '18족 비교가 꺼져 있습니다. GUI의 "18족 비교" 토글을 켜면 안정화 결과가 다시 표시됩니다.';
+    dom.compareRows.innerHTML = `
+      <div class="compare-row">
+        <strong>비교 비활성화</strong>
+        <div class="before-after">현재는 결합 형태와 전자쌍의 움직임만 강조하고 있습니다.</div>
+      </div>
+    `;
+  }
+}
+
+function buildMoleculeScene(molecule) {
+  disposeMoleculeScene();
+
+  const group = new THREE.Group();
+  state.sceneGroup = group;
+  scene.add(group);
+
+  state.atomRefs = new Map();
+  state.sharedPairs = [];
+  state.lonePairs = [];
+  state.bondRefs = [];
+  state.angleArc = null;
+  state.moleculeLabel = null;
+
+  molecule.atoms.forEach((atomData) => {
+    const atomRef = createAtomRef(atomData);
+    group.add(atomRef.group);
+    state.atomRefs.set(atomData.id, atomRef);
+  });
+
+  molecule.bonds.forEach((bondData) => {
+    const bondRef = createBondRef(bondData);
+    state.bondRefs.push(bondRef);
+  });
+
+  molecule.lonePairs.forEach((pairData) => {
+    const pairRef = createLonePairRef(pairData);
+    if (pairRef) state.lonePairs.push(pairRef);
+  });
+
+  if (molecule.angleArc) {
+    state.angleArc = createAngleArcRef(molecule.angleArc);
+  }
+
+  state.moleculeLabel = createTextSprite(molecule.sceneLabel, {
+    fontSize: 64,
+    textColor: '#fff6cf',
+    background: 'rgba(10, 14, 28, 0.48)',
+    paddingX: 24,
+    paddingY: 14
+  });
+  group.add(state.moleculeLabel);
+}
+
+function createAtomRef(atomData) {
+  const element = ELEMENTS[atomData.element];
+  const group = new THREE.Group();
+  const bohrGroup = new THREE.Group();
+  const ballGroup = new THREE.Group();
+  const orbitingElectrons = [];
+  const shellRefs = [];
+
+  group.add(bohrGroup);
+  group.add(ballGroup);
+
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(element.nucleusRadius, 28, 28),
+    new THREE.MeshStandardMaterial({
+      color: 0xff4444,
+      emissive: 0x521414,
+      emissiveIntensity: 0.9,
+      roughness: 0.32,
+      metalness: 0.08
+    })
+  );
+  bohrGroup.add(nucleus);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(element.nucleusRadius * 1.6, 18, 18),
+    new THREE.MeshBasicMaterial({
+      color: element.ballColor,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false
+    })
+  );
+  bohrGroup.add(glow);
+
+  const chargeSprite = createTextSprite(element.charge, {
+    fontSize: 54,
+    textColor: '#fff5d2',
+    background: 'rgba(10, 14, 24, 0.5)',
+    paddingX: 20,
+    paddingY: 12
+  });
+  chargeSprite.position.set(0, element.nucleusRadius + 0.58, 0);
+  bohrGroup.add(chargeSprite);
+
+  element.shells.forEach((shell, shellIndex) => {
+    const shellGroup = new THREE.Group();
+    shellGroup.rotation.x = SHELL_ROTATIONS[Math.min(shellIndex, SHELL_ROTATIONS.length - 1)].x;
+    shellGroup.rotation.z = SHELL_ROTATIONS[Math.min(shellIndex, SHELL_ROTATIONS.length - 1)].z;
+
+    const orbit = new THREE.Mesh(
+      getOrbitGeometry(shell.radius),
+      new THREE.MeshBasicMaterial({
+        color: 0x4f8fd8,
+        transparent: true,
+        opacity: 0.42
+      })
+    );
+    orbit.userData.sharedGeometry = true;
+    shellGroup.add(orbit);
+    bohrGroup.add(shellGroup);
+
+    shellRefs.push({
+      group: shellGroup,
+      radius: shell.radius
+    });
+
+    if (shellIndex < element.shells.length - 1) {
+      for (let slot = 0; slot < shell.count; slot += 1) {
+        const angle = (Math.PI * 2 * slot) / shell.count;
+        const mesh = createElectronMesh('local');
+        mesh.position.set(Math.cos(angle) * shell.radius, Math.sin(angle) * shell.radius, 0);
+        shellGroup.add(mesh);
+        orbitingElectrons.push({
+          mesh,
+          shellGroup,
+          radius: shell.radius,
+          angleOffset: angle,
+          speed: ORBIT_SPEEDS[shellIndex] ?? 0.8
+        });
+      }
+    }
+  });
+
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(element.ballRadius, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: element.ballColor,
+      emissive: element.emissive,
+      emissiveIntensity: 0.45,
+      roughness: 0.28,
+      metalness: 0.08
+    })
+  );
+  ballGroup.add(ball);
+
+  const ballGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(element.ballRadius * 1.18, 20, 20),
+    new THREE.MeshBasicMaterial({
+      color: element.ballColor,
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false
+    })
+  );
+  ballGroup.add(ballGlow);
+
+  const atomLabel = createTextSprite(element.symbol, {
+    fontSize: 58,
+    textColor: '#eef7ff',
+    background: 'rgba(10, 14, 28, 0.38)',
+    paddingX: 18,
+    paddingY: 10
+  });
+  atomLabel.position.set(0, -element.ballRadius - 0.7, 0);
+  ballGroup.add(atomLabel);
+
+  return {
+    atomData,
+    element,
+    group,
+    bohrGroup,
+    ballGroup,
+    shellRefs,
+    outerShell: shellRefs[shellRefs.length - 1],
+    outerRadius: element.shells[element.shells.length - 1].radius,
+    orbitingElectrons,
+    emptyMarkers: []
+  };
+}
+
+function createBondRef(bondData) {
+  const atomARef = state.atomRefs.get(bondData.atoms[0]);
+  const atomBRef = state.atomRefs.get(bondData.atoms[1]);
+  const cylinders = [];
+  const baseAngleA = getBondAngle(atomARef.atomData.end, atomBRef.atomData.end);
+  const baseAngleB = getBondAngle(atomBRef.atomData.end, atomARef.atomData.end);
+
+  for (let i = 0; i < bondData.order; i += 1) {
+    const pair = bondData.pairs[i];
+    const mesh = new THREE.Mesh(
+      sharedGeometries.bondCylinder,
+      new THREE.MeshStandardMaterial({
+        color: 0xdfe7ff,
+        emissive: 0x55648e,
+        emissiveIntensity: 0.25,
+        roughness: 0.22,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    mesh.userData.sharedGeometry = true;
+    state.sceneGroup.add(mesh);
+
+    cylinders.push({
+      mesh,
+      radius: bondData.order === 2 ? 0.04 : 0.06,
+      laneOffset: pair.laneOffset
+    });
+  }
+
+  const lengthLabel = createTextSprite(bondData.lengthLabel, {
+    fontSize: 44,
+    textColor: '#f6f8ff',
+    background: 'rgba(12, 16, 28, 0.48)',
+    paddingX: 18,
+    paddingY: 10
+  });
+  state.sceneGroup.add(lengthLabel);
+
+  bondData.pairs.forEach((pairData, pairIndex) => {
+    const electronA = createElectronMesh('shared');
+    const electronB = createElectronMesh('shared');
+    const labelSprite = createTextSprite('공유', {
+      fontSize: 40,
+      textColor: '#fff6bf',
+      background: 'rgba(20, 18, 8, 0.45)',
+      paddingX: 14,
+      paddingY: 8
+    });
+
+    state.sceneGroup.add(electronA, electronB, labelSprite);
+
+    const sourceAngleA = baseAngleA + pairData.angleOffset;
+    const sourceAngleB = baseAngleB - pairData.angleOffset;
+
+    const markerA = createEmptySlotMarker(atomARef, sourceAngleA);
+    const markerB = createEmptySlotMarker(atomBRef, sourceAngleB);
+
+    state.sharedPairs.push({
+      atomA: bondData.atoms[0],
+      atomB: bondData.atoms[1],
+      laneOffset: pairData.laneOffset,
+      sourceA: {
+        atomId: bondData.atoms[0],
+        shellIndex: atomARef.shellRefs.length - 1,
+        radius: atomARef.outerRadius,
+        angleOffset: sourceAngleA
+      },
+      sourceB: {
+        atomId: bondData.atoms[1],
+        shellIndex: atomBRef.shellRefs.length - 1,
+        radius: atomBRef.outerRadius,
+        angleOffset: sourceAngleB
+      },
+      electronA,
+      electronB,
+      labelSprite,
+      markerA,
+      markerB,
+      phaseSeed: pairIndex * 1.4
+    });
+  });
+
+  return {
+    bondData,
+    cylinders,
+    lengthLabel
+  };
+}
+
+function createLonePairRef(pairData) {
+  const atomRef = state.atomRefs.get(pairData.atom);
+  if (!atomRef) return null;
+
+  const group = new THREE.Group();
+  const angle = THREE.MathUtils.degToRad(pairData.angle);
+  const radius = pairData.radius ?? atomRef.outerRadius + 0.2;
+  const center = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+  const tangent = new THREE.Vector3(-Math.sin(angle), Math.cos(angle), 0).normalize();
+  const outward = center.clone().normalize();
+
+  const electronA = createElectronMesh('local');
+  const electronB = createElectronMesh('local');
+  const labelSprite = createTextSprite('비공유', {
+    fontSize: 40,
+    textColor: '#d6f1ff',
+    background: 'rgba(10, 18, 28, 0.48)',
+    paddingX: 14,
+    paddingY: 8
+  });
+
+  electronA.position.copy(center).addScaledVector(tangent, 0.11);
+  electronB.position.copy(center).addScaledVector(tangent, -0.11);
+  labelSprite.position.copy(center).addScaledVector(outward, 0.35);
+
+  group.add(electronA, electronB, labelSprite);
+  atomRef.group.add(group);
+
+  return {
+    group,
+    electronA,
+    electronB,
+    labelSprite,
+    center,
+    tangent,
+    phase: Math.random() * Math.PI * 2
+  };
+}
+
+function createAngleArcRef(angleData) {
+  const geometry = new THREE.BufferGeometry();
+  const material = new THREE.LineBasicMaterial({
+    color: 0xffd86a,
+    transparent: true,
+    opacity: 0
+  });
+  const line = new THREE.Line(geometry, material);
+  state.sceneGroup.add(line);
+
+  const label = createTextSprite(angleData.text, {
+    fontSize: 44,
+    textColor: '#ffe084',
+    background: 'rgba(18, 16, 12, 0.48)',
+    paddingX: 16,
+    paddingY: 10
+  });
+  state.sceneGroup.add(label);
+
+  return {
+    line,
+    label,
+    centerId: angleData.center,
+    atomAId: angleData.atoms[0],
+    atomBId: angleData.atoms[1]
+  };
+}
+
+function createElectronMesh(kind) {
+  const material = new THREE.MeshStandardMaterial({
+    color: kind === 'shared' ? 0x66b8ff : 0x4488cc,
+    emissive: kind === 'shared' ? 0x245d94 : 0x1d4f88,
+    emissiveIntensity: 1.1,
+    roughness: 0.22,
+    metalness: 0.05
+  });
+  const mesh = new THREE.Mesh(sharedGeometries.electron, material);
+  mesh.userData.sharedGeometry = true;
+  return mesh;
+}
+
+function createEmptySlotMarker(atomRef, angle) {
+  const marker = new THREE.Mesh(
+    sharedGeometries.placeholder,
+    new THREE.MeshBasicMaterial({
+      color: 0xf9fdff,
+      transparent: true,
+      opacity: 0.36,
+      side: THREE.DoubleSide
+    })
+  );
+  marker.userData.sharedGeometry = true;
+
+  const radius = atomRef.outerRadius;
+  marker.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+  atomRef.outerShell.group.add(marker);
+  atomRef.emptyMarkers.push(marker);
+  return marker;
+}
+
+function updateModeVisibility() {
+  const isBohrMode = params.displayMode === DISPLAY_MODES[0];
+
+  state.atomRefs.forEach((atomRef) => {
+    atomRef.bohrGroup.visible = isBohrMode;
+    atomRef.ballGroup.visible = !isBohrMode;
+  });
+
+  state.bondRefs.forEach((bondRef) => {
+    bondRef.cylinders.forEach((cylinder) => {
+      cylinder.mesh.visible = !isBohrMode;
+    });
+    bondRef.lengthLabel.visible = !isBohrMode;
+  });
+}
+
+function updatePairLabelVisibility() {
+  state.sharedPairs.forEach((pair) => {
+    pair.labelSprite.visible = params.showPairLabels && (pair.labelSprite.userData.blend ?? 0) > 0.5;
+  });
+
+  state.lonePairs.forEach((pair) => {
+    pair.labelSprite.visible = params.showPairLabels;
+  });
+}
+
+function startBondAnimation() {
+  state.animationStart = clock.getElapsedTime();
+  state.progress = 0;
+  state.isAnimating = true;
+}
+
+function handleResize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const elapsed = clock.getElapsedTime();
+
+  if (state.isAnimating) {
+    const rawProgress = (elapsed - state.animationStart) / state.animationDuration;
+    state.progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
+    if (rawProgress >= 1) {
+      state.isAnimating = false;
+    }
+  }
+
+  updateSceneState(state.progress, elapsed);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function updateSceneState(progress, elapsed) {
+  if (!state.sceneGroup || !state.currentMolecule) return;
+
+  const atomProgress = easeInOutCubic(progress);
+  const pairBlend = smoothStep(0.34, 0.88, progress);
+
+  state.atomRefs.forEach((atomRef) => {
+    const start = vecFromArray(atomRef.atomData.start);
+    const end = vecFromArray(atomRef.atomData.end);
+    atomRef.group.position.lerpVectors(start, end, atomProgress);
+    updateOrbitingElectrons(atomRef, elapsed);
+  });
+
+  state.sharedPairs.forEach((pair) => updateSharedPair(pair, pairBlend, elapsed));
+  state.lonePairs.forEach((pair) => updateLonePair(pair, elapsed));
+  state.bondRefs.forEach((bondRef) => updateBondRef(bondRef, pairBlend));
+
+  if (state.angleArc) {
+    updateAngleArc(state.angleArc, pairBlend);
+  }
+
+  updateMoleculeLabel(pairBlend);
+  pointLight.position.copy(getMoleculeCenter());
+}
+
+function updateOrbitingElectrons(atomRef, elapsed) {
+  atomRef.orbitingElectrons.forEach((electron) => {
+    const angle = electron.angleOffset + elapsed * electron.speed * params.orbitSpeed;
+    electron.mesh.position.set(
+      Math.cos(angle) * electron.radius,
+      Math.sin(angle) * electron.radius,
+      0
+    );
+  });
+}
+
+function updateSharedPair(pair, blend, elapsed) {
+  const sourceA = getSourceWorldPosition(pair.sourceA, elapsed);
+  const sourceB = getSourceWorldPosition(pair.sourceB, elapsed);
+  const targetA = getBondElectronWorldPosition(pair, elapsed, 0);
+  const targetB = getBondElectronWorldPosition(pair, elapsed, Math.PI);
+
+  pair.electronA.position.lerpVectors(sourceA, targetA, blend);
+  pair.electronB.position.lerpVectors(sourceB, targetB, blend);
+
+  applyElectronBlend(pair.electronA, blend);
+  applyElectronBlend(pair.electronB, blend);
+
+  const midpoint = getBondMidpoint(pair);
+  const perp = getBondPerpendicular(pair);
+  const labelOffset = pair.laneOffset === 0 ? 0.28 : pair.laneOffset + Math.sign(pair.laneOffset) * 0.22;
+  pair.labelSprite.position.copy(midpoint).addScaledVector(perp, labelOffset).addScaledVector(Z_AXIS, 0.24);
+  pair.labelSprite.userData.blend = blend;
+  pair.labelSprite.visible = params.showPairLabels && blend > 0.5;
+
+  pair.markerA.material.opacity = 0.36 * (1 - blend);
+  pair.markerB.material.opacity = 0.36 * (1 - blend);
+}
+
+function updateLonePair(pair, elapsed) {
+  const wobble = 0.015 * Math.sin(elapsed * 2.4 + pair.phase);
+  pair.electronA.position.copy(pair.center).addScaledVector(pair.tangent, 0.11 + wobble);
+  pair.electronB.position.copy(pair.center).addScaledVector(pair.tangent, -0.11 - wobble);
+  pair.labelSprite.visible = params.showPairLabels;
+}
+
+function updateBondRef(bondRef, blend) {
+  const [atomAId, atomBId] = bondRef.bondData.atoms;
+  const atomA = state.atomRefs.get(atomAId).group.position;
+  const atomB = state.atomRefs.get(atomBId).group.position;
+  const bondVector = atomB.clone().sub(atomA);
+  const perp = new THREE.Vector3(-bondVector.y, bondVector.x, 0);
+  if (perp.lengthSq() < 0.0001) perp.set(0, 1, 0);
+  perp.normalize();
+
+  bondRef.cylinders.forEach((cylinder) => {
+    const start = atomA.clone().addScaledVector(perp, cylinder.laneOffset);
+    const end = atomB.clone().addScaledVector(perp, cylinder.laneOffset);
+    placeCylinder(cylinder.mesh, start, end, cylinder.radius);
+    cylinder.mesh.material.opacity = blend * 0.95;
+  });
+
+  const midpoint = atomA.clone().add(atomB).multiplyScalar(0.5).addScaledVector(perp, 0.36);
+  bondRef.lengthLabel.position.copy(midpoint).addScaledVector(Z_AXIS, 0.2);
+  bondRef.lengthLabel.visible = params.displayMode === DISPLAY_MODES[1] && blend > 0.4;
+}
+
+function updateAngleArc(angleArc, blend) {
+  const center = state.atomRefs.get(angleArc.centerId).group.position;
+  const atomA = state.atomRefs.get(angleArc.atomAId).group.position.clone().sub(center);
+  const atomB = state.atomRefs.get(angleArc.atomBId).group.position.clone().sub(center);
+  const startAngle = Math.atan2(atomA.y, atomA.x);
+  const endAngle = Math.atan2(atomB.y, atomB.x);
+  let delta = endAngle - startAngle;
+
+  while (delta <= -Math.PI) delta += Math.PI * 2;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+
+  const points = [];
+  const radius = 0.92;
+  const segments = 40;
+  for (let i = 0; i <= segments; i += 1) {
+    const t = i / segments;
+    const angle = startAngle + delta * t;
+    points.push(new THREE.Vector3(
+      center.x + Math.cos(angle) * radius,
+      center.y + Math.sin(angle) * radius,
+      0.12
+    ));
+  }
+
+  angleArc.line.geometry.setFromPoints(points);
+  angleArc.line.material.opacity = blend;
+
+  const midAngle = startAngle + delta * 0.5;
+  angleArc.label.position.set(
+    center.x + Math.cos(midAngle) * (radius + 0.22),
+    center.y + Math.sin(midAngle) * (radius + 0.22),
+    0.2
+  );
+  angleArc.label.visible = blend > 0.55;
+}
+
+function updateMoleculeLabel(blend) {
+  if (!state.moleculeLabel) return;
+  const center = getMoleculeCenter();
+  state.moleculeLabel.position.copy(center).add(new THREE.Vector3(0, 2.4, 0));
+  state.moleculeLabel.visible = blend > 0.55;
+}
+
+function getSourceWorldPosition(source, elapsed) {
+  const atomRef = state.atomRefs.get(source.atomId);
+  const shellRef = atomRef.shellRefs[source.shellIndex];
+  const angle = source.angleOffset + elapsed * (ORBIT_SPEEDS[source.shellIndex] ?? 0.9) * params.orbitSpeed;
+  const localPosition = new THREE.Vector3(
+    Math.cos(angle) * source.radius,
+    Math.sin(angle) * source.radius,
+    0
+  );
+  return shellRef.group.localToWorld(localPosition);
+}
+
+function getBondElectronWorldPosition(pair, elapsed, phaseOffset) {
+  const atomA = state.atomRefs.get(pair.atomA).group.position;
+  const atomB = state.atomRefs.get(pair.atomB).group.position;
+  const midpoint = atomA.clone().add(atomB).multiplyScalar(0.5);
+  const bondDir = atomB.clone().sub(atomA).normalize();
+  const perp = getBondPerpendicular(pair);
+  const theta = elapsed * (1.8 + params.orbitSpeed * 0.35) + pair.phaseSeed + phaseOffset;
+  const s = Math.sin(theta);
+  const c = Math.cos(theta);
+  const span = atomA.distanceTo(atomB) * 0.28;
+  const height = 0.22 + Math.abs(pair.laneOffset) * 0.18;
+
+  return midpoint
+    .clone()
+    .addScaledVector(perp, pair.laneOffset)
+    .addScaledVector(bondDir, span * s)
+    .addScaledVector(Z_AXIS, height * s * c);
+}
+
+function getBondMidpoint(pair) {
+  return state.atomRefs.get(pair.atomA).group.position
+    .clone()
+    .add(state.atomRefs.get(pair.atomB).group.position)
+    .multiplyScalar(0.5);
+}
+
+function getBondPerpendicular(pair) {
+  const atomA = state.atomRefs.get(pair.atomA).group.position;
+  const atomB = state.atomRefs.get(pair.atomB).group.position;
+  const bondDir = atomB.clone().sub(atomA).normalize();
+  const perp = new THREE.Vector3(-bondDir.y, bondDir.x, 0);
+  if (perp.lengthSq() < 0.0001) {
+    perp.set(0, 1, 0);
+  }
+  return perp.normalize();
+}
+
+function applyElectronBlend(mesh, blend) {
+  const material = mesh.material;
+  if (!(material instanceof THREE.MeshStandardMaterial)) return;
+  material.color.lerpColors(ELECTRON_BLUE, ELECTRON_YELLOW, blend);
+  material.emissive.lerpColors(ELECTRON_BLUE_EMISSIVE, ELECTRON_YELLOW_EMISSIVE, blend);
+  material.emissiveIntensity = 1.1 + blend * 0.6;
+}
+
+function placeCylinder(mesh, start, end, radius) {
+  const direction = end.clone().sub(start);
+  const length = direction.length();
+  const midpoint = start.clone().add(end).multiplyScalar(0.5);
+
+  mesh.position.copy(midpoint);
+  mesh.scale.set(radius, length, radius);
+  mesh.quaternion.setFromUnitVectors(Y_AXIS, direction.normalize());
+}
+
+function getMoleculeCenter() {
+  const positions = Array.from(state.atomRefs.values()).map((atomRef) => atomRef.group.position);
+  if (positions.length === 0) return new THREE.Vector3();
+  return positions.reduce((sum, position) => sum.add(position.clone()), new THREE.Vector3()).multiplyScalar(1 / positions.length);
+}
+
+function disposeMoleculeScene() {
+  if (!state.sceneGroup) return;
+
+  state.sceneGroup.traverse((child) => {
+    if (child.userData && typeof child.userData.dispose === 'function') {
+      child.userData.dispose();
+    }
+
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+
+    if (child.geometry && !child.userData.sharedGeometry) {
+      child.geometry.dispose();
+    }
+  });
+
+  scene.remove(state.sceneGroup);
+  state.sceneGroup = null;
+}
+
+function createStarField() {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const colors = [];
+
+  for (let i = 0; i < 560; i += 1) {
+    const radius = 14 + Math.random() * 20;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    positions.push(
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    );
+
+    const color = new THREE.Color().lerpColors(
+      new THREE.Color(0x88b4ff),
+      new THREE.Color(0xffffff),
+      Math.random()
+    );
+    colors.push(color.r, color.g, color.b);
+  }
+
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const material = new THREE.PointsMaterial({
+    size: 0.08,
+    transparent: true,
+    opacity: 0.9,
+    vertexColors: true,
+    depthWrite: false
+  });
+
+  scene.add(new THREE.Points(geometry, material));
+}
+
+function getOrbitGeometry(radius) {
+  const key = radius.toFixed(2);
+  if (!orbitGeometryCache.has(key)) {
+    orbitGeometryCache.set(key, new THREE.TorusGeometry(radius, 0.01, 12, 96));
+  }
+  return orbitGeometryCache.get(key);
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    fontSize = 60,
+    textColor = '#ffffff',
+    background = 'rgba(0, 0, 0, 0.45)',
+    paddingX = 18,
+    paddingY = 10
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  context.font = `700 ${fontSize}px Pretendard`;
+  const metrics = context.measureText(text);
+  const width = Math.ceil(metrics.width + paddingX * 2);
+  const height = Math.ceil(fontSize + paddingY * 2);
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const drawContext = canvas.getContext('2d');
+  drawContext.font = `700 ${fontSize}px Pretendard`;
+  drawContext.textBaseline = 'middle';
+  drawContext.fillStyle = background;
+  roundRect(drawContext, 0, 0, width, height, Math.min(height / 2, 18));
+  drawContext.fill();
+  drawContext.fillStyle = textColor;
+  drawContext.fillText(text, paddingX, height / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(width / 180, height / 180, 1);
+  sprite.userData.dispose = () => {
+    texture.dispose();
+    material.dispose();
+  };
+  return sprite;
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function vecFromArray(array) {
+  return new THREE.Vector3(array[0], array[1], array[2]);
+}
+
+function getBondAngle(fromArray, toArray) {
+  const dx = toArray[0] - fromArray[0];
+  const dy = toArray[1] - fromArray[1];
+  return Math.atan2(dy, dx);
+}
+
+function easeInOutCubic(value) {
+  return value < 0.5
+    ? 4 * value * value * value
+    : 1 - Math.pow(-2 * value + 2, 3) / 2;
+}
+
+function smoothStep(edge0, edge1, value) {
+  const x = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return x * x * (3 - 2 * x);
+}
+</script>
+</body>
+</html>

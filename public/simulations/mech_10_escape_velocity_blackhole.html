@@ -1,0 +1,1885 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탈출 속도와 블랙홀 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #000008;
+    --panel-bg: rgba(8, 16, 34, 0.84);
+    --panel-strong: rgba(12, 22, 48, 0.92);
+    --panel-border: rgba(160, 194, 255, 0.16);
+    --panel-shadow: 0 20px 42px rgba(0, 0, 0, 0.42);
+    --text-main: #f6f8ff;
+    --text-sub: #b2c1e8;
+    --text-dim: #7f90b9;
+    --accent-cyan: #6dd7ff;
+    --accent-green: #7dfca8;
+    --accent-red: #ff7676;
+    --accent-blue: #7da6ff;
+    --accent-gold: #ffd66f;
+    --grid-line: rgba(255, 255, 255, 0.08);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: relative;
+  }
+
+  #sim-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .overlay {
+    position: fixed;
+    z-index: 8;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #mode-pill {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 260px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(8, 14, 30, 0.72);
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    pointer-events: none;
+  }
+
+  #status-banner {
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 300px;
+    max-width: min(86vw, 640px);
+    padding: 11px 16px;
+    border-radius: 999px;
+    background: rgba(8, 16, 30, 0.68);
+    text-align: center;
+    font-size: 13px;
+    color: #e5efff;
+    pointer-events: none;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 12;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 24, 52, 0.9);
+    color: var(--text-main);
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  }
+
+  #guide-toggle:hover {
+    background: rgba(16, 34, 72, 0.96);
+  }
+
+  #guide-panel {
+    top: 52px;
+    left: 14px;
+    width: min(410px, calc(100vw - 28px));
+    max-height: min(72vh, 720px);
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    overflow-y: auto;
+    display: none;
+    z-index: 11;
+    line-height: 1.68;
+    font-size: 12.5px;
+  }
+
+  #guide-panel h3 {
+    margin: 12px 0 6px;
+    color: #8fdfff;
+    font-size: 14px;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel p,
+  #guide-panel li {
+    color: #dce7ff;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 4px;
+  }
+
+  #guide-panel .ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-sub);
+  }
+
+  #quick-actions {
+    position: fixed;
+    left: 16px;
+    top: 112px;
+    z-index: 10;
+    display: flex;
+    gap: 10px;
+  }
+
+  .action-btn {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 9px 15px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(9, 18, 36, 0.9);
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(20, 32, 60, 0.96);
+  }
+
+  .action-btn.primary {
+    background: linear-gradient(135deg, rgba(58, 125, 255, 0.92), rgba(42, 214, 255, 0.86));
+    color: #081120;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    width: min(420px, calc(100vw - 32px));
+    padding: 18px 20px;
+    border-radius: 22px;
+    z-index: 9;
+    font-size: 12.5px;
+    line-height: 1.72;
+  }
+
+  #formula-panel .heading {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+
+  #formula-panel .subheading {
+    color: var(--text-sub);
+    font-size: 12px;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(109, 215, 255, 0.7), rgba(109, 215, 255, 0));
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 3px;
+  }
+
+  .info-row .label {
+    color: var(--text-dim);
+  }
+
+  .info-row .value {
+    color: var(--text-main);
+    text-align: right;
+  }
+
+  .formula-block {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+    font-family: "SFMono-Regular", "Consolas", monospace;
+    white-space: pre-line;
+    color: #dce8ff;
+  }
+
+  .hint-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(109, 215, 255, 0.08);
+    color: #dff4ff;
+  }
+
+  #side-panel {
+    top: 16px;
+    right: 16px;
+    width: min(39vw, 460px);
+    height: calc(100vh - 32px);
+    padding: 18px;
+    border-radius: 24px;
+    z-index: 9;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .panel-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .panel-subtitle {
+    margin-top: 4px;
+    color: var(--text-sub);
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+
+  #warning-chip {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(255, 118, 118, 0.12);
+    color: #ffd5d5;
+  }
+
+  .card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.035);
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .card h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  thead th {
+    color: var(--text-dim);
+    font-weight: 700;
+    padding: 0 0 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  tbody td {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-sub);
+  }
+
+  tbody tr.current td {
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 210px;
+  }
+
+  .chart-wrap.compact {
+    height: 170px;
+  }
+
+  canvas.chart {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .chart-caption {
+    margin-top: 8px;
+    color: var(--text-sub);
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+
+  .legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    color: var(--text-sub);
+    font-size: 11px;
+  }
+
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend i {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+  }
+
+  #metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .metric .label {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .metric .value {
+    margin-top: 4px;
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  .metric .sub {
+    margin-top: 2px;
+    font-size: 10.5px;
+    color: var(--text-sub);
+  }
+
+  .lil-gui {
+    --width: 320px;
+    z-index: 20 !important;
+  }
+
+  @media (max-width: 1100px) {
+    #side-panel {
+      width: min(46vw, 430px);
+    }
+
+    #formula-panel {
+      width: min(380px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 900px) {
+    #mode-pill,
+    #status-banner {
+      left: 14px;
+      transform: none;
+      min-width: auto;
+      max-width: calc(100vw - 28px);
+      text-align: left;
+    }
+
+    #mode-pill {
+      top: 70px;
+      font-size: 13px;
+    }
+
+    #status-banner {
+      top: 112px;
+      font-size: 12px;
+      border-radius: 18px;
+    }
+
+    #quick-actions {
+      top: 158px;
+      flex-wrap: wrap;
+    }
+
+    #side-panel {
+      top: auto;
+      right: 12px;
+      left: 12px;
+      bottom: 12px;
+      width: auto;
+      height: min(46vh, 420px);
+      padding: 14px;
+      overflow-y: auto;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      bottom: calc(min(46vh, 420px) + 24px);
+      width: auto;
+      padding: 15px 16px;
+    }
+
+    #guide-panel {
+      max-height: 50vh;
+    }
+
+    .lil-gui {
+      --width: min(290px, calc(100vw - 24px));
+      top: 12px !important;
+      right: 12px !important;
+      left: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="sim-canvas"></canvas>
+
+<div id="mode-pill" class="overlay">행성별 탈출 속도 비교</div>
+<div id="status-banner" class="overlay">탈출 속도는 v_esc = √(2GM/R)이며, 질량이 클수록 커지고 반지름이 작을수록 커집니다.</div>
+
+<button id="guide-toggle" aria-label="학습 가이드 열기">📖 학습 가이드</button>
+
+<div id="guide-panel" class="overlay">
+  <h3>핵심 원리</h3>
+  <p>탈출 속도 v_esc = √(2GM/R)는 천체의 질량이 크거나 반지름이 작을수록 커집니다. 탈출 속도가 빛의 속력보다 큰 천체가 블랙홀이며, 사건의 지평선 안에서는 빛조차 빠져나올 수 없습니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>지구의 탈출 속도 11.2km/s를 역학적 에너지 보존으로 유도해 보세요.</li>
+    <li>달의 탈출 속도가 지구보다 작은 까닭을 질량과 반지름으로 설명해 보세요.</li>
+    <li>태양이 블랙홀이 되려면 반지름이 얼마나 작아져야 하는지 슈바르츠실트 반지름으로 계산해 보세요.</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>로켓 발사체는 지구 중력을 이기기 위해 충분한 속도와 연료를 확보해야 합니다.</li>
+    <li>목성형 행성은 탈출 속도가 커서 가벼운 기체도 대기권에 오래 붙잡아 둘 수 있습니다.</li>
+    <li>블랙홀은 EHT의 관측, 별 궤도 분석, 중력파 관측을 통해 간접적으로 연구합니다.</li>
+  </ul>
+
+  <div class="ref">교과서 연계: 역학과 에너지 I편 p42~51 — 탈출 속도, 블랙홀, 사건의 지평선</div>
+</div>
+
+<div id="quick-actions">
+  <button id="launch-btn" class="action-btn primary" aria-label="발사">발사</button>
+  <button id="reset-btn" class="action-btn" aria-label="초기화">초기화</button>
+</div>
+
+<div id="formula-panel" class="overlay">
+  <div class="heading">🕳️ 탈출 속도와 블랙홀</div>
+  <div class="subheading">모드에 따라 탈출 속도, 에너지, 사건의 지평선을 함께 비교합니다.</div>
+  <div class="divider"></div>
+  <div id="formula-content"></div>
+</div>
+
+<aside id="side-panel" class="overlay">
+  <div>
+    <div class="panel-title" id="side-title">행성별 탈출 속도 비교</div>
+    <div class="panel-subtitle" id="side-subtitle">선택한 천체의 탈출 속도와 현재 발사 상태를 오른쪽 패널에서 함께 확인하세요.</div>
+    <div id="warning-chip" style="display:none;">⚠️ 블랙홀! 빛조차 탈출 불가</div>
+  </div>
+
+  <div id="metrics-grid"></div>
+
+  <div class="card">
+    <h3 id="table-title">천체별 탈출 속도 표</h3>
+    <div id="table-wrap"></div>
+  </div>
+
+  <div class="card">
+    <h3 id="chart1-title">탈출 속도 비교</h3>
+    <div class="chart-wrap">
+      <canvas id="chart-primary" class="chart"></canvas>
+    </div>
+    <div class="legend" id="chart1-legend"></div>
+  </div>
+
+  <div class="card">
+    <h3 id="chart2-title">에너지 다이어그램</h3>
+    <div class="chart-wrap compact">
+      <canvas id="chart-secondary" class="chart"></canvas>
+    </div>
+    <div class="chart-caption" id="chart-caption"></div>
+  </div>
+</aside>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const G = 6.67430e-11;
+const C = 299792458;
+const SOLAR_MASS = 1.98847e30;
+const PLANETARY_MODE = '행성별 탈출 속도';
+const BLACK_HOLE_MODE = '블랙홀';
+
+const bodies = {
+  earth: {
+    name: '지구',
+    mass: 5.97219e24,
+    radius: 6.371e6,
+    sceneRadius: 2,
+    color: 0x2266aa,
+    glow: 0x78b6ff,
+  },
+  moon: {
+    name: '달',
+    mass: 7.34767e22,
+    radius: 1.7374e6,
+    sceneRadius: 0.8,
+    color: 0xcccccc,
+    glow: 0xf0f0f0,
+  },
+  mars: {
+    name: '화성',
+    mass: 6.4171e23,
+    radius: 3.3895e6,
+    sceneRadius: 1.5,
+    color: 0xcc5533,
+    glow: 0xff9c77,
+  },
+  jupiter: {
+    name: '목성',
+    mass: 1.89813e27,
+    radius: 6.9911e7,
+    sceneRadius: 4,
+    color: 0xddaa66,
+    glow: 0xffdf9d,
+  },
+  sun: {
+    name: '태양',
+    mass: 1.98847e30,
+    radius: 6.9634e8,
+    sceneRadius: 5,
+    color: 0xffcc00,
+    glow: 0xffdf76,
+    emissive: 0x8c5c00,
+  },
+};
+
+Object.values(bodies).forEach((body) => {
+  body.mu = G * body.mass;
+  body.escapeVelocity = Math.sqrt((2 * body.mu) / body.radius);
+  body.surfaceGravity = body.mu / (body.radius * body.radius);
+});
+
+const elements = {
+  canvas: document.getElementById('sim-canvas'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  launchBtn: document.getElementById('launch-btn'),
+  resetBtn: document.getElementById('reset-btn'),
+  modePill: document.getElementById('mode-pill'),
+  statusBanner: document.getElementById('status-banner'),
+  formulaContent: document.getElementById('formula-content'),
+  sideTitle: document.getElementById('side-title'),
+  sideSubtitle: document.getElementById('side-subtitle'),
+  warningChip: document.getElementById('warning-chip'),
+  tableTitle: document.getElementById('table-title'),
+  tableWrap: document.getElementById('table-wrap'),
+  metricsGrid: document.getElementById('metrics-grid'),
+  chartPrimary: document.getElementById('chart-primary'),
+  chartSecondary: document.getElementById('chart-secondary'),
+  chart1Title: document.getElementById('chart1-title'),
+  chart2Title: document.getElementById('chart2-title'),
+  chart1Legend: document.getElementById('chart1-legend'),
+  chartCaption: document.getElementById('chart-caption'),
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000008);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(4.8, 3.6, 15.6);
+
+function canUseWebGL() {
+  const testCanvas = document.createElement('canvas');
+  return Boolean(
+    testCanvas.getContext('webgl2') ||
+    testCanvas.getContext('webgl') ||
+    testCanvas.getContext('experimental-webgl')
+  );
+}
+
+const webglAvailable = canUseWebGL();
+let renderer = null;
+let controls = null;
+
+if (webglAvailable) {
+  renderer = new THREE.WebGLRenderer({
+    canvas: elements.canvas,
+    antialias: true,
+    alpha: false,
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000008, 1);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.minDistance = 6;
+  controls.maxDistance = 32;
+  controls.target.set(-3, 0.8, 0);
+} else {
+  elements.canvas.style.display = 'none';
+  elements.statusBanner.textContent = '이 환경에서는 WebGL을 사용할 수 없어 3D 장면 대신 수식·비교 패널만 표시합니다.';
+}
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+const pointLight = new THREE.PointLight(0xffffff, 0.5, 100);
+pointLight.position.set(8, 10, 10);
+scene.add(ambientLight, pointLight);
+
+const rootGroup = new THREE.Group();
+scene.add(rootGroup);
+
+const starBackdrop = createStarBackdrop();
+scene.add(starBackdrop.points);
+
+const state = {
+  mode: PLANETARY_MODE,
+  bodyKey: 'earth',
+  launchSpeed: Number((bodies.earth.escapeVelocity / 1000).toFixed(2)),
+  blackHoleMassSolar: 10,
+  radiusFactor: 1.4,
+  showHorizon: true,
+  showDisk: true,
+  showLightTrails: true,
+  bodyScene: null,
+  planetSim: null,
+  blackHoleSim: null,
+};
+
+const params = {
+  mode: PLANETARY_MODE,
+  body: '지구',
+  launchSpeed: state.launchSpeed,
+  blackHoleMass: state.blackHoleMassSolar,
+  radiusFactor: state.radiusFactor,
+  showHorizon: state.showHorizon,
+  showDisk: state.showDisk,
+  showLightTrails: state.showLightTrails,
+  launch() {
+    if (state.mode === PLANETARY_MODE) {
+      startPlanetLaunch();
+    } else {
+      resetBlackHoleLightPath();
+    }
+  },
+  reset() {
+    resetSceneState();
+  },
+};
+
+const gui = new GUI({ title: '실험 제어' });
+const modeController = gui.add(params, 'mode', [PLANETARY_MODE, BLACK_HOLE_MODE]).name('모드');
+const bodyController = gui.add(params, 'body', Object.values(bodies).map((body) => body.name)).name('천체');
+const launchController = gui.add(params, 'launchSpeed', 0, bodies.earth.escapeVelocity * 1.5 / 1000, 0.01).name('발사 속도 (km/s)');
+const blackHoleMassController = gui.add(params, 'blackHoleMass', 1, 100, 0.1).name('블랙홀 질량 (M☉)');
+const radiusFactorController = gui.add(params, 'radiusFactor', 0.6, 3.0, 0.01).name('표면 반지름 (rₛ배)');
+const horizonController = gui.add(params, 'showHorizon').name('사건의 지평선 표시');
+const diskController = gui.add(params, 'showDisk').name('강착 원반 표시');
+const lightController = gui.add(params, 'showLightTrails').name('빛 궤적 표시');
+gui.add(params, 'launch').name('발사');
+gui.add(params, 'reset').name('초기화');
+
+modeController.onChange((value) => {
+  state.mode = value;
+  rebuildModeScene();
+});
+
+bodyController.onChange((value) => {
+  const match = Object.entries(bodies).find(([, body]) => body.name === value);
+  if (!match) return;
+  state.bodyKey = match[0];
+  updateLaunchSliderRange();
+  rebuildModeScene();
+});
+
+launchController.onChange((value) => {
+  state.launchSpeed = value;
+  if (state.planetSim && !state.planetSim.active) {
+    updatePanels();
+  }
+});
+
+blackHoleMassController.onChange((value) => {
+  state.blackHoleMassSolar = value;
+  rebuildModeScene();
+});
+
+radiusFactorController.onChange((value) => {
+  state.radiusFactor = value;
+  rebuildModeScene();
+});
+
+horizonController.onChange((value) => {
+  state.showHorizon = value;
+  if (state.blackHoleSim?.horizon) {
+    state.blackHoleSim.horizon.visible = value;
+  }
+  updatePanels();
+});
+
+diskController.onChange((value) => {
+  state.showDisk = value;
+  if (state.blackHoleSim?.disk) {
+    state.blackHoleSim.disk.visible = value;
+  }
+  updatePanels();
+});
+
+lightController.onChange((value) => {
+  state.showLightTrails = value;
+  if (state.blackHoleSim?.lightLine) {
+    state.blackHoleSim.lightLine.visible = value;
+    state.blackHoleSim.lightMesh.visible = value;
+  }
+  updatePanels();
+});
+
+function updateLaunchSliderRange() {
+  const body = bodies[state.bodyKey];
+  const max = body.escapeVelocity * 1.5 / 1000;
+  launchController.max(max);
+  if (state.launchSpeed > max) {
+    state.launchSpeed = max;
+    params.launchSpeed = max;
+  } else {
+    params.launchSpeed = state.launchSpeed;
+  }
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function setControllerVisibility(controller, visible) {
+  if (!controller || !controller.domElement) return;
+  controller.domElement.style.display = visible ? '' : 'none';
+}
+
+function syncGui() {
+  const planetary = state.mode === PLANETARY_MODE;
+  setControllerVisibility(bodyController, planetary);
+  setControllerVisibility(launchController, planetary);
+  setControllerVisibility(blackHoleMassController, !planetary);
+  setControllerVisibility(radiusFactorController, !planetary);
+  setControllerVisibility(horizonController, !planetary);
+  setControllerVisibility(diskController, !planetary);
+  setControllerVisibility(lightController, !planetary);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function createStarBackdrop() {
+  const count = 220;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    const radius = 28 + Math.random() * 40;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi) * 0.6;
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+
+    const tint = 0.75 + Math.random() * 0.25;
+    colors[i * 3] = tint;
+    colors[i * 3 + 1] = tint * (0.95 + Math.random() * 0.05);
+    colors[i * 3 + 2] = 1;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 0.18,
+    sizeAttenuation: true,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+  });
+
+  return {
+    points: new THREE.Points(geometry, material),
+  };
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => {
+        if (material.map) material.map.dispose();
+        if (material.emissiveMap) material.emissiveMap.dispose();
+        material.dispose();
+      });
+    }
+  });
+}
+
+function clearRootGroup() {
+  while (rootGroup.children.length) {
+    const child = rootGroup.children[rootGroup.children.length - 1];
+    rootGroup.remove(child);
+    disposeObject(child);
+  }
+  state.bodyScene = null;
+  state.planetSim = null;
+  state.blackHoleSim = null;
+}
+
+function createPlanetTexture(primaryColor, glowColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(160, 160, 36, 256, 256, 250);
+  gradient.addColorStop(0, `#${new THREE.Color(glowColor).getHexString()}`);
+  gradient.addColorStop(0.55, `#${new THREE.Color(primaryColor).getHexString()}`);
+  gradient.addColorStop(1, '#04040d');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 512, 512);
+
+  for (let i = 0; i < 80; i += 1) {
+    ctx.fillStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.05})`;
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const r = 8 + Math.random() * 28;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function mapRadiusToScene(body, radiusMeters) {
+  const ratio = Math.max(1, radiusMeters / body.radius);
+  return body.sceneRadius + Math.log2(ratio) * body.sceneRadius * 0.82;
+}
+
+function formatMass(value) {
+  if (value >= 1e30) return `${(value / 1e30).toFixed(3)} × 10^30`;
+  if (value >= 1e27) return `${(value / 1e27).toFixed(3)} × 10^27`;
+  if (value >= 1e24) return `${(value / 1e24).toFixed(3)} × 10^24`;
+  if (value >= 1e22) return `${(value / 1e22).toFixed(3)} × 10^22`;
+  return value.toExponential(3);
+}
+
+function formatDistanceMeters(value) {
+  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)} Gm`;
+  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)} Mm`;
+  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(2)} km`;
+  return `${value.toFixed(1)} m`;
+}
+
+function formatVelocity(value) {
+  if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(2)} km/s`;
+  return `${value.toFixed(1)} m/s`;
+}
+
+function formatRatio(value) {
+  return `${value.toFixed(2)}배`;
+}
+
+function createPlanetaryScene() {
+  const body = bodies[state.bodyKey];
+  const group = new THREE.Group();
+  group.position.set(-3.4, 0, 0);
+  rootGroup.add(group);
+
+  const bodyTexture = createPlanetTexture(body.color, body.glow);
+  const material = new THREE.MeshStandardMaterial({
+    map: bodyTexture,
+    color: body.color,
+    roughness: 0.95,
+    metalness: 0.02,
+    emissive: body.emissive || 0x000000,
+    emissiveIntensity: body.emissive ? 0.85 : 0,
+  });
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(body.sceneRadius, 56, 56),
+    material
+  );
+  group.add(sphere);
+
+  const atmosphere = new THREE.Mesh(
+    new THREE.SphereGeometry(body.sceneRadius * 1.035, 48, 48),
+    new THREE.MeshBasicMaterial({
+      color: body.glow,
+      transparent: true,
+      opacity: body.name === '달' ? 0.05 : 0.16,
+      side: THREE.DoubleSide,
+    })
+  );
+  group.add(atmosphere);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(body.sceneRadius * 1.05, 0.012, 8, 64),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+
+  const projectile = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.max(0.09, body.sceneRadius * 0.08), 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xf7f7ff,
+      emissive: 0x88ccff,
+      emissiveIntensity: 0.6,
+      roughness: 0.25,
+      metalness: 0.15,
+    })
+  );
+  group.add(projectile);
+
+  const launchDirection = new THREE.Vector3(0.18, 0.98, 0.1).normalize();
+  projectile.position.copy(launchDirection.clone().multiplyScalar(body.sceneRadius + 0.16));
+
+  const trailMaterial = new THREE.LineBasicMaterial({
+    color: 0xff7777,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const trailGeometry = new THREE.BufferGeometry().setFromPoints([projectile.position.clone()]);
+  const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+  group.add(trailLine);
+
+  const launchPad = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 0.22, 16),
+    new THREE.MeshStandardMaterial({ color: 0xa7c1ff, roughness: 0.5, metalness: 0.4 })
+  );
+  launchPad.position.copy(launchDirection.clone().multiplyScalar(body.sceneRadius + 0.02));
+  launchPad.lookAt(launchDirection.clone().multiplyScalar(body.sceneRadius + 1.2));
+  group.add(launchPad);
+
+  const pathGuide = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      launchDirection.clone().multiplyScalar(body.sceneRadius * 3.8),
+    ]),
+    new THREE.LineDashedMaterial({
+      color: 0x83b8ff,
+      dashSize: 0.2,
+      gapSize: 0.12,
+      transparent: true,
+      opacity: 0.5,
+    })
+  );
+  pathGuide.computeLineDistances();
+  group.add(pathGuide);
+
+  return {
+    group,
+    sphere,
+    atmosphere,
+    projectile,
+    trailLine,
+    trailMaterial,
+    trailPoints: [projectile.position.clone()],
+    launchDirection,
+    body,
+    active: false,
+    time: 0,
+    radiusMeters: body.radius,
+    velocity: 0,
+    launchSpeed: state.launchSpeed * 1000,
+    energy: 0,
+    maxRadiusApprox: body.radius,
+    landed: false,
+    classification: 'sub',
+  };
+}
+
+function classifyLaunch(body, launchSpeed) {
+  if (launchSpeed < body.escapeVelocity * 0.995) return 'sub';
+  if (launchSpeed > body.escapeVelocity * 1.005) return 'super';
+  return 'escape';
+}
+
+function startPlanetLaunch() {
+  if (!state.planetSim) return;
+  const sim = state.planetSim;
+  const body = sim.body;
+  const launchSpeed = state.launchSpeed * 1000;
+  const vEsc = body.escapeVelocity;
+  sim.active = true;
+  sim.time = 0;
+  sim.radiusMeters = body.radius;
+  sim.velocity = launchSpeed;
+  sim.launchSpeed = launchSpeed;
+  sim.energy = 0.5 * launchSpeed * launchSpeed - body.mu / body.radius;
+  sim.maxRadiusApprox = body.radius + (launchSpeed * launchSpeed) / (2 * body.surfaceGravity);
+  sim.landed = false;
+  sim.classification = classifyLaunch(body, launchSpeed);
+
+  const color = sim.classification === 'sub' ? 0xff7676 : sim.classification === 'escape' ? 0x7dfca8 : 0x7da6ff;
+  sim.trailMaterial.color.setHex(color);
+
+  sim.projectile.position.copy(sim.launchDirection.clone().multiplyScalar(body.sceneRadius + 0.16));
+  sim.trailPoints = [sim.projectile.position.clone()];
+  sim.trailLine.geometry.dispose();
+  sim.trailLine.geometry = new THREE.BufferGeometry().setFromPoints(sim.trailPoints);
+  updatePanels();
+}
+
+function resetPlanetState() {
+  if (!state.planetSim) return;
+  const sim = state.planetSim;
+  sim.active = false;
+  sim.time = 0;
+  sim.radiusMeters = sim.body.radius;
+  sim.velocity = 0;
+  sim.energy = 0;
+  sim.classification = classifyLaunch(sim.body, state.launchSpeed * 1000);
+  sim.projectile.position.copy(sim.launchDirection.clone().multiplyScalar(sim.body.sceneRadius + 0.16));
+  sim.trailPoints = [sim.projectile.position.clone()];
+  sim.trailLine.geometry.dispose();
+  sim.trailLine.geometry = new THREE.BufferGeometry().setFromPoints(sim.trailPoints);
+}
+
+function createDiskTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(256, 256, 40, 256, 256, 250);
+  gradient.addColorStop(0, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.36, 'rgba(255, 160, 72, 0.95)');
+  gradient.addColorStop(0.62, 'rgba(255, 68, 0, 0.72)');
+  gradient.addColorStop(0.9, 'rgba(255, 0, 68, 0.08)');
+  gradient.addColorStop(1, 'rgba(255, 0, 68, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 512, 512);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function createBlackHoleScene() {
+  const mass = state.blackHoleMassSolar * SOLAR_MASS;
+  const rs = (2 * G * mass) / (C * C);
+  const sceneRs = 0.9 + Math.sqrt(state.blackHoleMassSolar) * 0.24;
+  const currentRadius = rs * state.radiusFactor;
+
+  const group = new THREE.Group();
+  group.position.set(-3.6, 0.1, 0);
+  rootGroup.add(group);
+
+  const coreRadius = Math.max(0.42, sceneRs * 0.5);
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(coreRadius, 48, 48),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x030308,
+      roughness: 0.2,
+      transmission: 0,
+      metalness: 0.1,
+    })
+  );
+  group.add(core);
+
+  const horizon = new THREE.Mesh(
+    new THREE.SphereGeometry(sceneRs, 42, 42),
+    new THREE.MeshBasicMaterial({
+      color: 0x111122,
+      transparent: true,
+      opacity: 0.22,
+      wireframe: false,
+    })
+  );
+  horizon.visible = state.showHorizon;
+  group.add(horizon);
+
+  const diskTexture = createDiskTexture();
+  const disk = new THREE.Mesh(
+    new THREE.RingGeometry(sceneRs * 1.08, sceneRs * 3.0, 80, 1),
+    new THREE.MeshBasicMaterial({
+      map: diskTexture,
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.92,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  disk.rotation.x = Math.PI / 2.2;
+  disk.rotation.z = 0.35;
+  disk.visible = state.showDisk;
+  group.add(disk);
+
+  const secondaryDisk = disk.clone();
+  secondaryDisk.material = disk.material.clone();
+  secondaryDisk.scale.setScalar(1.04);
+  secondaryDisk.rotation.x = Math.PI / 2.2 + 0.08;
+  secondaryDisk.rotation.z = -0.18;
+  secondaryDisk.visible = state.showDisk;
+  group.add(secondaryDisk);
+
+  const emitterRadiusScene = sceneRs * state.radiusFactor;
+  const emitter = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 14, 14),
+    new THREE.MeshBasicMaterial({
+      color: 0xffef7a,
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+  group.add(emitter);
+
+  const lightGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(emitterRadiusScene, 0, 0)]);
+  const lightLine = new THREE.Line(
+    lightGeometry,
+    new THREE.LineBasicMaterial({
+      color: 0xffeb73,
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+  lightLine.visible = state.showLightTrails;
+  group.add(lightLine);
+
+  const lensField = createLensingField(sceneRs);
+  lensField.points.position.set(0, 0, -14);
+  group.add(lensField.points);
+
+  const bodyRing = new THREE.Mesh(
+    new THREE.TorusGeometry(emitterRadiusScene, 0.018, 12, 120),
+    new THREE.MeshBasicMaterial({
+      color: currentRadius <= rs ? 0xff7a7a : 0x7ddcff,
+      transparent: true,
+      opacity: 0.6,
+    })
+  );
+  bodyRing.rotation.x = Math.PI / 2;
+  group.add(bodyRing);
+
+  return {
+    group,
+    mass,
+    rs,
+    sceneRs,
+    currentRadius,
+    core,
+    horizon,
+    disk,
+    secondaryDisk,
+    emitter,
+    emitterRadiusScene,
+    lightLine,
+    lightMesh: emitter,
+    lightTrail: [new THREE.Vector3(emitterRadiusScene, 0, 0)],
+    lightMode: 'escape',
+    lightAngle: 0,
+    lightRadius: emitterRadiusScene,
+    lensField,
+    bodyRing,
+    time: 0,
+  };
+}
+
+function createLensingField(sceneRs) {
+  const count = 140;
+  const basePositions = new Float32Array(count * 3);
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    const x = THREE.MathUtils.randFloatSpread(16);
+    const y = THREE.MathUtils.randFloatSpread(10);
+    basePositions[i * 3] = x;
+    basePositions[i * 3 + 1] = y;
+    basePositions[i * 3 + 2] = 0;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = 0;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.92,
+  });
+  return {
+    sceneRs,
+    basePositions,
+    positions,
+    points: new THREE.Points(geometry, material),
+  };
+}
+
+function resetBlackHoleLightPath() {
+  if (!state.blackHoleSim) return;
+  const sim = state.blackHoleSim;
+  const ratio = state.radiusFactor;
+  sim.lightMode = ratio > 1.02 ? 'escape' : ratio < 0.98 ? 'capture' : 'orbit';
+  sim.lightAngle = 0;
+  sim.lightRadius = sim.emitterRadiusScene;
+  sim.lightTrail = [new THREE.Vector3(sim.emitterRadiusScene, 0, 0)];
+  sim.emitter.position.set(sim.emitterRadiusScene, 0, 0);
+  sim.lightLine.geometry.dispose();
+  sim.lightLine.geometry = new THREE.BufferGeometry().setFromPoints(sim.lightTrail);
+  sim.lightLine.visible = state.showLightTrails;
+  sim.emitter.visible = state.showLightTrails;
+}
+
+function rebuildModeScene() {
+  clearRootGroup();
+  if (state.mode === PLANETARY_MODE) {
+    state.bodyScene = createPlanetaryScene();
+    state.planetSim = state.bodyScene;
+    resetPlanetState();
+    if (controls) controls.target.set(-3.3, 0.4, 0);
+    camera.position.set(4.8, 3.6, 15.6);
+  } else {
+    state.bodyScene = createBlackHoleScene();
+    state.blackHoleSim = state.bodyScene;
+    resetBlackHoleLightPath();
+    if (controls) controls.target.set(-3.5, 0.3, 0);
+    camera.position.set(5.4, 4.4, 16.8);
+  }
+  syncGui();
+  if (controls) controls.update();
+  updatePanels();
+}
+
+function resetSceneState() {
+  if (state.mode === PLANETARY_MODE) {
+    resetPlanetState();
+  } else {
+    resetBlackHoleLightPath();
+  }
+  updatePanels();
+}
+
+function updatePlanetSimulation(delta) {
+  const sim = state.planetSim;
+  if (!sim || !sim.active) return;
+  const body = sim.body;
+  const timeScale = THREE.MathUtils.clamp(body.radius / Math.max(sim.launchSpeed, 1) / 2.1, 60, 1200);
+  const dt = delta * timeScale;
+
+  const acceleration = -body.mu / (sim.radiusMeters * sim.radiusMeters);
+  sim.velocity += acceleration * dt;
+  sim.radiusMeters += sim.velocity * dt;
+  sim.time += dt;
+
+  if (sim.radiusMeters <= body.radius) {
+    sim.radiusMeters = body.radius;
+    sim.velocity = 0;
+    sim.active = false;
+    sim.landed = true;
+  }
+
+  const sceneRadius = mapRadiusToScene(body, sim.radiusMeters);
+  sim.projectile.position.copy(sim.launchDirection.clone().multiplyScalar(sceneRadius));
+
+  const lastPoint = sim.trailPoints[sim.trailPoints.length - 1];
+  if (!lastPoint || lastPoint.distanceTo(sim.projectile.position) > 0.06) {
+    sim.trailPoints.push(sim.projectile.position.clone());
+    if (sim.trailPoints.length > 260) {
+      sim.trailPoints.shift();
+    }
+    sim.trailLine.geometry.dispose();
+    sim.trailLine.geometry = new THREE.BufferGeometry().setFromPoints(sim.trailPoints);
+  }
+
+  const tooFar = sim.classification !== 'sub' && sim.radiusMeters / body.radius > 320;
+  const escapeStalled = sim.classification === 'escape' && Math.abs(sim.velocity) < 20 && sim.time > 1.2e4;
+  if (tooFar || escapeStalled) {
+    sim.active = false;
+  }
+}
+
+function updateBlackHoleSimulation(delta) {
+  const sim = state.blackHoleSim;
+  if (!sim) return;
+  sim.time += delta;
+  sim.disk.rotation.z += delta * 0.7;
+  sim.secondaryDisk.rotation.z -= delta * 0.42;
+  sim.horizon.visible = state.showHorizon;
+  sim.disk.visible = state.showDisk;
+  sim.secondaryDisk.visible = state.showDisk;
+
+  const positions = sim.lensField.positions;
+  const base = sim.lensField.basePositions;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = base[i];
+    const y = base[i + 1];
+    const dist = Math.max(0.6, Math.hypot(x, y));
+    const strength = THREE.MathUtils.clamp((sim.sceneRs * sim.sceneRs) / (dist * 3.5), 0, 0.9);
+    const nx = x / dist;
+    const ny = y / dist;
+    const tangential = 0.12 * Math.sin(sim.time * 0.7 + dist);
+    positions[i] = x + nx * strength + ny * tangential;
+    positions[i + 1] = y + ny * strength - nx * tangential;
+    positions[i + 2] = 0;
+  }
+  sim.lensField.points.geometry.attributes.position.needsUpdate = true;
+
+  if (!state.showLightTrails) return;
+
+  if (sim.lightMode === 'escape') {
+    sim.lightRadius += delta * (1.7 + state.radiusFactor * 0.2);
+    sim.lightAngle += delta * 0.65 / Math.max(state.radiusFactor, 1.05);
+  } else if (sim.lightMode === 'orbit') {
+    sim.lightRadius = sim.sceneRs * 1.04;
+    sim.lightAngle += delta * 1.6;
+  } else {
+    sim.lightRadius = Math.max(sim.lightRadius - delta * 1.15, sim.sceneRs * 0.2);
+    sim.lightAngle += delta * 2.1;
+  }
+
+  const x = Math.cos(sim.lightAngle) * sim.lightRadius;
+  const z = Math.sin(sim.lightAngle) * sim.lightRadius;
+  const y = Math.sin(sim.time * 1.6) * 0.06;
+  sim.emitter.position.set(x, y, z);
+  sim.bodyRing.material.color.setHex(state.radiusFactor <= 1 ? 0xff7a7a : 0x7ddcff);
+
+  const last = sim.lightTrail[sim.lightTrail.length - 1];
+  if (!last || last.distanceTo(sim.emitter.position) > 0.08) {
+    sim.lightTrail.push(sim.emitter.position.clone());
+    if (sim.lightTrail.length > 220) {
+      sim.lightTrail.shift();
+    }
+    sim.lightLine.geometry.dispose();
+    sim.lightLine.geometry = new THREE.BufferGeometry().setFromPoints(sim.lightTrail);
+  }
+}
+
+function ensureCanvasSize(canvas) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.floor(canvas.clientWidth * dpr);
+  const height = Math.floor(canvas.clientHeight * dpr);
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  return { ctx: canvas.getContext('2d'), width, height, dpr };
+}
+
+function drawPlanetComparisonChart() {
+  const { ctx, width, height, dpr } = ensureCanvasSize(elements.chartPrimary);
+  const displayWidth = width / dpr;
+  const displayHeight = height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+  const list = Object.entries(bodies);
+  const max = Math.max(...list.map(([, body]) => body.escapeVelocity / 1000));
+  const chartHeight = displayHeight - 40;
+  const barWidth = displayWidth / list.length - 18;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = 18 + (chartHeight * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(displayWidth, y);
+    ctx.stroke();
+  }
+
+  list.forEach(([key, body], index) => {
+    const value = body.escapeVelocity / 1000;
+    const heightRatio = value / max;
+    const x = 9 + index * (barWidth + 18);
+    const h = chartHeight * heightRatio;
+    const y = chartHeight + 18 - h;
+    const highlight = key === state.bodyKey;
+    const color = highlight ? '#7ddcff' : '#6a8de0';
+    const gradient = ctx.createLinearGradient(0, y, 0, y + h);
+    gradient.addColorStop(0, highlight ? '#d9fbff' : '#96aaf5');
+    gradient.addColorStop(1, color);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, h);
+
+    ctx.fillStyle = highlight ? '#ffffff' : 'rgba(255,255,255,0.72)';
+    ctx.font = '600 10px Pretendard, sans-serif';
+    ctx.fillText(body.name, x, displayHeight - 8);
+    ctx.font = '700 10px Pretendard, sans-serif';
+    ctx.fillText(value.toFixed(1), x, y - 6);
+  });
+}
+
+function drawPlanetEnergyChart() {
+  const { ctx, width, height, dpr } = ensureCanvasSize(elements.chartSecondary);
+  const displayWidth = width / dpr;
+  const displayHeight = height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+  const sim = state.planetSim;
+  const body = bodies[state.bodyKey];
+  const launchSpeed = (sim?.active ? sim.launchSpeed : state.launchSpeed * 1000);
+  const radius = sim?.active ? sim.radiusMeters : body.radius;
+  const velocity = sim?.active ? Math.abs(sim.velocity) : launchSpeed;
+  const specificK = 0.5 * velocity * velocity;
+  const specificU = -body.mu / radius;
+  const specificE = specificK + specificU;
+  const values = [
+    { label: '운동', value: specificK, color: '#7ddcff' },
+    { label: '위치', value: specificU, color: '#ff9d76' },
+    { label: '총합', value: specificE, color: '#7dfca8' },
+  ];
+  const maxAbs = Math.max(...values.map((item) => Math.abs(item.value)), 1);
+  const midY = displayHeight * 0.54;
+  const baseX = 18;
+  const gap = 16;
+  const barWidth = (displayWidth - baseX * 2 - gap * 2) / 3;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.moveTo(0, midY);
+  ctx.lineTo(displayWidth, midY);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = '600 10px Pretendard, sans-serif';
+  ctx.fillText('0', 4, midY - 4);
+
+  values.forEach((item, index) => {
+    const scaled = (item.value / maxAbs) * (displayHeight * 0.34);
+    const x = baseX + index * (barWidth + gap);
+    const y = item.value >= 0 ? midY - scaled : midY;
+    const h = Math.abs(scaled);
+    ctx.fillStyle = item.color;
+    ctx.fillRect(x, y, barWidth, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 10px Pretendard, sans-serif';
+    ctx.fillText(item.label, x, displayHeight - 10);
+  });
+}
+
+function drawBlackHoleSpeedChart() {
+  const { ctx, width, height, dpr } = ensureCanvasSize(elements.chartPrimary);
+  const displayWidth = width / dpr;
+  const displayHeight = height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+  const mass = state.blackHoleMassSolar * SOLAR_MASS;
+  const rs = (2 * G * mass) / (C * C);
+  const radius = rs * state.radiusFactor;
+  const vEsc = Math.sqrt((2 * G * mass) / radius);
+  const max = Math.max(vEsc, C) * 1.12;
+  const bars = [
+    { label: 'v_esc', value: vEsc, color: vEsc > C ? '#ff7676' : '#7ddcff' },
+    { label: '빛의 속력 c', value: C, color: '#ffd66f' },
+  ];
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = 18 + ((displayHeight - 40) * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(displayWidth, y);
+    ctx.stroke();
+  }
+
+  const barWidth = 76;
+  bars.forEach((bar, index) => {
+    const x = 42 + index * 130;
+    const h = ((displayHeight - 42) * bar.value) / max;
+    const y = displayHeight - 18 - h;
+    const gradient = ctx.createLinearGradient(0, y, 0, y + h);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(1, bar.color);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, h);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 12px Pretendard, sans-serif';
+    ctx.fillText(bar.label, x - 6, displayHeight - 4);
+    ctx.font = '700 11px Pretendard, sans-serif';
+    ctx.fillText(`${(bar.value / 1000).toFixed(0)} km/s`, x - 6, y - 8);
+  });
+}
+
+function drawBlackHoleRadiusChart() {
+  const { ctx, width, height, dpr } = ensureCanvasSize(elements.chartSecondary);
+  const displayWidth = width / dpr;
+  const displayHeight = height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+  const ratio = state.radiusFactor;
+  const centerY = displayHeight * 0.55;
+  const left = 16;
+  const right = displayWidth - 16;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(left, centerY);
+  ctx.lineTo(right, centerY);
+  ctx.stroke();
+
+  const thresholdX = left + ((1 - 0.6) / (3.0 - 0.6)) * (right - left);
+  ctx.strokeStyle = 'rgba(255,118,118,0.8)';
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(thresholdX, 18);
+  ctx.lineTo(thresholdX, displayHeight - 18);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const x = left + ((ratio - 0.6) / (3.0 - 0.6)) * (right - left);
+  ctx.fillStyle = ratio <= 1 ? '#ff7676' : '#7ddcff';
+  ctx.beginPath();
+  ctx.arc(x, centerY, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 11px Pretendard, sans-serif';
+  ctx.fillText('0.6 rₛ', left, displayHeight - 8);
+  ctx.fillText('1.0 rₛ', thresholdX - 14, 14);
+  ctx.fillText('3.0 rₛ', right - 28, displayHeight - 8);
+  ctx.fillText(`현재 반지름: ${ratio.toFixed(2)} rₛ`, left, 18);
+
+  ctx.fillStyle = ratio <= 1 ? '#ffd2d2' : '#d8f6ff';
+  ctx.fillText(ratio <= 1 ? '사건의 지평선 안쪽으로 붕괴' : '빛이 빠져나갈 수 있는 바깥 영역', left, 36);
+}
+
+function updateMetricsGrid() {
+  if (state.mode === PLANETARY_MODE) {
+    const body = bodies[state.bodyKey];
+    const sim = state.planetSim;
+    const currentVelocity = sim?.active ? Math.abs(sim.velocity) : state.launchSpeed * 1000;
+    const currentHeight = sim ? Math.max(0, sim.radiusMeters - body.radius) : 0;
+    const currentEnergy = sim?.active
+      ? 0.5 * sim.velocity * sim.velocity - body.mu / sim.radiusMeters
+      : 0.5 * currentVelocity * currentVelocity - body.mu / body.radius;
+
+    elements.metricsGrid.innerHTML = `
+      <div class="metric">
+        <div class="label">선택 천체</div>
+        <div class="value">${body.name}</div>
+        <div class="sub">표면 중력 ${body.surfaceGravity.toFixed(2)} m/s²</div>
+      </div>
+      <div class="metric">
+        <div class="label">탈출 속도</div>
+        <div class="value">${(body.escapeVelocity / 1000).toFixed(2)} km/s</div>
+        <div class="sub">공식 v_esc = √(2GM/R)</div>
+      </div>
+      <div class="metric">
+        <div class="label">현재 속도</div>
+        <div class="value">${formatVelocity(currentVelocity)}</div>
+        <div class="sub">설정 v₀ = ${state.launchSpeed.toFixed(2)} km/s</div>
+      </div>
+      <div class="metric">
+        <div class="label">현재 높이</div>
+        <div class="value">${formatDistanceMeters(currentHeight)}</div>
+        <div class="sub">총 에너지 ${currentEnergy >= 0 ? '+' : ''}${(currentEnergy / 1e6).toFixed(2)} MJ/kg</div>
+      </div>
+    `;
+  } else {
+    const mass = state.blackHoleMassSolar * SOLAR_MASS;
+    const rs = (2 * G * mass) / (C * C);
+    const radius = rs * state.radiusFactor;
+    const vEsc = Math.sqrt((2 * G * mass) / radius);
+    elements.metricsGrid.innerHTML = `
+      <div class="metric">
+        <div class="label">질량</div>
+        <div class="value">${state.blackHoleMassSolar.toFixed(1)} M☉</div>
+        <div class="sub">${formatMass(mass)} kg</div>
+      </div>
+      <div class="metric">
+        <div class="label">슈바르츠실트 반지름</div>
+        <div class="value">${(rs / 1000).toFixed(2)} km</div>
+        <div class="sub">rₛ = 2GM/c²</div>
+      </div>
+      <div class="metric">
+        <div class="label">현재 반지름</div>
+        <div class="value">${(radius / 1000).toFixed(2)} km</div>
+        <div class="sub">${formatRatio(state.radiusFactor)} = ${state.radiusFactor.toFixed(2)} rₛ</div>
+      </div>
+      <div class="metric">
+        <div class="label">탈출 속도</div>
+        <div class="value">${formatVelocity(vEsc)}</div>
+        <div class="sub">빛의 속력 대비 ${(vEsc / C).toFixed(2)} c</div>
+      </div>
+    `;
+  }
+}
+
+function updateTable() {
+  if (state.mode === PLANETARY_MODE) {
+    elements.tableTitle.textContent = '천체별 탈출 속도 표';
+    const rows = Object.entries(bodies).map(([key, body]) => `
+      <tr class="${key === state.bodyKey ? 'current' : ''}">
+        <td>${body.name}</td>
+        <td>${(body.escapeVelocity / 1000).toFixed(1)} km/s</td>
+        <td>${body.surfaceGravity.toFixed(2)} m/s²</td>
+      </tr>
+    `).join('');
+    elements.tableWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>천체</th>
+            <th>탈출 속도</th>
+            <th>표면 중력</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  } else {
+    elements.tableTitle.textContent = '블랙홀 조건 비교';
+    const mass = state.blackHoleMassSolar * SOLAR_MASS;
+    const rs = (2 * G * mass) / (C * C);
+    const radius = rs * state.radiusFactor;
+    const vEsc = Math.sqrt((2 * G * mass) / radius);
+    elements.tableWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>항목</th>
+            <th>값</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>질량</td><td>${state.blackHoleMassSolar.toFixed(1)} M☉</td></tr>
+          <tr><td>현재 반지름</td><td>${(radius / 1000).toFixed(2)} km</td></tr>
+          <tr><td>슈바르츠실트 반지름</td><td>${(rs / 1000).toFixed(2)} km</td></tr>
+          <tr class="${vEsc >= C ? 'current' : ''}"><td>탈출 속도</td><td>${formatVelocity(vEsc)}</td></tr>
+          <tr><td>빛의 속력</td><td>${formatVelocity(C)}</td></tr>
+          <tr class="${radius <= rs ? 'current' : ''}"><td>상태</td><td>${radius <= rs ? '사건의 지평선 안쪽' : '사건의 지평선 바깥'}</td></tr>
+        </tbody>
+      </table>
+    `;
+  }
+}
+
+function updateFormulaPanel() {
+  if (state.mode === PLANETARY_MODE) {
+    const body = bodies[state.bodyKey];
+    const sim = state.planetSim;
+    const currentHeight = sim ? Math.max(0, sim.radiusMeters - body.radius) : 0;
+    const hMax = ((state.launchSpeed * 1000) ** 2) / (2 * body.surfaceGravity);
+    const escapeText = Object.values(bodies)
+      .sort((a, b) => a.escapeVelocity - b.escapeVelocity)
+      .map((item) => `${item.name}: ${(item.escapeVelocity / 1000).toFixed(1)}km/s`)
+      .join('\n');
+    const bodyRadius = formatDistanceMeters(body.radius);
+    const currentVelocity = sim?.active ? Math.abs(sim.velocity) : state.launchSpeed * 1000;
+    elements.formulaContent.innerHTML = `
+      <div class="info-row"><span class="label">모드</span><span class="value">행성별 탈출 속도</span></div>
+      <div class="info-row"><span class="label">천체</span><span class="value">${body.name}</span></div>
+      <div class="info-row"><span class="label">질량 M</span><span class="value">${formatMass(body.mass)} kg</span></div>
+      <div class="info-row"><span class="label">반지름 R</span><span class="value">${bodyRadius}</span></div>
+      <div class="info-row"><span class="label">탈출 속도</span><span class="value">${(body.escapeVelocity / 1000).toFixed(2)} km/s</span></div>
+      <div class="info-row"><span class="label">현재 속도</span><span class="value">${formatVelocity(currentVelocity)}</span></div>
+      <div class="info-row"><span class="label">현재 높이</span><span class="value">${formatDistanceMeters(currentHeight)}</span></div>
+      <div class="formula-block">탈출 속도:
+v_esc = √(2GM/R)
+천체: ${body.name}
+M = ${body.mass.toExponential(3)} kg
+R = ${body.radius.toExponential(3)} m
+v_esc = ${(body.escapeVelocity / 1000).toFixed(2)} km/s
+
+행성별 비교:
+${escapeText}
+
+근사 최대 높이:
+h_max ≈ v₀² / (2g)
+= ${formatDistanceMeters(hMax)}</div>
+      <div class="hint-box">질량이 클수록, 반지름이 작을수록 탈출 속도는 커집니다. 현재 설정이 탈출 속도보다 작으면 발사체가 다시 떨어지고, 같거나 크면 멀리 벗어납니다.</div>
+    `;
+  } else {
+    const mass = state.blackHoleMassSolar * SOLAR_MASS;
+    const rs = (2 * G * mass) / (C * C);
+    const radius = rs * state.radiusFactor;
+    const vEsc = Math.sqrt((2 * G * mass) / radius);
+    const relation = vEsc > C ? 'v_esc > c → 빛조차 탈출 불가' : Math.abs(vEsc - C) < C * 0.03 ? 'v_esc ≈ c → 사건의 지평선 경계' : 'v_esc < c → 빛이 탈출 가능';
+    elements.formulaContent.innerHTML = `
+      <div class="info-row"><span class="label">모드</span><span class="value">블랙홀</span></div>
+      <div class="info-row"><span class="label">질량 M</span><span class="value">${state.blackHoleMassSolar.toFixed(1)} M☉</span></div>
+      <div class="info-row"><span class="label">현재 반지름 R</span><span class="value">${(radius / 1000).toFixed(2)} km</span></div>
+      <div class="info-row"><span class="label">r_s</span><span class="value">${(rs / 1000).toFixed(2)} km</span></div>
+      <div class="info-row"><span class="label">탈출 속도</span><span class="value">${formatVelocity(vEsc)}</span></div>
+      <div class="info-row"><span class="label">빛의 속력</span><span class="value">${formatVelocity(C)}</span></div>
+      <div class="formula-block">블랙홀:
+v_esc = √(2GM/R)
+r_s = 2GM/c²
+
+질량 = ${(mass / SOLAR_MASS).toFixed(1)} M☉
+슈바르츠실트 반지름 = ${(rs / 1000).toFixed(2)} km
+현재 반지름 = ${(radius / 1000).toFixed(2)} km
+탈출 속도 = ${(vEsc / 1000).toFixed(0)} km/s
+
+${relation}</div>
+      <div class="hint-box">반지름이 정확히 r_s와 같아지는 순간이 사건의 지평선입니다. 그보다 더 안쪽으로 줄어들면 탈출 속도가 빛보다 커져 블랙홀이 됩니다.</div>
+    `;
+  }
+}
+
+function updateSideTexts() {
+  if (state.mode === PLANETARY_MODE) {
+    const body = bodies[state.bodyKey];
+    const sim = state.planetSim;
+    const classification = sim?.active ? sim.classification : classifyLaunch(body, state.launchSpeed * 1000);
+    const launchState = classification === 'sub'
+      ? '부족한 속도'
+      : classification === 'escape'
+        ? '임계 탈출'
+        : '충분한 속도';
+    elements.modePill.textContent = `행성별 탈출 속도 비교 · ${body.name}`;
+    elements.statusBanner.textContent = `${body.name}의 탈출 속도는 ${(body.escapeVelocity / 1000).toFixed(2)}km/s입니다. 현재 발사 속도 ${state.launchSpeed.toFixed(2)}km/s는 ${launchState} 상태입니다.`;
+    elements.sideTitle.textContent = '행성별 탈출 속도 비교';
+    elements.sideSubtitle.textContent = webglAvailable
+      ? '오른쪽 차트는 다섯 천체의 탈출 속도와 현재 발사체의 에너지 상태를 함께 보여줍니다.'
+      : '현재 환경에서는 3D 장면이 비활성화되어 있지만, 탈출 속도 비교와 에너지 해석은 계속 탐구할 수 있습니다.';
+    elements.chart1Title.textContent = '탈출 속도 비교';
+    elements.chart2Title.textContent = '에너지 다이어그램';
+    elements.chart1Legend.innerHTML = `
+      <span><i style="background:#7ddcff"></i>현재 선택 천체</span>
+      <span><i style="background:#6a8de0"></i>비선택 천체</span>
+    `;
+    const currentEnergy = sim?.active
+      ? 0.5 * sim.velocity * sim.velocity - body.mu / sim.radiusMeters
+      : 0.5 * (state.launchSpeed * 1000) ** 2 - body.mu / body.radius;
+    elements.chartCaption.textContent = `운동 에너지와 중력 위치 에너지를 단위질량당 값으로 비교했습니다. 총 에너지가 양수면 탈출, 음수면 다시 낙하합니다. 현재 총 에너지는 ${(currentEnergy / 1e6).toFixed(2)} MJ/kg입니다.`;
+    elements.warningChip.style.display = 'none';
+  } else {
+    const mass = state.blackHoleMassSolar * SOLAR_MASS;
+    const rs = (2 * G * mass) / (C * C);
+    const radius = rs * state.radiusFactor;
+    const vEsc = Math.sqrt((2 * G * mass) / radius);
+    const lightState = vEsc > C ? '블랙홀' : Math.abs(vEsc - C) < C * 0.03 ? '사건의 지평선 경계' : '빛 탈출 가능';
+    elements.modePill.textContent = `블랙홀 모드 · ${state.blackHoleMassSolar.toFixed(1)} M☉`;
+    elements.statusBanner.textContent = `현재 반지름은 ${state.radiusFactor.toFixed(2)} rₛ이며 탈출 속도는 ${(vEsc / 1000).toFixed(0)}km/s입니다. 상태: ${lightState}.`;
+    elements.sideTitle.textContent = '탈출 속도 vs 빛의 속력';
+    elements.sideSubtitle.textContent = webglAvailable
+      ? '질량과 반지름을 바꾸면 사건의 지평선과 빛의 탈출 가능 여부가 실시간으로 바뀝니다.'
+      : '3D 시각화는 비활성화되었지만, 질량·반지름 변화에 따른 사건의 지평선 계산은 계속 확인할 수 있습니다.';
+    elements.chart1Title.textContent = '탈출 속도와 c 비교';
+    elements.chart2Title.textContent = '반지름과 사건의 지평선';
+    elements.chart1Legend.innerHTML = `
+      <span><i style="background:#ff7676"></i>v_esc > c 이면 블랙홀</span>
+      <span><i style="background:#ffd66f"></i>빛의 속력 c</span>
+    `;
+    elements.chartCaption.textContent = `빨간 점선이 r = rₛ 경계입니다. 현재 반지름이 그 왼쪽으로 들어가면 사건의 지평선 안쪽이 되어 빛도 빠져나올 수 없습니다.`;
+    elements.warningChip.style.display = vEsc > C ? 'inline-flex' : 'none';
+  }
+}
+
+function updatePanels() {
+  updateSideTexts();
+  updateMetricsGrid();
+  updateTable();
+  updateFormulaPanel();
+  if (state.mode === PLANETARY_MODE) {
+    drawPlanetComparisonChart();
+    drawPlanetEnergyChart();
+  } else {
+    drawBlackHoleSpeedChart();
+    drawBlackHoleRadiusChart();
+  }
+}
+
+elements.guideToggle.addEventListener('click', () => {
+  const isOpen = elements.guidePanel.style.display === 'block';
+  elements.guidePanel.style.display = isOpen ? 'none' : 'block';
+  elements.guideToggle.textContent = isOpen ? '📖 학습 가이드' : '✕ 가이드 닫기';
+});
+
+elements.launchBtn.addEventListener('click', () => {
+  params.launch();
+});
+
+elements.resetBtn.addEventListener('click', () => {
+  params.reset();
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
+  updatePanels();
+});
+
+const clock = new THREE.Clock();
+let panelElapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  if (controls) controls.update();
+  if (state.mode === PLANETARY_MODE) {
+    updatePlanetSimulation(delta);
+  } else {
+    updateBlackHoleSimulation(delta);
+  }
+  panelElapsed += delta;
+  if (panelElapsed > 1 / 12) {
+    updatePanels();
+    panelElapsed = 0;
+  }
+  if (renderer) renderer.render(scene, camera);
+}
+
+rebuildModeScene();
+animate();
+</script>
+</body>
+</html>

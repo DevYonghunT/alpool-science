@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비가역 과정과 열역학 제2법칙 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --scene-bg: #eef0f5;
+    --panel-bg: rgba(10, 20, 36, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-shadow: 0 18px 40px rgba(11, 20, 34, 0.17);
+    --text-main: #f4f8ff;
+    --text-dim: rgba(244, 248, 255, 0.72);
+    --text-soft: rgba(244, 248, 255, 0.56);
+    --warn: #ff8a8a;
+    --ok: #93ffc2;
+    --hot: #ff7a62;
+    --cool: #7492ff;
+    --violet: #cca0ff;
+    --ink: #ff2c98;
+    --accent: #ff916e;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 15% 14%, rgba(255, 205, 156, 0.36), transparent 24%),
+      radial-gradient(circle at 84% 12%, rgba(155, 185, 255, 0.32), transparent 20%),
+      linear-gradient(180deg, #eff2f7 0%, #e7ecf4 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--panel-shadow);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(8, 16, 30, 0.88);
+    color: #ffffff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 39;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(72vh, 720px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    color: #d7e8ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffe0a2;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    width: min(620px, calc(100vw - 200px));
+    padding: 12px 18px 14px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.62;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 106px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 28;
+    width: min(640px, calc(100vw - 36px));
+    padding: 10px 16px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #ffffff;
+  }
+
+  #status-chip .mode-bad {
+    color: #ffd0d0;
+  }
+
+  #law-panel {
+    position: fixed;
+    top: 146px;
+    right: 14px;
+    z-index: 24;
+    width: min(380px, calc(100vw - 28px));
+    max-height: min(58vh, 540px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #law-panel h2 {
+    font-size: 20px;
+    color: #ffffff;
+  }
+
+  #law-panel .intro {
+    margin-top: 5px;
+    color: var(--text-dim);
+  }
+
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pill.active {
+    background: rgba(255, 145, 110, 0.18);
+    border-color: rgba(255, 145, 110, 0.3);
+  }
+
+  .diagram-card {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .flow-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .flow-row + .flow-row {
+    margin-top: 10px;
+  }
+
+  .flow-node {
+    padding: 10px 12px;
+    border-radius: 14px;
+    text-align: center;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .flow-node.hot {
+    background: linear-gradient(135deg, rgba(255, 120, 95, 0.9), rgba(255, 167, 102, 0.74));
+  }
+
+  .flow-node.cool {
+    background: linear-gradient(135deg, rgba(98, 124, 255, 0.85), rgba(140, 111, 255, 0.7));
+  }
+
+  .flow-arrow {
+    font-size: 22px;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .flow-arrow.blocked {
+    color: #ffb0b0;
+  }
+
+  .tag-line {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .tag-line strong {
+    color: #ffffff;
+  }
+
+  .mini-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .mini-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .mini-card h3 {
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .mini-card p {
+    color: var(--text-dim);
+  }
+
+  .mini-card.warn {
+    background: rgba(255, 102, 116, 0.1);
+  }
+
+  .divider {
+    height: 1px;
+    margin: 14px 0;
+    background: rgba(255, 255, 255, 0.11);
+  }
+
+  .law-note {
+    color: var(--text-dim);
+  }
+
+  .law-note strong {
+    color: #ffffff;
+  }
+
+  .engine-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .engine-cell {
+    padding: 12px 10px;
+    border-radius: 15px;
+    text-align: center;
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  .engine-cell.hot {
+    background: linear-gradient(135deg, rgba(255, 118, 85, 0.9), rgba(255, 188, 95, 0.72));
+  }
+
+  .engine-cell.work {
+    background: linear-gradient(135deg, rgba(88, 214, 138, 0.86), rgba(60, 191, 149, 0.72));
+  }
+
+  .engine-cell.cold {
+    background: linear-gradient(135deg, rgba(92, 141, 255, 0.86), rgba(154, 122, 255, 0.7));
+  }
+
+  .engine-track {
+    display: grid;
+    gap: 8px;
+  }
+
+  .engine-bar {
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .engine-fill {
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 24;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(42vh, 360px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  #formula-panel .mono-line {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.62);
+    letter-spacing: 0.08em;
+  }
+
+  #formula-panel .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+  }
+
+  #formula-panel .row strong {
+    color: #ffffff;
+    text-align: right;
+  }
+
+  #formula-panel .section-title {
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffe7b3;
+  }
+
+  #formula-panel .note {
+    margin-top: 8px;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .warn {
+    color: #ffd1d1;
+  }
+
+  #warning-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 26;
+    min-width: min(460px, calc(100vw - 32px));
+    max-width: min(560px, calc(100vw - 32px));
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: rgba(128, 17, 32, 0.86);
+    border: 1px solid rgba(255, 175, 175, 0.28);
+    box-shadow: 0 16px 34px rgba(96, 14, 26, 0.24);
+    color: #fff6f6;
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #warning-banner.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  .lil-gui.root {
+    position: fixed !important;
+    top: 14px;
+    right: 14px;
+    z-index: 42;
+  }
+
+  .lil-gui {
+    --background-color: rgba(12, 21, 36, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.12);
+    --focus-color: rgba(255, 145, 110, 0.48);
+    --text-color: #eff5ff;
+    --title-background-color: rgba(255, 255, 255, 0.08);
+    --number-color: #ffd08d;
+    --string-color: #9dd5ff;
+    --font-size: 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 16px 34px rgba(10, 17, 28, 0.2);
+  }
+
+  @media (max-width: 1080px) {
+    #title-card {
+      width: min(520px, calc(100vw - 36px));
+    }
+
+    #law-panel {
+      width: min(340px, calc(100vw - 28px));
+    }
+  }
+
+  @media (max-width: 860px) {
+    #title-card {
+      top: 56px;
+      width: min(560px, calc(100vw - 28px));
+    }
+
+    #status-chip {
+      top: 148px;
+      width: min(560px, calc(100vw - 28px));
+    }
+
+    #law-panel {
+      top: 190px;
+      left: 14px;
+      right: 14px;
+      width: auto;
+      max-height: min(31vh, 250px);
+    }
+
+    #formula-panel {
+      width: calc(100vw - 28px);
+      max-height: min(28vh, 240px);
+    }
+
+    #warning-banner {
+      min-width: 0;
+      width: calc(100vw - 28px);
+    }
+
+    .mini-grid,
+    .engine-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-card h1 {
+      font-size: 21px;
+    }
+
+    #title-card p,
+    #status-chip,
+    #guide-panel,
+    #law-panel,
+    #formula-panel {
+      font-size: 11px;
+    }
+
+    .lil-gui.root {
+      top: auto;
+      right: 10px;
+      bottom: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<section id="guide-panel" class="glass" aria-hidden="true">
+  <h3>비가역 과정 학습 가이드</h3>
+  <p>자연에서 자발적으로 일어나는 많은 과정은 한 방향으로만 진행되며, 그 역과정은 외부 도움 없이 저절로 일어나지 않습니다. 열역학 제2법칙은 이러한 방향성을 설명하는 대표적인 법칙입니다.</p>
+
+  <h4>핵심 원리</h4>
+  <p>열은 고온에서 저온으로 자발적으로 흐르지만 반대 방향은 외부에서 일을 공급해야 합니다. 기체의 자유 팽창, 잉크의 확산, 깨진 달걀처럼 무질서가 증가하는 방향이 자연스럽고, 역방향은 확률적으로 거의 일어나지 않습니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>커피에 설탕을 넣으면 저절로 퍼지지만 다시 한 점으로 모이지 않는 이유를 비가역 과정으로 설명해 보세요.</li>
+    <li>냉장고가 저온에서 고온으로 열을 이동시키는데도 열역학 제2법칙에 위배되지 않는 이유는 무엇일까요? 핵심은 외부에서 일을 공급한다는 점입니다.</li>
+    <li>열효율 100%인 열기관이 불가능한 까닭을 켈빈-플랑크 표현으로 정리해 보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>뜨거운 국이 식어 가는 과정</li>
+    <li>잉크나 향기가 공간 전체로 퍼지는 과정</li>
+    <li>얼음이 녹고 배터리가 방전되는 과정</li>
+    <li>냉장고, 에어컨처럼 외부 일이 필요한 열 이동 장치</li>
+  </ul>
+
+  <div class="ref-box">교과서 연계: 역학과 에너지 II편 p92~97 — 비가역 현상과 엔트로피, 열역학 제2법칙</div>
+</section>
+
+<section id="title-card" class="glass">
+  <div class="eyebrow">Mechanics & Energy · Thermodynamics</div>
+  <h1>비가역 과정과 열역학 제2법칙</h1>
+  <p>열 이동, 자유 팽창, 잉크 확산, 깨진 달걀 사례를 통해 자연스러운 변화의 방향과 역과정의 불가능성을 3D로 비교합니다.</p>
+</section>
+
+<div id="status-chip" class="glass"></div>
+<section id="law-panel" class="glass"></section>
+<section id="formula-panel" class="glass"></section>
+<div id="warning-banner"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const CASE_OPTIONS = {
+    heat: '열 이동',
+    expansion: '자유 팽창',
+    ink: '잉크 확산',
+    egg: '깨진 달걀'
+  };
+
+  const LAW_OPTIONS = {
+    clausius: '클라우지우스',
+    kelvin: '켈빈-플랑크'
+  };
+
+  const CASE_INFO = {
+    heat: {
+      index: '사례 1',
+      label: '열 이동',
+      accent: 0xff8d68,
+      forwardStatus: '두 금속 블록이 접촉하면 열은 고온에서 저온으로 자발적으로 이동합니다.',
+      completeStatus: '온도차가 줄어들며 두 블록은 같은 온도에 가까워집니다.',
+      blockedStatus: '저온 블록의 열이 고온 블록으로 저절로 되돌아가지는 않습니다.',
+      reverseQuestion: '저온 블록에서 고온 블록으로 열이 저절로 이동할 수 있을까요?',
+      clausiusLink: '이 사례는 클라우지우스 표현을 직접 보여 줍니다. 온도차는 스스로 평준화되지만 반대 방향은 외부 도움 없이 일어나지 않습니다.',
+      kelvinLink: '온도차는 일을 얻는 데 쓰일 수 있지만, 그 과정에서도 일부 열은 반드시 낮은 온도 쪽으로 방출되어야 합니다.',
+      camera: {
+        position: [6.7, 4.5, 7.8],
+        target: [0, 1.25, 0]
+      }
+    },
+    expansion: {
+      index: '사례 2',
+      label: '기체의 자유 팽창',
+      accent: 0x53c98f,
+      forwardStatus: '칸막이가 제거되면 기체 분자는 진공 쪽으로 자발적으로 퍼져 나갑니다.',
+      completeStatus: '기체 분자는 양쪽 공간에 고르게 퍼져 더 무질서한 상태가 됩니다.',
+      blockedStatus: '퍼진 기체가 한쪽 방으로 저절로 다시 모이지는 않습니다.',
+      reverseQuestion: '양쪽으로 퍼진 기체가 한쪽으로 저절로 모일 수 있을까요?',
+      clausiusLink: '자유 팽창은 엔트로피가 증가하는 대표적 비가역 과정입니다. 분자 분포가 넓어질수록 자연스럽습니다.',
+      kelvinLink: '열기관이 일을 하더라도 분자의 무질서와 에너지 분산은 완전히 되돌릴 수 없습니다.',
+      camera: {
+        position: [7.5, 4.7, 8.8],
+        target: [0, 1.35, 0]
+      }
+    },
+    ink: {
+      index: '사례 3',
+      label: '잉크의 확산',
+      accent: 0xff2f98,
+      forwardStatus: '잉크 입자는 브라운 운동으로 물 전체에 퍼져 나갑니다.',
+      completeStatus: '한 점에 모였던 잉크가 전체에 고르게 확산되어 되돌리기 어려운 상태가 됩니다.',
+      blockedStatus: '퍼진 잉크가 저절로 한 점에 다시 모이지는 않습니다.',
+      reverseQuestion: '퍼진 잉크 입자가 한 점으로 저절로 다시 모일 수 있을까요?',
+      clausiusLink: '확산은 무질서가 커지는 자발적 과정입니다. 농도 차이는 시간이 지날수록 사라집니다.',
+      kelvinLink: '에너지가 분산되면 모두를 다시 유용한 일로 돌려세우기 어렵다는 점에서도 제2법칙과 이어집니다.',
+      camera: {
+        position: [6.4, 4.8, 7.6],
+        target: [0, 1.45, 0]
+      }
+    },
+    egg: {
+      index: '사례 4',
+      label: '깨진 달걀',
+      accent: 0xf0c568,
+      forwardStatus: '탁자에서 떨어진 달걀은 바닥에서 깨지며 원래 모양을 잃습니다.',
+      completeStatus: '깨진 조각과 흘러나온 내용물은 자발적으로 원래 달걀 모양으로 복원되지 않습니다.',
+      blockedStatus: '깨진 달걀이 저절로 다시 원래 형태로 복원되지는 않습니다.',
+      reverseQuestion: '깨진 달걀이 저절로 다시 완전한 달걀로 돌아갈 수 있을까요?',
+      clausiusLink: '시간의 화살이 가장 직관적으로 드러나는 사례입니다. 에너지는 분산되고 구조는 쉽게 되돌아오지 않습니다.',
+      kelvinLink: '충격 과정에서 에너지는 소리, 열, 변형 에너지로 퍼지며 모두를 다시 유용한 일로 회수할 수 없습니다.',
+      camera: {
+        position: [7.8, 4.9, 8.8],
+        target: [0.3, 1.15, 0]
+      }
+    }
+  };
+
+  const dom = {
+    canvas: document.getElementById('scene-canvas'),
+    guideToggle: document.getElementById('guide-toggle'),
+    guidePanel: document.getElementById('guide-panel'),
+    statusChip: document.getElementById('status-chip'),
+    lawPanel: document.getElementById('law-panel'),
+    formulaPanel: document.getElementById('formula-panel'),
+    warningBanner: document.getElementById('warning-banner')
+  };
+
+  const params = {
+    case: CASE_OPTIONS.heat,
+    playForward() {
+      startForward();
+    },
+    playReverse() {
+      attemptReverse();
+    },
+    speed: 1,
+    law: LAW_OPTIONS.clausius,
+    reset() {
+      resetSimulation();
+    }
+  };
+
+  const state = {
+    caseKey: 'heat',
+    lawKey: 'clausius',
+    progress: 0,
+    mode: 'idle',
+    directionLabel: '정방향 대기',
+    statusText: CASE_INFO.heat.forwardStatus,
+    warningTimer: 0,
+    time: 0,
+    lawDirty: true
+  };
+
+  let currentCase = null;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xeef0f5);
+  scene.fog = new THREE.Fog(0xeef0f5, 12, 24);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+  camera.position.set(6.7, 4.5, 7.8);
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: dom.canvas,
+    antialias: true,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xeef0f5, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 4.5;
+  controls.maxDistance = 16;
+  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.target.set(0, 1.25, 0);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  directionalLight.position.set(5.2, 7.6, 5.4);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.mapSize.set(2048, 2048);
+  directionalLight.shadow.camera.near = 1;
+  directionalLight.shadow.camera.far = 24;
+  directionalLight.shadow.camera.left = -10;
+  directionalLight.shadow.camera.right = 10;
+  directionalLight.shadow.camera.top = 10;
+  directionalLight.shadow.camera.bottom = -6;
+  directionalLight.shadow.bias = -0.00014;
+  scene.add(directionalLight);
+
+  const staticRoot = new THREE.Group();
+  const contentRoot = new THREE.Group();
+  scene.add(staticRoot, contentRoot);
+
+  const stage = buildStage();
+  const reverseBadge = buildReverseBadge();
+
+  const gui = new GUI({ title: '비가역 과정 제어' });
+  gui.add(params, 'case', Object.values(CASE_OPTIONS)).name('사례').onChange((value) => {
+    setCase(optionKeyFromLabel(CASE_OPTIONS, value, 'heat'));
+  });
+  gui.add(params, 'playForward').name('정방향 재생');
+  gui.add(params, 'playReverse').name('역방향 재생');
+  gui.add(params, 'speed', 0.5, 3, 0.1).name('재생 속도');
+  gui.add(params, 'law', Object.values(LAW_OPTIONS)).name('열역학 제2법칙').onChange((value) => {
+    state.lawKey = optionKeyFromLabel(LAW_OPTIONS, value, 'clausius');
+    state.lawDirty = true;
+    syncGui();
+  });
+  gui.add(params, 'reset').name('초기화');
+
+  const clock = new THREE.Clock();
+
+  dom.guideToggle.addEventListener('click', () => {
+    const open = dom.guidePanel.classList.toggle('open');
+    dom.guidePanel.setAttribute('aria-hidden', String(!open));
+  });
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function easeInOut(t) {
+    return 0.5 - Math.cos(Math.PI * clamp(t, 0, 1)) * 0.5;
+  }
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  }
+
+  function easeOutBack(t) {
+    const x = clamp(t, 0, 1);
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+  }
+
+  function optionKeyFromLabel(options, value, fallback) {
+    return Object.entries(options).find(([, label]) => label === value)?.[0] ?? fallback;
+  }
+
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return () => {
+      t += 0x6d2b79f5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function setShadow(mesh) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    if (material.map) material.map.dispose();
+    if (material.alphaMap) material.alphaMap.dispose();
+    if (material.emissiveMap) material.emissiveMap.dispose();
+    material.dispose();
+  }
+
+  function disposeObject(root) {
+    root.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) disposeMaterial(child.material);
+    });
+  }
+
+  function clearGroup(group) {
+    while (group.children.length) {
+      const child = group.children[group.children.length - 1];
+      if (!child) continue;
+      group.remove(child);
+      disposeObject(child);
+    }
+  }
+
+  function createArrow(start, end, color) {
+    const direction = new THREE.Vector3().subVectors(end, start);
+    const arrow = new THREE.ArrowHelper(direction.clone().normalize(), start, direction.length(), color, 0.28, 0.16);
+    arrow.line.material.transparent = true;
+    arrow.line.material.opacity = 0.5;
+    arrow.cone.material.transparent = true;
+    arrow.cone.material.opacity = 0.72;
+    return arrow;
+  }
+
+  function buildStage() {
+    const group = new THREE.Group();
+    staticRoot.add(group);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(8.8, 88),
+      new THREE.MeshStandardMaterial({
+        color: 0xdfe5ee,
+        roughness: 0.92,
+        metalness: 0.02
+      })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    group.add(floor);
+
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.9, 5.4, 0.34, 64),
+      new THREE.MeshStandardMaterial({
+        color: 0xc8d2df,
+        roughness: 0.88,
+        metalness: 0.06
+      })
+    );
+    pedestal.position.y = 0.08;
+    pedestal.receiveShadow = true;
+    group.add(pedestal);
+
+    const stagePlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.2, 4.45, 0.18, 64),
+      new THREE.MeshStandardMaterial({
+        color: 0xf6f9ff,
+        roughness: 0.48,
+        metalness: 0.08
+      })
+    );
+    stagePlate.position.y = 0.28;
+    stagePlate.receiveShadow = true;
+    group.add(stagePlate);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(4.6, 0.06, 18, 92),
+      new THREE.MeshBasicMaterial({
+        color: 0xff916e,
+        transparent: true,
+        opacity: 0.24
+      })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.37;
+    group.add(ring);
+
+    const halo = new THREE.Mesh(
+      new THREE.CircleGeometry(2.8, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xffdab5,
+        transparent: true,
+        opacity: 0.18
+      })
+    );
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.y = 0.39;
+    group.add(halo);
+
+    const backdrop = new THREE.Mesh(
+      new THREE.CircleGeometry(3.2, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.34
+      })
+    );
+    backdrop.position.set(0, 4.8, -6.1);
+    group.add(backdrop);
+
+    return { ring, halo, backdrop };
+  }
+
+  function buildReverseBadge() {
+    const group = new THREE.Group();
+    group.visible = false;
+    group.position.set(0, 3.4, 0);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.48, 0.045, 16, 56),
+      new THREE.MeshBasicMaterial({
+        color: 0xff5568,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    const barA = new THREE.Mesh(
+      new THREE.BoxGeometry(0.78, 0.08, 0.08),
+      new THREE.MeshBasicMaterial({
+        color: 0xff5568,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    const barB = barA.clone();
+    barA.rotation.z = Math.PI / 4;
+    barB.rotation.z = -Math.PI / 4;
+    group.add(ring, barA, barB);
+    staticRoot.add(group);
+    return group;
+  }
+
+  function setCaseAccent(caseKey) {
+    const accent = CASE_INFO[caseKey].accent;
+    stage.ring.material.color.setHex(accent);
+    stage.halo.material.color.setHex(accent);
+  }
+
+  function applyCameraPreset(caseKey) {
+    const preset = CASE_INFO[caseKey].camera;
+    camera.position.set(...preset.position);
+    controls.target.set(...preset.target);
+    controls.update();
+  }
+
+  function buildCase(caseKey) {
+    switch (caseKey) {
+      case 'heat':
+        return createHeatTransferCase(contentRoot);
+      case 'expansion':
+        return createExpansionCase(contentRoot);
+      case 'ink':
+        return createInkDiffusionCase(contentRoot);
+      case 'egg':
+        return createBrokenEggCase(contentRoot);
+      default:
+        return createHeatTransferCase(contentRoot);
+    }
+  }
+
+  function setCase(caseKey) {
+    state.caseKey = caseKey;
+    params.case = CASE_OPTIONS[caseKey];
+    state.progress = 0;
+    state.mode = 'idle';
+    state.directionLabel = '정방향 대기';
+    state.statusText = CASE_INFO[caseKey].forwardStatus;
+    state.warningTimer = 0;
+    state.lawDirty = true;
+
+    if (currentCase) {
+      currentCase.dispose();
+    }
+    clearGroup(contentRoot);
+    currentCase = buildCase(caseKey);
+    currentCase.reset();
+    setCaseAccent(caseKey);
+    applyCameraPreset(caseKey);
+    syncGui();
+    renderLawPanel();
+    renderStatusChip();
+    renderFormulaPanel();
+    renderWarning();
+  }
+
+  function startForward() {
+    if (!currentCase) return;
+    state.progress = 0;
+    state.mode = 'forward';
+    state.directionLabel = '정방향(자발적)';
+    state.statusText = CASE_INFO[state.caseKey].forwardStatus;
+    state.warningTimer = 0;
+    currentCase.reset();
+    syncGui();
+  }
+
+  function attemptReverse() {
+    if (!currentCase) return;
+    state.progress = 1;
+    currentCase.update(1, 0, state);
+    state.mode = 'blocked';
+    state.directionLabel = '역방향(불가)';
+    state.statusText = CASE_INFO[state.caseKey].blockedStatus;
+    state.warningTimer = 2.8;
+    renderStatusChip();
+    renderFormulaPanel();
+    renderWarning();
+  }
+
+  function resetSimulation() {
+    if (!currentCase) return;
+    state.progress = 0;
+    state.mode = 'idle';
+    state.directionLabel = '정방향 대기';
+    state.statusText = CASE_INFO[state.caseKey].forwardStatus;
+    state.warningTimer = 0;
+    currentCase.reset();
+    syncGui();
+    renderStatusChip();
+    renderFormulaPanel();
+    renderWarning();
+  }
+
+  function syncGui() {
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function renderStatusChip() {
+    const info = CASE_INFO[state.caseKey];
+    const bad = state.mode === 'blocked' ? 'mode-bad' : '';
+    dom.statusChip.innerHTML = `<strong>${info.index} · ${info.label}</strong> <span class="${bad}">${state.statusText}</span>`;
+  }
+
+  function renderLawPanel() {
+    const info = CASE_INFO[state.caseKey];
+    const lawLabel = LAW_OPTIONS[state.lawKey];
+    const summary = state.lawKey === 'clausius'
+      ? '열은 고온 물체에서 저온 물체로 자발적으로 흐르지만, 저온에서 고온으로 저절로 흐르지는 않습니다.'
+      : '열기관은 고온 열원에서 받은 열 일부만 일을 만들고, 나머지는 반드시 저온 열원으로 방출합니다.';
+
+    const relation = state.lawKey === 'clausius' ? info.clausiusLink : info.kelvinLink;
+
+    const diagram = state.lawKey === 'clausius'
+      ? `
+        <div class="diagram-card">
+          <div class="flow-row">
+            <div class="flow-node hot">고온 물체</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node cool">저온 물체</div>
+          </div>
+          <div class="tag-line"><strong>자발적:</strong> 고온 → 저온 흐름은 자연스럽게 진행됩니다.</div>
+          <div class="flow-row" style="margin-top: 14px;">
+            <div class="flow-node cool">저온 물체</div>
+            <div class="flow-arrow blocked">↛</div>
+            <div class="flow-node hot">고온 물체</div>
+          </div>
+          <div class="tag-line"><strong>불가:</strong> 저온 → 고온 흐름은 외부 일 없이 일어나지 않습니다.</div>
+        </div>
+      `
+      : `
+        <div class="diagram-card">
+          <div class="engine-grid">
+            <div class="engine-cell hot">Q<sub>H</sub><br>고온 열원</div>
+            <div class="engine-cell work">W<br>유용한 일</div>
+            <div class="engine-cell cold">Q<sub>L</sub><br>저온 열원</div>
+          </div>
+          <div class="engine-track">
+            <div class="engine-bar"><div class="engine-fill" style="width:100%; background: linear-gradient(90deg, rgba(255,120,85,0.95), rgba(255,189,96,0.86));"></div></div>
+            <div class="engine-bar"><div class="engine-fill" style="width:62%; background: linear-gradient(90deg, rgba(85,214,147,0.95), rgba(57,186,160,0.86));"></div></div>
+            <div class="engine-bar"><div class="engine-fill" style="width:38%; background: linear-gradient(90deg, rgba(102,142,255,0.95), rgba(161,121,255,0.86));"></div></div>
+          </div>
+          <div class="tag-line"><strong>핵심:</strong> Q<sub>L</sub>은 항상 0보다 커야 하므로 효율 100% 열기관은 불가능합니다.</div>
+        </div>
+      `;
+
+    dom.lawPanel.innerHTML = `
+      <div class="pill-row">
+        <span class="pill">${info.index}</span>
+        <span class="pill">${info.label}</span>
+        <span class="pill active">${lawLabel} 표현</span>
+      </div>
+      <h2>열역학 제2법칙 해설</h2>
+      <p class="intro">${summary}</p>
+      ${diagram}
+      <div class="mini-grid">
+        <article class="mini-card">
+          <h3>자발적 진행</h3>
+          <p>${info.forwardStatus}</p>
+        </article>
+        <article class="mini-card warn">
+          <h3>역방향 시도</h3>
+          <p>${info.reverseQuestion} 따라서 ${info.blockedStatus}</p>
+        </article>
+      </div>
+      <div class="divider"></div>
+      <p class="law-note"><strong>${lawLabel}와 현재 사례 연결:</strong> ${relation}</p>
+    `;
+
+    state.lawDirty = false;
+  }
+
+  function renderFormulaPanel() {
+    const info = CASE_INFO[state.caseKey];
+    const readout = currentCase?.getReadout() ?? {
+      label: '상태',
+      value: '대기',
+      detail: '정방향 재생을 눌러 비가역 과정을 시작하세요.'
+    };
+
+    dom.formulaPanel.innerHTML = `
+      <h2>🔄 비가역 과정과 열역학 제2법칙</h2>
+      <div class="mono-line">━━━━━━━━━━━━━━━━━━━</div>
+      <div class="row"><span>사례</span><strong>${info.label}</strong></div>
+      <div class="row"><span>방향</span><strong class="${state.mode === 'blocked' ? 'warn' : ''}">${state.directionLabel}</strong></div>
+      <div class="row"><span>진행률</span><strong>${Math.round(state.progress * 100)}%</strong></div>
+      <div class="row"><span>${readout.label}</span><strong>${readout.value}</strong></div>
+      <div class="divider"></div>
+      <div class="section-title">비가역 과정</div>
+      <p>자발적으로 한 방향으로만 진행되고, 역과정은 외부 개입 없이 저절로 일어나지 않습니다.</p>
+      <div class="section-title">열역학 제2법칙</div>
+      <p>클라우지우스: 열은 저온 물체에서 고온 물체로 저절로 흐르지 않는다.</p>
+      <p>켈빈-플랑크: 열을 모두 일로 전환하는 효율 100% 열기관은 불가능하다.</p>
+      <p class="note">${readout.detail}</p>
+    `;
+  }
+
+  function renderWarning() {
+    const info = CASE_INFO[state.caseKey];
+    const visible = state.warningTimer > 0 || state.mode === 'blocked';
+    dom.warningBanner.classList.toggle('visible', visible);
+    dom.warningBanner.textContent = `❌ ${info.blockedStatus} 자연에서 자발적으로 일어나는 과정은 한 방향으로만 진행됩니다.`;
+  }
+
+  function resizeRenderer() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    camera.aspect = width / Math.max(height, 1);
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+  }
+
+  function createWireBox(width, height, depth, color) {
+    return new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(width, height, depth)),
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.64
+      })
+    );
+  }
+
+  function createHeatTransferCase(root) {
+    const group = new THREE.Group();
+    root.add(group);
+
+    const metrics = {
+      hotTemp: 80,
+      coldTemp: 20
+    };
+
+    const platform = setShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 0.16, 2.4),
+      new THREE.MeshStandardMaterial({
+        color: 0x4b5b70,
+        roughness: 0.84,
+        metalness: 0.16
+      })
+    ));
+    platform.position.set(0, 0.48, 0);
+    group.add(platform);
+
+    const hotMat = new THREE.MeshStandardMaterial({
+      color: 0xff4444,
+      roughness: 0.34,
+      metalness: 0.22,
+      emissive: 0x6a1a12,
+      emissiveIntensity: 0.52
+    });
+    const coldMat = new THREE.MeshStandardMaterial({
+      color: 0x4444ff,
+      roughness: 0.34,
+      metalness: 0.22,
+      emissive: 0x17225e,
+      emissiveIntensity: 0.48
+    });
+
+    const hotBlock = setShadow(new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1), hotMat));
+    hotBlock.position.set(-0.82, 1.07, 0);
+    const coldBlock = setShadow(new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 1), coldMat));
+    coldBlock.position.set(0.82, 1.07, 0);
+    group.add(hotBlock, coldBlock);
+
+    const bridge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.86, 1.04),
+      new THREE.MeshBasicMaterial({
+        color: 0xffc188,
+        transparent: true,
+        opacity: 0.16
+      })
+    );
+    bridge.position.set(0, 1.07, 0);
+    group.add(bridge);
+
+    const hotGaugeShell = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 1.16, 0.16),
+      new THREE.MeshStandardMaterial({
+        color: 0xdbe5f3,
+        roughness: 0.42,
+        metalness: 0.1
+      })
+    );
+    hotGaugeShell.position.set(-1.95, 1.08, 0.62);
+    const coldGaugeShell = hotGaugeShell.clone();
+    coldGaugeShell.position.set(1.95, 1.08, 0.62);
+    const hotGauge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 1, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0xff725c })
+    );
+    hotGauge.position.set(-1.95, 0.68, 0.62);
+    const coldGauge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 1, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0x7187ff })
+    );
+    coldGauge.position.set(1.95, 0.68, 0.62);
+    group.add(hotGaugeShell, coldGaugeShell, hotGauge, coldGauge);
+
+    const allowArrow = createArrow(new THREE.Vector3(-1.5, 2.12, 0), new THREE.Vector3(1.4, 2.12, 0), 0xff9468);
+    const blockedArrow = createArrow(new THREE.Vector3(1.5, 2.42, 0), new THREE.Vector3(-1.4, 2.42, 0), 0xff5872);
+    group.add(allowArrow, blockedArrow);
+
+    const particles = [];
+    for (let i = 0; i < 18; i += 1) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.055, 18, 18),
+        new THREE.MeshStandardMaterial({
+          color: 0xffac7c,
+          emissive: 0xff7330,
+          emissiveIntensity: 1.2,
+          roughness: 0.18,
+          metalness: 0
+        })
+      );
+      particle.castShadow = false;
+      particle.userData.offset = i / 18;
+      particle.userData.phase = i * 0.63;
+      particle.userData.y = ((i % 6) - 2.5) * 0.13;
+      particle.userData.z = ((Math.floor(i / 6) % 3) - 1) * 0.18;
+      group.add(particle);
+      particles.push(particle);
+    }
+
+    function reset() {
+      metrics.hotTemp = 80;
+      metrics.coldTemp = 20;
+      hotMat.color.setHex(0xff4444);
+      coldMat.color.setHex(0x4444ff);
+      bridge.material.opacity = 0.16;
+      blockedArrow.visible = false;
+      hotGauge.scale.y = 0.95;
+      coldGauge.scale.y = 0.35;
+      hotGauge.position.y = 0.68 + hotGauge.scale.y * 0.5;
+      coldGauge.position.y = 0.68 + coldGauge.scale.y * 0.5;
+      for (const particle of particles) {
+        particle.position.set(-1.1 + particle.userData.offset * 0.44, 1.06 + particle.userData.y, particle.userData.z);
+      }
+    }
+
+    function update(progress, delta, appState) {
+      const t = easeInOut(progress);
+      metrics.hotTemp = lerp(80, 50, t);
+      metrics.coldTemp = lerp(20, 50, t);
+
+      hotMat.color.setHex(0xff4444).lerp(new THREE.Color(0xcaa3ff), t);
+      coldMat.color.setHex(0x4444ff).lerp(new THREE.Color(0xcaa3ff), t);
+      hotMat.emissive.setHex(0x6a1a12).lerp(new THREE.Color(0x63326e), t * 0.8);
+      coldMat.emissive.setHex(0x17225e).lerp(new THREE.Color(0x63326e), t * 0.8);
+      bridge.material.opacity = 0.16 + 0.3 * t;
+
+      allowArrow.line.material.opacity = 0.25 + 0.34 * t;
+      allowArrow.cone.material.opacity = 0.4 + 0.4 * t;
+
+      blockedArrow.visible = appState.mode === 'blocked';
+      blockedArrow.line.material.opacity = appState.mode === 'blocked' ? 0.28 + 0.36 * (0.5 + 0.5 * Math.sin(state.time * 10)) : 0;
+      blockedArrow.cone.material.opacity = appState.mode === 'blocked' ? 0.48 + 0.32 * (0.5 + 0.5 * Math.sin(state.time * 10)) : 0;
+
+      const hotLevel = 0.35 + ((metrics.hotTemp - 20) / 60) * 0.75;
+      const coldLevel = 0.35 + ((metrics.coldTemp - 20) / 60) * 0.75;
+      hotGauge.scale.y = hotLevel;
+      coldGauge.scale.y = coldLevel;
+      hotGauge.position.y = 0.68 + hotLevel * 0.5;
+      coldGauge.position.y = 0.68 + coldLevel * 0.5;
+
+      hotBlock.position.x = -0.82 + (appState.mode === 'blocked' ? Math.sin(state.time * 8) * 0.03 : 0);
+      coldBlock.position.x = 0.82 - (appState.mode === 'blocked' ? Math.sin(state.time * 8) * 0.03 : 0);
+
+      for (const particle of particles) {
+        const localT = clamp((progress * 1.45 - particle.userData.offset) / 0.62, 0, 1);
+        const eased = easeInOut(localT);
+        const x = lerp(-1.04 + particle.userData.offset * 0.28, 1.02 - particle.userData.offset * 0.18, eased);
+        const y = 1.07 + particle.userData.y + Math.sin(state.time * 5 + particle.userData.phase) * 0.045;
+        const z = particle.userData.z + Math.cos(state.time * 4 + particle.userData.phase) * 0.05;
+        particle.position.set(x, y, z);
+      }
+    }
+
+    function getReadout() {
+      return {
+        label: '블록 온도',
+        value: `고온 ${metrics.hotTemp.toFixed(1)}°C / 저온 ${metrics.coldTemp.toFixed(1)}°C`,
+        detail: '접촉 후 열은 고온 블록에서 저온 블록으로 이동하며, 결국 두 블록은 같은 온도에 가까워집니다.'
+      };
+    }
+
+    return {
+      duration: 4.4,
+      reset,
+      update,
+      getReadout,
+      dispose() {
+        root.remove(group);
+        disposeObject(group);
+      }
+    };
+  }
+
+  function createExpansionCase(root) {
+    const group = new THREE.Group();
+    root.add(group);
+
+    const metrics = {
+      leftCount: 30,
+      rightCount: 0
+    };
+
+    const base = setShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(5.4, 0.18, 2.8),
+      new THREE.MeshStandardMaterial({
+        color: 0x506274,
+        roughness: 0.82,
+        metalness: 0.14
+      })
+    ));
+    base.position.set(0, 0.5, 0);
+    group.add(base);
+
+    const leftPad = new THREE.Mesh(
+      new THREE.BoxGeometry(2.3, 0.02, 2.3),
+      new THREE.MeshBasicMaterial({
+        color: 0x54cf8a,
+        transparent: true,
+        opacity: 0.14
+      })
+    );
+    leftPad.position.set(-1.25, 0.6, 0);
+    const rightPad = leftPad.clone();
+    rightPad.material = leftPad.material.clone();
+    rightPad.material.color.setHex(0x7ea8ff);
+    rightPad.position.set(1.25, 0.6, 0);
+    group.add(leftPad, rightPad);
+
+    const chamber = createWireBox(5.2, 2.4, 2.3, 0x7d91ab);
+    chamber.position.set(0, 1.8, 0);
+    group.add(chamber);
+
+    const partition = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 2.2, 2.1),
+      new THREE.MeshStandardMaterial({
+        color: 0xe5edf7,
+        roughness: 0.34,
+        metalness: 0.12,
+        transparent: true,
+        opacity: 0.82
+      })
+    );
+    partition.position.set(0, 1.8, 0);
+    group.add(partition);
+
+    const barrierGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.4, 2.25),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6578,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    barrierGlow.position.set(0, 1.8, 1.08);
+    group.add(barrierGlow);
+
+    const molecules = [];
+    const moleculeSeed = mulberry32(20260404);
+    for (let i = 0; i < 30; i += 1) {
+      const molecule = new THREE.Mesh(
+        new THREE.SphereGeometry(0.085, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x44cc88,
+          emissive: 0x0f4024,
+          emissiveIntensity: 0.45,
+          roughness: 0.22,
+          metalness: 0.02
+        })
+      );
+      molecule.castShadow = false;
+      molecule.userData.start = new THREE.Vector3(
+        lerp(-2.15, -0.35, moleculeSeed()),
+        lerp(0.9, 2.55, moleculeSeed()),
+        lerp(-0.95, 0.95, moleculeSeed())
+      );
+      molecule.userData.target = new THREE.Vector3(
+        lerp(-2.15, 2.15, moleculeSeed()),
+        lerp(0.9, 2.55, moleculeSeed()),
+        lerp(-0.95, 0.95, moleculeSeed())
+      );
+      molecule.userData.phase = moleculeSeed() * Math.PI * 2;
+      molecule.userData.delay = i / 42;
+      group.add(molecule);
+      molecules.push(molecule);
+    }
+
+    function reset() {
+      metrics.leftCount = 30;
+      metrics.rightCount = 0;
+      partition.material.opacity = 0.82;
+      partition.position.x = 0;
+      barrierGlow.material.opacity = 0;
+      for (const molecule of molecules) {
+        molecule.position.copy(molecule.userData.start);
+      }
+    }
+
+    function update(progress, delta, appState) {
+      const barrierGone = clamp(progress * 2.3, 0, 1);
+      partition.material.opacity = 0.82 * (1 - barrierGone);
+      partition.position.x = appState.mode === 'blocked' ? Math.sin(state.time * 10) * 0.05 : 0;
+      barrierGlow.material.opacity = appState.mode === 'blocked' ? 0.12 + 0.14 * (0.5 + 0.5 * Math.sin(state.time * 12)) : 0;
+
+      let leftCount = 0;
+      for (const molecule of molecules) {
+        const localT = clamp((progress * 1.18 - molecule.userData.delay) / 0.88, 0, 1);
+        const eased = easeInOut(localT);
+        molecule.position.lerpVectors(molecule.userData.start, molecule.userData.target, eased);
+        molecule.position.x += Math.sin(state.time * 4 + molecule.userData.phase) * 0.05;
+        molecule.position.y += Math.cos(state.time * 5 + molecule.userData.phase) * 0.04;
+        molecule.position.z += Math.sin(state.time * 6 + molecule.userData.phase * 0.8) * 0.05;
+        if (molecule.position.x < 0) leftCount += 1;
+      }
+
+      metrics.leftCount = leftCount;
+      metrics.rightCount = molecules.length - leftCount;
+    }
+
+    function getReadout() {
+      return {
+        label: '분자 분포',
+        value: `왼쪽 ${metrics.leftCount}개 / 오른쪽 ${metrics.rightCount}개`,
+        detail: '칸막이를 제거하면 기체는 진공 쪽으로 퍼져 더 넓은 공간을 차지하고, 다시 한쪽에 모이려 하지 않습니다.'
+      };
+    }
+
+    return {
+      duration: 4.8,
+      reset,
+      update,
+      getReadout,
+      dispose() {
+        root.remove(group);
+        disposeObject(group);
+      }
+    };
+  }
+
+  function createInkDiffusionCase(root) {
+    const group = new THREE.Group();
+    root.add(group);
+
+    const metrics = {
+      centerRatio: 100,
+      spread: 0
+    };
+
+    const beakerWall = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.55, 1.65, 2.9, 48, 1, true),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.05,
+        metalness: 0,
+        transmission: 0.88,
+        thickness: 0.15,
+        transparent: true,
+        opacity: 0.36
+      })
+    );
+    beakerWall.position.set(0, 1.78, 0);
+    group.add(beakerWall);
+
+    const beakerBottom = setShadow(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.5, 1.5, 0.12, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0xc7d7ea,
+        roughness: 0.28,
+        metalness: 0.04
+      })
+    ));
+    beakerBottom.position.set(0, 0.4, 0);
+    group.add(beakerBottom);
+
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0xa6d7ff,
+      transparent: true,
+      opacity: 0.56,
+      roughness: 0.12,
+      metalness: 0,
+      emissive: 0x17314a,
+      emissiveIntensity: 0.16
+    });
+    const water = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.42, 1.42, 2.18, 48),
+      waterMat
+    );
+    water.position.set(0, 1.46, 0);
+    group.add(water);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(1.56, 0.045, 12, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0xf8fbff,
+        roughness: 0.18,
+        metalness: 0.06
+      })
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0, 3.23, 0);
+    group.add(rim);
+
+    const inkCloud = new THREE.Mesh(
+      new THREE.SphereGeometry(0.34, 28, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0xff3a9f,
+        transparent: true,
+        opacity: 0.2
+      })
+    );
+    inkCloud.position.set(0, 2.15, 0);
+    group.add(inkCloud);
+
+    const attractor = new THREE.Mesh(
+      new THREE.RingGeometry(0.22, 0.28, 44),
+      new THREE.MeshBasicMaterial({
+        color: 0xff647f,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide
+      })
+    );
+    attractor.rotation.x = -Math.PI / 2;
+    attractor.position.set(0, 1.55, 0);
+    group.add(attractor);
+
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.16, 20, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0xff0088,
+        emissive: 0xa00054,
+        emissiveIntensity: 0.75,
+        roughness: 0.18,
+        metalness: 0
+      })
+    );
+    drop.position.set(0, 2.7, 0);
+    group.add(drop);
+
+    const inkParticles = [];
+    const inkSeed = mulberry32(21021);
+    for (let i = 0; i < 24; i += 1) {
+      const particle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0xff1b91,
+          emissive: 0xc10064,
+          emissiveIntensity: 0.8,
+          roughness: 0.14,
+          metalness: 0
+        })
+      );
+      const radius = Math.sqrt(inkSeed()) * 0.14;
+      const theta = inkSeed() * Math.PI * 2;
+      particle.userData.start = new THREE.Vector3(
+        Math.cos(theta) * radius,
+        lerp(1.95, 2.15, inkSeed()),
+        Math.sin(theta) * radius
+      );
+      const targetRadius = Math.sqrt(inkSeed()) * 1.12;
+      const targetTheta = inkSeed() * Math.PI * 2;
+      particle.userData.target = new THREE.Vector3(
+        Math.cos(targetTheta) * targetRadius,
+        lerp(0.65, 2.3, inkSeed()),
+        Math.sin(targetTheta) * targetRadius
+      );
+      particle.userData.phase = inkSeed() * Math.PI * 2;
+      particle.userData.delay = i / 34;
+      group.add(particle);
+      inkParticles.push(particle);
+    }
+
+    function reset() {
+      metrics.centerRatio = 100;
+      metrics.spread = 0;
+      waterMat.color.setHex(0xa6d7ff);
+      waterMat.opacity = 0.56;
+      drop.position.set(0, 2.7, 0);
+      drop.scale.setScalar(1);
+      drop.material.opacity = 1;
+      inkCloud.scale.set(0.8, 0.65, 0.8);
+      inkCloud.material.opacity = 0.2;
+      attractor.material.opacity = 0;
+      for (const particle of inkParticles) {
+        particle.position.copy(particle.userData.start);
+      }
+    }
+
+    function update(progress, delta, appState) {
+      const t = easeOutCubic(progress);
+      const dropT = clamp(progress / 0.18, 0, 1);
+      drop.position.y = lerp(2.7, 2.06, easeInOut(dropT));
+      drop.scale.setScalar(1 - 0.76 * dropT);
+      drop.material.opacity = 1 - 0.78 * dropT;
+
+      inkCloud.scale.set(0.8 + 2.2 * t, 0.65 + 1.15 * t, 0.8 + 2.2 * t);
+      inkCloud.material.opacity = 0.2 - 0.08 * t;
+      waterMat.color.setHex(0xa6d7ff).lerp(new THREE.Color(0xdcb4ff), t * 0.24);
+      waterMat.opacity = 0.56 + 0.06 * t;
+      attractor.material.opacity = appState.mode === 'blocked' ? 0.18 + 0.12 * (0.5 + 0.5 * Math.sin(state.time * 10)) : 0;
+      attractor.rotation.z = state.time * 0.7;
+
+      let centered = 0;
+      for (const particle of inkParticles) {
+        const localT = clamp((progress * 1.2 - particle.userData.delay) / 0.92, 0, 1);
+        const eased = easeOutCubic(localT);
+        particle.position.lerpVectors(particle.userData.start, particle.userData.target, eased);
+        particle.position.x += Math.sin(state.time * 4.8 + particle.userData.phase) * 0.045;
+        particle.position.y += Math.cos(state.time * 5.2 + particle.userData.phase) * 0.05;
+        particle.position.z += Math.sin(state.time * 5.7 + particle.userData.phase * 0.8) * 0.045;
+
+        const centerDistance = new THREE.Vector2(particle.position.x, particle.position.z).length();
+        if (centerDistance < 0.34 && Math.abs(particle.position.y - 1.96) < 0.38) {
+          centered += 1;
+        }
+      }
+
+      metrics.centerRatio = Math.round((centered / inkParticles.length) * 100);
+      metrics.spread = Math.round(t * 100);
+    }
+
+    function getReadout() {
+      return {
+        label: '확산 상태',
+        value: `중심 농도 ${metrics.centerRatio}% / 퍼짐 ${metrics.spread}%`,
+        detail: '잉크는 랜덤한 분자 운동으로 물 전체로 퍼지며, 다시 한 점으로 저절로 모일 가능성은 극히 작습니다.'
+      };
+    }
+
+    return {
+      duration: 5,
+      reset,
+      update,
+      getReadout,
+      dispose() {
+        root.remove(group);
+        disposeObject(group);
+      }
+    };
+  }
+
+  function createBrokenEggCase(root) {
+    const group = new THREE.Group();
+    root.add(group);
+
+    const metrics = {
+      stage: '탁자 위'
+    };
+
+    const floorShadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.4, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x1d2733,
+        transparent: true,
+        opacity: 0.14
+      })
+    );
+    floorShadow.rotation.x = -Math.PI / 2;
+    floorShadow.position.set(1.0, 0.4, 0);
+    group.add(floorShadow);
+
+    const tableTop = setShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 0.14, 1.55),
+      new THREE.MeshStandardMaterial({
+        color: 0xa97d56,
+        roughness: 0.72,
+        metalness: 0.04
+      })
+    ));
+    tableTop.position.set(-0.5, 1.2, 0);
+    group.add(tableTop);
+
+    const legPositions = [
+      [-1.55, 0.62, -0.55],
+      [-1.55, 0.62, 0.55],
+      [0.55, 0.62, -0.55],
+      [0.55, 0.62, 0.55]
+    ];
+    for (const [x, y, z] of legPositions) {
+      const leg = setShadow(new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 1.16, 0.12),
+        new THREE.MeshStandardMaterial({
+          color: 0x8d6b49,
+          roughness: 0.78,
+          metalness: 0.02
+        })
+      ));
+      leg.position.set(x, y, z);
+      group.add(leg);
+    }
+
+    const eggMat = new THREE.MeshStandardMaterial({
+      color: 0xeedd99,
+      roughness: 0.72,
+      metalness: 0.02
+    });
+    const egg = setShadow(new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 32, 32),
+      eggMat
+    ));
+    egg.scale.set(0.8, 1.04, 0.8);
+    egg.position.set(-0.92, 1.47, 0);
+    group.add(egg);
+
+    const ghostEgg = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 22, 22),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6c89,
+        wireframe: true,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    ghostEgg.scale.set(0.8, 1.04, 0.8);
+    ghostEgg.position.set(1.0, 0.66, 0);
+    group.add(ghostEgg);
+
+    const impactRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.12, 0.16, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0xff7c6a,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide
+      })
+    );
+    impactRing.rotation.x = -Math.PI / 2;
+    impactRing.position.set(1.0, 0.41, 0);
+    group.add(impactRing);
+
+    const yolk = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xf4b23f,
+        roughness: 0.44,
+        metalness: 0.02,
+        emissive: 0x733b08,
+        emissiveIntensity: 0.22
+      })
+    );
+    yolk.scale.set(0.2, 0.1, 0.2);
+    yolk.position.set(1.02, 0.49, 0.02);
+    group.add(yolk);
+
+    const eggWhite = new THREE.Mesh(
+      new THREE.CircleGeometry(0.12, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0xf7f8fb,
+        transparent: true,
+        opacity: 0.42
+      })
+    );
+    eggWhite.rotation.x = -Math.PI / 2;
+    eggWhite.position.set(1.0, 0.41, 0);
+    eggWhite.scale.setScalar(0.2);
+    group.add(eggWhite);
+
+    const shardsGroup = new THREE.Group();
+    group.add(shardsGroup);
+
+    const shardSeed = mulberry32(77021);
+    const shards = [];
+    for (let i = 0; i < 8; i += 1) {
+      const points = [];
+      for (let j = 0; j < 10; j += 1) {
+        points.push(new THREE.Vector3(
+          lerp(-0.12, 0.12, shardSeed()),
+          lerp(-0.03, 0.16, shardSeed()),
+          lerp(-0.1, 0.1, shardSeed())
+        ));
+      }
+      const shard = setShadow(new THREE.Mesh(
+        new ConvexGeometry(points),
+        new THREE.MeshStandardMaterial({
+          color: 0xead4a8,
+          roughness: 0.7,
+          metalness: 0.02
+        })
+      ));
+      shard.userData.direction = new THREE.Vector3(
+        lerp(-1, 1, shardSeed()),
+        lerp(0.1, 0.8, shardSeed()),
+        lerp(-1, 1, shardSeed())
+      ).normalize();
+      shard.userData.spin = new THREE.Vector3(
+        lerp(0.8, 1.8, shardSeed()),
+        lerp(0.8, 1.8, shardSeed()),
+        lerp(0.8, 1.8, shardSeed())
+      );
+      shardsGroup.add(shard);
+      shards.push(shard);
+    }
+
+    function reset() {
+      metrics.stage = '탁자 위';
+      egg.visible = true;
+      egg.position.set(-0.92, 1.47, 0);
+      egg.rotation.set(0, 0, 0);
+      ghostEgg.material.opacity = 0;
+      impactRing.material.opacity = 0;
+      impactRing.scale.setScalar(1);
+      yolk.scale.set(0.2, 0.1, 0.2);
+      eggWhite.scale.setScalar(0.2);
+      yolk.material.opacity = 1;
+      eggWhite.material.opacity = 0.42;
+      shardsGroup.visible = false;
+      for (const shard of shards) {
+        shard.position.set(1.0, 0.48, 0);
+        shard.rotation.set(0, 0, 0);
+      }
+    }
+
+    function update(progress, delta, appState) {
+      const edgeT = clamp(progress / 0.24, 0, 1);
+      const fallT = clamp((progress - 0.24) / 0.38, 0, 1);
+      const breakT = clamp((progress - 0.62) / 0.38, 0, 1);
+
+      ghostEgg.material.opacity = appState.mode === 'blocked' ? 0.1 + 0.1 * (0.5 + 0.5 * Math.sin(state.time * 8)) : 0;
+      ghostEgg.position.y = 0.66 + (appState.mode === 'blocked' ? Math.sin(state.time * 5) * 0.04 : 0);
+
+      if (progress < 0.62) {
+        shardsGroup.visible = false;
+        impactRing.material.opacity = 0;
+        const movingX = progress < 0.24
+          ? lerp(-0.92, 0.45, easeInOut(edgeT))
+          : lerp(0.45, 1.02, fallT);
+        const movingY = progress < 0.24
+          ? 1.47
+          : 1.47 - 1.04 * fallT * fallT;
+        egg.visible = true;
+        egg.position.set(movingX, movingY, 0);
+        egg.rotation.z = edgeT * 0.95 + fallT * 1.55;
+        egg.rotation.x = Math.sin(state.time * 6) * 0.08;
+        eggWhite.scale.setScalar(0.2);
+        yolk.scale.set(0.2, 0.1, 0.2);
+        metrics.stage = progress < 0.24 ? '탁자 위' : '낙하 중';
+      } else {
+        egg.visible = false;
+        shardsGroup.visible = true;
+        const exploded = easeOutBack(breakT);
+        impactRing.material.opacity = 0.36 * (1 - breakT);
+        impactRing.scale.setScalar(1 + exploded * 6.5);
+        eggWhite.scale.set(1.4 + exploded * 4.6, 1.4 + exploded * 4.6, 1);
+        yolk.scale.set(1 + exploded * 1.6, 0.22 + exploded * 0.24, 0.95 + exploded * 1.3);
+        for (const shard of shards) {
+          shard.position.copy(shard.userData.direction).multiplyScalar(0.72 * exploded).add(new THREE.Vector3(1.0, 0.48, 0));
+          shard.rotation.x = shard.userData.spin.x * exploded * 2.2 + state.time * 0.1;
+          shard.rotation.y = shard.userData.spin.y * exploded * 1.9;
+          shard.rotation.z = shard.userData.spin.z * exploded * 2.1;
+        }
+        if (appState.mode === 'blocked') {
+          for (const shard of shards) {
+            shard.position.y += Math.sin(state.time * 9 + shard.userData.spin.x) * 0.015;
+          }
+        }
+        metrics.stage = '깨짐';
+      }
+    }
+
+    function getReadout() {
+      return {
+        label: '상태',
+        value: metrics.stage,
+        detail: '달걀은 떨어져 깨질 수는 있어도, 깨진 뒤 조각과 내용물이 저절로 다시 완전한 달걀로 복원되지는 않습니다.'
+      };
+    }
+
+    return {
+      duration: 4.6,
+      reset,
+      update,
+      getReadout,
+      dispose() {
+        root.remove(group);
+        disposeObject(group);
+      }
+    };
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = Math.min(clock.getDelta(), 0.05);
+    state.time += delta;
+
+    if (state.mode === 'forward' && currentCase) {
+      state.progress = Math.min(1, state.progress + (delta * params.speed) / currentCase.duration);
+      if (state.progress >= 1) {
+        state.mode = 'idle';
+        state.statusText = CASE_INFO[state.caseKey].completeStatus;
+      }
+    }
+
+    if (state.warningTimer > 0) {
+      state.warningTimer = Math.max(0, state.warningTimer - delta);
+    }
+
+    if (currentCase) {
+      currentCase.update(state.progress, delta * params.speed, state);
+    }
+
+    reverseBadge.visible = state.mode === 'blocked';
+    if (reverseBadge.visible) {
+      const pulse = 1 + 0.08 * Math.sin(state.time * 10);
+      reverseBadge.scale.setScalar(pulse);
+      reverseBadge.position.y = 3.3 + Math.sin(state.time * 4) * 0.08;
+    }
+
+    if (state.lawDirty) {
+      renderLawPanel();
+    }
+    renderStatusChip();
+    renderFormulaPanel();
+    renderWarning();
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', resizeRenderer);
+
+  resizeRenderer();
+  setCase('heat');
+  animate();
+</script>
+</body>
+</html>

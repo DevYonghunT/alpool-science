@@ -1,0 +1,2661 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에너지 효율과 영구 기관 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --scene-bg: #eef0f5;
+    --panel-bg: rgba(8, 14, 28, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --panel-shadow: 0 20px 44px rgba(13, 21, 37, 0.18);
+    --text-main: #f5f8ff;
+    --text-dim: rgba(245, 248, 255, 0.68);
+    --text-dark: rgba(15, 25, 38, 0.92);
+    --text-dark-dim: rgba(20, 31, 44, 0.66);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:
+      radial-gradient(circle at 14% 10%, rgba(255, 215, 120, 0.18), transparent 18%),
+      radial-gradient(circle at 86% 12%, rgba(110, 164, 255, 0.16), transparent 20%),
+      linear-gradient(180deg, #f4f5f8 0%, #edf1f7 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body.sankey-hidden #app {
+    grid-template-columns: 1fr 0;
+  }
+
+  body.sankey-hidden #sankey-panel {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(18px);
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+    transition: grid-template-columns 0.3s ease;
+  }
+
+  #scene-panel,
+  #sankey-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #scene-panel {
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 16%, rgba(255, 236, 179, 0.42), transparent 24%),
+      linear-gradient(180deg, #f0f2f7 0%, #ebf0f7 30%, #e5ecf5 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  #scene-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  #scene-panel::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 38%;
+    background: linear-gradient(180deg, rgba(238, 240, 245, 0), rgba(227, 233, 242, 0.55) 68%, rgba(221, 228, 239, 0.85));
+    pointer-events: none;
+  }
+
+  .glass-dark,
+  .glass-light {
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  .glass-dark {
+    background: var(--panel-bg);
+    color: var(--text-main);
+  }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.62);
+    color: var(--text-dark);
+    border-color: rgba(255, 255, 255, 0.42);
+    box-shadow: 0 20px 40px rgba(107, 119, 138, 0.14);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    width: min(720px, calc(100vw - 164px));
+    padding: 12px 18px 14px;
+    border-radius: 22px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+  }
+
+  #title-card p {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 46;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(8, 18, 34, 0.86);
+    color: #ffffff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 24px rgba(8, 18, 34, 0.2);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 45;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(72vh, 720px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    color: #cfe5ff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffe4a6;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #scene-note,
+  #scene-caption,
+  #perpetual-banner,
+  #compare-strip,
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: absolute;
+    z-index: 14;
+  }
+
+  #scene-note {
+    top: 108px;
+    left: 18px;
+    width: min(250px, calc(100% - 36px));
+    padding: 12px 14px;
+    border-radius: 18px;
+    font-size: 12px;
+    line-height: 1.62;
+  }
+
+  #scene-note .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    margin-bottom: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #c9dbff;
+  }
+
+  #scene-note strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: #ffffff;
+  }
+
+  #scene-caption {
+    top: 108px;
+    right: 18px;
+    width: min(312px, calc(100% - 36px));
+    padding: 14px 15px;
+    border-radius: 18px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  #scene-caption strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 15px;
+    color: rgba(11, 24, 36, 0.94);
+  }
+
+  #scene-caption ul {
+    margin-top: 8px;
+    padding-left: 17px;
+    color: rgba(20, 31, 44, 0.68);
+  }
+
+  #scene-caption li + li {
+    margin-top: 4px;
+  }
+
+  #compare-strip {
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    width: min(700px, calc(100% - 40px));
+    padding: 10px;
+    border-radius: 22px;
+    display: none;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  #compare-strip.show {
+    display: grid;
+  }
+
+  .compare-chip {
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .compare-chip strong {
+    display: block;
+    font-size: 13px;
+    color: #ffffff;
+  }
+
+  .compare-chip span {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .compare-chip.best {
+    background: linear-gradient(135deg, rgba(103, 215, 122, 0.18), rgba(255, 255, 255, 0.05));
+    border-color: rgba(103, 215, 122, 0.26);
+  }
+
+  #perpetual-banner {
+    right: 18px;
+    bottom: 24px;
+    width: min(340px, calc(100% - 36px));
+    padding: 13px 14px;
+    border-radius: 18px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.64;
+  }
+
+  #perpetual-banner.show {
+    display: block;
+  }
+
+  #perpetual-banner.pending {
+    background: rgba(11, 22, 40, 0.8);
+  }
+
+  #perpetual-banner.fail {
+    background: rgba(72, 12, 18, 0.84);
+    border-color: rgba(255, 133, 133, 0.26);
+    color: #ffe3e1;
+  }
+
+  #perpetual-banner strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+
+  #formula-panel {
+    left: 18px;
+    bottom: 18px;
+    width: min(388px, calc(100% - 36px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.04));
+  }
+
+  #formula-panel .row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  #formula-panel .label {
+    width: 104px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .mono {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    white-space: pre-line;
+    color: #eef5ff;
+  }
+
+  #formula-panel .device-grid {
+    margin-top: 11px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .device-stat {
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .device-stat strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .device-stat span {
+    display: block;
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  #formula-panel .concept-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(103, 215, 122, 0.12), rgba(255, 123, 116, 0.08));
+    color: #eaf5ff;
+  }
+
+  #formula-panel .concept-box strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  #sankey-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 92px 16px 16px;
+    overflow: auto;
+    background:
+      radial-gradient(circle at 15% 8%, rgba(114, 174, 255, 0.12), transparent 18%),
+      linear-gradient(180deg, rgba(10, 18, 32, 0.98) 0%, rgba(7, 13, 25, 1) 100%);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  #sankey-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 16px 16px 14px;
+    border-radius: 20px;
+  }
+
+  #sankey-header .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  #sankey-header h2 {
+    margin-top: 6px;
+    font-size: 22px;
+    color: #ffffff;
+  }
+
+  #sankey-header p {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  #sankey-summary {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  #sankey-summary .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .summary-card {
+    padding: 12px 12px 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .summary-card .label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .summary-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  .summary-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.58;
+    color: rgba(255, 255, 255, 0.66);
+  }
+
+  #sankey-list {
+    display: grid;
+    gap: 12px;
+    padding-bottom: 8px;
+  }
+
+  .sankey-card {
+    padding: 14px 14px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    transition: opacity 0.24s ease, transform 0.24s ease, border-color 0.24s ease, background 0.24s ease;
+  }
+
+  .sankey-card.active {
+    opacity: 1;
+    transform: translateY(0);
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .sankey-card.inactive {
+    opacity: 0.5;
+    transform: translateY(4px);
+  }
+
+  .sankey-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .sankey-card-header h3 {
+    margin-top: 6px;
+    font-size: 18px;
+    color: #ffffff;
+  }
+
+  .sankey-card-header p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .device-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: var(--pill-bg, rgba(255, 255, 255, 0.12));
+  }
+
+  .sankey-metric {
+    text-align: right;
+  }
+
+  .sankey-metric strong {
+    display: block;
+    font-size: 21px;
+    color: #ffffff;
+  }
+
+  .sankey-metric span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .sankey-svg {
+    width: 100%;
+    height: 160px;
+    display: block;
+  }
+
+  .sankey-note {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .lil-gui {
+    --width: 320px;
+    z-index: 48 !important;
+  }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%) translateY(10px);
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(9, 18, 34, 0.9);
+    color: #ffffff;
+    font-size: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 16px 32px rgba(9, 18, 34, 0.24);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease, transform 0.24s ease;
+    z-index: 50;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 1080px) {
+    #title-card {
+      width: min(700px, calc(100vw - 140px));
+    }
+
+    #compare-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #sankey-summary .summary-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 960px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(360px, 58vh) minmax(280px, 42vh);
+    }
+
+    body.sankey-hidden #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 0;
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+    }
+
+    #title-card {
+      width: calc(100vw - 116px);
+    }
+
+    #title-card h1 {
+      font-size: 22px;
+    }
+
+    #scene-note,
+    #scene-caption {
+      top: 96px;
+    }
+
+    #scene-caption {
+      width: min(280px, calc(100% - 36px));
+    }
+
+    #compare-strip {
+      width: calc(100% - 28px);
+      bottom: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #perpetual-banner {
+      right: 12px;
+      bottom: 12px;
+      width: min(320px, calc(100% - 24px));
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: min(356px, calc(100% - 24px));
+      padding: 15px 15px 14px;
+    }
+
+    #sankey-panel {
+      padding: 14px 12px 14px;
+    }
+
+    #sankey-header {
+      top: 0;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      left: 66px;
+      right: 12px;
+      transform: none;
+      width: auto;
+      text-align: left;
+      padding: 10px 14px 12px;
+    }
+
+    #guide-toggle {
+      padding: 8px 11px;
+      font-size: 11px;
+    }
+
+    #scene-note {
+      top: 104px;
+      left: 12px;
+      width: calc(100% - 24px);
+    }
+
+    #scene-caption {
+      top: auto;
+      left: 12px;
+      right: 12px;
+      bottom: 194px;
+      width: auto;
+    }
+
+    #formula-panel {
+      width: calc(100% - 24px);
+    }
+
+    #formula-panel .device-grid {
+      grid-template-columns: 1fr;
+    }
+
+    #compare-strip {
+      grid-template-columns: 1fr;
+      bottom: 12px;
+    }
+
+    #perpetual-banner {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+
+    .sankey-card-header {
+      flex-direction: column;
+    }
+
+    .sankey-metric {
+      text-align: left;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div id="scene-note" class="glass-dark"></div>
+    <div id="scene-caption" class="glass-light"></div>
+    <div id="compare-strip" class="glass-dark"></div>
+    <div id="perpetual-banner" class="glass-dark"></div>
+    <section id="formula-panel" class="glass-dark"></section>
+  </section>
+
+  <aside id="sankey-panel">
+    <section id="sankey-header" class="glass-dark">
+      <div class="eyebrow">Energy Flow</div>
+      <h2>에너지 흐름 Sankey 비교</h2>
+      <p>공급 에너지 100%는 유용한 출력과 폐열로 갈라집니다. 녹색이 클수록 효율이 높고, 빨간 손실이 작을수록 폐열이 적습니다.</p>
+    </section>
+    <section id="sankey-summary" class="glass-dark"></section>
+    <section id="sankey-list"></section>
+  </aside>
+</div>
+
+<section id="title-card" class="glass-dark">
+  <div class="eyebrow">Physics I · Energy Efficiency</div>
+  <h1>에너지 효율과 영구 기관</h1>
+  <p>장치별 에너지 전환 효율을 비교하고, 왜 영구 기관이 불가능한지 3D 실험과 Sankey 다이어그램으로 함께 확인해 보세요.</p>
+</section>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<section id="guide-panel" class="glass-dark">
+  <h3>핵심 원리</h3>
+  <p>에너지 효율은 공급한 에너지에 대해 유용하게 사용된 에너지의 비율입니다. 에너지 전환 과정에서 일부는 열에너지로 소모되므로 효율은 항상 100% 미만이며, 외부 공급 없이 스스로 영원히 일하는 영구 기관은 에너지 보존 법칙에 의해 불가능합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>백열전구보다 LED가 에너지 효율이 높은 까닭은 무엇인가요?</li>
+    <li>자동차 내연 기관의 효율이 약 25%라면, 나머지 75%의 에너지는 어디로 갔나요?</li>
+    <li>영구 기관이 불가능한 까닭을 에너지 보존 법칙으로 설명해 보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>가전제품의 에너지 효율 등급은 같은 일을 하면서 얼마나 적은 에너지를 쓰는지를 보여줍니다.</li>
+    <li>하이브리드 자동차는 회생 제동으로 버려질 운동 에너지 일부를 다시 전기에너지로 저장합니다.</li>
+    <li>열병합 발전은 버려질 열을 다시 활용해 전체 효율을 높입니다.</li>
+  </ul>
+
+  <div class="ref-box">교과서 연계: 물리학 I편 p68~71 · 에너지 효율, 영구 기관, 에너지 보존</div>
+</section>
+
+<div id="toast"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DEVICE_OPTIONS = {
+  incandescent: '백열전구',
+  led: 'LED 전구',
+  motor: '전기모터',
+  engine: '내연기관',
+  solar: '태양전지',
+  compare: '전체비교'
+};
+
+const PERPETUAL_OPTIONS = {
+  none: '표시 안 함',
+  waterwheel: '물레방아',
+  magnet: '자석 기관'
+};
+
+const DEVICE_ORDER = ['incandescent', 'led', 'motor', 'engine', 'solar'];
+
+const DEVICE_LIBRARY = {
+  incandescent: {
+    label: '백열전구',
+    pill: 'Incandescent',
+    inputLabel: '전기 에너지',
+    usefulLabel: '빛에너지',
+    lossLabel: '폐열',
+    defaultEfficiency: 5,
+    accent: '#f8c55c',
+    usefulColor: '#fff08a',
+    lossColor: '#ff7b74',
+    summary: '필라멘트를 뜨겁게 달궈 빛을 내므로 대부분이 열로 빠져나갑니다.',
+    principle: '전기에너지가 필라멘트를 가열하면서 일부만 빛으로 바뀌고 대부분은 열로 소산됩니다.',
+    useHint: '밝기는 낮고 열 손실이 큼'
+  },
+  led: {
+    label: 'LED 전구',
+    pill: 'LED',
+    inputLabel: '전기 에너지',
+    usefulLabel: '빛에너지',
+    lossLabel: '폐열',
+    defaultEfficiency: 40,
+    accent: '#6bd4ff',
+    usefulColor: '#7af3ff',
+    lossColor: '#ff8c74',
+    summary: '반도체에서 전자 재결합으로 직접 빛을 내어 백열전구보다 효율이 높습니다.',
+    principle: '전기에너지가 직접 빛에너지로 전환되는 비율이 커서 같은 밝기에 필요한 에너지가 적습니다.',
+    useHint: '빛 출력이 크고 폐열이 상대적으로 적음'
+  },
+  motor: {
+    label: '전기모터',
+    pill: 'Motor',
+    inputLabel: '전기 에너지',
+    usefulLabel: '운동 에너지',
+    lossLabel: '폐열',
+    defaultEfficiency: 85,
+    accent: '#6ddf94',
+    usefulColor: '#7bffab',
+    lossColor: '#ff8f70',
+    summary: '전기에너지를 회전 운동으로 바꾸는 장치로 효율이 비교적 높습니다.',
+    principle: '코일과 자기장 상호작용으로 축이 회전하며, 저항과 마찰 때문에 일부는 열로 바뀝니다.',
+    useHint: '축 회전이 빠르고 손실이 적음'
+  },
+  engine: {
+    label: '내연기관',
+    pill: 'Engine',
+    inputLabel: '화학 에너지',
+    usefulLabel: '운동 에너지',
+    lossLabel: '폐열',
+    defaultEfficiency: 25,
+    accent: '#ff9b66',
+    usefulColor: '#9eff8b',
+    lossColor: '#ff6b6b',
+    summary: '연료의 화학 에너지가 열과 운동으로 전환되지만 냉각, 배기, 마찰 손실이 큽니다.',
+    principle: '연료 연소로 얻은 열이 피스톤 운동으로 전환되지만 대부분은 열과 배기로 빠져나갑니다.',
+    useHint: '출력보다 폐열이 훨씬 큼'
+  },
+  solar: {
+    label: '태양전지',
+    pill: 'Solar Cell',
+    inputLabel: '빛에너지',
+    usefulLabel: '전기 에너지',
+    lossLabel: '폐열',
+    defaultEfficiency: 20,
+    accent: '#79b8ff',
+    usefulColor: '#79d6ff',
+    lossColor: '#ff9076',
+    summary: '들어온 빛 일부만 전기에너지로 전환되고, 나머지는 반사나 열로 남습니다.',
+    principle: '빛을 받은 전자가 이동해 전류를 만들지만 모든 광자를 전기로 바꾸지는 못합니다.',
+    useHint: '태양광 일부만 전기로 저장'
+  }
+};
+
+const DEFAULT_EFFICIENCIES = Object.fromEntries(
+  DEVICE_ORDER.map((key) => [key, DEVICE_LIBRARY[key].defaultEfficiency])
+);
+
+const scenePanel = document.getElementById('scene-panel');
+const sceneNoteEl = document.getElementById('scene-note');
+const sceneCaptionEl = document.getElementById('scene-caption');
+const compareStripEl = document.getElementById('compare-strip');
+const perpetualBannerEl = document.getElementById('perpetual-banner');
+const formulaPanelEl = document.getElementById('formula-panel');
+const sankeySummaryEl = document.getElementById('sankey-summary');
+const sankeyListEl = document.getElementById('sankey-list');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const toastEl = document.getElementById('toast');
+
+const state = {
+  efficiencies: { ...DEFAULT_EFFICIENCIES },
+  adjustTarget: 'incandescent',
+  viewMode: 'device',
+  updateFns: [],
+  perpetual: {
+    type: 'none',
+    elapsed: 0,
+    velocity: 0,
+    angle: 0,
+    phase: 0,
+    amplitude: 0,
+    failed: false
+  }
+};
+
+const params = {
+  device: DEVICE_OPTIONS.incandescent,
+  perpetual: PERPETUAL_OPTIONS.none,
+  energyInput: 100,
+  efficiency: DEFAULT_EFFICIENCIES.incandescent,
+  sankey: true,
+  startPerpetual() {
+    startPerpetualExperiment();
+  },
+  reset() {
+    resetSimulation();
+  }
+};
+
+let toastTimer = 0;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById('scene-canvas'),
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xeef0f5, 1);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeef0f5);
+scene.fog = new THREE.Fog(0xeef0f5, 16, 28);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+camera.position.set(6.6, 4.8, 8.6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 1.5, 0);
+controls.minDistance = 4;
+controls.maxDistance = 20;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(4.2, 6.6, 5.4);
+scene.add(ambientLight, directionalLight);
+
+const staticRoot = new THREE.Group();
+const contentRoot = new THREE.Group();
+scene.add(staticRoot, contentRoot);
+
+const clock = new THREE.Clock();
+
+setupEnvironment();
+
+function setupEnvironment() {
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(12, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0xdfe6ef,
+      roughness: 0.92,
+      metalness: 0.02
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.01;
+  staticRoot.add(floor);
+
+  const ringA = new THREE.Mesh(
+    new THREE.RingGeometry(3.2, 3.45, 72),
+    new THREE.MeshBasicMaterial({
+      color: 0xc3cfdf,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide
+    })
+  );
+  ringA.rotation.x = -Math.PI / 2;
+  ringA.position.y = 0.012;
+  staticRoot.add(ringA);
+
+  const ringB = new THREE.Mesh(
+    new THREE.RingGeometry(5.6, 5.78, 72),
+    new THREE.MeshBasicMaterial({
+      color: 0xc3cfdf,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide
+    })
+  );
+  ringB.rotation.x = -Math.PI / 2;
+  ringB.position.y = 0.011;
+  staticRoot.add(ringB);
+
+  const backDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(4.8, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.32
+    })
+  );
+  backDisc.position.set(0, 5.2, -6.4);
+  staticRoot.add(backDisc);
+
+  const accentDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(2.2, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe5a3,
+      transparent: true,
+      opacity: 0.22
+    })
+  );
+  accentDisc.position.set(-3.1, 4.5, -4.8);
+  staticRoot.add(accentDisc);
+}
+
+function hexToRgba(hex, alpha) {
+  const normalized = hex.replace('#', '');
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized;
+  const value = parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function formatEnergy(value) {
+  return value % 1 === 0 ? `${value.toFixed(0)}` : `${value.toFixed(1)}`;
+}
+
+function getCurrentDeviceKey() {
+  return Object.entries(DEVICE_OPTIONS).find(([, value]) => value === params.device)?.[0] ?? 'incandescent';
+}
+
+function getCurrentPerpetualKey() {
+  return Object.entries(PERPETUAL_OPTIONS).find(([, value]) => value === params.perpetual)?.[0] ?? 'none';
+}
+
+function getDeviceStats(key) {
+  const efficiency = state.efficiencies[key];
+  const input = params.energyInput;
+  const useful = input * efficiency / 100;
+  const loss = input - useful;
+  return { efficiency, input, useful, loss };
+}
+
+function getOrderedDeviceKeys() {
+  const key = getCurrentDeviceKey();
+  if (key === 'compare') {
+    return [...DEVICE_ORDER];
+  }
+  return [key, ...DEVICE_ORDER.filter((deviceKey) => deviceKey !== key)];
+}
+
+function setCameraPreset(mode) {
+  if (mode === 'compare') {
+    camera.position.set(10.2, 6.6, 11.8);
+    controls.target.set(0, 1.4, 0.2);
+  } else if (mode === 'perpetual') {
+    camera.position.set(7.6, 5.2, 9.4);
+    controls.target.set(0, 1.45, 0);
+  } else {
+    camera.position.set(6.6, 4.8, 8.6);
+    controls.target.set(0, 1.5, 0);
+  }
+  controls.update();
+}
+
+function syncEfficiencyTarget() {
+  const deviceKey = getCurrentDeviceKey();
+  if (deviceKey !== 'compare') {
+    state.adjustTarget = deviceKey;
+  }
+  params.efficiency = state.efficiencies[state.adjustTarget];
+}
+
+function resetBanner() {
+  perpetualBannerEl.className = 'glass-dark';
+  perpetualBannerEl.innerHTML = '';
+}
+
+function showPendingBanner(title, body) {
+  perpetualBannerEl.className = 'glass-dark show pending';
+  perpetualBannerEl.innerHTML = `<strong>${title}</strong><div>${body}</div>`;
+}
+
+function showFailureBanner(title, body) {
+  perpetualBannerEl.className = 'glass-dark show fail';
+  perpetualBannerEl.innerHTML = `<strong>${title}</strong><div>${body}</div>`;
+}
+
+function showToast(message) {
+  window.clearTimeout(toastTimer);
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  toastTimer = window.setTimeout(() => {
+    toastEl.classList.remove('show');
+  }, 1800);
+}
+
+function applyLayout() {
+  document.body.classList.toggle('sankey-hidden', !params.sankey);
+  requestAnimationFrame(resizeRenderer);
+}
+
+function resizeRenderer() {
+  const width = Math.max(scenePanel.clientWidth, 1);
+  const height = Math.max(scenePanel.clientHeight, 1);
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (material.map) material.map.dispose();
+  material.dispose();
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(child.material);
+      }
+    }
+  });
+}
+
+function clearGroup(group) {
+  while (group.children.length > 0) {
+    const child = group.children[group.children.length - 1];
+    group.remove(child);
+    disposeObject(child);
+  }
+}
+
+function registerUpdate(fn) {
+  state.updateFns.push(fn);
+}
+
+function clearUpdates() {
+  state.updateFns = [];
+}
+
+function createStage(parent, radius = 2.65, accent = '#8bb7ff') {
+  const stage = new THREE.Group();
+  parent.add(stage);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius * 1.06, 0.34, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0xd3dae5,
+      roughness: 0.88,
+      metalness: 0.06
+    })
+  );
+  base.position.y = 0.16;
+  stage.add(base);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.98, 0.065, 18, 64),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(accent),
+      emissive: new THREE.Color(accent),
+      emissiveIntensity: 0.18,
+      roughness: 0.3,
+      metalness: 0.48
+    })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.33;
+  stage.add(rim);
+
+  const center = new THREE.Mesh(
+    new THREE.CircleGeometry(radius * 0.72, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.16
+    })
+  );
+  center.rotation.x = -Math.PI / 2;
+  center.position.y = 0.341;
+  stage.add(center);
+}
+
+function createMiniStage(parent, position, accent) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  parent.add(group);
+  createStage(group, 1.12, accent);
+  return group;
+}
+
+function createBattery(parent, position, color = '#f6d36b', scale = 1) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 1.02, 0.46),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      roughness: 0.48,
+      metalness: 0.18
+    })
+  );
+  body.position.y = 0.51;
+  group.add(body);
+
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.14, 0.14, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xe6edf7,
+      roughness: 0.32,
+      metalness: 0.55
+    })
+  );
+  cap.position.set(0, 1.08, 0);
+  group.add(cap);
+}
+
+function createFuelTank(parent, position, scale = 1) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const tank = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.34, 1.06, 22),
+    new THREE.MeshStandardMaterial({
+      color: 0xff9d6a,
+      roughness: 0.36,
+      metalness: 0.12
+    })
+  );
+  tank.rotation.z = Math.PI / 2;
+  tank.position.y = 0.6;
+  group.add(tank);
+
+  const nozzle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 0.36, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xb4c1d2,
+      roughness: 0.24,
+      metalness: 0.62
+    })
+  );
+  nozzle.rotation.z = Math.PI / 2;
+  nozzle.position.set(0.45, 0.6, 0);
+  group.add(nozzle);
+}
+
+function createSun(parent, position, scale = 1) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffcf6d })
+  );
+  group.add(core);
+
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.72, 24, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0xffdb93,
+      transparent: true,
+      opacity: 0.24
+    })
+  );
+  group.add(halo);
+
+  registerUpdate((dt) => {
+    group.rotation.y += dt * 0.16;
+    halo.scale.setScalar(1 + Math.sin(clock.elapsedTime * 1.6) * 0.04);
+  });
+}
+
+function createHelixPoints(radius, height, turns, count) {
+  const points = [];
+  for (let index = 0; index <= count; index += 1) {
+    const t = index / count;
+    const angle = t * Math.PI * 2 * turns;
+    points.push(new THREE.Vector3(
+      Math.cos(angle) * radius,
+      t * height,
+      Math.sin(angle) * radius
+    ));
+  }
+  return points;
+}
+
+function createPulseStream(parent, config) {
+  const {
+    points,
+    color,
+    radius = 0.04,
+    count = 6,
+    speed = 0.2,
+    opacity = 0.22,
+    pulseSize = 0.08
+  } = config;
+
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 32, radius, 10, false),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity
+    })
+  );
+  parent.add(tube);
+
+  const pulses = [];
+  for (let index = 0; index < count; index += 1) {
+    const pulse = new THREE.Mesh(
+      new THREE.SphereGeometry(pulseSize, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.9
+      })
+    );
+    pulse.userData.offset = index / count;
+    pulses.push(pulse);
+    parent.add(pulse);
+  }
+
+  registerUpdate((dt) => {
+    for (const pulse of pulses) {
+      pulse.userData.offset = (pulse.userData.offset + dt * speed) % 1;
+      pulse.position.copy(curve.getPointAt(pulse.userData.offset));
+    }
+  });
+}
+
+function createHeatParticles(parent, config) {
+  const {
+    color = '#ff7b74',
+    count = 12,
+    origin = new THREE.Vector3(),
+    spread = 0.9,
+    minRise = 0.6,
+    maxRise = 1.8,
+    size = 0.06
+  } = config;
+
+  const group = new THREE.Group();
+  parent.add(group);
+  const particles = [];
+
+  function resetParticle(mesh, randomLife = false) {
+    mesh.userData.life = randomLife ? Math.random() : 0;
+    mesh.userData.speed = THREE.MathUtils.randFloat(0.3, 0.7);
+    mesh.userData.angle = Math.random() * Math.PI * 2;
+    mesh.userData.radius = THREE.MathUtils.randFloat(spread * 0.18, spread);
+    mesh.userData.rise = THREE.MathUtils.randFloat(minRise, maxRise);
+    mesh.userData.wobble = THREE.MathUtils.randFloat(0.4, 1.4);
+  }
+
+  for (let index = 0; index < count; index += 1) {
+    const particle = new THREE.Mesh(
+      new THREE.SphereGeometry(size * THREE.MathUtils.randFloat(0.85, 1.2), 8, 8),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: THREE.MathUtils.randFloat(0.38, 0.78)
+      })
+    );
+    resetParticle(particle, true);
+    particles.push(particle);
+    group.add(particle);
+  }
+
+  registerUpdate((dt) => {
+    for (const particle of particles) {
+      particle.userData.life += dt * particle.userData.speed;
+      if (particle.userData.life >= 1) {
+        resetParticle(particle, false);
+      }
+      const life = particle.userData.life;
+      const angle = particle.userData.angle + clock.elapsedTime * particle.userData.wobble;
+      const radius = particle.userData.radius * (1 - life * 0.28);
+      particle.position.set(
+        origin.x + Math.cos(angle) * radius,
+        origin.y + life * particle.userData.rise,
+        origin.z + Math.sin(angle) * radius
+      );
+      const scale = 0.6 + Math.sin(life * Math.PI) * 0.6;
+      particle.scale.setScalar(scale);
+    }
+  });
+}
+
+function createGlowHalo(parent, color, scale = 1.4, y = 2.4) {
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.95 * scale, 24, 24),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.12
+    })
+  );
+  glow.position.set(0, y, -0.2);
+  parent.add(glow);
+  registerUpdate(() => {
+    glow.scale.setScalar(scale * (1 + Math.sin(clock.elapsedTime * 1.4) * 0.04));
+  });
+}
+
+function buildIncandescent(parent, options = {}) {
+  const { position = new THREE.Vector3(), scale = 1, mini = false } = options;
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const detail = mini ? 16 : 28;
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.38, 0.46, 0.42, detail),
+    new THREE.MeshStandardMaterial({
+      color: 0x7e8796,
+      roughness: 0.42,
+      metalness: 0.56
+    })
+  );
+  base.position.y = 0.52;
+  group.add(base);
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.56, 14),
+    new THREE.MeshStandardMaterial({
+      color: 0xcfd7e5,
+      roughness: 0.28,
+      metalness: 0.44
+    })
+  );
+  stem.position.y = 1.02;
+  group.add(stem);
+
+  const bulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.62, detail, detail),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf8fbff,
+      transparent: true,
+      opacity: 0.26,
+      roughness: 0.05,
+      metalness: 0,
+      transmission: 0.9
+    })
+  );
+  bulb.position.y = 1.72;
+  group.add(bulb);
+
+  const filamentPoints = createHelixPoints(0.11, 0.46, 4, 64);
+  const filamentCurve = new THREE.CatmullRomCurve3(filamentPoints);
+  const filament = new THREE.Mesh(
+    new THREE.TubeGeometry(filamentCurve, 96, 0.02, 8, false),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd965,
+      emissive: 0xffc54f,
+      emissiveIntensity: mini ? 0.6 : 1.4,
+      roughness: 0.34,
+      metalness: 0.12
+    })
+  );
+  filament.position.y = 1.48;
+  group.add(filament);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 18, 18),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe27d,
+      transparent: true,
+      opacity: 0.6
+    })
+  );
+  glow.position.y = 1.68;
+  group.add(glow);
+
+  if (!mini) {
+    createBattery(group, new THREE.Vector3(-2.16, 0.12, 0.1), '#f3cf69', 1);
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(-1.76, 1.1, 0.1),
+        new THREE.Vector3(-1.3, 1.12, 0.08),
+        new THREE.Vector3(-0.78, 1.14, 0.04),
+        new THREE.Vector3(-0.18, 1.16, 0)
+      ],
+      color: DEVICE_LIBRARY.incandescent.accent,
+      count: 5,
+      speed: 0.34,
+      pulseSize: 0.07
+    });
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(0, 2.08, 0),
+        new THREE.Vector3(0.04, 2.52, 0),
+        new THREE.Vector3(0.08, 3.04, 0.02)
+      ],
+      color: DEVICE_LIBRARY.incandescent.usefulColor,
+      count: 4,
+      speed: 0.22,
+      pulseSize: 0.08
+    });
+    const lossCount = Math.min(30, Math.max(10, Math.round(getDeviceStats('incandescent').loss / 5)));
+    createHeatParticles(group, {
+      color: DEVICE_LIBRARY.incandescent.lossColor,
+      count: lossCount,
+      origin: new THREE.Vector3(0, 1.5, 0),
+      spread: 1.05,
+      minRise: 0.9,
+      maxRise: 2.1
+    });
+    createGlowHalo(group, DEVICE_LIBRARY.incandescent.accent, 1.22, 1.92);
+  }
+
+  registerUpdate(() => {
+    const flicker = 1 + Math.sin(clock.elapsedTime * 5.2) * 0.08;
+    filament.material.emissiveIntensity = (mini ? 0.6 : 1.4) * flicker;
+    glow.scale.setScalar(1 + Math.sin(clock.elapsedTime * 3.2) * 0.06);
+  });
+}
+
+function buildLed(parent, options = {}) {
+  const { position = new THREE.Vector3(), scale = 1, mini = false } = options;
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.36, 0.42, 0.28, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0x8a94a3,
+      roughness: 0.34,
+      metalness: 0.48
+    })
+  );
+  base.position.y = 0.45;
+  group.add(base);
+
+  const chip = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.18, 0.48),
+    new THREE.MeshStandardMaterial({
+      color: 0x2b3850,
+      roughness: 0.42,
+      metalness: 0.22
+    })
+  );
+  chip.position.y = 0.88;
+  group.add(chip);
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.52, mini ? 16 : 24, mini ? 16 : 24),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xe6fbff,
+      transparent: true,
+      opacity: 0.24,
+      roughness: 0.04,
+      metalness: 0,
+      transmission: 0.9
+    })
+  );
+  dome.scale.y = 1.2;
+  dome.position.y = 1.38;
+  group.add(dome);
+
+  const core = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.14, 0.22),
+    new THREE.MeshBasicMaterial({
+      color: 0x7af3ff
+    })
+  );
+  core.position.y = 1.06;
+  group.add(core);
+
+  if (!mini) {
+    createBattery(group, new THREE.Vector3(-2.12, 0.08, 0), '#7ecaff', 1);
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(-1.78, 1.02, 0),
+        new THREE.Vector3(-1.24, 1.04, 0),
+        new THREE.Vector3(-0.58, 1.02, 0)
+      ],
+      color: DEVICE_LIBRARY.led.accent,
+      count: 5,
+      speed: 0.42,
+      pulseSize: 0.075
+    });
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(0, 1.56, 0),
+        new THREE.Vector3(0.04, 2.06, 0),
+        new THREE.Vector3(0.06, 2.72, 0.02)
+      ],
+      color: DEVICE_LIBRARY.led.usefulColor,
+      count: 6,
+      speed: 0.28,
+      pulseSize: 0.085
+    });
+    const lossCount = Math.min(22, Math.max(7, Math.round(getDeviceStats('led').loss / 8)));
+    createHeatParticles(group, {
+      color: DEVICE_LIBRARY.led.lossColor,
+      count: lossCount,
+      origin: new THREE.Vector3(0, 1.12, 0),
+      spread: 0.72,
+      minRise: 0.55,
+      maxRise: 1.45,
+      size: 0.05
+    });
+    createGlowHalo(group, DEVICE_LIBRARY.led.accent, 1.08, 1.62);
+  }
+
+  registerUpdate(() => {
+    const pulse = 1 + Math.sin(clock.elapsedTime * 4.2) * 0.05;
+    core.scale.setScalar(pulse);
+  });
+}
+
+function buildMotor(parent, options = {}) {
+  const { position = new THREE.Vector3(), scale = 1, mini = false } = options;
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.26, 0.92),
+    new THREE.MeshStandardMaterial({
+      color: 0xbac5d5,
+      roughness: 0.38,
+      metalness: 0.22
+    })
+  );
+  frame.position.y = 0.52;
+  group.add(frame);
+
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.44, 0.44, 1.52, mini ? 18 : 28),
+    new THREE.MeshStandardMaterial({
+      color: 0x57be7c,
+      roughness: 0.34,
+      metalness: 0.42
+    })
+  );
+  body.rotation.z = Math.PI / 2;
+  body.position.y = 1.2;
+  group.add(body);
+
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.07, 1.5, 14),
+    new THREE.MeshStandardMaterial({
+      color: 0xe3edf8,
+      roughness: 0.24,
+      metalness: 0.7
+    })
+  );
+  shaft.rotation.z = Math.PI / 2;
+  shaft.position.set(0.62, 1.2, 0);
+  group.add(shaft);
+
+  const propeller = new THREE.Group();
+  propeller.position.set(1.35, 1.2, 0);
+  group.add(propeller);
+
+  const hub = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 14, 14),
+    new THREE.MeshStandardMaterial({
+      color: 0xe7eef8,
+      roughness: 0.2,
+      metalness: 0.66
+    })
+  );
+  propeller.add(hub);
+
+  for (let index = 0; index < 3; index += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.62, 0.08, 0.16),
+      new THREE.MeshStandardMaterial({
+        color: 0xdfe7f3,
+        roughness: 0.3,
+        metalness: 0.34
+      })
+    );
+    blade.position.x = 0.32;
+    blade.rotation.x = index * Math.PI * 2 / 3;
+    propeller.add(blade);
+  }
+
+  if (!mini) {
+    createBattery(group, new THREE.Vector3(-2.24, 0.08, 0), '#81f0ac', 1);
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(-1.8, 1.18, 0),
+        new THREE.Vector3(-1.22, 1.18, 0),
+        new THREE.Vector3(-0.58, 1.18, 0)
+      ],
+      color: DEVICE_LIBRARY.motor.accent,
+      count: 5,
+      speed: 0.46,
+      pulseSize: 0.07
+    });
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(0.72, 1.2, 0),
+        new THREE.Vector3(1.26, 1.2, 0),
+        new THREE.Vector3(1.94, 1.2, 0)
+      ],
+      color: DEVICE_LIBRARY.motor.usefulColor,
+      count: 6,
+      speed: 0.42,
+      pulseSize: 0.082
+    });
+    const lossCount = Math.min(12, Math.max(4, Math.round(getDeviceStats('motor').loss / 6)));
+    createHeatParticles(group, {
+      color: DEVICE_LIBRARY.motor.lossColor,
+      count: lossCount,
+      origin: new THREE.Vector3(0, 1.14, 0),
+      spread: 0.68,
+      minRise: 0.44,
+      maxRise: 1.02,
+      size: 0.05
+    });
+    createGlowHalo(group, DEVICE_LIBRARY.motor.accent, 1.16, 1.48);
+  }
+
+  registerUpdate((dt) => {
+    const efficiency = mini ? DEVICE_LIBRARY.motor.defaultEfficiency : getDeviceStats('motor').efficiency;
+    propeller.rotation.x += dt * THREE.MathUtils.lerp(4, 16, efficiency / 100);
+  });
+}
+
+function buildEngine(parent, options = {}) {
+  const { position = new THREE.Vector3(), scale = 1, mini = false } = options;
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const block = new THREE.Mesh(
+    new THREE.BoxGeometry(1.36, 0.94, 0.92),
+    new THREE.MeshStandardMaterial({
+      color: 0x5a6677,
+      roughness: 0.46,
+      metalness: 0.42
+    })
+  );
+  block.position.y = 1.04;
+  group.add(block);
+
+  const pistons = [];
+  for (let index = 0; index < 2; index += 1) {
+    const piston = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 0.48, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xdfebf8,
+        roughness: 0.22,
+        metalness: 0.72
+      })
+    );
+    piston.position.set(index === 0 ? -0.24 : 0.24, 1.42, 0);
+    pistons.push(piston);
+    group.add(piston);
+  }
+
+  const crank = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 1.52, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xf0f3f9,
+      roughness: 0.24,
+      metalness: 0.72
+    })
+  );
+  crank.rotation.z = Math.PI / 2;
+  crank.position.set(0.38, 0.8, 0);
+  group.add(crank);
+
+  const outputWheel = new THREE.Mesh(
+    new THREE.TorusGeometry(0.34, 0.07, 12, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xbed2c2,
+      roughness: 0.28,
+      metalness: 0.42
+    })
+  );
+  outputWheel.rotation.y = Math.PI / 2;
+  outputWheel.position.set(1.18, 0.8, 0);
+  group.add(outputWheel);
+
+  const exhaust = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.78, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xcfd9e5,
+      roughness: 0.3,
+      metalness: 0.56
+    })
+  );
+  exhaust.position.set(-0.62, 1.54, 0);
+  group.add(exhaust);
+
+  if (!mini) {
+    createFuelTank(group, new THREE.Vector3(-2.22, 0.06, 0), 1);
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(-1.74, 1.02, 0),
+        new THREE.Vector3(-1.12, 1.02, 0),
+        new THREE.Vector3(-0.6, 1.02, 0)
+      ],
+      color: DEVICE_LIBRARY.engine.accent,
+      count: 5,
+      speed: 0.38,
+      pulseSize: 0.074
+    });
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(0.74, 0.82, 0),
+        new THREE.Vector3(1.18, 0.82, 0),
+        new THREE.Vector3(1.84, 0.82, 0)
+      ],
+      color: DEVICE_LIBRARY.engine.usefulColor,
+      count: 4,
+      speed: 0.24,
+      pulseSize: 0.082
+    });
+    const lossCount = Math.min(28, Math.max(12, Math.round(getDeviceStats('engine').loss / 6)));
+    createHeatParticles(group, {
+      color: DEVICE_LIBRARY.engine.lossColor,
+      count: lossCount,
+      origin: new THREE.Vector3(-0.58, 1.44, 0),
+      spread: 0.86,
+      minRise: 0.76,
+      maxRise: 1.84,
+      size: 0.055
+    });
+    createGlowHalo(group, DEVICE_LIBRARY.engine.accent, 1.16, 1.62);
+  }
+
+  registerUpdate((dt) => {
+    const t = clock.elapsedTime * 4;
+    pistons[0].position.y = 1.42 + Math.sin(t) * 0.12;
+    pistons[1].position.y = 1.42 + Math.sin(t + Math.PI) * 0.12;
+    crank.rotation.x += dt * 6;
+    outputWheel.rotation.z += dt * 4.2;
+  });
+}
+
+function buildSolar(parent, options = {}) {
+  const { position = new THREE.Vector3(), scale = 1, mini = false } = options;
+  const group = new THREE.Group();
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  parent.add(group);
+
+  const stand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.1, 1.02, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xbfcbdc,
+      roughness: 0.28,
+      metalness: 0.52
+    })
+  );
+  stand.position.set(-0.3, 0.8, 0);
+  group.add(stand);
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.36, 0.08, 1.08),
+    new THREE.MeshStandardMaterial({
+      color: 0x26334c,
+      roughness: 0.42,
+      metalness: 0.38
+    })
+  );
+  frame.position.set(0, 1.46, 0);
+  frame.rotation.z = -Math.PI * 0.2;
+  group.add(frame);
+
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.18, 0.88),
+    new THREE.MeshStandardMaterial({
+      color: 0x1b2b54,
+      emissive: 0x102451,
+      emissiveIntensity: 0.5,
+      roughness: 0.3,
+      metalness: 0.18,
+      side: THREE.DoubleSide
+    })
+  );
+  panel.position.set(0, 1.46, 0.04);
+  panel.rotation.z = -Math.PI * 0.2;
+  group.add(panel);
+
+  const grid = new THREE.Group();
+  for (let line = -2; line <= 2; line += 1) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(1.08, 0.008, 0.012),
+      new THREE.MeshBasicMaterial({
+        color: 0x7cb1ff,
+        transparent: true,
+        opacity: 0.36
+      })
+    );
+    stripe.position.set(0, 1.26 + line * 0.1, 0.06);
+    stripe.rotation.z = -Math.PI * 0.2;
+    grid.add(stripe);
+  }
+  for (let line = -2; line <= 2; line += 1) {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.008, 0.8, 0.012),
+      new THREE.MeshBasicMaterial({
+        color: 0x7cb1ff,
+        transparent: true,
+        opacity: 0.28
+      })
+    );
+    stripe.position.set(line * 0.2, 1.46, 0.06);
+    stripe.rotation.z = -Math.PI * 0.2;
+    grid.add(stripe);
+  }
+  group.add(grid);
+
+  if (!mini) {
+    createSun(group, new THREE.Vector3(-1.95, 3.16, -0.2), 1);
+    createBattery(group, new THREE.Vector3(2.16, 0.06, 0.1), '#7fb8ff', 1);
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(-1.58, 2.9, -0.08),
+        new THREE.Vector3(-0.98, 2.42, -0.04),
+        new THREE.Vector3(-0.32, 1.94, 0)
+      ],
+      color: DEVICE_LIBRARY.solar.accent,
+      count: 6,
+      speed: 0.28,
+      pulseSize: 0.078
+    });
+    createPulseStream(group, {
+      points: [
+        new THREE.Vector3(0.48, 1.24, 0.08),
+        new THREE.Vector3(1.06, 1.08, 0.06),
+        new THREE.Vector3(1.82, 1.02, 0.04)
+      ],
+      color: DEVICE_LIBRARY.solar.usefulColor,
+      count: 4,
+      speed: 0.24,
+      pulseSize: 0.082
+    });
+    const lossCount = Math.min(18, Math.max(8, Math.round(getDeviceStats('solar').loss / 8)));
+    createHeatParticles(group, {
+      color: DEVICE_LIBRARY.solar.lossColor,
+      count: lossCount,
+      origin: new THREE.Vector3(0.12, 1.6, 0),
+      spread: 0.74,
+      minRise: 0.5,
+      maxRise: 1.26,
+      size: 0.05
+    });
+    createGlowHalo(group, DEVICE_LIBRARY.solar.accent, 1.12, 1.88);
+  } else {
+    createSun(group, new THREE.Vector3(-1.2, 2.2, -0.2), 0.66);
+  }
+
+  registerUpdate(() => {
+    panel.material.emissiveIntensity = 0.45 + Math.sin(clock.elapsedTime * 2.4) * 0.08;
+  });
+}
+
+function buildWaterwheel(parent) {
+  const group = new THREE.Group();
+  parent.add(group);
+  createStage(group, 2.8, '#78b8ff');
+
+  const wheelGroup = new THREE.Group();
+  wheelGroup.position.set(0, 1.76, 0);
+  group.add(wheelGroup);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.48, 0.08, 14, 60),
+    new THREE.MeshStandardMaterial({
+      color: 0x9e7a51,
+      roughness: 0.72,
+      metalness: 0.08
+    })
+  );
+  wheelGroup.add(rim);
+
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.12, 0.92, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xc9d2de,
+      roughness: 0.24,
+      metalness: 0.64
+    })
+  );
+  axle.rotation.z = Math.PI / 2;
+  wheelGroup.add(axle);
+
+  for (let index = 0; index < 8; index += 1) {
+    const spoke = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 2.92, 0.08),
+      new THREE.MeshStandardMaterial({
+        color: 0xa37c54,
+        roughness: 0.76
+      })
+    );
+    spoke.rotation.z = index * Math.PI / 4;
+    wheelGroup.add(spoke);
+
+    const bucket = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.18, 0.26),
+      new THREE.MeshStandardMaterial({
+        color: 0xb89267,
+        roughness: 0.72
+      })
+    );
+    bucket.position.set(Math.cos(index * Math.PI / 4) * 1.46, Math.sin(index * Math.PI / 4) * 1.46, 0);
+    bucket.rotation.z = index * Math.PI / 4 + Math.PI / 2;
+    wheelGroup.add(bucket);
+  }
+
+  const supportLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 2.7, 0.22),
+    new THREE.MeshStandardMaterial({
+      color: 0xbec8d7,
+      roughness: 0.3,
+      metalness: 0.42
+    })
+  );
+  supportLeft.position.set(-1.7, 1.46, 0);
+  group.add(supportLeft);
+
+  const supportRight = supportLeft.clone();
+  supportRight.position.x = 1.7;
+  group.add(supportRight);
+
+  const waterSpout = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.16, 0.24),
+    new THREE.MeshStandardMaterial({
+      color: 0x90a8c5,
+      roughness: 0.36,
+      metalness: 0.24
+    })
+  );
+  waterSpout.position.set(-1.28, 3.5, 0);
+  group.add(waterSpout);
+
+  const waterDrops = [];
+  for (let index = 0; index < 18; index += 1) {
+    const drop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0x7fd1ff,
+        transparent: true,
+        opacity: 0.82
+      })
+    );
+    drop.userData.offset = Math.random();
+    waterDrops.push(drop);
+    group.add(drop);
+  }
+
+  registerUpdate((dt) => {
+    state.perpetual.velocity *= Math.exp(-0.55 * dt);
+    state.perpetual.velocity = Math.max(0, state.perpetual.velocity - dt * 0.05);
+    state.perpetual.angle += state.perpetual.velocity * dt;
+    wheelGroup.rotation.z = -state.perpetual.angle;
+
+    for (const drop of waterDrops) {
+      drop.userData.offset = (drop.userData.offset + dt * (0.42 + state.perpetual.velocity * 0.08)) % 1;
+      drop.position.set(
+        -1.76 + drop.userData.offset * 0.68,
+        3.34 - drop.userData.offset * 1.9,
+        Math.sin(drop.userData.offset * Math.PI * 6) * 0.08
+      );
+    }
+
+    if (!state.perpetual.failed && state.perpetual.velocity < 0.06) {
+      state.perpetual.failed = true;
+      showFailureBanner(
+        '❌ 영구 기관 실패',
+        '마찰과 공기 저항으로 에너지가 계속 손실되어 물레방아는 결국 멈춥니다.'
+      );
+      updatePanels();
+    }
+  });
+}
+
+function buildMagnetMachine(parent) {
+  const group = new THREE.Group();
+  parent.add(group);
+  createStage(group, 2.8, '#ff7d7d');
+
+  const rail = new THREE.Mesh(
+    new THREE.TorusGeometry(2.0, 0.08, 16, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0xb9c8d8,
+      roughness: 0.3,
+      metalness: 0.52
+    })
+  );
+  rail.rotation.x = Math.PI / 2;
+  rail.position.y = 1.1;
+  group.add(rail);
+
+  for (let index = 0; index < 6; index += 1) {
+    const magnet = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.42, 18),
+      new THREE.MeshStandardMaterial({
+        color: index % 2 === 0 ? 0xff6d6d : 0x6d8fff,
+        roughness: 0.28,
+        metalness: 0.48
+      })
+    );
+    const angle = index * Math.PI / 3;
+    magnet.position.set(Math.cos(angle) * 2.0, 1.1, Math.sin(angle) * 2.0);
+    magnet.rotation.z = Math.PI / 2;
+    group.add(magnet);
+  }
+
+  const bead = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xf1f4f9,
+      roughness: 0.22,
+      metalness: 0.72
+    })
+  );
+  bead.position.set(2, 1.1, 0);
+  group.add(bead);
+
+  const fieldHalo = new THREE.Mesh(
+    new THREE.TorusGeometry(2.22, 0.03, 12, 80),
+    new THREE.MeshBasicMaterial({
+      color: 0xff9ea3,
+      transparent: true,
+      opacity: 0.32
+    })
+  );
+  fieldHalo.rotation.x = Math.PI / 2;
+  fieldHalo.position.y = 1.11;
+  group.add(fieldHalo);
+
+  registerUpdate((dt) => {
+    state.perpetual.amplitude *= Math.exp(-0.42 * dt);
+    state.perpetual.phase += dt * 2.2;
+    const theta = Math.sin(state.perpetual.phase) * state.perpetual.amplitude;
+    bead.position.set(Math.cos(theta) * 2.0, 1.1, Math.sin(theta) * 2.0);
+    fieldHalo.rotation.z += dt * 0.1;
+
+    if (!state.perpetual.failed && state.perpetual.amplitude < 0.08) {
+      state.perpetual.failed = true;
+      showFailureBanner(
+        '❌ 영구 기관 실패',
+        '자기장은 보존력이므로 한 바퀴 돌아도 에너지가 새로 생기지 않아 구슬은 계속 가속되지 못합니다.'
+      );
+      updatePanels();
+    }
+  });
+}
+
+function buildSingleDeviceScene(deviceKey) {
+  const builders = {
+    incandescent: buildIncandescent,
+    led: buildLed,
+    motor: buildMotor,
+    engine: buildEngine,
+    solar: buildSolar
+  };
+  createStage(contentRoot, 2.72, DEVICE_LIBRARY[deviceKey].accent);
+  builders[deviceKey](contentRoot, {
+    position: new THREE.Vector3(0, 0, 0),
+    scale: 1.08
+  });
+  compareStripEl.classList.remove('show');
+}
+
+function buildCompareScene() {
+  const positions = [
+    new THREE.Vector3(-3.3, 0, -1.2),
+    new THREE.Vector3(0, 0, -1.2),
+    new THREE.Vector3(3.3, 0, -1.2),
+    new THREE.Vector3(-1.72, 0, 2.2),
+    new THREE.Vector3(1.72, 0, 2.2)
+  ];
+
+  const builders = {
+    incandescent: buildIncandescent,
+    led: buildLed,
+    motor: buildMotor,
+    engine: buildEngine,
+    solar: buildSolar
+  };
+
+  DEVICE_ORDER.forEach((deviceKey, index) => {
+    const stage = createMiniStage(contentRoot, positions[index], DEVICE_LIBRARY[deviceKey].accent);
+    builders[deviceKey](stage, {
+      position: new THREE.Vector3(0, 0, 0),
+      scale: 0.7,
+      mini: true
+    });
+  });
+
+  const ranking = [...DEVICE_ORDER].sort((a, b) => state.efficiencies[b] - state.efficiencies[a]);
+  compareStripEl.innerHTML = DEVICE_ORDER.map((deviceKey) => {
+    const stats = getDeviceStats(deviceKey);
+    return `
+      <div class="compare-chip ${deviceKey === ranking[0] ? 'best' : ''}">
+        <strong>${DEVICE_LIBRARY[deviceKey].label}</strong>
+        <span>효율 ${formatEnergy(stats.efficiency)}% · 유용 ${formatEnergy(stats.useful)}J · 손실 ${formatEnergy(stats.loss)}J</span>
+      </div>
+    `;
+  }).join('');
+  compareStripEl.classList.add('show');
+}
+
+function buildPerpetualScene(type) {
+  compareStripEl.classList.remove('show');
+  if (type === 'waterwheel') {
+    buildWaterwheel(contentRoot);
+  } else {
+    buildMagnetMachine(contentRoot);
+  }
+}
+
+function rebuildScene() {
+  clearGroup(contentRoot);
+  clearUpdates();
+  resetBanner();
+
+  if (state.viewMode === 'perpetual' && getCurrentPerpetualKey() !== 'none') {
+    setCameraPreset('perpetual');
+    buildPerpetualScene(getCurrentPerpetualKey());
+  } else {
+    const deviceKey = getCurrentDeviceKey();
+    if (deviceKey === 'compare') {
+      setCameraPreset('compare');
+      buildCompareScene();
+    } else {
+      setCameraPreset('single');
+      buildSingleDeviceScene(deviceKey);
+    }
+  }
+}
+
+function createSankeySvg(deviceKey) {
+  const config = DEVICE_LIBRARY[deviceKey];
+  const stats = getDeviceStats(deviceKey);
+  const usefulHeight = 96 * stats.efficiency / 100;
+  const lossHeight = 96 - usefulHeight;
+  const usefulY = 18;
+  const lossY = usefulY + usefulHeight;
+
+  return `
+    <svg class="sankey-svg" viewBox="0 0 380 160" preserveAspectRatio="none" aria-label="${config.label} Sankey diagram">
+      <defs>
+        <linearGradient id="grad-input-${deviceKey}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="${config.accent}" stop-opacity="0.9" />
+          <stop offset="100%" stop-color="${config.accent}" stop-opacity="0.32" />
+        </linearGradient>
+        <linearGradient id="grad-useful-${deviceKey}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="${config.usefulColor}" stop-opacity="0.92" />
+          <stop offset="100%" stop-color="${config.usefulColor}" stop-opacity="0.28" />
+        </linearGradient>
+        <linearGradient id="grad-loss-${deviceKey}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="${config.lossColor}" stop-opacity="0.94" />
+          <stop offset="100%" stop-color="${config.lossColor}" stop-opacity="0.28" />
+        </linearGradient>
+      </defs>
+
+      <rect x="18" y="18" width="42" height="96" rx="14" fill="url(#grad-input-${deviceKey})"></rect>
+      <path d="M60 18
+               C108 18, 118 18, 166 18
+               L188 18
+               C214 18, 232 18, 254 18
+               L336 18
+               L336 ${18 + usefulHeight}
+               L254 ${18 + usefulHeight}
+               C232 ${18 + usefulHeight}, 214 ${18 + usefulHeight}, 188 ${18 + usefulHeight}
+               L166 ${18 + usefulHeight}
+               C118 ${18 + usefulHeight}, 108 ${18 + usefulHeight}, 60 ${18 + usefulHeight}
+               Z"
+            fill="url(#grad-useful-${deviceKey})"></path>
+      <path d="M60 ${18 + usefulHeight}
+               C108 ${18 + usefulHeight}, 118 ${18 + usefulHeight}, 166 ${18 + usefulHeight}
+               L188 ${18 + usefulHeight}
+               C214 ${18 + usefulHeight}, 232 ${lossY}, 254 ${lossY}
+               L336 ${lossY}
+               L336 ${lossY + lossHeight}
+               L254 ${lossY + lossHeight}
+               C232 ${lossY + lossHeight}, 214 114, 188 114
+               L166 114
+               C118 114, 108 114, 60 114
+               Z"
+            fill="url(#grad-loss-${deviceKey})"></path>
+      <rect x="332" y="${usefulY}" width="26" height="${usefulHeight}" rx="12" fill="${config.usefulColor}"></rect>
+      <rect x="332" y="${lossY}" width="26" height="${lossHeight}" rx="12" fill="${config.lossColor}"></rect>
+      <text x="18" y="138" fill="rgba(255,255,255,0.78)" font-size="12">${config.inputLabel}</text>
+      <text x="268" y="14" fill="rgba(255,255,255,0.86)" font-size="12">${config.usefulLabel} ${formatEnergy(stats.useful)}J</text>
+      <text x="268" y="136" fill="rgba(255,255,255,0.82)" font-size="12">${config.lossLabel} ${formatEnergy(stats.loss)}J</text>
+    </svg>
+  `;
+}
+
+function renderSankey() {
+  const selectedKey = getCurrentDeviceKey();
+  const orderedKeys = getOrderedDeviceKeys();
+
+  sankeyListEl.innerHTML = orderedKeys.map((deviceKey) => {
+    const config = DEVICE_LIBRARY[deviceKey];
+    const stats = getDeviceStats(deviceKey);
+    const active = selectedKey === 'compare' || selectedKey === deviceKey;
+    return `
+      <article class="sankey-card ${active ? 'active' : 'inactive'}">
+        <div class="sankey-card-header">
+          <div>
+            <span class="device-pill" style="--pill-bg:${hexToRgba(config.accent, 0.24)}">${config.pill}</span>
+            <h3>${config.label}</h3>
+            <p>${config.summary}</p>
+          </div>
+          <div class="sankey-metric">
+            <strong>${formatEnergy(stats.efficiency)}%</strong>
+            <span>유용 ${formatEnergy(stats.useful)}J<br>손실 ${formatEnergy(stats.loss)}J</span>
+          </div>
+        </div>
+        ${createSankeySvg(deviceKey)}
+        <div class="sankey-note">${config.principle}</div>
+      </article>
+    `;
+  }).join('');
+
+  const ranking = [...DEVICE_ORDER].sort((a, b) => state.efficiencies[b] - state.efficiencies[a]);
+  const currentForFormula = selectedKey === 'compare' ? state.adjustTarget : selectedKey;
+  const focusStats = getDeviceStats(currentForFormula);
+  sankeySummaryEl.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="label">현재 초점</div>
+        <strong>${DEVICE_LIBRARY[currentForFormula].label}</strong>
+        <p>공급 ${formatEnergy(focusStats.input)}J 중 ${formatEnergy(focusStats.useful)}J만 유용하게 쓰이고, ${formatEnergy(focusStats.loss)}J는 손실됩니다.</p>
+      </div>
+      <div class="summary-card">
+        <div class="label">최고 효율</div>
+        <strong>${DEVICE_LIBRARY[ranking[0]].label} ${formatEnergy(state.efficiencies[ranking[0]])}%</strong>
+        <p>같은 100J를 넣어도 장치에 따라 유용한 출력은 크게 달라집니다.</p>
+      </div>
+      <div class="summary-card">
+        <div class="label">영구 기관</div>
+        <strong>η &lt; 100%</strong>
+        <p>에너지는 보존되지만 실제 장치에서는 마찰과 저항 때문에 일부가 항상 열로 빠져나갑니다.</p>
+      </div>
+    </div>
+  `;
+}
+
+function updateFormulaPanel() {
+  const selectedKey = getCurrentDeviceKey();
+  const focusKey = selectedKey === 'compare' ? state.adjustTarget : selectedKey;
+  const stats = getDeviceStats(focusKey);
+
+  formulaPanelEl.innerHTML = `
+    <h3>📊 에너지 효율과 영구 기관</h3>
+    <div class="divider"></div>
+    <div class="row"><div class="label">현재 장치</div><div class="value">${selectedKey === 'compare' ? '전체비교' : DEVICE_LIBRARY[focusKey].label}</div></div>
+    <div class="row"><div class="label">조절 대상</div><div class="value">${DEVICE_LIBRARY[state.adjustTarget].label}</div></div>
+    <div class="row"><div class="label">공급 에너지</div><div class="value">${formatEnergy(stats.input)}J (${DEVICE_LIBRARY[focusKey].inputLabel})</div></div>
+    <div class="row"><div class="label">유용한 출력</div><div class="value">${formatEnergy(stats.useful)}J (${DEVICE_LIBRARY[focusKey].usefulLabel})</div></div>
+    <div class="row"><div class="label">폐열</div><div class="value">${formatEnergy(stats.loss)}J</div></div>
+    <div class="mono">η = (유용한 에너지 / 공급 에너지) × 100%
+η = ${formatEnergy(stats.useful)}J / ${formatEnergy(stats.input)}J × 100% = ${formatEnergy(stats.efficiency)}%</div>
+    <div class="device-grid">
+      ${DEVICE_ORDER.map((deviceKey) => {
+        const deviceStats = getDeviceStats(deviceKey);
+        return `
+          <div class="device-stat">
+            <strong>${DEVICE_LIBRARY[deviceKey].label}</strong>
+            <span>효율 ${formatEnergy(deviceStats.efficiency)}% · 유용 ${formatEnergy(deviceStats.useful)}J</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div class="concept-box">
+      <strong>영구 기관</strong>
+      에너지 보존 법칙에 의해 외부 공급 없이 영원히 일을 하는 장치는 불가능합니다. 실제 장치는 항상 η &lt; 100%입니다.
+    </div>
+  `;
+}
+
+function updateSceneOverlay() {
+  const selectedKey = getCurrentDeviceKey();
+  const perpetualKey = getCurrentPerpetualKey();
+
+  if (state.viewMode === 'perpetual' && perpetualKey !== 'none') {
+    const isWaterwheel = perpetualKey === 'waterwheel';
+    sceneNoteEl.innerHTML = `
+      <div class="tag">Perpetual Motion</div>
+      <strong>${isWaterwheel ? '자체 순환 물레방아 실험' : '자석 기관 실험'}</strong>
+      외부에서 에너지를 추가하지 않은 상태로 계속 움직일 수 있는지 관찰해 보세요.
+    `;
+
+    sceneCaptionEl.innerHTML = `
+      <strong>${isWaterwheel ? '마찰이 있는 물레방아' : '자기장은 에너지를 만들어내지 못함'}</strong>
+      <div>${isWaterwheel ? '처음에는 회전하지만 축 마찰과 공기 저항 때문에 운동 에너지가 점점 줄어들어 멈춥니다.' : '자석은 구슬의 운동 방향을 바꿀 수는 있지만, 한 바퀴 돌아도 순에너지를 더해 주지 못합니다.'}</div>
+      <ul>
+        <li>${isWaterwheel ? '회전 속도가 감소할수록 손실이 누적됩니다.' : '보존력만으로는 영원한 순환 가속을 만들 수 없습니다.'}</li>
+        <li>${isWaterwheel ? '계속 돌리려면 외부에서 물이나 에너지를 공급해야 합니다.' : '구슬은 진동하다가 결국 멈추며, 외부 공급이 없으면 재가속되지 않습니다.'}</li>
+      </ul>
+    `;
+
+    if (!state.perpetual.failed) {
+      showPendingBanner(
+        '실험 진행 중',
+        isWaterwheel
+          ? '회전은 시작되지만 마찰 때문에 점점 느려집니다.'
+          : '구슬은 자석 사이를 오가지만 추가 에너지를 얻지 못합니다.'
+      );
+    }
+    return;
+  }
+
+  const focusKey = selectedKey === 'compare' ? state.adjustTarget : selectedKey;
+  const stats = getDeviceStats(focusKey);
+  const config = DEVICE_LIBRARY[focusKey];
+  const compareMode = selectedKey === 'compare';
+
+  sceneNoteEl.innerHTML = `
+    <div class="tag">${compareMode ? 'Compare Mode' : 'Device Mode'}</div>
+    <strong>${compareMode ? '장치 5종 효율 한눈에 비교' : `${config.label} 효율 시각화`}</strong>
+    ${compareMode
+      ? '같은 공급 에너지에서도 유용 출력과 폐열 비율이 어떻게 달라지는지 비교합니다.'
+      : `현재 ${formatEnergy(stats.input)}J 중 ${formatEnergy(stats.useful)}J가 유용하게 쓰이고 ${formatEnergy(stats.loss)}J는 폐열로 빠져나갑니다.`}
+  `;
+
+  sceneCaptionEl.innerHTML = compareMode
+    ? `
+      <strong>비교 관찰 포인트</strong>
+      <div>녹색 출력이 큰 장치일수록 효율이 높고, 빨간 손실이 작은 장치일수록 에너지를 덜 낭비합니다.</div>
+      <ul>
+        <li>전기모터는 전기 → 운동 전환이 비교적 효율적입니다.</li>
+        <li>백열전구와 내연기관은 열 손실 비율이 큽니다.</li>
+        <li>효율을 높여도 실제 장치는 100%에 도달하지 못합니다.</li>
+      </ul>
+    `
+    : `
+      <strong>${config.label}</strong>
+      <div>${config.principle}</div>
+      <ul>
+        <li>입력: ${config.inputLabel}</li>
+        <li>유용 출력: ${config.usefulLabel}</li>
+        <li>특징: ${config.useHint}</li>
+      </ul>
+    `;
+}
+
+function updatePanels() {
+  applyLayout();
+  renderSankey();
+  updateFormulaPanel();
+  updateSceneOverlay();
+}
+
+function syncGui() {
+  efficiencyController.name(`효율 조절 (${DEVICE_LIBRARY[state.adjustTarget].label})`);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function rebuildAndRefresh() {
+  syncEfficiencyTarget();
+  rebuildScene();
+  updatePanels();
+  syncGui();
+}
+
+function startPerpetualExperiment() {
+  const perpetualKey = getCurrentPerpetualKey();
+  if (perpetualKey === 'none') {
+    showToast('먼저 영구 기관 유형을 선택하세요.');
+    return;
+  }
+
+  state.viewMode = 'perpetual';
+  state.perpetual.type = perpetualKey;
+  state.perpetual.elapsed = 0;
+  state.perpetual.failed = false;
+  state.perpetual.angle = 0;
+  state.perpetual.phase = 0;
+  state.perpetual.velocity = perpetualKey === 'waterwheel' ? 2.8 : 0;
+  state.perpetual.amplitude = perpetualKey === 'magnet' ? 1.7 : 0;
+
+  rebuildAndRefresh();
+  showToast(`${PERPETUAL_OPTIONS[perpetualKey]} 실험을 시작했습니다.`);
+}
+
+function resetSimulation() {
+  params.device = DEVICE_OPTIONS.incandescent;
+  params.perpetual = PERPETUAL_OPTIONS.none;
+  params.energyInput = 100;
+  params.sankey = true;
+  state.efficiencies = { ...DEFAULT_EFFICIENCIES };
+  state.adjustTarget = 'incandescent';
+  params.efficiency = state.efficiencies[state.adjustTarget];
+  state.viewMode = 'device';
+  state.perpetual = {
+    type: 'none',
+    elapsed: 0,
+    velocity: 0,
+    angle: 0,
+    phase: 0,
+    amplitude: 0,
+    failed: false
+  };
+  rebuildAndRefresh();
+  showToast('시뮬레이션을 초기화했습니다.');
+}
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.classList.toggle('open');
+});
+
+const gui = new GUI({ title: '에너지 효율 컨트롤', width: 320 });
+gui
+  .add(params, 'device', Object.values(DEVICE_OPTIONS))
+  .name('장치')
+  .onChange(() => {
+    state.viewMode = 'device';
+    rebuildAndRefresh();
+  });
+
+gui
+  .add(params, 'perpetual', Object.values(PERPETUAL_OPTIONS))
+  .name('영구 기관')
+  .onChange(() => {
+    if (getCurrentPerpetualKey() === 'none' && state.viewMode === 'perpetual') {
+      state.viewMode = 'device';
+    }
+    rebuildAndRefresh();
+  });
+
+gui
+  .add(params, 'energyInput', 50, 500, 10)
+  .name('에너지 입력 (J)')
+  .onChange(() => {
+    updatePanels();
+  });
+
+const efficiencyController = gui
+  .add(params, 'efficiency', 1, 100, 1)
+  .name('효율 조절')
+  .onChange((value) => {
+    state.efficiencies[state.adjustTarget] = value;
+    updatePanels();
+  });
+
+gui
+  .add(params, 'sankey')
+  .name('Sankey 다이어그램')
+  .onChange(() => {
+    applyLayout();
+  });
+
+gui.add(params, 'startPerpetual').name('영구 기관 시작');
+gui.add(params, 'reset').name('초기화');
+
+window.addEventListener('resize', resizeRenderer);
+resizeRenderer();
+rebuildAndRefresh();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.033);
+
+  if (state.viewMode === 'perpetual') {
+    state.perpetual.elapsed += dt;
+  }
+
+  for (const update of state.updateFns) {
+    update(dt);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>

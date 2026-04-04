@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>산과 염기 - 이온화와 지시약</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg-main: #f0f0f5;
+    --panel-bg: rgba(255, 255, 255, 0.9);
+    --panel-strong: rgba(255, 255, 255, 0.96);
+    --panel-border: rgba(97, 111, 135, 0.16);
+    --panel-shadow: 0 18px 50px rgba(78, 89, 114, 0.18);
+    --text-main: #233147;
+    --text-sub: #5d7088;
+    --acid: #db5664;
+    --base: #3f74ff;
+    --neutral: #44aa44;
+    --accent: #2e5f93;
+    --paper-blue: #4678ff;
+    --paper-red: #dd5a73;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 18% 14%, rgba(182, 202, 238, 0.26), transparent 28%),
+      radial-gradient(circle at 82% 20%, rgba(255, 190, 190, 0.18), transparent 24%),
+      linear-gradient(180deg, #f5f6fb, var(--bg-main));
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  #scene-container {
+    position: fixed;
+    inset: 0;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #top-banner {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(780px, calc(100vw - 180px));
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(242,246,251,0.86));
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    text-align: center;
+    backdrop-filter: blur(12px);
+    z-index: 22;
+    pointer-events: none;
+  }
+
+  #top-banner .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  #top-banner h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    letter-spacing: -0.04em;
+  }
+
+  #top-banner p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+    line-height: 1.65;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 10px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.9);
+    color: var(--text-main);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: min(76vh, 780px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.94);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+    display: none;
+    z-index: 39;
+    font-size: 12px;
+    line-height: 1.78;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: var(--accent);
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #a25a33;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .guide-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(64, 102, 149, 0.08);
+    color: var(--text-sub);
+  }
+
+  #lab-divider {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(125, 138, 162, 0.34) 18%, rgba(125, 138, 162, 0.34) 82%, transparent);
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #split-labels {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(1100px, calc(100vw - 40px));
+    display: flex;
+    justify-content: space-between;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  .split-chip {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.82);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 12px 24px rgba(114, 126, 153, 0.14);
+    color: var(--text-sub);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(392px, calc(50vw - 28px));
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+    z-index: 22;
+    line-height: 1.65;
+  }
+
+  #formula-panel h3,
+  #indicator-panel h3 {
+    font-size: 15px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-label {
+    width: 84px;
+    flex-shrink: 0;
+    color: var(--text-sub);
+    font-size: 11px;
+  }
+
+  .formula-value {
+    flex: 1;
+    font-size: 12px;
+  }
+
+  .accent-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(46, 95, 147, 0.08);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mini-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(46, 95, 147, 0.06);
+    font-size: 11px;
+    color: var(--text-sub);
+  }
+
+  #indicator-panel {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    width: min(424px, calc(50vw - 28px));
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    backdrop-filter: blur(14px);
+    z-index: 22;
+  }
+
+  #indicator-summary {
+    color: var(--text-sub);
+    font-size: 12px;
+    line-height: 1.65;
+    margin-bottom: 10px;
+  }
+
+  .indicator-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(246, 249, 252, 0.86);
+    border: 1px solid rgba(99, 113, 138, 0.08);
+    margin-bottom: 10px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  .indicator-card.active {
+    transform: translateY(-1px);
+    border-color: rgba(46, 95, 147, 0.26);
+    box-shadow: 0 14px 26px rgba(92, 118, 153, 0.13);
+  }
+
+  .indicator-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .indicator-head .badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(46, 95, 147, 0.1);
+    color: var(--accent);
+    font-size: 10px;
+    display: none;
+  }
+
+  .indicator-card.active .badge {
+    display: inline-flex;
+  }
+
+  .swatch-row {
+    display: grid;
+    grid-template-columns: 58px 18px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-sub);
+    margin-bottom: 4px;
+  }
+
+  .swatch-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+  }
+
+  .single-swatch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-sub);
+  }
+
+  #conductivity-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 8px 0 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(33, 45, 62, 0.92);
+    color: #eff6ff;
+  }
+
+  .pill-title {
+    font-size: 11px;
+    color: rgba(239, 246, 255, 0.72);
+  }
+
+  #conductivity-value {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  #conductivity-detail {
+    font-size: 11px;
+    color: rgba(239, 246, 255, 0.76);
+  }
+
+  .property-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .property-card {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(246, 249, 252, 0.88);
+    border: 1px solid rgba(99, 113, 138, 0.08);
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-sub);
+  }
+
+  .property-card.current {
+    border-color: rgba(46, 95, 147, 0.22);
+    box-shadow: 0 12px 22px rgba(93, 118, 150, 0.12);
+    color: var(--text-main);
+  }
+
+  .property-card h4 {
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--text-main);
+  }
+
+  .teacher-note {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(46, 95, 147, 0.06);
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--text-sub);
+  }
+
+  #hint-chip {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    max-width: min(520px, calc(100vw - 40px));
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.84);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
+    color: var(--text-sub);
+    font-size: 11px;
+    z-index: 18;
+    pointer-events: none;
+  }
+
+  .lil-gui.root {
+    position: fixed !important;
+    top: 14px !important;
+    right: 14px !important;
+    z-index: 45 !important;
+    --widget-color: #335c87;
+    --focus-color: #4d84c1;
+  }
+
+  @media (max-width: 1180px) {
+    #top-banner {
+      width: min(640px, calc(100vw - 190px));
+    }
+
+    #formula-panel,
+    #indicator-panel {
+      width: min(360px, calc(50vw - 24px));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #top-banner {
+      width: calc(100vw - 28px);
+    }
+
+    #lab-divider,
+    #split-labels {
+      display: none;
+    }
+
+    #formula-panel,
+    #indicator-panel {
+      width: calc(100vw - 28px);
+    }
+
+    #formula-panel {
+      bottom: 248px;
+    }
+
+    #indicator-panel {
+      bottom: 14px;
+    }
+
+    .property-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lil-gui.root {
+      top: auto !important;
+      bottom: 14px !important;
+      right: 14px !important;
+    }
+
+    #guide-toggle {
+      top: 84px;
+    }
+
+    #guide-panel {
+      top: 128px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-container"></div>
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>산과 염기 핵심 가이드</h3>
+  <p>산은 수용액에서 수소 이온(H⁺)을 내놓는 물질이고, 염기는 수용액에서 수산화 이온(OH⁻)을 내놓는 물질입니다. 산과 염기의 수용액은 모두 이온이 있어 전류가 흐릅니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>식초는 페놀프탈레인 용액을 붉은색으로 변하게 할까요?</li>
+    <li>산과 염기의 수용액은 모두 전류가 흐릅니다. 그 까닭은 무엇인가요?</li>
+    <li>우리 주변에서 산성과 염기성을 나타내는 물질을 각각 3가지씩 찾아보세요.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>위산(HCl), 자동차 배터리(H₂SO₄), 식초(아세트산)</li>
+    <li>빨래비누(NaOH), 제빵 소다(NaHCO₃), 배수관 세정제(KOH)</li>
+  </ul>
+
+  <h4>관찰 포인트</h4>
+  <ul>
+    <li>푸른색 리트머스는 산성에서 붉게, 붉은색 리트머스는 염기성에서 푸르게 변합니다.</li>
+    <li>페놀프탈레인은 염기성에서만 붉은색, BTB는 산성-중성-염기성에 따라 노란색-초록색-파란색으로 바뀝니다.</li>
+    <li>증류수는 이온이 거의 없어 LED가 켜지지 않습니다.</li>
+  </ul>
+
+  <div class="guide-note">
+    미래엔 통합과학2 I편 p46~49 내용에 맞춰 산성과 염기성, 이온화, 지시약, 전기 전도성을 함께 비교하도록 구성했습니다.
+  </div>
+</div>
+
+<div id="top-banner">
+  <div class="eyebrow">통합과학2 · 변화와 다양성 · 산과 염기</div>
+  <h1>산과 염기 — 이온화와 지시약</h1>
+  <p>왼쪽에서는 분자가 물속에서 이온으로 나뉘는 과정을, 오른쪽에서는 지시약 색 변화와 전기 전도성을 동시에 비교합니다.</p>
+</div>
+
+<div id="lab-divider"></div>
+<div id="split-labels">
+  <div class="split-chip">왼쪽 50% · 비커와 이온 입자 모형</div>
+  <div class="split-chip">오른쪽 50% · 지시약 색 변화와 전도성 패널</div>
+</div>
+
+<div id="formula-panel">
+  <h3>🧪 산과 염기 — 이온화와 지시약</h3>
+  <div class="formula-row"><span class="formula-label">현재 용액</span><span class="formula-value" id="current-solution"></span></div>
+  <div class="formula-row"><span class="formula-label">액성</span><span class="formula-value" id="current-property"></span></div>
+  <div class="formula-row"><span class="formula-label">이온화식</span><span class="formula-value" id="ionization-equation"></span></div>
+  <div class="formula-row"><span class="formula-label">대표 이온</span><span class="formula-value" id="representative-ion"></span></div>
+  <div class="formula-row"><span class="formula-label">산성 이온</span><span class="formula-value">H⁺ (수소 이온)</span></div>
+  <div class="formula-row"><span class="formula-label">염기성 이온</span><span class="formula-value">OH⁻ (수산화 이온)</span></div>
+  <div class="formula-row"><span class="formula-label">리트머스</span><span class="formula-value" id="litmus-summary"></span></div>
+  <div class="formula-row"><span class="formula-label">페놀프탈레인</span><span class="formula-value" id="phenol-summary"></span></div>
+  <div class="formula-row"><span class="formula-label">BTB</span><span class="formula-value" id="btb-summary"></span></div>
+  <div class="formula-row"><span class="formula-label">전도성</span><span class="formula-value" id="conductivity-summary"></span></div>
+  <div class="formula-row"><span class="formula-label">예시 식</span><span class="formula-value" id="examples-value"></span></div>
+
+  <div class="mini-note">
+    <span class="accent-inline">산</span> 수용액에서 H⁺을 내놓는 물질<br>
+    <span class="accent-inline">염기</span> 수용액에서 OH⁻을 내놓는 물질
+  </div>
+</div>
+
+<div id="indicator-panel">
+  <h3>지시약 색 변화 패널</h3>
+  <p id="indicator-summary"></p>
+
+  <div class="indicator-card active" data-indicator="리트머스">
+    <div class="indicator-head">
+      <span>리트머스 종이</span>
+      <span class="badge">선택됨</span>
+    </div>
+    <div class="swatch-row">
+      <span>푸른 종이</span>
+      <span class="swatch-dot" id="litmus-blue-swatch"></span>
+      <span id="litmus-blue-text"></span>
+    </div>
+    <div class="swatch-row">
+      <span>붉은 종이</span>
+      <span class="swatch-dot" id="litmus-red-swatch"></span>
+      <span id="litmus-red-text"></span>
+    </div>
+  </div>
+
+  <div class="indicator-card" data-indicator="페놀프탈레인">
+    <div class="indicator-head">
+      <span>페놀프탈레인</span>
+      <span class="badge">선택됨</span>
+    </div>
+    <div class="single-swatch">
+      <span class="swatch-dot" id="phenol-swatch"></span>
+      <span id="phenol-text"></span>
+    </div>
+  </div>
+
+  <div class="indicator-card" data-indicator="BTB">
+    <div class="indicator-head">
+      <span>BTB 용액</span>
+      <span class="badge">선택됨</span>
+    </div>
+    <div class="single-swatch">
+      <span class="swatch-dot" id="btb-swatch"></span>
+      <span id="btb-text"></span>
+    </div>
+  </div>
+
+  <div id="conductivity-pill">
+    <div>
+      <div class="pill-title">전기 전도성 확인</div>
+      <div id="conductivity-value"></div>
+    </div>
+    <div id="conductivity-detail"></div>
+  </div>
+
+  <div class="property-grid">
+    <div class="property-card" id="acid-card">
+      <h4>산성의 성질</h4>
+      전류가 흐름 · 신맛 · 탄산 칼슘과 반응 시 CO₂ · 금속과 반응 시 H₂
+    </div>
+    <div class="property-card" id="base-card">
+      <h4>염기성의 성질</h4>
+      전류가 흐름 · 쓴맛 · 미끈거림 · 단백질 녹임
+    </div>
+  </div>
+
+  <div class="teacher-note" id="teacher-note"></div>
+</div>
+
+<div id="hint-chip">마우스로 회전하며 관찰하고, 오른쪽 상단 패널에서 용액 종류와 지시약을 바꿔 보세요.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const sceneContainer = document.getElementById('scene-container');
+
+const dom = {
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  currentSolution: document.getElementById('current-solution'),
+  currentProperty: document.getElementById('current-property'),
+  ionizationEquation: document.getElementById('ionization-equation'),
+  representativeIon: document.getElementById('representative-ion'),
+  litmusSummary: document.getElementById('litmus-summary'),
+  phenolSummary: document.getElementById('phenol-summary'),
+  btbSummary: document.getElementById('btb-summary'),
+  conductivitySummary: document.getElementById('conductivity-summary'),
+  examplesValue: document.getElementById('examples-value'),
+  indicatorSummary: document.getElementById('indicator-summary'),
+  litmusBlueSwatch: document.getElementById('litmus-blue-swatch'),
+  litmusRedSwatch: document.getElementById('litmus-red-swatch'),
+  litmusBlueText: document.getElementById('litmus-blue-text'),
+  litmusRedText: document.getElementById('litmus-red-text'),
+  phenolSwatch: document.getElementById('phenol-swatch'),
+  phenolText: document.getElementById('phenol-text'),
+  btbSwatch: document.getElementById('btb-swatch'),
+  btbText: document.getElementById('btb-text'),
+  conductivityValue: document.getElementById('conductivity-value'),
+  conductivityDetail: document.getElementById('conductivity-detail'),
+  acidCard: document.getElementById('acid-card'),
+  baseCard: document.getElementById('base-card'),
+  teacherNote: document.getElementById('teacher-note'),
+  indicatorCards: Array.from(document.querySelectorAll('.indicator-card'))
+};
+
+const solutionOptionMap = {
+  '염산(HCl)': 'hcl',
+  '황산(H₂SO₄)': 'h2so4',
+  '아세트산': 'ch3cooh',
+  '수산화 나트륨(NaOH)': 'naoh',
+  '수산화 칼륨(KOH)': 'koh',
+  '수산화 칼슘': 'caoh2',
+  '증류수': 'distilled'
+};
+
+const INDICATORS = ['리트머스', '페놀프탈레인', 'BTB'];
+
+const SOLUTIONS = {
+  hcl: {
+    label: '염산(HCl)',
+    formula: 'HCl',
+    family: 'acid',
+    property: '산성',
+    ionization: 'HCl → H⁺ + Cl⁻',
+    representativeIon: 'H⁺ (수소 이온)',
+    mainLiquidColor: 0xf7fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0xdb5664,
+      redColor: 0xdd5a73,
+      blueText: '붉은색으로 변화',
+      redText: '변화 없음'
+    },
+    phenol: { color: 0xf7fbff, text: '무색' },
+    btb: { color: 0xddcc00, text: '노란색' },
+    cue: '염산에서 산성을 나타내는 이온은 수소 이온(H⁺)입니다.',
+    examples: 'H₂SO₄ → 2H⁺ + SO₄²⁻, CH₃COOH ⇌ H⁺ + CH₃COO⁻, H₂CO₃ ⇌ 2H⁺ + CO₃²⁻',
+    moleculeAtoms: [
+      { label: 'H', color: 0xff8a8a, radius: 0.14, pos: [-0.34, 0.05, 0] },
+      { label: 'Cl', color: 0x55c968, radius: 0.26, pos: [0.26, -0.02, 0] }
+    ],
+    bonds: [[0, 1]],
+    ionSpecies: [
+      { label: 'H⁺', color: 0xff4444, radius: 0.08, count: 18, speed: 1.8 },
+      { label: 'Cl⁻', color: 0x44cc44, radius: 0.15, count: 12, speed: 1.15 }
+    ]
+  },
+  h2so4: {
+    label: '황산(H₂SO₄)',
+    formula: 'H₂SO₄',
+    family: 'acid',
+    property: '산성',
+    ionization: 'H₂SO₄ → 2H⁺ + SO₄²⁻',
+    representativeIon: 'H⁺ (수소 이온)',
+    mainLiquidColor: 0xf6fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0xdb5664,
+      redColor: 0xdd5a73,
+      blueText: '붉은색으로 변화',
+      redText: '변화 없음'
+    },
+    phenol: { color: 0xf7fbff, text: '무색' },
+    btb: { color: 0xddcc00, text: '노란색' },
+    cue: '황산도 물속에서 이온화해 H⁺을 내놓는 대표적인 산입니다.',
+    examples: '자동차 배터리의 전해질로도 이용됩니다.',
+    moleculeAtoms: [
+      { label: 'S', color: 0xf1c75b, radius: 0.22, pos: [0, 0, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.52, 0, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [-0.52, 0, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0, 0.42, 0.14] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0, -0.42, -0.14] },
+      { label: 'H', color: 0xffaaaa, radius: 0.11, pos: [0.78, 0.08, 0.02] },
+      { label: 'H', color: 0xffaaaa, radius: 0.11, pos: [-0.78, -0.08, -0.02] }
+    ],
+    bonds: [[0, 1], [0, 2], [0, 3], [0, 4], [1, 5], [2, 6]],
+    ionSpecies: [
+      { label: 'H⁺', color: 0xff4444, radius: 0.08, count: 22, speed: 1.9 },
+      { label: 'SO₄²⁻', color: 0x8978ff, radius: 0.2, count: 8, speed: 0.9 }
+    ]
+  },
+  ch3cooh: {
+    label: '아세트산',
+    formula: 'CH₃COOH',
+    family: 'acid',
+    property: '산성',
+    ionization: 'CH₃COOH ⇌ H⁺ + CH₃COO⁻',
+    representativeIon: 'H⁺ (수소 이온)',
+    mainLiquidColor: 0xf8fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0xdb5664,
+      redColor: 0xdd5a73,
+      blueText: '붉은색으로 변화',
+      redText: '변화 없음'
+    },
+    phenol: { color: 0xf7fbff, text: '무색' },
+    btb: { color: 0xddcc00, text: '노란색' },
+    cue: '식초의 주성분인 아세트산은 약산이지만 물에 녹으면 H⁺을 내놓습니다.',
+    examples: '식초는 페놀프탈레인 용액을 붉게 만들지 않습니다.',
+    moleculeAtoms: [
+      { label: 'C', color: 0x606b7a, radius: 0.17, pos: [-0.35, 0, 0] },
+      { label: 'C', color: 0x606b7a, radius: 0.17, pos: [0.12, 0, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.52, 0.28, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.5, -0.28, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [0.84, -0.34, 0.02] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [-0.66, 0.26, 0.1] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [-0.7, -0.24, -0.1] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [-0.3, 0.34, -0.1] }
+    ],
+    bonds: [[0, 1], [1, 2], [1, 3], [3, 4], [0, 5], [0, 6], [0, 7]],
+    ionSpecies: [
+      { label: 'H⁺', color: 0xff4444, radius: 0.08, count: 8, speed: 1.6 },
+      { label: 'CH₃COO⁻', color: 0xffa15a, radius: 0.17, count: 8, speed: 0.9 }
+    ]
+  },
+  naoh: {
+    label: '수산화 나트륨(NaOH)',
+    formula: 'NaOH',
+    family: 'base',
+    property: '염기성',
+    ionization: 'NaOH → Na⁺ + OH⁻',
+    representativeIon: 'OH⁻ (수산화 이온)',
+    mainLiquidColor: 0xf8fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0x4678ff,
+      redColor: 0x4678ff,
+      blueText: '변화 없음',
+      redText: '푸른색으로 변화'
+    },
+    phenol: { color: 0xff3377, text: '붉은색' },
+    btb: { color: 0x2266bb, text: '파란색' },
+    cue: '수산화 나트륨 수용액에서 염기성을 나타내는 이온은 수산화 이온(OH⁻)입니다.',
+    examples: 'KOH → K⁺ + OH⁻, Ca(OH)₂ → Ca²⁺ + 2OH⁻, NH₄OH ⇌ NH₄⁺ + OH⁻',
+    moleculeAtoms: [
+      { label: 'Na', color: 0xffb264, radius: 0.22, pos: [-0.42, 0.02, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.2, 0, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [0.56, 0.1, 0] }
+    ],
+    bonds: [[1, 2]],
+    ionSpecies: [
+      { label: 'Na⁺', color: 0xffaa44, radius: 0.12, count: 14, speed: 1.1 },
+      { label: 'OH⁻', color: 0x4488ff, radius: 0.1, count: 18, speed: 1.55 }
+    ]
+  },
+  koh: {
+    label: '수산화 칼륨(KOH)',
+    formula: 'KOH',
+    family: 'base',
+    property: '염기성',
+    ionization: 'KOH → K⁺ + OH⁻',
+    representativeIon: 'OH⁻ (수산화 이온)',
+    mainLiquidColor: 0xf8fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0x4678ff,
+      redColor: 0x4678ff,
+      blueText: '변화 없음',
+      redText: '푸른색으로 변화'
+    },
+    phenol: { color: 0xff3377, text: '붉은색' },
+    btb: { color: 0x2266bb, text: '파란색' },
+    cue: '강염기인 수산화 칼륨도 물속에서 OH⁻을 만들어 전류가 흐릅니다.',
+    examples: '배수관 세정제 등 강한 염기성 세척제에 이용됩니다.',
+    moleculeAtoms: [
+      { label: 'K', color: 0xb28cff, radius: 0.24, pos: [-0.45, 0.02, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.16, 0, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [0.52, 0.08, 0] }
+    ],
+    bonds: [[1, 2]],
+    ionSpecies: [
+      { label: 'K⁺', color: 0xaa88ff, radius: 0.14, count: 14, speed: 1.05 },
+      { label: 'OH⁻', color: 0x4488ff, radius: 0.1, count: 18, speed: 1.55 }
+    ]
+  },
+  caoh2: {
+    label: '수산화 칼슘',
+    formula: 'Ca(OH)₂',
+    family: 'base',
+    property: '염기성',
+    ionization: 'Ca(OH)₂ → Ca²⁺ + 2OH⁻',
+    representativeIon: 'OH⁻ (수산화 이온)',
+    mainLiquidColor: 0xf8fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: true,
+    litmus: {
+      blueColor: 0x4678ff,
+      redColor: 0x4678ff,
+      blueText: '변화 없음',
+      redText: '푸른색으로 변화'
+    },
+    phenol: { color: 0xff3377, text: '붉은색' },
+    btb: { color: 0x2266bb, text: '파란색' },
+    cue: '수산화 칼슘 수용액에서도 염기성을 나타내는 것은 OH⁻입니다.',
+    examples: '석회수는 CO₂와 만나 뿌옇게 변하는 실험에 쓰입니다.',
+    moleculeAtoms: [
+      { label: 'Ca', color: 0xf2d77c, radius: 0.25, pos: [0, 0, 0] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [0.56, 0.22, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [0.88, 0.34, 0.02] },
+      { label: 'O', color: 0xff7d72, radius: 0.14, pos: [-0.56, -0.22, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [-0.88, -0.34, -0.02] }
+    ],
+    bonds: [[1, 2], [3, 4]],
+    ionSpecies: [
+      { label: 'Ca²⁺', color: 0xf1c45f, radius: 0.17, count: 9, speed: 0.95 },
+      { label: 'OH⁻', color: 0x4488ff, radius: 0.1, count: 18, speed: 1.55 }
+    ]
+  },
+  distilled: {
+    label: '증류수',
+    formula: 'H₂O',
+    family: 'neutral',
+    property: '중성',
+    ionization: 'H₂O (이온이 거의 없음)',
+    representativeIon: '거의 없음',
+    mainLiquidColor: 0xf5fbff,
+    mainLiquidOpacity: 0.24,
+    conductive: false,
+    litmus: {
+      blueColor: 0x4678ff,
+      redColor: 0xdd5a73,
+      blueText: '변화 없음',
+      redText: '변화 없음'
+    },
+    phenol: { color: 0xf7fbff, text: '무색' },
+    btb: { color: 0x44aa44, text: '초록색' },
+    cue: '증류수에는 이동할 수 있는 이온이 거의 없어 전류가 거의 흐르지 않습니다.',
+    examples: '중성일 때 BTB 용액은 초록색을 띱니다.',
+    moleculeAtoms: [
+      { label: 'O', color: 0xff7d72, radius: 0.18, pos: [0, 0, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [0.34, 0.18, 0] },
+      { label: 'H', color: 0xffaaaa, radius: 0.1, pos: [-0.34, 0.18, 0] }
+    ],
+    bonds: [[0, 1], [0, 2]],
+    ionSpecies: []
+  }
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0f0f5);
+scene.fog = new THREE.Fog(0xf0f0f5, 12, 24);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 3.2, 12.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+sceneContainer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minDistance = 8;
+controls.maxDistance = 17;
+controls.target.set(0, 1.25, 0);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(8, 11, 7);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(1024, 1024);
+scene.add(directionalLight);
+
+scene.add(new THREE.HemisphereLight(0xe6f1ff, 0xc9d0db, 0.6));
+
+const state = {
+  solutionKey: 'hcl',
+  indicator: '리트머스',
+  showIons: true,
+  conductivityCheck: true,
+  dynamic: null,
+  animation: {
+    active: true,
+    progress: 0
+  }
+};
+
+const guiState = {
+  '용액 종류': state.solutionKey,
+  '지시약': state.indicator,
+  '이온화 재생': () => restartIonization(),
+  '이온 표시': state.showIons,
+  '전기 전도성 확인': state.conductivityCheck,
+  '초기화': () => resetSimulation()
+};
+
+const gui = new GUI({ title: '실험 제어', width: 300 });
+gui.add(guiState, '용액 종류', solutionOptionMap).name('용액 종류').onChange((value) => {
+  state.solutionKey = value;
+  buildDynamicScene();
+});
+gui.add(guiState, '지시약', INDICATORS).name('지시약').onChange((value) => {
+  state.indicator = value;
+  updateIndicatorSelection();
+  updateDomPanels();
+});
+gui.add(guiState, '이온화 재생').name('이온화 재생');
+gui.add(guiState, '이온 표시').name('이온 표시').onChange((value) => {
+  state.showIons = value;
+});
+gui.add(guiState, '전기 전도성 확인').name('전기 전도성 확인').onChange((value) => {
+  state.conductivityCheck = value;
+  updateDomPanels();
+});
+gui.add(guiState, '초기화').name('초기화');
+
+if (window.innerWidth < 920) gui.close();
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.style.display = dom.guidePanel.style.display === 'block' ? 'none' : 'block';
+});
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('beforeunload', disposeSimulation);
+
+const clock = new THREE.Clock();
+const reusable = {
+  matrix: new THREE.Matrix4(),
+  quaternion: new THREE.Quaternion(),
+  scale: new THREE.Vector3(),
+  up: new THREE.Vector3(0, 1, 0),
+  obj: new THREE.Object3D(),
+  color: new THREE.Color(),
+  tempVec: new THREE.Vector3()
+};
+
+createBackdrop();
+buildDynamicScene();
+updateIndicatorSelection();
+updateDomPanels();
+animate();
+
+function handleResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function disposeSimulation() {
+  controls.dispose();
+  gui.destroy();
+  if (state.dynamic) {
+    scene.remove(state.dynamic.root);
+    disposeHierarchy(state.dynamic.root);
+    state.dynamic = null;
+  }
+  renderer.dispose();
+}
+
+function currentSolution() {
+  return SOLUTIONS[state.solutionKey];
+}
+
+function restartIonization() {
+  state.animation.progress = 0;
+  state.animation.active = true;
+  if (state.dynamic?.leftRig?.resetParticles) {
+    state.dynamic.leftRig.resetParticles();
+  }
+}
+
+function resetSimulation() {
+  state.solutionKey = 'hcl';
+  state.indicator = '리트머스';
+  state.showIons = true;
+  state.conductivityCheck = true;
+  guiState['용액 종류'] = state.solutionKey;
+  guiState['지시약'] = state.indicator;
+  guiState['이온 표시'] = state.showIons;
+  guiState['전기 전도성 확인'] = state.conductivityCheck;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  buildDynamicScene();
+}
+
+function buildDynamicScene() {
+  if (state.dynamic) {
+    scene.remove(state.dynamic.root);
+    disposeHierarchy(state.dynamic.root);
+  }
+
+  const solution = currentSolution();
+  const root = new THREE.Group();
+  const leftRig = createSolutionRig(solution);
+  const rightRig = createIndicatorRig(solution);
+
+  leftRig.group.position.set(-4.35, 0.08, 0);
+  rightRig.group.position.set(4.2, 0.04, 0.2);
+
+  root.add(leftRig.group);
+  root.add(rightRig.group);
+  scene.add(root);
+
+  state.dynamic = { root, leftRig, rightRig };
+  restartIonization();
+  updateIndicatorSelection();
+  updateDomPanels();
+}
+
+function createBackdrop() {
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(34, 24),
+    new THREE.MeshStandardMaterial({ color: 0xe4e7ef, roughness: 0.98, metalness: 0 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.55;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const leftGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(5.1, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xdfe9f9,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false
+    })
+  );
+  leftGlow.rotation.x = -Math.PI / 2;
+  leftGlow.position.set(-4.3, -1.53, 0);
+  scene.add(leftGlow);
+
+  const rightGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(5.1, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xf7e7ea,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false
+    })
+  );
+  rightGlow.rotation.x = -Math.PI / 2;
+  rightGlow.position.set(4.3, -1.53, 0.2);
+  scene.add(rightGlow);
+
+  const divider = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 3.8, 7.4),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.2,
+      metalness: 0.05
+    })
+  );
+  divider.position.set(0, 0.28, -0.4);
+  scene.add(divider);
+
+  const particles = createBackgroundParticles();
+  scene.add(particles);
+}
+
+function createBackgroundParticles() {
+  const count = 220;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const color = new THREE.Color();
+
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = (Math.random() - 0.5) * 28;
+    positions[i * 3 + 1] = Math.random() * 8;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+    color.setHSL(0.56 + Math.random() * 0.1, 0.4, 0.82);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  return new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      size: 0.06,
+      transparent: true,
+      opacity: 0.75,
+      vertexColors: true,
+      depthWrite: false
+    })
+  );
+}
+
+function createSolutionRig(solution) {
+  const group = new THREE.Group();
+  const pedestal = createDeskPlatform(4.8, 3.9, 0xe9eef5, 0xdbe4ee);
+  pedestal.position.set(0, -1.25, 0.2);
+  group.add(pedestal);
+
+  const title = createTextSprite(`${solution.formula} 수용액`, {
+    scale: [2.8, 0.62],
+    fontSize: 72,
+    background: 'rgba(255,255,255,0.78)',
+    color: '#2b4462'
+  });
+  title.position.set(0, 2.95, 0.2);
+  group.add(title);
+
+  const reaction = createTextSprite(solution.ionization, {
+    scale: [3.6, 0.64],
+    fontSize: 66,
+    background: 'rgba(46, 95, 147, 0.12)',
+    color: '#24435f'
+  });
+  reaction.position.set(0, 2.4, 0.2);
+  group.add(reaction);
+
+  const beakerGroup = new THREE.Group();
+  group.add(beakerGroup);
+
+  const glassMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.28,
+    roughness: 0.08,
+    metalness: 0.02,
+    transmission: 0.12,
+    side: THREE.DoubleSide
+  });
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.52, 3.55, 56, 1, true), glassMaterial);
+  glass.position.y = 0.55;
+  glass.castShadow = true;
+  beakerGroup.add(glass);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.5, 0.06, 16, 64),
+    new THREE.MeshStandardMaterial({ color: 0xfafcff, metalness: 0.15, roughness: 0.25 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 2.32;
+  beakerGroup.add(rim);
+
+  const bottom = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.32, 1.36, 0.18, 56),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.18,
+      roughness: 0.1,
+      transmission: 0.1
+    })
+  );
+  bottom.position.y = -1.14;
+  beakerGroup.add(bottom);
+
+  const liquidMaterial = new THREE.MeshPhysicalMaterial({
+    color: solution.mainLiquidColor,
+    transparent: true,
+    opacity: solution.mainLiquidOpacity,
+    roughness: 0.15,
+    metalness: 0,
+    clearcoat: 0.8
+  });
+  const liquid = new THREE.Mesh(new THREE.CylinderGeometry(1.28, 1.31, 2.42, 56), liquidMaterial);
+  liquid.position.y = 0.02;
+  beakerGroup.add(liquid);
+
+  const liquidTop = new THREE.Mesh(
+    new THREE.CircleGeometry(1.28, 56),
+    new THREE.MeshPhysicalMaterial({
+      color: solution.mainLiquidColor,
+      transparent: true,
+      opacity: solution.mainLiquidOpacity + 0.05,
+      roughness: 0.1,
+      metalness: 0
+    })
+  );
+  liquidTop.rotation.x = -Math.PI / 2;
+  liquidTop.position.y = 1.23;
+  beakerGroup.add(liquidTop);
+
+  const moleculeGroup = createMoleculeGroup(solution);
+  moleculeGroup.group.position.set(0, 2.2, 0);
+  beakerGroup.add(moleculeGroup.group);
+
+  const water = createWaterCluster();
+  beakerGroup.add(water.group);
+
+  const ions = createIonSystems(solution);
+  ions.group.position.set(0, 0.02, 0);
+  beakerGroup.add(ions.group);
+
+  const callout = createTextSprite(
+    solution.family === 'acid'
+      ? '산성 용액의 대표 이온: H⁺'
+      : solution.family === 'base'
+        ? '염기성 용액의 대표 이온: OH⁻'
+        : '증류수: 이동 이온이 거의 없음',
+    {
+      scale: [3.15, 0.58],
+      fontSize: 58,
+      background: 'rgba(255,255,255,0.72)',
+      color: '#415f80'
+    }
+  );
+  callout.position.set(0, -1.85, 0.2);
+  group.add(callout);
+
+  return {
+    group,
+    liquidMaterial,
+    liquidTopMaterial: liquidTop.material,
+    moleculeGroup,
+    water,
+    ions,
+    resetParticles: ions.reset
+  };
+}
+
+function createIndicatorRig(solution) {
+  const group = new THREE.Group();
+  const pedestal = createDeskPlatform(4.8, 3.9, 0xf0ebf0, 0xe4dde6);
+  pedestal.position.set(0, -1.25, 0.1);
+  group.add(pedestal);
+
+  const rightTitle = createTextSprite('지시약 · 전도성 비교', {
+    scale: [3.5, 0.64],
+    fontSize: 68,
+    background: 'rgba(255,255,255,0.78)',
+    color: '#6b4567'
+  });
+  rightTitle.position.set(0, 2.95, 0);
+  group.add(rightTitle);
+
+  const station = new THREE.Group();
+  group.add(station);
+
+  const litmus = createLitmusStation(solution);
+  litmus.group.position.set(-1.55, 0.15, 0.18);
+  station.add(litmus.group);
+
+  const phenol = createIndicatorBeaker('페놀프탈레인', solution.phenol.color, 0xff3377);
+  phenol.group.position.set(0.55, 0.2, 0.18);
+  station.add(phenol.group);
+
+  const btb = createIndicatorBeaker('BTB', solution.btb.color, 0x2266bb);
+  btb.group.position.set(2.08, 0.2, 0.18);
+  station.add(btb.group);
+
+  const conductivity = createConductivityStation(solution);
+  conductivity.group.position.set(0.58, -0.88, 0.06);
+  station.add(conductivity.group);
+
+  return {
+    group,
+    litmus,
+    phenol,
+    btb,
+    conductivity,
+    updateTargets(nextSolution) {
+      litmus.targets.blue.setHex(nextSolution.litmus.blueColor);
+      litmus.targets.red.setHex(nextSolution.litmus.redColor);
+      phenol.targetColor.setHex(nextSolution.phenol.color);
+      btb.targetColor.setHex(nextSolution.btb.color);
+      conductivity.targetLiquid.setHex(nextSolution.mainLiquidColor);
+    }
+  };
+}
+
+function createDeskPlatform(width, depth, topColor, edgeColor) {
+  const group = new THREE.Group();
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(width * 0.46, width * 0.5, 0.18, 36),
+    new THREE.MeshStandardMaterial({ color: topColor, roughness: 0.82, metalness: 0.02 })
+  );
+  top.receiveShadow = true;
+  group.add(top);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(width * 0.38, width * 0.42, 0.28, 36),
+    new THREE.MeshStandardMaterial({ color: edgeColor, roughness: 0.86, metalness: 0.02 })
+  );
+  base.position.y = -0.2;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const shadowPad = new THREE.Mesh(
+    new THREE.CircleGeometry(width * 0.52, 36),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, depthWrite: false })
+  );
+  shadowPad.rotation.x = -Math.PI / 2;
+  shadowPad.position.y = -0.34;
+  group.add(shadowPad);
+
+  return group;
+}
+
+function createMoleculeGroup(solution) {
+  const group = new THREE.Group();
+  const atoms = [];
+  const atomMaterials = [];
+  const basePositions = [];
+
+  solution.moleculeAtoms.forEach((atom) => {
+    const material = new THREE.MeshStandardMaterial({
+      color: atom.color,
+      roughness: 0.18,
+      metalness: 0.05,
+      emissive: atom.color,
+      emissiveIntensity: 0.18,
+      transparent: true,
+      opacity: 1
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(atom.radius, 24, 24), material);
+    mesh.position.fromArray(atom.pos);
+    mesh.castShadow = true;
+    group.add(mesh);
+    atoms.push(mesh);
+    atomMaterials.push(material);
+    basePositions.push(mesh.position.clone());
+
+    const label = createTextSprite(atom.label, {
+      scale: [0.72, 0.24],
+      width: 480,
+      height: 180,
+      fontSize: 70,
+      background: 'rgba(17, 25, 36, 0.68)'
+    });
+    label.position.copy(mesh.position).add(new THREE.Vector3(0, atom.radius + 0.2, 0));
+    group.add(label);
+    atoms.push(label);
+  });
+
+  solution.bonds.forEach(([startIndex, endIndex]) => {
+    const start = new THREE.Vector3().fromArray(solution.moleculeAtoms[startIndex].pos);
+    const end = new THREE.Vector3().fromArray(solution.moleculeAtoms[endIndex].pos);
+    const bond = createBond(start, end, 0.06, 0xf5f7fa);
+    bond.userData.baseMid = start.clone().add(end).multiplyScalar(0.5);
+    group.add(bond);
+  });
+
+  const tag = createTextSprite(`${solution.formula} 분자`, {
+    scale: [1.68, 0.42],
+    fontSize: 58,
+    background: 'rgba(255,255,255,0.72)',
+    color: '#264161'
+  });
+  tag.position.set(0, 1.05, 0);
+  group.add(tag);
+
+  return {
+    group,
+    atoms: atoms.filter((item) => item.isMesh),
+    atomMaterials,
+    basePositions,
+    label: tag
+  };
+}
+
+function createWaterCluster() {
+  const group = new THREE.Group();
+  const entries = [];
+
+  for (let i = 0; i < 10; i += 1) {
+    const water = new THREE.Group();
+    const oxygen = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0x8dc6ff, transparent: true, opacity: 0.76 })
+    );
+    const hydrogenMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.74 });
+    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 14), hydrogenMaterial);
+    const h2 = h1.clone();
+    h1.position.set(0.13, 0.08, 0);
+    h2.position.set(-0.13, 0.08, 0);
+    water.add(oxygen, h1, h2);
+
+    const position = randomInsideCylinder(0.98, 1.76);
+    water.position.copy(position).add(new THREE.Vector3(0, 0.16, 0));
+    water.rotation.z = Math.random() * Math.PI;
+    group.add(water);
+
+    entries.push({
+      group: water,
+      base: water.position.clone(),
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.8 + Math.random() * 0.8
+    });
+  }
+
+  return { group, entries };
+}
+
+function createIonSystems(solution) {
+  const group = new THREE.Group();
+  const speciesEntries = [];
+
+  solution.ionSpecies.forEach((spec) => {
+    const geometry = new THREE.SphereGeometry(spec.radius, 24, 24);
+    const material = new THREE.MeshStandardMaterial({
+      color: spec.color,
+      emissive: spec.color,
+      emissiveIntensity: 0.25,
+      transparent: true,
+      opacity: 0,
+      roughness: 0.18,
+      metalness: 0.02
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, spec.count);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.castShadow = true;
+    group.add(mesh);
+
+    const states = [];
+    const labels = [];
+
+    for (let i = 0; i < spec.count; i += 1) {
+      states.push({
+        position: randomInsideCylinder(0.92, 1.84),
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 0.6 * spec.speed,
+          (Math.random() - 0.5) * 0.34 * spec.speed,
+          (Math.random() - 0.5) * 0.6 * spec.speed
+        ),
+        seed: Math.random() * 10
+      });
+    }
+
+    for (let i = 0; i < Math.min(3, spec.count); i += 1) {
+      const sprite = createTextSprite(spec.label, {
+        scale: [0.95, 0.28],
+        width: 720,
+        height: 220,
+        fontSize: 64,
+        background: 'rgba(20, 28, 39, 0.72)'
+      });
+      sprite.visible = false;
+      group.add(sprite);
+      labels.push(sprite);
+    }
+
+    speciesEntries.push({ spec, mesh, material, states, labels });
+  });
+
+  function reset() {
+    speciesEntries.forEach((entry) => {
+      entry.states.forEach((instance) => {
+        instance.position.copy(randomInsideCylinder(0.92, 1.84));
+        instance.velocity.set(
+          (Math.random() - 0.5) * 0.6 * entry.spec.speed,
+          (Math.random() - 0.5) * 0.34 * entry.spec.speed,
+          (Math.random() - 0.5) * 0.6 * entry.spec.speed
+        );
+        instance.seed = Math.random() * 10;
+      });
+      entry.material.opacity = 0;
+    });
+  }
+
+  return { group, speciesEntries, reset };
+}
+
+function createLitmusStation(solution) {
+  const group = new THREE.Group();
+
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.18, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.84 })
+  );
+  board.position.y = -1.06;
+  board.receiveShadow = true;
+  group.add(board);
+
+  const tray = new THREE.Mesh(
+    new THREE.BoxGeometry(1.18, 0.18, 0.58),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf9fbff,
+      transparent: true,
+      opacity: 0.5,
+      roughness: 0.08,
+      transmission: 0.05
+    })
+  );
+  tray.position.set(0, -0.8, 0);
+  group.add(tray);
+
+  const trayLiquid = new THREE.Mesh(
+    new THREE.BoxGeometry(1.02, 0.1, 0.46),
+    new THREE.MeshPhysicalMaterial({
+      color: solution.mainLiquidColor,
+      transparent: true,
+      opacity: 0.34,
+      roughness: 0.1
+    })
+  );
+  trayLiquid.position.set(0, -0.78, 0);
+  group.add(trayLiquid);
+
+  const blueMat = new THREE.MeshStandardMaterial({ color: solution.litmus.blueColor, roughness: 0.92 });
+  const redMat = new THREE.MeshStandardMaterial({ color: solution.litmus.redColor, roughness: 0.92 });
+  const paperGeometry = new THREE.PlaneGeometry(0.32, 1.12);
+
+  const bluePaper = new THREE.Mesh(paperGeometry, blueMat);
+  bluePaper.position.set(-0.24, -0.18, 0.18);
+  bluePaper.rotation.x = -0.26;
+  bluePaper.castShadow = true;
+  group.add(bluePaper);
+
+  const redPaper = new THREE.Mesh(paperGeometry, redMat);
+  redPaper.position.set(0.24, -0.18, 0.18);
+  redPaper.rotation.x = -0.26;
+  redPaper.castShadow = true;
+  group.add(redPaper);
+
+  const label = createTextSprite('리트머스', {
+    scale: [1.6, 0.42],
+    fontSize: 56,
+    background: 'rgba(255,255,255,0.78)',
+    color: '#5a4267'
+  });
+  label.position.set(0, 0.9, 0.02);
+  group.add(label);
+
+  const ring = createSelectionRing(0xb966cb);
+  ring.position.set(0, -1.02, 0);
+  group.add(ring);
+
+  return {
+    group,
+    blueMat,
+    redMat,
+    ring,
+    targets: {
+      blue: new THREE.Color(solution.litmus.blueColor),
+      red: new THREE.Color(solution.litmus.redColor)
+    }
+  };
+}
+
+function createIndicatorBeaker(name, liquidColor, ringColor) {
+  const group = new THREE.Group();
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(1.22, 0.16, 1.22),
+    new THREE.MeshStandardMaterial({ color: 0xf4f4f8, roughness: 0.86 })
+  );
+  board.position.y = -1.08;
+  board.receiveShadow = true;
+  group.add(board);
+
+  const glass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.48, 0.52, 1.5, 42, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.32,
+      roughness: 0.08,
+      transmission: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  glass.position.y = -0.1;
+  group.add(glass);
+
+  const liquidMat = new THREE.MeshPhysicalMaterial({
+    color: liquidColor,
+    transparent: true,
+    opacity: 0.76,
+    roughness: 0.1
+  });
+  const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.86, 42), liquidMat);
+  liquid.position.y = -0.42;
+  group.add(liquid);
+
+  const surface = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42, 42),
+    new THREE.MeshPhysicalMaterial({
+      color: liquidColor,
+      transparent: true,
+      opacity: 0.84
+    })
+  );
+  surface.rotation.x = -Math.PI / 2;
+  surface.position.y = 0.02;
+  group.add(surface);
+
+  const label = createTextSprite(name, {
+    scale: [1.72, 0.44],
+    fontSize: 52,
+    background: 'rgba(255,255,255,0.78)',
+    color: '#5a4267'
+  });
+  label.position.set(0, 1.1, 0);
+  group.add(label);
+
+  const ring = createSelectionRing(ringColor);
+  ring.position.set(0, -1.02, 0);
+  group.add(ring);
+
+  return {
+    group,
+    liquidMat,
+    surfaceMat: surface.material,
+    ring,
+    targetColor: new THREE.Color(liquidColor)
+  };
+}
+
+function createConductivityStation(solution) {
+  const group = new THREE.Group();
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(2.8, 0.18, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0xdee4ea, roughness: 0.85 })
+  );
+  base.position.y = -1.06;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const meter = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.44, 0.46),
+    new THREE.MeshStandardMaterial({ color: 0x2a3547, roughness: 0.34, metalness: 0.08 })
+  );
+  meter.position.set(-0.9, -0.38, 0);
+  group.add(meter);
+
+  const ledMaterial = new THREE.MeshStandardMaterial({
+    color: 0x39465e,
+    emissive: 0x39465e,
+    emissiveIntensity: 0.2
+  });
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 18), ledMaterial);
+  led.position.set(-0.9, -0.34, 0.18);
+  group.add(led);
+
+  const label = createTextSprite('전기 전도성', {
+    scale: [1.96, 0.46],
+    fontSize: 52,
+    background: 'rgba(255,255,255,0.78)',
+    color: '#2f4563'
+  });
+  label.position.set(-0.9, 0.82, 0);
+  group.add(label);
+
+  const glass = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.46, 0.5, 1.36, 42, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.28,
+      roughness: 0.08,
+      transmission: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  glass.position.set(0.64, -0.22, 0);
+  group.add(glass);
+
+  const liquidMat = new THREE.MeshPhysicalMaterial({
+    color: solution.mainLiquidColor,
+    transparent: true,
+    opacity: 0.55,
+    roughness: 0.08
+  });
+  const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.41, 0.72, 42), liquidMat);
+  liquid.position.set(0.64, -0.54, 0);
+  group.add(liquid);
+
+  const electrodeMat = new THREE.MeshStandardMaterial({ color: 0x8792a1, roughness: 0.28, metalness: 0.74 });
+  const leftElectrode = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.02, 0.06), electrodeMat);
+  leftElectrode.position.set(0.47, -0.1, 0.08);
+  group.add(leftElectrode);
+  const rightElectrode = leftElectrode.clone();
+  rightElectrode.position.x = 0.8;
+  group.add(rightElectrode);
+
+  const wireCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.62, -0.18, 0.02),
+    new THREE.Vector3(-0.12, 0.34, 0.05),
+    new THREE.Vector3(0.32, 0.38, 0.04),
+    new THREE.Vector3(0.47, 0.16, 0.02),
+    new THREE.Vector3(0.47, -0.16, 0.02),
+    new THREE.Vector3(0.8, -0.16, 0.02),
+    new THREE.Vector3(0.8, 0.18, 0.05),
+    new THREE.Vector3(0.14, 0.48, 0.05),
+    new THREE.Vector3(-0.54, 0.26, 0.04)
+  ], true);
+
+  const wire = new THREE.Mesh(
+    new THREE.TubeGeometry(wireCurve, 120, 0.024, 8, true),
+    new THREE.MeshStandardMaterial({ color: 0x7e8898, roughness: 0.34, metalness: 0.62 })
+  );
+  group.add(wire);
+
+  const dots = [];
+  for (let i = 0; i < 6; i += 1) {
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 14, 14),
+      new THREE.MeshBasicMaterial({ color: 0xffd45b, transparent: true, opacity: 0.95 })
+    );
+    dot.visible = false;
+    group.add(dot);
+    dots.push({ mesh: dot, offset: i / 6 });
+  }
+
+  return {
+    group,
+    led,
+    ledMaterial,
+    wireCurve,
+    dots,
+    liquidMat,
+    targetLiquid: new THREE.Color(solution.mainLiquidColor)
+  };
+}
+
+function createSelectionRing(color) {
+  return new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.04, 14, 42),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false
+    })
+  );
+}
+
+function createBond(start, end, radius, color) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, length, 16),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.16, metalness: 0.06, transparent: true, opacity: 0.92 })
+  );
+  const midpoint = start.clone().add(end).multiplyScalar(0.5);
+  mesh.position.copy(midpoint);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  return mesh;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const time = clock.elapsedTime;
+
+  controls.update();
+
+  if (state.dynamic) {
+    updateSolutionRig(state.dynamic.leftRig, delta, time);
+    updateIndicatorRig(state.dynamic.rightRig, delta, time);
+  }
+
+  renderer.render(scene, camera);
+}
+
+function updateSolutionRig(rig, delta, time) {
+  const solution = currentSolution();
+  const canIonize = solution.ionSpecies.length > 0;
+
+  if (state.animation.active) {
+    state.animation.progress += delta / 3.4;
+    if (state.animation.progress >= 1) {
+      state.animation.progress = 1;
+      state.animation.active = false;
+    }
+  }
+
+  const progress = state.animation.progress;
+  const sink = smoothstep(0.0, 0.3, progress);
+  const dissociation = canIonize ? smoothstep(0.26, 0.62, progress) : 0;
+  const ionSpread = canIonize ? smoothstep(0.42, 0.8, progress) : 0;
+
+  rig.moleculeGroup.group.position.y = THREE.MathUtils.lerp(2.2, 1.12, sink);
+  rig.moleculeGroup.group.rotation.y += delta * 0.55;
+  rig.moleculeGroup.group.rotation.z = Math.sin(time * 1.2) * 0.08;
+
+  rig.moleculeGroup.atoms.forEach((mesh, index) => {
+    const base = rig.moleculeGroup.basePositions[index];
+    mesh.position.copy(base).multiplyScalar(1 + dissociation * 0.22);
+    mesh.material.opacity = 1 - dissociation * 0.88;
+  });
+  rig.moleculeGroup.atomMaterials.forEach((material) => {
+    material.opacity = 1 - dissociation * 0.88;
+    material.emissiveIntensity = 0.12 + (1 - dissociation) * 0.18;
+  });
+  rig.moleculeGroup.label.material.opacity = 0.84 - dissociation * 0.74;
+
+  rig.water.entries.forEach((entry, index) => {
+    entry.group.position.x = entry.base.x + Math.sin(time * entry.speed + entry.phase) * 0.08;
+    entry.group.position.y = entry.base.y + Math.sin(time * (entry.speed * 1.2) + index) * 0.05;
+    entry.group.position.z = entry.base.z + Math.cos(time * entry.speed + entry.phase) * 0.06;
+    entry.group.rotation.z += delta * 0.5;
+  });
+
+  rig.ions.speciesEntries.forEach((entry) => {
+    const visibleOpacity = state.showIons ? ionSpread * 0.96 : 0;
+    entry.material.opacity += (visibleOpacity - entry.material.opacity) * 0.16;
+    entry.material.emissiveIntensity = 0.18 + ionSpread * 0.5;
+
+    entry.states.forEach((instance, index) => {
+      instance.position.addScaledVector(instance.velocity, delta * 0.72);
+      instance.position.x += Math.sin(time * entry.spec.speed + instance.seed) * 0.004;
+      instance.position.y += Math.cos(time * (entry.spec.speed * 0.8) + instance.seed) * 0.003;
+      bounceInsideCylinder(instance.position, instance.velocity, 0.94, 0.92);
+
+      const renderPosition = reusable.tempVec.copy(instance.position).multiplyScalar(ionSpread);
+      reusable.obj.position.set(renderPosition.x, renderPosition.y, renderPosition.z);
+      const pulse = 0.94 + Math.sin(time * 3.4 + instance.seed * 2.2) * 0.08;
+      const scale = Math.max(0.0001, ionSpread * pulse);
+      reusable.obj.scale.setScalar(scale);
+      reusable.obj.updateMatrix();
+      entry.mesh.setMatrixAt(index, reusable.obj.matrix);
+
+      if (index < entry.labels.length) {
+        const sprite = entry.labels[index];
+        sprite.visible = state.showIons && ionSpread > 0.18;
+        sprite.position.set(renderPosition.x, renderPosition.y + entry.spec.radius + 0.18, renderPosition.z);
+        sprite.material.opacity = Math.min(0.96, ionSpread + 0.18);
+      }
+    });
+
+    entry.mesh.instanceMatrix.needsUpdate = true;
+  });
+}
+
+function updateIndicatorRig(rig, delta, time) {
+  const solution = currentSolution();
+  rig.updateTargets(solution);
+
+  rig.litmus.blueMat.color.lerp(rig.litmus.targets.blue, 0.12);
+  rig.litmus.redMat.color.lerp(rig.litmus.targets.red, 0.12);
+  rig.phenol.liquidMat.color.lerp(rig.phenol.targetColor, 0.12);
+  rig.phenol.surfaceMat.color.lerp(rig.phenol.targetColor, 0.12);
+  rig.btb.liquidMat.color.lerp(rig.btb.targetColor, 0.12);
+  rig.btb.surfaceMat.color.lerp(rig.btb.targetColor, 0.12);
+  rig.conductivity.liquidMat.color.lerp(rig.conductivity.targetLiquid, 0.12);
+
+  const selectedMap = {
+    '리트머스': rig.litmus.ring.material,
+    '페놀프탈레인': rig.phenol.ring.material,
+    'BTB': rig.btb.ring.material
+  };
+
+  Object.entries(selectedMap).forEach(([name, material]) => {
+    const targetOpacity = state.indicator === name ? 0.58 : 0.14;
+    material.opacity += (targetOpacity - material.opacity) * 0.16;
+  });
+
+  const ledOn = state.conductivityCheck && solution.conductive;
+  const pulse = ledOn ? (0.8 + Math.sin(time * 7.2) * 0.2) : 0;
+  rig.conductivity.ledMaterial.emissive.setHex(ledOn ? 0xffdd62 : 0x39465e);
+  rig.conductivity.ledMaterial.color.setHex(ledOn ? 0xffdd62 : 0x39465e);
+  rig.conductivity.ledMaterial.emissiveIntensity = ledOn ? 1.2 + pulse * 0.8 : 0.18;
+
+  rig.conductivity.dots.forEach((entry) => {
+    entry.mesh.visible = ledOn;
+    if (!ledOn) return;
+    const point = rig.conductivity.wireCurve.getPointAt((time * 0.11 + entry.offset) % 1);
+    entry.mesh.position.copy(point);
+  });
+}
+
+function updateIndicatorSelection() {
+  dom.indicatorCards.forEach((card) => {
+    card.classList.toggle('active', card.dataset.indicator === state.indicator);
+  });
+}
+
+function updateDomPanels() {
+  const solution = currentSolution();
+  const isConductive = solution.conductive && state.conductivityCheck;
+
+  dom.currentSolution.textContent = solution.label;
+  dom.currentProperty.textContent = solution.property;
+  dom.ionizationEquation.textContent = solution.ionization;
+  dom.representativeIon.textContent = solution.representativeIon;
+  dom.litmusSummary.textContent = `푸른색 종이: ${solution.litmus.blueText}, 붉은색 종이: ${solution.litmus.redText}`;
+  dom.phenolSummary.textContent = solution.phenol.text;
+  dom.btbSummary.textContent = solution.btb.text;
+  dom.conductivitySummary.textContent = isConductive ? '이온이 있어 LED 켜짐' : state.conductivityCheck ? '증류수: LED 꺼짐' : '측정기 대기 중';
+  dom.examplesValue.textContent = solution.examples;
+
+  dom.indicatorSummary.textContent = `${solution.label}은(는) ${solution.property}을 띠며, 선택한 ${state.indicator}뿐 아니라 다른 지시약에서도 색 변화 규칙을 함께 볼 수 있습니다.`;
+  dom.litmusBlueSwatch.style.background = colorToCss(solution.litmus.blueColor);
+  dom.litmusRedSwatch.style.background = colorToCss(solution.litmus.redColor);
+  dom.litmusBlueText.textContent = solution.litmus.blueText;
+  dom.litmusRedText.textContent = solution.litmus.redText;
+
+  dom.phenolSwatch.style.background = colorToCss(solution.phenol.color);
+  dom.phenolText.textContent = solution.phenol.text;
+  dom.btbSwatch.style.background = colorToCss(solution.btb.color);
+  dom.btbText.textContent = solution.btb.text;
+
+  dom.conductivityValue.textContent = state.conductivityCheck
+    ? solution.conductive ? 'LED 켜짐' : 'LED 꺼짐'
+    : '측정기 꺼짐';
+  dom.conductivityDetail.textContent = state.conductivityCheck
+    ? solution.conductive ? '수용액 속 이온이 전하를 운반합니다.' : '이동할 이온이 거의 없습니다.'
+    : '토글을 켜면 전도성 측정을 다시 시작합니다.';
+
+  dom.acidCard.classList.toggle('current', solution.family === 'acid');
+  dom.baseCard.classList.toggle('current', solution.family === 'base');
+  dom.teacherNote.textContent = solution.cue;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const width = options.width || 960;
+  const height = options.height || 240;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale || [2.4, 0.6];
+  sprite.scale.set(scale[0], scale[1], 1);
+
+  const draw = (value) => {
+    const lines = String(value).split('\n');
+    ctx.clearRect(0, 0, width, height);
+    const padding = options.padding || 28;
+    if (options.background !== 'none') {
+      ctx.fillStyle = options.background || 'rgba(16, 24, 36, 0.74)';
+      ctx.strokeStyle = options.border || 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = options.borderWidth || 4;
+      roundRect(ctx, padding / 2, padding / 2, width - padding, height - padding, options.radius || 40);
+      ctx.fill();
+      if (options.border !== 'none') ctx.stroke();
+    }
+    ctx.fillStyle = options.color || '#ffffff';
+    ctx.font = `${options.fontWeight || 700} ${options.fontSize || 72}px Pretendard, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lineHeight = options.lineHeight || (options.fontSize || 72) * 1.1;
+    const startY = height / 2 - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, width / 2, startY + index * lineHeight);
+    });
+    texture.needsUpdate = true;
+  };
+
+  draw(text);
+  sprite.userData.setText = draw;
+  return sprite;
+}
+
+function randomInsideCylinder(radius, halfHeight) {
+  const angle = Math.random() * Math.PI * 2;
+  const distance = Math.sqrt(Math.random()) * radius;
+  return new THREE.Vector3(
+    Math.cos(angle) * distance,
+    THREE.MathUtils.randFloatSpread(halfHeight * 2),
+    Math.sin(angle) * distance
+  );
+}
+
+function bounceInsideCylinder(position, velocity, radius, halfHeight) {
+  const radial = Math.hypot(position.x, position.z);
+  if (radial > radius) {
+    const scale = radius / radial;
+    position.x *= scale;
+    position.z *= scale;
+    velocity.x *= -1;
+    velocity.z *= -1;
+  }
+
+  if (position.y > halfHeight || position.y < -halfHeight) {
+    position.y = THREE.MathUtils.clamp(position.y, -halfHeight, halfHeight);
+    velocity.y *= -1;
+  }
+}
+
+function smoothstep(min, max, value) {
+  const x = THREE.MathUtils.clamp((value - min) / (max - min), 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+function colorToCss(value) {
+  return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+function disposeHierarchy(root) {
+  root.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(child.material);
+      }
+    }
+  });
+}
+
+function disposeMaterial(material) {
+  ['map', 'alphaMap', 'emissiveMap', 'roughnessMap', 'metalnessMap'].forEach((key) => {
+    if (material[key]) material[key].dispose();
+  });
+  material.dispose();
+}
+</script>
+</body>
+</html>

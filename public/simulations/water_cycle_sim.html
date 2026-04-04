@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>물의 순환 — 3D 시뮬레이션</title>
+<style>
+  :root {
+    --panel-bg: rgba(8, 24, 40, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --text-main: #f4fbff;
+    --text-dim: rgba(244, 251, 255, 0.68);
+    --accent: #ffd166;
+    --accent-2: #8fd7ff;
+    --accent-3: #67b8ff;
+    --focus-bg: rgba(95, 170, 255, 0.12);
+    --focus-border: rgba(155, 214, 255, 0.4);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 216, 122, 0.18), transparent 18%),
+      radial-gradient(circle at 75% 22%, rgba(148, 208, 255, 0.12), transparent 22%),
+      linear-gradient(180deg, #87ceeb 0%, #a9dbf5 22%, #d6ecff 54%, #f1f7ff 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 18px 12px;
+    border-radius: 18px;
+    text-align: center;
+    z-index: 30;
+    pointer-events: none;
+    min-width: 260px;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 700;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 42;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(7, 22, 38, 0.86);
+    color: #fff;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    left: 14px;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 66vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    z-index: 41;
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #bfe8ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd39b;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 11px;
+  }
+
+  #stage-panel {
+    position: fixed;
+    top: 58px;
+    right: 14px;
+    width: min(356px, calc(100vw - 28px));
+    padding: 14px;
+    border-radius: 20px;
+    z-index: 26;
+    pointer-events: none;
+  }
+
+  #stage-panel h2 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  #stage-panel .subtitle {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  #stage-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .stage-card {
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+  }
+
+  .stage-card.active {
+    background: var(--focus-bg);
+    border-color: var(--focus-border);
+    transform: translateX(-4px);
+  }
+
+  .stage-card strong {
+    display: block;
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .stage-card span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    z-index: 34;
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #bfe8ff;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .formula-flow,
+  .formula-note,
+  .impact-box {
+    margin-top: 11px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .formula-flow code {
+    display: block;
+    margin-top: 2px;
+    color: #dff4ff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+  }
+
+  .formula-note strong,
+  .impact-box strong {
+    color: #ffd79c;
+  }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    z-index: 22;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .lil-gui {
+    z-index: 60 !important;
+    margin-top: 370px;
+    margin-right: 14px;
+  }
+
+  @media (max-width: 960px) {
+    #stage-panel {
+      top: auto;
+      bottom: 190px;
+      right: 14px;
+      width: min(340px, calc(100vw - 28px));
+    }
+
+    .lil-gui {
+      margin-top: 14px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      top: 12px;
+      width: calc(100vw - 90px);
+      min-width: 0;
+      padding: 10px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #guide-toggle {
+      top: 72px;
+      left: 10px;
+    }
+
+    #guide-panel {
+      top: 110px;
+      left: 10px;
+      width: calc(100vw - 20px);
+      max-height: 56vh;
+    }
+
+    #stage-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      top: auto;
+      bottom: 226px;
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      width: auto;
+      max-height: 210px;
+      overflow-y: auto;
+    }
+
+    #hint-chip {
+      left: 10px;
+      right: 10px;
+      bottom: 192px;
+      max-width: none;
+      border-radius: 16px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene-canvas"></canvas>
+
+<div id="title-card" class="glass">
+  <div class="eyebrow">Earth System Cycle</div>
+  <h1>22. 물의 순환</h1>
+  <p>태양 에너지에 의해 증발, 응결, 강수, 지표 흐름, 지하수 복귀가 동시에 이어집니다.</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+
+  <h4>🔑 핵심 원리</h4>
+  <p>물의 순환은 태양 에너지에 의해 일어납니다. 물은 증발 → 응결 → 강수 → 지표 흐름을 거치며 기권, 수권, 지권 사이를 순환하고, 이 과정에서 에너지도 함께 이동합니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>물의 순환을 일으키는 지구시스템의 에너지원은 무엇인가요?</li>
+    <li>물이 순환하면서 지표에 다양한 지형이 만들어지는 과정을 설명해 보세요.</li>
+    <li>만약 태양 에너지가 줄어든다면 물의 순환에 어떤 변화가 일어날까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li><strong>댐</strong>: 하천의 물을 저장하고 조절합니다.</li>
+    <li><strong>지하수 우물</strong>: 침투한 물이 지하수로 이동한 뒤 인간 생활에 활용됩니다.</li>
+    <li><strong>수력 발전</strong>: 높은 곳의 물이 가진 위치 에너지를 전기로 바꿉니다.</li>
+    <li><strong>기상 예보</strong>: 수증기, 구름, 강수의 이동을 관측해 비와 눈을 예측합니다.</li>
+  </ul>
+
+  <div class="textbook-ref">📚 미래엔 통합과학1 III편 p108~109 — 물의 순환과 에너지 흐름, 물의 순환과 지형</div>
+</div>
+
+<section id="stage-panel" class="glass">
+  <h2>순환 단계 포커스</h2>
+  <p class="subtitle">GUI의 단계별 보기로 특정 과정만 강조할 수 있습니다.</p>
+  <div id="stage-list">
+    <div class="stage-card" data-category="evap">
+      <strong>증발</strong>
+      <span>바다와 하천의 물이 태양 에너지를 흡수해 수증기로 상승합니다.</span>
+    </div>
+    <div class="stage-card" data-category="condense">
+      <strong>응결</strong>
+      <span>상층으로 올라간 수증기가 에너지를 방출하며 구름을 만듭니다.</span>
+    </div>
+    <div class="stage-card" data-category="precip">
+      <strong>강수</strong>
+      <span>구름에서 비와 눈이 내려 지표와 바다로 이동합니다.</span>
+    </div>
+    <div class="stage-card" data-category="flow">
+      <strong>지표 흐름·침투</strong>
+      <span>빗물이 하천을 따라 흐르거나 지하로 스며들어 지하수가 됩니다.</span>
+    </div>
+    <div class="stage-card" data-category="return">
+      <strong>복귀</strong>
+      <span>하천수와 지하수가 다시 바다로 돌아가 순환을 완성합니다.</span>
+    </div>
+  </div>
+</section>
+
+<section id="formula-panel" class="glass" aria-live="polite">
+  <h3>💧 물의 순환</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">순환 동력:</span><span class="value">태양 에너지</span></div>
+  <div class="info-row"><span class="label">현재 태양 강도:</span><span class="value" id="fp-sun">1.0x</span></div>
+  <div class="info-row"><span class="label">순환 속도:</span><span class="value" id="fp-speed">1.0x</span></div>
+  <div class="info-row"><span class="label">현재 보기:</span><span class="value" id="fp-focus">전체</span></div>
+
+  <div class="formula-flow">
+    <strong>순환 과정</strong>
+    <code>바다(수권) →[증발]→ 수증기(기권)</code>
+    <code>→[응결]→ 구름 →[강수]→ 비/눈(지표)</code>
+    <code>→[지표 흐름]→ 하천/지하수 →[복귀]→ 바다(수권)</code>
+  </div>
+
+  <div class="formula-note">
+    <strong>에너지 흐름</strong><br>
+    증발 시: 태양 에너지 흡수 (잠열)<br>
+    응결 시: 에너지 방출 (잠열)
+  </div>
+
+  <div class="impact-box">
+    <strong>현재 해석</strong><br>
+    <span id="fp-impact">표준 상태로 물질의 순환과 에너지의 흐름이 함께 나타납니다.</span>
+  </div>
+
+  <div class="formula-note">
+    물의 순환 → 물질의 순환 + 에너지의 흐름
+  </div>
+</section>
+
+<div id="hint-chip" class="glass">드래그와 핀치/휠로 카메라를 조절하고, GUI에서 태양 에너지 강도와 단계별 보기, 지형 변화 모드를 바꿔 보세요.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DEFAULTS = {
+  cycleSpeed: 1,
+  sunIntensity: 1,
+  stageView: '전체',
+  showLandforms: false,
+  showEnergy: true,
+  showZones: true
+};
+
+const STAGE_LABELS = {
+  '전체': '전체',
+  '증발만': '증발',
+  '응결만': '응결',
+  '강수만': '강수',
+  '지표 흐름만': '지표 흐름'
+};
+
+const sceneCanvas = document.getElementById('scene-canvas');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const stageCards = Array.from(document.querySelectorAll('.stage-card'));
+const fpSun = document.getElementById('fp-sun');
+const fpSpeed = document.getElementById('fp-speed');
+const fpFocus = document.getElementById('fp-focus');
+const fpImpact = document.getElementById('fp-impact');
+
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.classList.toggle('open', guideOpen);
+});
+
+const params = {
+  ...DEFAULTS,
+  reset: () => resetSimulation()
+};
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvas,
+  antialias: true,
+  alpha: true
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xdcefff, 19, 36);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 120);
+camera.position.set(13.5, 9.4, 13.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 8;
+controls.maxDistance = 27;
+controls.target.set(0.6, 2.4, 0);
+controls.update();
+controls.saveState();
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xfff1bf, 0.7);
+sunLight.position.set(-12, 16, 8);
+scene.add(sunLight);
+
+const world = new THREE.Group();
+scene.add(world);
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function fract(value) {
+  return value - Math.floor(value);
+}
+
+function hash2(x, y) {
+  return fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453123);
+}
+
+function noise2D(x, y) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const xf = x - x0;
+  const yf = y - y0;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+
+  const a = hash2(x0, y0);
+  const b = hash2(x0 + 1, y0);
+  const c = hash2(x0, y0 + 1);
+  const d = hash2(x0 + 1, y0 + 1);
+
+  const ab = THREE.MathUtils.lerp(a, b, u);
+  const cd = THREE.MathUtils.lerp(c, d, u);
+  return THREE.MathUtils.lerp(ab, cd, v) * 2 - 1;
+}
+
+function fbm(x, y) {
+  let total = 0;
+  let amplitude = 0.55;
+  let frequency = 1;
+  for (let i = 0; i < 5; i += 1) {
+    total += amplitude * noise2D(x * frequency, y * frequency);
+    frequency *= 2.03;
+    amplitude *= 0.5;
+  }
+  return total;
+}
+
+function riverCenterAtX(x) {
+  const coastalMeander = Math.sin((x - 0.8) * 0.9) * 1.15 * smoothstep(-1, 5, x);
+  const mountainCurve = Math.sin((x + 8.5) * 0.45) * 0.35;
+  return mountainCurve + coastalMeander - 0.4;
+}
+
+function terrainHeightAt(x, z) {
+  const nx = (x + 10) / 20;
+  const mountainMask = 1 - smoothstep(0.26, 0.88, nx);
+  const foothillMask = 1 - smoothstep(0.5, 0.92, nx);
+
+  let height = 0.4 + mountainMask * 2.4 + foothillMask * 0.7;
+  height += fbm(x * 0.17, z * 0.18) * (1.9 * mountainMask + 0.45);
+  height += Math.exp(-((x + 7.1) ** 2) / 5 - ((z + 2.4) ** 2) / 10) * 2.2;
+  height += Math.exp(-((x + 6.4) ** 2) / 7 - ((z - 3.1) ** 2) / 8) * 1.7;
+  height += Math.exp(-((x + 4.6) ** 2) / 6 - ((z - 0.4) ** 2) / 5) * 1.15;
+
+  const valleyCenter = riverCenterAtX(x);
+  const valleyWidth = 0.45 + smoothstep(-6, 4, x) * 0.9;
+  const valleyDepth = 2.6 - smoothstep(-6, 4, x) * 1.8;
+  height -= Math.exp(-((z - valleyCenter) ** 2) / (2 * valleyWidth * valleyWidth)) * valleyDepth;
+
+  height -= smoothstep(0.58, 0.98, nx) * 2.8;
+  height -= smoothstep(0.72, 0.98, nx) * 0.5 * (0.35 + Math.cos(z * 0.6) * 0.25);
+
+  return clamp(height, -0.8, 5.0);
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius, fillStyle) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    width = 360,
+    height = 120,
+    color = '#ffffff',
+    font = '700 28px Pretendard, "Noto Sans KR", sans-serif',
+    bg = 'rgba(6, 16, 28, 0.55)',
+    padding = 16
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.userData = {
+    canvas,
+    ctx,
+    texture,
+    color,
+    font,
+    bg,
+    padding
+  };
+  updateTextSprite(sprite, text);
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, options = {}) {
+  const { canvas, ctx, texture } = sprite.userData;
+  const color = options.color || sprite.userData.color;
+  const font = options.font || sprite.userData.font;
+  const bg = options.bg === undefined ? sprite.userData.bg : options.bg;
+  const padding = options.padding || sprite.userData.padding;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (bg) {
+    drawRoundedRect(ctx, 8, 8, canvas.width - 16, canvas.height - 16, 22, bg);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 10;
+
+  const lines = String(text).split('\n');
+  const usableHeight = canvas.height - padding * 2;
+  const lineHeight = usableHeight / Math.max(lines.length, 1);
+  const startY = canvas.height * 0.5 - ((lines.length - 1) * lineHeight * 0.5);
+  lines.forEach((line, index) => {
+    ctx.fillText(line, canvas.width * 0.5, startY + index * lineHeight);
+  });
+
+  texture.needsUpdate = true;
+}
+
+function createEnergyArrow(start, end, color, labelText) {
+  const direction = end.clone().sub(start);
+  const length = direction.length();
+  const arrow = new THREE.ArrowHelper(direction.normalize(), start, length, color, 0.45, 0.2);
+  arrow.line.material.transparent = true;
+  arrow.line.material.opacity = 0.78;
+  arrow.cone.material.transparent = true;
+  arrow.cone.material.opacity = 0.86;
+
+  const label = createTextSprite(labelText, {
+    width: 300,
+    height: 84,
+    color: '#fff7d9',
+    font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+    bg: 'rgba(96, 76, 18, 0.36)'
+  });
+  label.position.copy(start.clone().lerp(end, 0.55).add(new THREE.Vector3(0, 0.6, 0)));
+  label.scale.set(2.15, 0.6, 1);
+
+  const group = new THREE.Group();
+  group.add(arrow);
+  group.add(label);
+  group.userData = { arrow, label, baseY: label.position.y };
+  return group;
+}
+
+function createPointsSystem(count, { color, size, opacity, blending = THREE.NormalBlending }) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color,
+    size,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    blending
+  });
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  return { geometry, positions, material, points };
+}
+
+function pickSurfacePoint(predicate) {
+  for (let i = 0; i < 90; i += 1) {
+    const x = THREE.MathUtils.randFloat(-8.6, 3.2);
+    const z = THREE.MathUtils.randFloat(-6.6, 6.6);
+    const y = terrainHeightAt(x, z);
+    if (predicate(x, z, y)) {
+      return { x, z, y };
+    }
+  }
+  return { x: -5.4, z: 1.6, y: terrainHeightAt(-5.4, 1.6) };
+}
+
+const landGroup = new THREE.Group();
+world.add(landGroup);
+
+const terrainGeometry = new THREE.PlaneGeometry(20, 15, 96, 72);
+terrainGeometry.rotateX(-Math.PI / 2);
+const terrainPositions = terrainGeometry.attributes.position.array;
+const terrainColors = new Float32Array(terrainGeometry.attributes.position.count * 3);
+const terrainColor = new THREE.Color();
+
+for (let i = 0; i < terrainGeometry.attributes.position.count; i += 1) {
+  const index = i * 3;
+  const x = terrainPositions[index];
+  const z = terrainPositions[index + 2];
+  const y = terrainHeightAt(x, z);
+  terrainPositions[index + 1] = y;
+
+  if (y > 4.0) {
+    terrainColor.set(0xffffff);
+  } else if (y > 2.5) {
+    terrainColor.set(0x887766);
+  } else if (y > 0.5) {
+    terrainColor.set(0x44aa44);
+  } else if (y >= 0) {
+    terrainColor.set(0xddcc88);
+  } else {
+    terrainColor.set(0x4f5d46);
+  }
+
+  terrainColors[index] = terrainColor.r;
+  terrainColors[index + 1] = terrainColor.g;
+  terrainColors[index + 2] = terrainColor.b;
+}
+
+terrainGeometry.setAttribute('color', new THREE.BufferAttribute(terrainColors, 3));
+terrainGeometry.computeVertexNormals();
+
+const terrainMesh = new THREE.Mesh(
+  terrainGeometry,
+  new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.98,
+    metalness: 0.02
+  })
+);
+terrainMesh.receiveShadow = true;
+landGroup.add(terrainMesh);
+
+const riverPoints = [];
+for (let i = 0; i <= 14; i += 1) {
+  const t = i / 14;
+  const x = THREE.MathUtils.lerp(-8.2, 4.8, t);
+  const z = riverCenterAtX(x);
+  const y = x > 4.0 ? 0.08 : Math.max(0.08, terrainHeightAt(x, z) + 0.12);
+  riverPoints.push(new THREE.Vector3(x, y, z));
+}
+
+const riverCurve = new THREE.CatmullRomCurve3(riverPoints);
+
+const riverMesh = new THREE.Mesh(
+  new THREE.TubeGeometry(riverCurve, 180, 0.1, 16, false),
+  new THREE.MeshPhysicalMaterial({
+    color: 0x4488cc,
+    emissive: 0x6dbdff,
+    emissiveIntensity: 0.18,
+    roughness: 0.12,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.92
+  })
+);
+landGroup.add(riverMesh);
+
+const riverGlow = new THREE.Mesh(
+  new THREE.TubeGeometry(riverCurve, 120, 0.145, 12, false),
+  new THREE.MeshBasicMaterial({
+    color: 0x8bcfff,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false
+  })
+);
+landGroup.add(riverGlow);
+
+const groundwaterMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(12.2, 1.45, 8.6),
+  new THREE.MeshBasicMaterial({
+    color: 0x224488,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  })
+);
+groundwaterMesh.position.set(0.3, -1.05, 0);
+landGroup.add(groundwaterMesh);
+
+const seaGroup = new THREE.Group();
+seaGroup.position.set(5, 0, 0);
+world.add(seaGroup);
+
+const seaGeometry = new THREE.PlaneGeometry(10.4, 15.4, 74, 54);
+seaGeometry.rotateX(-Math.PI / 2);
+const seaBasePositions = Float32Array.from(seaGeometry.attributes.position.array);
+
+const seaMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0x2266aa,
+  transparent: true,
+  opacity: 0.72,
+  roughness: 0.16,
+  metalness: 0,
+  transmission: 0.2,
+  side: THREE.DoubleSide,
+  depthWrite: false
+});
+
+const seaMesh = new THREE.Mesh(seaGeometry, seaMaterial);
+seaMesh.position.y = 0.08;
+seaGroup.add(seaMesh);
+
+const heatGeometry = new THREE.PlaneGeometry(10.2, 15.2, 24, 24);
+heatGeometry.rotateX(-Math.PI / 2);
+const heatMaterial = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: {
+    uTime: { value: 0 },
+    uIntensity: { value: params.sunIntensity }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    varying float vWave;
+    uniform float uTime;
+    uniform float uIntensity;
+
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      float ripple = sin((uv.x * 18.0 + uTime * 1.9)) * 0.04 + cos((uv.y * 22.0 - uTime * 1.35)) * 0.03;
+      pos.y += ripple * (0.36 + uIntensity * 0.34);
+      vWave = ripple;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying float vWave;
+    uniform float uTime;
+    uniform float uIntensity;
+
+    void main() {
+      float band = sin((vUv.y + uTime * 0.04) * 80.0) * 0.5 + 0.5;
+      float edgeX = smoothstep(0.0, 0.08, vUv.x) * (1.0 - smoothstep(0.9, 1.0, vUv.x));
+      float edgeY = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.92, 1.0, vUv.y));
+      float alpha = (0.045 + 0.06 * band + 0.08 * abs(vWave)) * (0.28 + uIntensity * 0.5) * edgeX * edgeY;
+      vec3 color = mix(vec3(1.0, 0.83, 0.4), vec3(1.0, 0.95, 0.72), band);
+      gl_FragColor = vec4(color, alpha);
+    }
+  `
+});
+
+const heatMesh = new THREE.Mesh(heatGeometry, heatMaterial);
+heatMesh.position.y = 0.16;
+seaGroup.add(heatMesh);
+
+const sunGroup = new THREE.Group();
+sunGroup.position.set(-7.8, 8.8, -5.4);
+world.add(sunGroup);
+
+const sunCore = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 32, 32),
+  new THREE.MeshStandardMaterial({
+    color: 0xffcc00,
+    emissive: 0xffcc00,
+    emissiveIntensity: 1.2,
+    roughness: 0.2,
+    metalness: 0
+  })
+);
+sunGroup.add(sunCore);
+
+const sunHalo = new THREE.Mesh(
+  new THREE.SphereGeometry(1.6, 24, 24),
+  new THREE.MeshBasicMaterial({
+    color: 0xffef9c,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false
+  })
+);
+sunGroup.add(sunHalo);
+
+const cloudGroup = new THREE.Group();
+world.add(cloudGroup);
+
+const cloudConfigs = [
+  { phase: 0.0, speed: 0.032, baseZ: -2.0, scale: 1.0 },
+  { phase: 0.21, speed: 0.028, baseZ: 1.6, scale: 1.15 },
+  { phase: 0.46, speed: 0.035, baseZ: -0.4, scale: 1.08 },
+  { phase: 0.72, speed: 0.03, baseZ: 2.8, scale: 0.94 }
+];
+
+function createCloud(config) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false
+  });
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffefaf,
+    transparent: true,
+    opacity: 0.08,
+    depthWrite: false
+  });
+
+  const offsets = [
+    [0, 0, 0, 1.0],
+    [-0.72, 0.06, 0.18, 0.84],
+    [0.66, -0.04, -0.16, 0.92],
+    [-0.18, 0.32, -0.14, 0.76],
+    [0.24, 0.24, 0.22, 0.7]
+  ];
+
+  offsets.forEach(([x, y, z, scale]) => {
+    const puff = new THREE.Mesh(
+      new THREE.SphereGeometry(0.78 * scale, 18, 18),
+      material
+    );
+    puff.position.set(x * config.scale, y * config.scale, z * config.scale);
+    puff.scale.set(1.28, 0.92, 1.0);
+    group.add(puff);
+  });
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(1.65 * config.scale, 18, 18),
+    glowMaterial
+  );
+  glow.scale.set(1.45, 0.84, 1.15);
+  group.add(glow);
+
+  cloudGroup.add(group);
+  return {
+    group,
+    material,
+    glowMaterial,
+    phase: config.phase,
+    speed: config.speed,
+    baseZ: config.baseZ,
+    scale: config.scale
+  };
+}
+
+const clouds = cloudConfigs.map(createCloud);
+
+const energyGroup = new THREE.Group();
+world.add(energyGroup);
+
+const solarArrow = createEnergyArrow(
+  new THREE.Vector3(-6.8, 8.1, -4.9),
+  new THREE.Vector3(5.4, 0.5, -0.8),
+  0xffe36c,
+  '태양 에너지'
+);
+energyGroup.add(solarArrow);
+
+const absorbArrow = createEnergyArrow(
+  new THREE.Vector3(6.8, 0.6, 2.1),
+  new THREE.Vector3(6.8, 3.5, 2.1),
+  0xffe36c,
+  '증발: 에너지 흡수'
+);
+energyGroup.add(absorbArrow);
+
+const releaseArrow = createEnergyArrow(
+  new THREE.Vector3(0.3, 7.5, -1.6),
+  new THREE.Vector3(0.3, 5.9, -1.6),
+  0xffef99,
+  '응결: 에너지 방출'
+);
+energyGroup.add(releaseArrow);
+
+const zoneLabelGroup = new THREE.Group();
+world.add(zoneLabelGroup);
+
+const atmosphereLabel = createTextSprite('기권', {
+  width: 170,
+  height: 78,
+  color: '#ffffff',
+  font: '700 26px Pretendard, "Noto Sans KR", sans-serif',
+  bg: 'rgba(74, 137, 212, 0.34)'
+});
+atmosphereLabel.scale.set(2.3, 0.9, 1);
+atmosphereLabel.position.set(-1.2, 8.7, 0);
+zoneLabelGroup.add(atmosphereLabel);
+
+const hydrosphereLabel = createTextSprite('수권', {
+  width: 170,
+  height: 78,
+  color: '#ffffff',
+  font: '700 26px Pretendard, "Noto Sans KR", sans-serif',
+  bg: 'rgba(22, 95, 164, 0.42)'
+});
+hydrosphereLabel.scale.set(2.3, 0.9, 1);
+hydrosphereLabel.position.set(7.1, 1.2, -4.6);
+zoneLabelGroup.add(hydrosphereLabel);
+
+const geosphereLabel = createTextSprite('지권', {
+  width: 170,
+  height: 78,
+  color: '#ffffff',
+  font: '700 26px Pretendard, "Noto Sans KR", sans-serif',
+  bg: 'rgba(84, 63, 42, 0.44)'
+});
+geosphereLabel.scale.set(2.3, 0.9, 1);
+geosphereLabel.position.set(-2.8, -0.1, 5.7);
+zoneLabelGroup.add(geosphereLabel);
+
+const processLabelGroup = new THREE.Group();
+world.add(processLabelGroup);
+
+const processLabels = [
+  {
+    category: 'evap',
+    sprite: createTextSprite('증발\n태양 에너지 흡수', {
+      width: 310,
+      height: 120,
+      color: '#eef9ff',
+      font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+      bg: 'rgba(20, 90, 160, 0.34)'
+    }),
+    position: new THREE.Vector3(7.2, 3.2, 4.6)
+  },
+  {
+    category: 'condense',
+    sprite: createTextSprite('응결\n구름 형성', {
+      width: 260,
+      height: 110,
+      color: '#ffffff',
+      font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+      bg: 'rgba(105, 132, 168, 0.34)'
+    }),
+    position: new THREE.Vector3(0.8, 8.45, -3.1)
+  },
+  {
+    category: 'precip',
+    sprite: createTextSprite('강수\n비와 눈', {
+      width: 240,
+      height: 110,
+      color: '#eef7ff',
+      font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+      bg: 'rgba(68, 118, 190, 0.36)'
+    }),
+    position: new THREE.Vector3(-0.9, 5.2, -1.9)
+  },
+  {
+    category: 'flow',
+    sprite: createTextSprite('지표 흐름\n침투', {
+      width: 250,
+      height: 110,
+      color: '#effcff',
+      font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+      bg: 'rgba(56, 120, 104, 0.34)'
+    }),
+    position: new THREE.Vector3(-1.2, 2.6, 2.9)
+  },
+  {
+    category: 'return',
+    sprite: createTextSprite('복귀\n하천·지하수 → 바다', {
+      width: 290,
+      height: 110,
+      color: '#effcff',
+      font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+      bg: 'rgba(30, 97, 158, 0.34)'
+    }),
+    position: new THREE.Vector3(5.6, 1.15, -3.1)
+  }
+];
+
+processLabels.forEach((entry) => {
+  entry.sprite.scale.set(1.95, 0.8, 1);
+  entry.sprite.position.copy(entry.position);
+  processLabelGroup.add(entry.sprite);
+});
+
+const landformGroup = new THREE.Group();
+world.add(landformGroup);
+
+const upperValleyCurve = new THREE.CatmullRomCurve3(riverPoints.slice(0, 5).map((point) => point.clone().add(new THREE.Vector3(0, 0.22, 0))));
+const valleyHighlight = new THREE.Mesh(
+  new THREE.TubeGeometry(upperValleyCurve, 80, 0.08, 12, false),
+  new THREE.MeshBasicMaterial({
+    color: 0xffd27a,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false
+  })
+);
+landformGroup.add(valleyHighlight);
+
+const alluvialFan = new THREE.Mesh(
+  new THREE.CircleGeometry(1.55, 40, THREE.MathUtils.degToRad(208), THREE.MathUtils.degToRad(126)),
+  new THREE.MeshBasicMaterial({
+    color: 0xf1c17b,
+    transparent: true,
+    opacity: 0.42,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+alluvialFan.rotation.x = -Math.PI / 2;
+alluvialFan.position.set(-2.3, terrainHeightAt(-2.3, riverCenterAtX(-2.3) + 0.8) + 0.08, riverCenterAtX(-2.3) + 0.95);
+landformGroup.add(alluvialFan);
+
+const meanderCurve = new THREE.CatmullRomCurve3(riverPoints.slice(6, 13).map((point) => point.clone().add(new THREE.Vector3(0, 0.18, 0))));
+const meanderHighlight = new THREE.Mesh(
+  new THREE.TubeGeometry(meanderCurve, 90, 0.065, 10, false),
+  new THREE.MeshBasicMaterial({
+    color: 0xa8f0b6,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false
+  })
+);
+landformGroup.add(meanderHighlight);
+
+const deltaShape = new THREE.Shape();
+deltaShape.moveTo(0, 0);
+deltaShape.lineTo(1.9, -1.2);
+deltaShape.lineTo(2.2, 0);
+deltaShape.lineTo(1.9, 1.2);
+deltaShape.closePath();
+const deltaMesh = new THREE.Mesh(
+  new THREE.ShapeGeometry(deltaShape),
+  new THREE.MeshBasicMaterial({
+    color: 0xe7ce8a,
+    transparent: true,
+    opacity: 0.46,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+deltaMesh.rotation.x = -Math.PI / 2;
+deltaMesh.position.set(3.8, 0.11, riverCenterAtX(4.2));
+landformGroup.add(deltaMesh);
+
+const landformLabels = [
+  { text: 'V자 계곡', position: new THREE.Vector3(-6.5, 4.2, -1.1) },
+  { text: '선상지', position: new THREE.Vector3(-1.5, 1.8, 1.8) },
+  { text: '곡류', position: new THREE.Vector3(2.4, 1.3, 0.9) },
+  { text: '삼각주', position: new THREE.Vector3(5.7, 0.9, 0.7) }
+].map((item) => {
+  const sprite = createTextSprite(item.text, {
+    width: 180,
+    height: 74,
+    color: '#fff9e8',
+    font: '700 24px Pretendard, "Noto Sans KR", sans-serif',
+    bg: 'rgba(113, 81, 24, 0.36)'
+  });
+  sprite.position.copy(item.position);
+  sprite.scale.set(1.6, 0.65, 1);
+  landformGroup.add(sprite);
+  return sprite;
+});
+
+const vaporCount = 90;
+const vaporGeometry = new THREE.BufferGeometry();
+const vaporPositions = new Float32Array(vaporCount * 3);
+const vaporAlphas = new Float32Array(vaporCount);
+const vaporSizes = new Float32Array(vaporCount);
+vaporGeometry.setAttribute('position', new THREE.BufferAttribute(vaporPositions, 3));
+vaporGeometry.setAttribute('aAlpha', new THREE.BufferAttribute(vaporAlphas, 1));
+vaporGeometry.setAttribute('aSize', new THREE.BufferAttribute(vaporSizes, 1));
+
+const vaporMaterial = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: {
+    uColor: { value: new THREE.Color(0x88ccff) },
+    uOpacity: { value: 1 }
+  },
+  vertexShader: `
+    attribute float aAlpha;
+    attribute float aSize;
+    varying float vAlpha;
+
+    void main() {
+      vAlpha = aAlpha;
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * (170.0 / -mvPosition.z);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uOpacity;
+    varying float vAlpha;
+
+    void main() {
+      vec2 uv = gl_PointCoord - vec2(0.5);
+      float dist = length(uv);
+      float alpha = smoothstep(0.5, 0.0, dist) * vAlpha * uOpacity;
+      if (alpha < 0.01) discard;
+      gl_FragColor = vec4(uColor, alpha);
+    }
+  `
+});
+
+const vaporPoints = new THREE.Points(vaporGeometry, vaporMaterial);
+vaporPoints.frustumCulled = false;
+world.add(vaporPoints);
+
+function randomSeaSource() {
+  return {
+    x: THREE.MathUtils.randFloat(0.8, 9.0),
+    z: THREE.MathUtils.randFloat(-7.0, 7.0)
+  };
+}
+
+function randomRiverSource() {
+  const t = THREE.MathUtils.randFloat(0.06, 0.84);
+  const point = riverCurve.getPointAt(t);
+  return { x: point.x, z: point.z };
+}
+
+function resetVaporParticle(particle, randomProgress = false) {
+  const fromRiver = Math.random() < 0.28;
+  particle.sourceType = fromRiver ? 'river' : 'sea';
+  particle.source = fromRiver ? randomRiverSource() : randomSeaSource();
+  particle.targetX = particle.source.x + THREE.MathUtils.randFloatSpread(0.9) - (fromRiver ? 0.15 : 0.35);
+  particle.targetZ = particle.source.z + THREE.MathUtils.randFloatSpread(0.8);
+  particle.targetY = THREE.MathUtils.randFloat(6.0, 7.2);
+  particle.speed = THREE.MathUtils.randFloat(0.22, 0.42);
+  particle.size = THREE.MathUtils.randFloat(16, 24);
+  particle.phase = Math.random() * Math.PI * 2;
+  particle.progress = randomProgress ? Math.random() : 0;
+}
+
+const vaporData = Array.from({ length: vaporCount }, () => {
+  const particle = {};
+  resetVaporParticle(particle, true);
+  return particle;
+});
+
+const rainCount = 56;
+const rainMesh = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(0.012, 0.18, 0.012),
+  new THREE.MeshBasicMaterial({
+    color: 0x4488ff,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false
+  }),
+  rainCount
+);
+rainMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+rainMesh.frustumCulled = false;
+world.add(rainMesh);
+
+const rainDummy = new THREE.Object3D();
+
+function resetRainDrop(drop, randomProgress = false) {
+  drop.cloudIndex = Math.floor(Math.random() * clouds.length);
+  drop.progress = randomProgress ? Math.random() : 0;
+  drop.speed = THREE.MathUtils.randFloat(0.42, 0.8);
+  drop.offsetX = THREE.MathUtils.randFloatSpread(0.85);
+  drop.offsetZ = THREE.MathUtils.randFloatSpread(0.7);
+  drop.scale = THREE.MathUtils.randFloat(0.85, 1.25);
+}
+
+const rainData = Array.from({ length: rainCount }, () => {
+  const drop = {};
+  resetRainDrop(drop, true);
+  return drop;
+});
+
+const snowSystem = createPointsSystem(24, {
+  color: 0xffffff,
+  size: 0.14,
+  opacity: 0.92
+});
+world.add(snowSystem.points);
+
+function resetSnowflake(flake, randomProgress = false) {
+  const source = pickSurfacePoint((x, z, y) => x < -3.2 && y > 3.5);
+  flake.x = source.x + THREE.MathUtils.randFloatSpread(0.8);
+  flake.z = source.z + THREE.MathUtils.randFloatSpread(0.8);
+  flake.groundY = terrainHeightAt(flake.x, flake.z) + 0.12;
+  flake.startY = THREE.MathUtils.randFloat(6.2, 7.4);
+  flake.progress = randomProgress ? Math.random() : 0;
+  flake.speed = THREE.MathUtils.randFloat(0.14, 0.28);
+  flake.drift = THREE.MathUtils.randFloatSpread(0.28);
+  flake.phase = Math.random() * Math.PI * 2;
+}
+
+const snowData = Array.from({ length: 24 }, () => {
+  const flake = {};
+  resetSnowflake(flake, true);
+  return flake;
+});
+
+const runoffSystem = createPointsSystem(30, {
+  color: 0x6fd2ff,
+  size: 0.13,
+  opacity: 0.92
+});
+
+function resetRunoffParticle(particle, randomProgress = false) {
+  particle.progress = randomProgress ? Math.random() : THREE.MathUtils.randFloat(0.04, 0.18);
+  particle.speed = THREE.MathUtils.randFloat(0.08, 0.16);
+  particle.offset = THREE.MathUtils.randFloatSpread(0.05);
+}
+
+const runoffData = Array.from({ length: 30 }, () => {
+  const particle = {};
+  resetRunoffParticle(particle, true);
+  return particle;
+});
+
+const infiltrationSystem = createPointsSystem(20, {
+  color: 0x62a8ff,
+  size: 0.12,
+  opacity: 0.86
+});
+
+function resetInfiltrationParticle(particle, randomProgress = false) {
+  const source = pickSurfacePoint((x, z, y) => x > -6.8 && x < 2.5 && y > 0.5 && y < 3.2 && Math.abs(z - riverCenterAtX(x)) > 0.55);
+  particle.source = source;
+  particle.targetX = source.x + THREE.MathUtils.randFloatSpread(0.25);
+  particle.targetZ = source.z + THREE.MathUtils.randFloatSpread(0.25);
+  particle.targetY = THREE.MathUtils.randFloat(-1.18, -0.86);
+  particle.progress = randomProgress ? Math.random() : 0;
+  particle.speed = THREE.MathUtils.randFloat(0.12, 0.24);
+}
+
+const infiltrationData = Array.from({ length: 20 }, () => {
+  const particle = {};
+  resetInfiltrationParticle(particle, true);
+  return particle;
+});
+
+const groundwaterSystem = createPointsSystem(18, {
+  color: 0x8fd7ff,
+  size: 0.12,
+  opacity: 0.82,
+  blending: THREE.AdditiveBlending
+});
+
+function resetGroundwaterParticle(particle, randomProgress = false) {
+  particle.startX = THREE.MathUtils.randFloat(-4.8, 2.2);
+  particle.startZ = THREE.MathUtils.randFloat(-3.8, 3.8);
+  particle.endX = THREE.MathUtils.randFloat(4.2, 6.2);
+  particle.endZ = particle.startZ + THREE.MathUtils.randFloatSpread(0.6);
+  particle.y = THREE.MathUtils.randFloat(-1.15, -0.92);
+  particle.progress = randomProgress ? Math.random() : 0;
+  particle.speed = THREE.MathUtils.randFloat(0.05, 0.12);
+  particle.phase = Math.random() * Math.PI * 2;
+}
+
+const groundwaterData = Array.from({ length: 18 }, () => {
+  const particle = {};
+  resetGroundwaterParticle(particle, true);
+  return particle;
+});
+
+const returnSystem = createPointsSystem(12, {
+  color: 0xbde8ff,
+  size: 0.12,
+  opacity: 0.86,
+  blending: THREE.AdditiveBlending
+});
+
+function resetReturnParticle(particle, randomProgress = false) {
+  particle.startX = THREE.MathUtils.randFloat(4.2, 5.6);
+  particle.startY = THREE.MathUtils.randFloat(-0.8, -0.58);
+  particle.startZ = THREE.MathUtils.randFloat(-2.8, 2.8);
+  particle.endX = THREE.MathUtils.randFloat(5.8, 7.8);
+  particle.endY = THREE.MathUtils.randFloat(0.04, 0.18);
+  particle.endZ = particle.startZ + THREE.MathUtils.randFloatSpread(0.55);
+  particle.progress = randomProgress ? Math.random() : 0;
+  particle.speed = THREE.MathUtils.randFloat(0.1, 0.18);
+}
+
+const returnData = Array.from({ length: 12 }, () => {
+  const particle = {};
+  resetReturnParticle(particle, true);
+  return particle;
+});
+
+const flowGroup = new THREE.Group();
+flowGroup.add(runoffSystem.points);
+flowGroup.add(infiltrationSystem.points);
+flowGroup.add(groundwaterSystem.points);
+flowGroup.add(returnSystem.points);
+world.add(flowGroup);
+
+const gui = new GUI({ title: '물의 순환 조절', width: 286 });
+gui.add(params, 'cycleSpeed', 0.5, 5, 0.1).name('순환 속도').onChange(updateOverlay);
+gui.add(params, 'sunIntensity', 0.2, 2.0, 0.1).name('태양 에너지 강도').onChange(() => {
+  heatMaterial.uniforms.uIntensity.value = params.sunIntensity;
+  updateOverlay();
+});
+gui.add(params, 'stageView', ['전체', '증발만', '응결만', '강수만', '지표 흐름만']).name('단계별 보기').onChange(refreshVisualState);
+gui.add(params, 'showLandforms').name('지형 변화 모드').onChange(refreshVisualState);
+gui.add(params, 'showEnergy').name('에너지 흐름 표시').onChange(refreshVisualState);
+gui.add(params, 'showZones').name('권역 라벨 표시').onChange(refreshVisualState);
+gui.add(params, 'reset').name('초기화');
+if (window.innerWidth <= 960) gui.close();
+
+function updateOverlay() {
+  fpSun.textContent = `${params.sunIntensity.toFixed(1)}x`;
+  fpSpeed.textContent = `${params.cycleSpeed.toFixed(1)}x`;
+  fpFocus.textContent = STAGE_LABELS[params.stageView];
+
+  if (params.sunIntensity < 0.75) {
+    fpImpact.textContent = '태양 에너지가 약해져 증발량과 구름량이 줄고, 강수와 하천 흐름도 완만해집니다.';
+  } else if (params.sunIntensity > 1.35) {
+    fpImpact.textContent = '태양 에너지가 강해져 증발이 활발해지고, 구름의 발달과 강수량, 지표 흐름이 함께 커집니다.';
+  } else {
+    fpImpact.textContent = '표준 상태로 물질의 순환과 에너지의 흐름이 함께 나타납니다.';
+  }
+}
+
+function refreshStageCards() {
+  const focus = params.stageView;
+  stageCards.forEach((card) => {
+    const category = card.dataset.category;
+    const active =
+      focus === '전체' ||
+      (focus === '증발만' && category === 'evap') ||
+      (focus === '응결만' && category === 'condense') ||
+      (focus === '강수만' && category === 'precip') ||
+      (focus === '지표 흐름만' && (category === 'flow' || category === 'return'));
+    card.classList.toggle('active', active);
+  });
+}
+
+function refreshVisualState() {
+  const showAll = params.stageView === '전체';
+  const showEvap = showAll || params.stageView === '증발만';
+  const showCondense = showAll || params.stageView === '응결만';
+  const showPrecip = showAll || params.stageView === '강수만';
+  const showFlow = showAll || params.stageView === '지표 흐름만';
+
+  vaporMaterial.uniforms.uOpacity.value = showEvap ? 1 : 0.14;
+  rainMesh.material.opacity = showPrecip ? 0.82 : 0.08;
+  snowSystem.material.opacity = showPrecip ? 0.92 : 0.08;
+  runoffSystem.material.opacity = showFlow ? 0.92 : 0.09;
+  infiltrationSystem.material.opacity = showFlow ? 0.86 : 0.08;
+  groundwaterSystem.material.opacity = showFlow ? 0.82 : 0.08;
+  returnSystem.material.opacity = showFlow ? 0.86 : 0.08;
+
+  clouds.forEach((cloud) => {
+    cloud.material.opacity = showCondense || showPrecip ? 0.72 : 0.18;
+    cloud.glowMaterial.opacity = showCondense ? 0.16 : 0.05;
+  });
+
+  energyGroup.visible = params.showEnergy && (showAll || params.stageView === '증발만' || params.stageView === '응결만');
+  zoneLabelGroup.visible = params.showZones;
+  landformGroup.visible = params.showLandforms;
+
+  processLabels.forEach((entry) => {
+    const active =
+      showAll ||
+      (params.stageView === '증발만' && entry.category === 'evap') ||
+      (params.stageView === '응결만' && entry.category === 'condense') ||
+      (params.stageView === '강수만' && entry.category === 'precip') ||
+      (params.stageView === '지표 흐름만' && (entry.category === 'flow' || entry.category === 'return'));
+    entry.sprite.material.opacity = active ? 1 : 0.28;
+  });
+
+  refreshStageCards();
+  updateOverlay();
+}
+
+function resetSimulation() {
+  Object.assign(params, DEFAULTS);
+  controls.reset();
+  heatMaterial.uniforms.uIntensity.value = params.sunIntensity;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  refreshVisualState();
+}
+
+function updateSeaSurface(time) {
+  const positions = seaGeometry.attributes.position.array;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = seaBasePositions[i];
+    const z = seaBasePositions[i + 2];
+    positions[i + 1] =
+      Math.sin((x + time * 1.4) * 0.95) * 0.08 +
+      Math.cos((z - time * 1.2) * 1.25) * 0.05 +
+      Math.sin((x + z + time * 0.8) * 1.7) * 0.03;
+  }
+  seaGeometry.attributes.position.needsUpdate = true;
+  seaGeometry.computeVertexNormals();
+}
+
+function updateSun(time) {
+  sunCore.material.emissiveIntensity = 0.8 + params.sunIntensity * 0.55;
+  sunLight.intensity = 0.45 + params.sunIntensity * 0.25;
+  sunHalo.scale.setScalar(1.18 + Math.sin(time * 1.4) * 0.04 + params.sunIntensity * 0.08);
+  sunHalo.material.opacity = 0.12 + params.sunIntensity * 0.09;
+  heatMaterial.uniforms.uTime.value = time;
+}
+
+function updateClouds(time) {
+  const cloudAmount = 0.74 + params.sunIntensity * 0.14;
+  const glowFocus = params.stageView === '전체' || params.stageView === '응결만'
+    ? 1
+    : params.stageView === '강수만'
+      ? 0.4
+      : 0.22;
+  clouds.forEach((cloud) => {
+    const travel = (time * cloud.speed * params.cycleSpeed + cloud.phase) % 1;
+    const x = THREE.MathUtils.lerp(-3.8, 6.4, travel);
+    const y = 6.3 + Math.sin(time * 0.85 + cloud.phase * Math.PI * 2) * 0.25;
+    const z = cloud.baseZ + Math.sin(time * 0.6 + cloud.phase * 9.0) * 0.42;
+    cloud.group.position.set(x, y, z);
+    cloud.group.scale.setScalar(cloud.scale * cloudAmount);
+    cloud.glowMaterial.opacity =
+      (0.05 + Math.sin(time * 2.4 + cloud.phase * 12) * 0.04 + 0.06) *
+      (0.65 + params.sunIntensity * 0.18) *
+      glowFocus;
+  });
+}
+
+function updateEnergyFlow(time) {
+  energyGroup.children.forEach((group, index) => {
+    const arrow = group.userData.arrow;
+    const label = group.userData.label;
+    const baseY = group.userData.baseY;
+    const pulse = 0.66 + Math.sin(time * (1.5 + index * 0.2) + index) * 0.18 + params.sunIntensity * 0.08;
+    arrow.line.material.opacity = pulse;
+    arrow.cone.material.opacity = pulse + 0.08;
+    label.material.opacity = pulse;
+    label.position.y = baseY + Math.sin(time * 1.4 + index) * 0.04;
+  });
+}
+
+function updateVapor(time, delta) {
+  const lift = params.cycleSpeed * (0.55 + params.sunIntensity * 0.62);
+
+  for (let i = 0; i < vaporCount; i += 1) {
+    const particle = vaporData[i];
+    particle.progress += delta * particle.speed * lift;
+    if (particle.progress > 1) {
+      resetVaporParticle(particle);
+    }
+
+    const sourceY = particle.sourceType === 'river'
+      ? terrainHeightAt(particle.source.x, particle.source.z) + 0.16
+      : 0.16;
+    const t = particle.progress;
+    const x = THREE.MathUtils.lerp(particle.source.x, particle.targetX, t * 0.45) + Math.sin(time * 1.4 + particle.phase) * 0.08;
+    const y = THREE.MathUtils.lerp(sourceY, particle.targetY, Math.pow(t, 0.92));
+    const z = THREE.MathUtils.lerp(particle.source.z, particle.targetZ, t * 0.35) + Math.cos(time * 1.2 + particle.phase) * 0.06;
+
+    vaporPositions[i * 3] = x;
+    vaporPositions[i * 3 + 1] = y;
+    vaporPositions[i * 3 + 2] = z;
+    vaporAlphas[i] = Math.max(0, (1 - t) * (0.42 + params.sunIntensity * 0.4));
+    vaporSizes[i] = particle.size * (0.72 + (1 - t) * 0.48);
+  }
+
+  vaporGeometry.attributes.position.needsUpdate = true;
+  vaporGeometry.attributes.aAlpha.needsUpdate = true;
+  vaporGeometry.attributes.aSize.needsUpdate = true;
+}
+
+function updateRain(delta) {
+  const activeDrops = Math.floor(18 + params.sunIntensity * 19);
+
+  for (let i = 0; i < rainCount; i += 1) {
+    const drop = rainData[i];
+    if (i >= activeDrops) {
+      rainDummy.position.set(0, -99, 0);
+      rainDummy.scale.set(0.001, 0.001, 0.001);
+      rainDummy.updateMatrix();
+      rainMesh.setMatrixAt(i, rainDummy.matrix);
+      continue;
+    }
+
+    drop.progress += delta * drop.speed * params.cycleSpeed * (0.65 + params.sunIntensity * 0.35);
+    if (drop.progress > 1) {
+      resetRainDrop(drop);
+    }
+
+    const cloud = clouds[drop.cloudIndex];
+    const x = cloud.group.position.x + drop.offsetX;
+    const z = cloud.group.position.z + drop.offsetZ;
+    const startY = cloud.group.position.y - 0.4;
+    const groundY = Math.max(0.08, terrainHeightAt(x, z) + 0.08);
+    const y = THREE.MathUtils.lerp(startY, groundY, drop.progress);
+
+    rainDummy.position.set(x, y, z);
+    rainDummy.scale.set(drop.scale, drop.scale, drop.scale);
+    rainDummy.updateMatrix();
+    rainMesh.setMatrixAt(i, rainDummy.matrix);
+  }
+
+  rainMesh.instanceMatrix.needsUpdate = true;
+}
+
+function updateSnow(time, delta) {
+  for (let i = 0; i < snowData.length; i += 1) {
+    const flake = snowData[i];
+    flake.progress += delta * flake.speed * params.cycleSpeed;
+    if (flake.progress > 1) {
+      resetSnowflake(flake);
+    }
+
+    const sway = Math.sin(time * 1.3 + flake.phase + flake.progress * 8) * flake.drift;
+    const x = flake.x + sway;
+    const y = THREE.MathUtils.lerp(flake.startY, flake.groundY, flake.progress);
+    const z = flake.z + Math.cos(time * 0.9 + flake.phase) * 0.12;
+
+    snowSystem.positions[i * 3] = x;
+    snowSystem.positions[i * 3 + 1] = y;
+    snowSystem.positions[i * 3 + 2] = z;
+  }
+
+  snowSystem.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateRunoff(delta) {
+  for (let i = 0; i < runoffData.length; i += 1) {
+    const particle = runoffData[i];
+    particle.progress += delta * particle.speed * params.cycleSpeed * (0.82 + params.sunIntensity * 0.18);
+    if (particle.progress > 1) {
+      resetRunoffParticle(particle);
+    }
+
+    const point = riverCurve.getPointAt(particle.progress);
+    runoffSystem.positions[i * 3] = point.x;
+    runoffSystem.positions[i * 3 + 1] = point.y + 0.05 + particle.offset;
+    runoffSystem.positions[i * 3 + 2] = point.z;
+  }
+
+  runoffSystem.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateInfiltration(delta) {
+  for (let i = 0; i < infiltrationData.length; i += 1) {
+    const particle = infiltrationData[i];
+    particle.progress += delta * particle.speed * params.cycleSpeed * 0.8;
+    if (particle.progress > 1) {
+      resetInfiltrationParticle(particle);
+    }
+
+    infiltrationSystem.positions[i * 3] = THREE.MathUtils.lerp(particle.source.x, particle.targetX, particle.progress * 0.25);
+    infiltrationSystem.positions[i * 3 + 1] = THREE.MathUtils.lerp(particle.source.y + 0.12, particle.targetY, particle.progress);
+    infiltrationSystem.positions[i * 3 + 2] = THREE.MathUtils.lerp(particle.source.z, particle.targetZ, particle.progress * 0.2);
+  }
+
+  infiltrationSystem.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateGroundwater(time, delta) {
+  for (let i = 0; i < groundwaterData.length; i += 1) {
+    const particle = groundwaterData[i];
+    particle.progress += delta * particle.speed * params.cycleSpeed * 0.7;
+    if (particle.progress > 1) {
+      resetGroundwaterParticle(particle);
+    }
+
+    groundwaterSystem.positions[i * 3] = THREE.MathUtils.lerp(particle.startX, particle.endX, particle.progress);
+    groundwaterSystem.positions[i * 3 + 1] = particle.y + Math.sin(time * 1.4 + particle.phase) * 0.04;
+    groundwaterSystem.positions[i * 3 + 2] = THREE.MathUtils.lerp(particle.startZ, particle.endZ, particle.progress);
+  }
+
+  groundwaterSystem.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateReturnFlow(delta) {
+  for (let i = 0; i < returnData.length; i += 1) {
+    const particle = returnData[i];
+    particle.progress += delta * particle.speed * params.cycleSpeed * 0.85;
+    if (particle.progress > 1) {
+      resetReturnParticle(particle);
+    }
+
+    returnSystem.positions[i * 3] = THREE.MathUtils.lerp(particle.startX, particle.endX, particle.progress);
+    returnSystem.positions[i * 3 + 1] = THREE.MathUtils.lerp(particle.startY, particle.endY, particle.progress);
+    returnSystem.positions[i * 3 + 2] = THREE.MathUtils.lerp(particle.startZ, particle.endZ, particle.progress);
+  }
+
+  returnSystem.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateProcessLabels(time) {
+  processLabels.forEach((entry, index) => {
+    const pulse = 1 + Math.sin(time * 1.2 + index) * 0.03;
+    entry.sprite.scale.set(1.95 * pulse, 0.8 * pulse, 1);
+  });
+
+  landformLabels.forEach((label, index) => {
+    label.material.opacity = 0.82 + Math.sin(time * 1.5 + index) * 0.08;
+  });
+}
+
+function resize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+refreshVisualState();
+updateOverlay();
+
+const clock = new THREE.Clock();
+let animationFrame = 0;
+
+function animate() {
+  animationFrame = requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.033);
+  const time = clock.elapsedTime;
+
+  updateSun(time);
+  updateSeaSurface(time);
+  updateClouds(time);
+  updateEnergyFlow(time);
+  updateVapor(time, delta);
+  updateRain(delta);
+  updateSnow(time, delta);
+  updateRunoff(delta);
+  updateInfiltration(delta);
+  updateGroundwater(time, delta);
+  updateReturnFlow(delta);
+  updateProcessLabels(time);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+function disposeScene() {
+  cancelAnimationFrame(animationFrame);
+  window.removeEventListener('resize', resize);
+  controls.dispose();
+  gui.destroy();
+
+  const disposedGeometries = new Set();
+  const disposedMaterials = new Set();
+  const disposedTextures = new Set();
+
+  scene.traverse((object) => {
+    if (object.geometry && !disposedGeometries.has(object.geometry)) {
+      object.geometry.dispose();
+      disposedGeometries.add(object.geometry);
+    }
+
+    if (object.material) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => {
+        if (disposedMaterials.has(material)) return;
+        if (material.map && !disposedTextures.has(material.map)) {
+          material.map.dispose();
+          disposedTextures.add(material.map);
+        }
+        material.dispose();
+        disposedMaterials.add(material);
+      });
+    }
+
+    if (object.userData && object.userData.texture && !disposedTextures.has(object.userData.texture)) {
+      object.userData.texture.dispose();
+      disposedTextures.add(object.userData.texture);
+    }
+  });
+
+  renderer.dispose();
+}
+
+window.addEventListener('beforeunload', disposeScene, { once: true });
+</script>
+</body>
+</html>

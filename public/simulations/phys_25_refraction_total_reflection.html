@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빛의 굴절과 전반사 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --stroke: rgba(255, 255, 255, 0.1);
+    --text-main: #f7fbff;
+    --text-dim: rgba(247, 251, 255, 0.72);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 14%, rgba(109, 164, 255, 0.18), transparent 22%),
+      radial-gradient(circle at 82% 8%, rgba(255, 226, 110, 0.12), transparent 18%),
+      linear-gradient(180deg, #0a0a20 0%, #070b18 54%, #06070f 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glass-card {
+    border: 1px solid var(--stroke);
+    background: linear-gradient(180deg, rgba(13, 22, 46, 0.88) 0%, rgba(7, 12, 24, 0.76) 100%);
+    box-shadow: 0 18px 42px rgba(3, 6, 16, 0.34);
+    backdrop-filter: blur(14px);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: min(440px, calc(100vw - 32px));
+    padding: 18px 20px 16px;
+    border-radius: 24px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 6px;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  #title-card p {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    max-width: min(430px, calc(100vw - 48px));
+    padding: 12px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(9, 15, 30, 0.84);
+    box-shadow: 0 16px 32px rgba(4, 8, 18, 0.28);
+    backdrop-filter: blur(10px);
+    font-size: 12px;
+    line-height: 1.6;
+    z-index: 22;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 154px;
+    left: 16px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(9, 15, 30, 0.86);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 24;
+    box-shadow: 0 14px 30px rgba(4, 8, 18, 0.24);
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 198px;
+    left: 16px;
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(64vh, 720px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    z-index: 23;
+    display: none;
+    font-size: 13px;
+    line-height: 1.72;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #dff3ff;
+  }
+
+  #guide-panel h4 {
+    margin: 14px 0 6px;
+    font-size: 13px;
+    color: #97dfff;
+  }
+
+  #guide-panel p {
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  #guide-panel li + li {
+    margin-top: 6px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    z-index: 20;
+  }
+
+  #formula-panel h2 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff3c8;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 12px 0 10px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .formula-row .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .formula-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.94);
+  }
+
+  .formula-block {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .formula-block strong {
+    color: #fff1bb;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #fiber-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(340px, calc(100vw - 32px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    z-index: 20;
+    display: none;
+  }
+
+  #fiber-panel h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #dff5ff;
+  }
+
+  #fiber-panel p {
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  #fiber-panel ul {
+    margin-top: 10px;
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.72;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  #tir-banner {
+    position: fixed;
+    left: 50%;
+    top: 116px;
+    transform: translateX(-50%) scale(0.92);
+    padding: 12px 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 215, 116, 0.34);
+    background: rgba(78, 33, 7, 0.9);
+    color: #fff2bf;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    box-shadow: 0 18px 40px rgba(255, 166, 61, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 26;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+
+  #tir-banner.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  #label-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 19;
+  }
+
+  .scene-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 14, 30, 0.74);
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(4, 8, 18, 0.2);
+    backdrop-filter: blur(8px);
+  }
+
+  .scene-label.medium {
+    font-weight: 600;
+    color: rgba(223, 245, 255, 0.96);
+  }
+
+  .scene-label.angle {
+    color: #fff2ab;
+  }
+
+  .scene-label.angle.refracted {
+    color: #b9f2ff;
+  }
+
+  .scene-label.fiber {
+    color: #fff7c8;
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(9, 14, 28, 0.88);
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --padding: 8px;
+    --spacing: 6px;
+    --name-width: 48%;
+    --slider-knob-width: 4px;
+    --focus-color: #8de7ff;
+    --hover-color: rgba(255, 255, 255, 0.12);
+    z-index: 40;
+  }
+
+  @media (max-width: 960px) {
+    #status-chip {
+      top: auto;
+      right: 16px;
+      bottom: 16px;
+      left: 16px;
+      max-width: none;
+      border-radius: 22px;
+    }
+
+    #fiber-panel {
+      right: 16px;
+      bottom: 138px;
+    }
+
+    #tir-banner {
+      top: 104px;
+      font-size: 24px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    #title-card {
+      width: calc(100vw - 20px);
+      left: 10px;
+      top: 10px;
+      padding: 16px 16px 14px;
+    }
+
+    #title-card h1 {
+      font-size: 24px;
+    }
+
+    #guide-toggle {
+      top: 140px;
+      left: 10px;
+    }
+
+    #guide-panel {
+      top: 182px;
+      left: 10px;
+      width: calc(100vw - 20px);
+    }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 10px;
+    }
+
+    #fiber-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 196px;
+    }
+
+    #status-chip {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      font-size: 11px;
+    }
+
+    #tir-banner {
+      top: 96px;
+      width: min(86vw, 280px);
+      padding: 11px 18px;
+      font-size: 21px;
+      text-align: center;
+    }
+
+    .scene-label {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<section id="title-card" class="glass-card" aria-live="polite">
+  <div class="eyebrow">물리학 · 빛과 물질의 이중성</div>
+  <h1>빛의 굴절과 전반사</h1>
+  <p id="title-description">입사각과 매질 조합을 바꾸며 스넬 법칙, 임계각, 전반사를 한 화면에서 비교하고 광섬유 내부의 빛 전달까지 연결해 보세요.</p>
+</section>
+
+<div id="status-chip" aria-live="polite">빛은 굴절률이 큰 매질일수록 더 느리게 진행하며, 그 속도 차이 때문에 경계면에서 경로가 꺾입니다.</div>
+
+<button id="guide-toggle" type="button" aria-expanded="false" aria-controls="guide-panel">📖 학습 가이드</button>
+
+<aside id="guide-panel" class="glass-card">
+  <h3>학습 가이드</h3>
+  <p>빛이 한 매질에서 다른 매질로 진행할 때 경계면에서 굴절합니다. 이때 <strong>스넬 법칙</strong> <span class="mono">n₁sinθ₁ = n₂sinθ₂</span>가 성립하며, 굴절률이 큰 매질에서 작은 매질로 진행할 때 입사각이 임계각보다 크면 <strong>전반사</strong>가 일어납니다. 광섬유는 이 전반사를 이용해 빛 신호를 멀리 전달합니다.</p>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>물속에서 수면 위를 올려다볼 때 일정 각도 이상에서 수면이 거울처럼 보이는 까닭은 무엇인가요?</li>
+    <li>다이아몬드가 유리보다 더 반짝이는 까닭을 전반사와 연결해 설명할 수 있나요?</li>
+    <li>광섬유가 구부러져 있어도 빛이 전달될 수 있는 까닭은 무엇인가요?</li>
+  </ul>
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>광케이블을 이용한 인터넷 통신</li>
+    <li>내시경과 의료용 광섬유</li>
+    <li>다이아몬드 커팅과 보석의 반짝임</li>
+    <li>수영장에서 수면이 거울처럼 보이는 현상</li>
+    <li>렌즈와 프리즘을 이용한 광학 기술</li>
+  </ul>
+  <h4>교과서 연계</h4>
+  <p>물리학 III편 p144~149 - 빛의 굴절, 스넬 법칙, 전반사, 광학 기술</p>
+</aside>
+
+<section id="formula-panel" class="glass-card" aria-live="polite">
+  <h2>🔍 빛의 굴절과 전반사</h2>
+  <div class="divider"></div>
+  <div class="formula-row"><span class="label">모드</span><span class="value" id="fp-mode">굴절 법칙</span></div>
+  <div class="formula-row"><span class="label">매질 1</span><span class="value" id="fp-medium1">공기 (n₁ = 1.00)</span></div>
+  <div class="formula-row"><span class="label">매질 2</span><span class="value" id="fp-medium2">물 (n₂ = 1.33)</span></div>
+  <div class="formula-block mono" id="fp-law">스넬 법칙: n₁sinθ₁ = n₂sinθ₂</div>
+  <div class="formula-row"><span class="label">입사각</span><span class="value" id="fp-angle1">θ₁ = 30.0°</span></div>
+  <div class="formula-row"><span class="label">굴절각</span><span class="value" id="fp-angle2">θ₂ = 22.1°</span></div>
+  <div class="formula-block" id="fp-critical">전반사 조건 (n₁ &gt; n₂): 현재 조합에서는 임계각이 정의되지 않습니다.</div>
+  <div class="formula-row"><span class="label">현재 상태</span><span class="value" id="fp-state">굴절</span></div>
+  <div class="formula-block" id="fp-fiber">
+    <strong>광섬유:</strong> 코어(n = 1.60) &gt; 클래딩(n = 1.40)<br>
+    전반사를 이용해 빛 신호를 전달합니다.
+  </div>
+  <div class="formula-block" id="fp-note">
+    빛의 속도는 <span class="mono">v = c / n</span> 입니다. 굴절률이 클수록 빛의 속도가 느려지고, 파면의 한쪽이 먼저 늦어지며 경로가 꺾입니다.
+  </div>
+</section>
+
+<section id="fiber-panel" class="glass-card">
+  <h3>광섬유 활용</h3>
+  <p>코어의 굴절률이 클래딩보다 더 크기 때문에, 빛은 코어 내부 경계면에서 전반사를 반복하며 멀리 전달됩니다.</p>
+  <ul>
+    <li>인터넷 통신: 광케이블로 대용량 데이터를 빠르게 전송</li>
+    <li>의료: 내시경과 레이저 전달 장치</li>
+    <li>조명: 굽은 경로에서도 빛을 안내하는 광섬유 조명</li>
+  </ul>
+</section>
+
+<div id="tir-banner">전반사!</div>
+<div id="label-layer" aria-hidden="true"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+  const MODE_REFRACTION = '굴절 법칙';
+  const MODE_FIBER = '전반사와 광섬유';
+
+  const MEDIUM_COMBOS = {
+    '공기→물': { medium1: '공기', n1: 1.0, medium2: '물', n2: 1.33 },
+    '공기→유리': { medium1: '공기', n1: 1.0, medium2: '유리', n2: 1.5 },
+    '물→유리': { medium1: '물', n1: 1.33, medium2: '유리', n2: 1.5 },
+    '유리→공기': { medium1: '유리', n1: 1.5, medium2: '공기', n2: 1.0 },
+    '다이아몬드→공기': { medium1: '다이아몬드', n1: 2.42, medium2: '공기', n2: 1.0 }
+  };
+
+  const MEDIUM_STYLES = {
+    '공기': { color: 0x88ccff, opacity: 0.1, edge: 0x9ddfff },
+    '물': { color: 0x59bfff, opacity: 0.18, edge: 0x7ad7ff },
+    '유리': { color: 0x6ca2ff, opacity: 0.22, edge: 0xa8c8ff },
+    '다이아몬드': { color: 0x9af0ff, opacity: 0.28, edge: 0xc5ffff }
+  };
+
+  const FIBER_INDICES = { core: 1.6, cladding: 1.4 };
+  const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+  const canvas = document.getElementById('scene');
+  const labelLayer = document.getElementById('label-layer');
+  const titleDescription = document.getElementById('title-description');
+  const statusChip = document.getElementById('status-chip');
+  const tirBanner = document.getElementById('tir-banner');
+  const guideToggle = document.getElementById('guide-toggle');
+  const guidePanel = document.getElementById('guide-panel');
+  const fiberPanel = document.getElementById('fiber-panel');
+
+  const formula = {
+    mode: document.getElementById('fp-mode'),
+    medium1: document.getElementById('fp-medium1'),
+    medium2: document.getElementById('fp-medium2'),
+    law: document.getElementById('fp-law'),
+    angle1: document.getElementById('fp-angle1'),
+    angle2: document.getElementById('fp-angle2'),
+    critical: document.getElementById('fp-critical'),
+    state: document.getElementById('fp-state'),
+    fiber: document.getElementById('fp-fiber'),
+    note: document.getElementById('fp-note')
+  };
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a20);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 4.2, 14.8);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.target.set(0, 0.25, 0);
+  controls.minDistance = 8;
+  controls.maxDistance = 26;
+  controls.maxPolarAngle = Math.PI * 0.48;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.26));
+
+  const background = createBackgroundStars();
+  scene.add(background);
+
+  const mode1Root = new THREE.Group();
+  const mode2Root = new THREE.Group();
+  scene.add(mode1Root, mode2Root);
+
+  const mainInterface = createInterfaceDemo({
+    size: { width: 8.6, height: 4.0, depth: 4.8 },
+    origin: new THREE.Vector3(0, 0, 0),
+    beamLength: 4.2,
+    prefix: 'main'
+  });
+  mode1Root.add(mainInterface.group);
+
+  const tirInterface = createInterfaceDemo({
+    size: { width: 4.8, height: 2.8, depth: 3.2 },
+    origin: new THREE.Vector3(-4.5, 0.1, 0),
+    beamLength: 2.5,
+    prefix: 'tir'
+  });
+  mode2Root.add(tirInterface.group);
+
+  const fiberSystem = createFiberSystem(new THREE.Vector3(3.6, 0.15, 0));
+  mode2Root.add(fiberSystem.group);
+
+  const labelState = new Map();
+  let queuedLabels = [];
+
+  const state = {
+    mode: MODE_REFRACTION,
+    combo: '공기→물',
+    incidenceAngle: 30,
+    showWavefronts: true,
+    showNormal: true,
+    showAngles: true,
+    fiberCurvature: 1.6,
+    reset() {
+      state.mode = MODE_REFRACTION;
+      state.combo = '공기→물';
+      state.incidenceAngle = 30;
+      state.showWavefronts = true;
+      state.showNormal = true;
+      state.showAngles = true;
+      state.fiberCurvature = 1.6;
+      syncGuiVisibility();
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      fiberSystem.needsRebuild = true;
+      updateUiTexts(getActiveCombo(), computeOptics(getActiveCombo().n1, getActiveCombo().n2, state.incidenceAngle));
+    }
+  };
+
+  const gui = new GUI({ title: '빛의 굴절과 전반사', width: 312 });
+  const controllers = {
+    mode: gui.add(state, 'mode', [MODE_REFRACTION, MODE_FIBER]).name('모드').onChange(() => {
+      syncGuiVisibility();
+      fiberSystem.needsRebuild = true;
+      updateUiTexts(getActiveCombo(), computeOptics(getActiveCombo().n1, getActiveCombo().n2, state.incidenceAngle));
+    }),
+    combo: gui.add(state, 'combo', Object.keys(MEDIUM_COMBOS)).name('매질 조합').onChange(() => {
+      updateUiTexts(getActiveCombo(), computeOptics(getActiveCombo().n1, getActiveCombo().n2, state.incidenceAngle));
+    }),
+    incidenceAngle: gui.add(state, 'incidenceAngle', 0, 89, 1).name('입사각 θ₁').onChange(() => {
+      updateUiTexts(getActiveCombo(), computeOptics(getActiveCombo().n1, getActiveCombo().n2, state.incidenceAngle));
+    }),
+    showWavefronts: gui.add(state, 'showWavefronts').name('파면 표시'),
+    showNormal: gui.add(state, 'showNormal').name('법선 표시'),
+    showAngles: gui.add(state, 'showAngles').name('각도 표시'),
+    fiberCurvature: gui.add(state, 'fiberCurvature', 0, 3, 0.1).name('광섬유 곡률').onChange(() => {
+      fiberSystem.needsRebuild = true;
+    })
+  };
+  gui.add(state, 'reset').name('초기화');
+
+  syncGuiVisibility();
+  updateUiTexts(getActiveCombo(), computeOptics(getActiveCombo().n1, getActiveCombo().n2, state.incidenceAngle));
+
+  guideToggle.addEventListener('click', () => {
+    const willOpen = guidePanel.style.display !== 'block';
+    guidePanel.style.display = willOpen ? 'block' : 'none';
+    guideToggle.setAttribute('aria-expanded', String(willOpen));
+  });
+
+  window.addEventListener('resize', onResize);
+  onResize();
+
+  function syncGuiVisibility() {
+    const isFiberMode = state.mode === MODE_FIBER;
+    controllers.combo.domElement.parentElement.style.display = isFiberMode ? 'none' : '';
+    controllers.showWavefronts.domElement.parentElement.style.display = isFiberMode ? 'none' : '';
+    controllers.fiberCurvature.domElement.parentElement.style.display = isFiberMode ? '' : 'none';
+    gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  }
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function getActiveCombo() {
+    return state.mode === MODE_FIBER ? MEDIUM_COMBOS['유리→공기'] : MEDIUM_COMBOS[state.combo];
+  }
+
+  function createBackgroundStars() {
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    for (let i = 0; i < 360; i += 1) {
+      const radius = 14 + Math.random() * 14;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      positions.push(
+        radius * Math.sin(phi) * Math.cos(theta),
+        (Math.random() - 0.5) * 10,
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: 0x87a6ff,
+      size: 0.06,
+      transparent: true,
+      opacity: 0.8
+    });
+    return new THREE.Points(geometry, material);
+  }
+
+  function createMediumLayer(width, height, depth) {
+    const group = new THREE.Group();
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const body = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x88ccff,
+        transparent: true,
+        opacity: 0.15
+      })
+    );
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry),
+      new THREE.LineBasicMaterial({
+        color: 0xb3eaff,
+        transparent: true,
+        opacity: 0.35
+      })
+    );
+    group.add(body, edges);
+    return { group, body, edges };
+  }
+
+  function createNormalDashes(height) {
+    const group = new THREE.Group();
+    const dash = new THREE.CylinderGeometry(0.03, 0.03, 0.24, 10);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xaaaaaa,
+      transparent: true,
+      opacity: 0.8
+    });
+    const start = -height * 0.5;
+    const gap = 0.42;
+    const count = Math.floor(height / gap);
+    for (let i = 0; i <= count; i += 1) {
+      const segment = new THREE.Mesh(dash, material);
+      segment.position.y = start + i * gap;
+      group.add(segment);
+    }
+    return group;
+  }
+
+  function createBeam(color, radius = 0.05, opacity = 1) {
+    const geometry = new THREE.CylinderGeometry(1, 1, 1, 18, 1, true);
+    const core = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    const halo = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: opacity * 0.32,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    const group = new THREE.Group();
+    group.add(halo, core);
+    group.userData.baseRadius = radius;
+    return { group, core, halo };
+  }
+
+  function updateBeam(beam, start, end, options = {}) {
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    if (!options.visible || length < 0.0001) {
+      beam.group.visible = false;
+      return;
+    }
+    const radius = options.radius ?? beam.group.userData.baseRadius ?? 0.05;
+    beam.group.visible = true;
+    beam.group.position.copy(start).add(end).multiplyScalar(0.5);
+    beam.group.quaternion.setFromUnitVectors(Y_AXIS, direction.normalize());
+    beam.core.scale.set(radius, length, radius);
+    beam.halo.scale.set(radius * 2.35, length, radius * 2.35);
+    beam.core.material.color.setHex(options.color ?? 0xffdd44);
+    beam.halo.material.color.setHex(options.color ?? 0xffdd44);
+    beam.core.material.opacity = options.opacity ?? 1;
+    beam.halo.material.opacity = options.haloOpacity ?? (options.opacity ?? 1) * 0.28;
+  }
+
+  function createWavefrontSet(count, color) {
+    const group = new THREE.Group();
+    const beams = [];
+    for (let i = 0; i < count; i += 1) {
+      const beam = createBeam(color, 0.014, 0.28);
+      group.add(beam.group);
+      beams.push(beam);
+    }
+    return { group, beams, color };
+  }
+
+  function updateWavefrontSet(set, start, end, time, speed, visible) {
+    if (!visible) {
+      set.beams.forEach((beam) => {
+        beam.group.visible = false;
+      });
+      return;
+    }
+
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    if (length < 0.1) {
+      set.beams.forEach((beam) => {
+        beam.group.visible = false;
+      });
+      return;
+    }
+
+    const tangent = direction.clone().normalize();
+    const normal = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+
+    set.beams.forEach((beam, index) => {
+      const t = (time * speed + index / set.beams.length) % 1;
+      const localT = 0.08 + t * 0.84;
+      const center = start.clone().lerp(end, localT);
+      const half = normal.clone().multiplyScalar(0.22);
+      const opacity = 0.12 + 0.2 * (1 - Math.abs(0.5 - t) * 1.6);
+      updateBeam(beam, center.clone().add(half), center.clone().sub(half), {
+        visible: true,
+        color: set.color,
+        radius: 0.01,
+        opacity,
+        haloOpacity: opacity * 0.6
+      });
+    });
+  }
+
+  function createArcLine(radius, startAngle, endAngle, color, opacity = 1) {
+    const curve = new THREE.EllipseCurve(0, 0, radius, radius, startAngle, endAngle, false, 0);
+    const points = curve.getPoints(44).map((point) => new THREE.Vector3(point.x, point.y, 0.01));
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity
+    });
+    return new THREE.Line(geometry, material);
+  }
+
+  function createBoundaryFrame(width, depth) {
+    const points = [
+      new THREE.Vector3(-width / 2, 0, -depth / 2),
+      new THREE.Vector3(width / 2, 0, -depth / 2),
+      new THREE.Vector3(width / 2, 0, depth / 2),
+      new THREE.Vector3(-width / 2, 0, depth / 2),
+      new THREE.Vector3(-width / 2, 0, -depth / 2)
+    ];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    return new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.28
+      })
+    );
+  }
+
+  function createInterfaceDemo({ size, origin, beamLength, prefix }) {
+    const group = new THREE.Group();
+    group.position.copy(origin);
+
+    const upper = createMediumLayer(size.width, size.height, size.depth);
+    upper.group.position.y = size.height / 2;
+    group.add(upper.group);
+
+    const lower = createMediumLayer(size.width, size.height, size.depth);
+    lower.group.position.y = -size.height / 2;
+    group.add(lower.group);
+
+    const boundary = new THREE.Mesh(
+      new THREE.PlaneGeometry(size.width, size.depth),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.1,
+        side: THREE.DoubleSide
+      })
+    );
+    boundary.rotation.x = -Math.PI / 2;
+    group.add(boundary);
+    group.add(createBoundaryFrame(size.width, size.depth));
+
+    const normalGroup = createNormalDashes(size.height * 2.25);
+    group.add(normalGroup);
+
+    const centerGlow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.18, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xffef96,
+        transparent: true,
+        opacity: 0.42,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    centerGlow.rotation.x = -Math.PI / 2;
+    centerGlow.position.y = 0.001;
+    group.add(centerGlow);
+
+    const incidentBeam = createBeam(0xffdd44, 0.05, 1);
+    const reflectionBeam = createBeam(0xffdd44, 0.042, 0.35);
+    const refractedBeam = createBeam(0xffdd44, 0.042, 0.82);
+    group.add(incidentBeam.group, reflectionBeam.group, refractedBeam.group);
+
+    const waveIncident = createWavefrontSet(6, 0xb8f2ff);
+    const waveRefracted = createWavefrontSet(6, 0x94ddff);
+    group.add(waveIncident.group, waveRefracted.group);
+
+    const angleGroup = new THREE.Group();
+    group.add(angleGroup);
+
+    const topAnchor = new THREE.Object3D();
+    topAnchor.position.set(0, size.height * 0.74, size.depth * 0.52);
+    const bottomAnchor = new THREE.Object3D();
+    bottomAnchor.position.set(0, -size.height * 0.74, size.depth * 0.52);
+    group.add(topAnchor, bottomAnchor);
+
+    return {
+      group,
+      upper,
+      lower,
+      normalGroup,
+      centerGlow,
+      beams: {
+        incident: incidentBeam,
+        reflection: reflectionBeam,
+        refracted: refractedBeam
+      },
+      waveIncident,
+      waveRefracted,
+      angleGroup,
+      beamLength,
+      topAnchor,
+      bottomAnchor,
+      prefix
+    };
+  }
+
+  function setMediumAppearance(layer, name) {
+    const style = MEDIUM_STYLES[name];
+    layer.body.material.color.setHex(style.color);
+    layer.body.material.opacity = style.opacity;
+    layer.edges.material.color.setHex(style.edge);
+    layer.edges.material.opacity = Math.min(0.42, style.opacity + 0.18);
+  }
+
+  function clearDynamicGroup(group) {
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      disposeObject(child);
+    }
+  }
+
+  function disposeObject(object) {
+    object.traverse((node) => {
+      if (node.geometry) node.geometry.dispose();
+      if (node.material) {
+        if (Array.isArray(node.material)) {
+          node.material.forEach((material) => material.dispose());
+        } else {
+          node.material.dispose();
+        }
+      }
+    });
+  }
+
+  function computeOptics(n1, n2, incidenceAngle) {
+    const theta1Rad = THREE.MathUtils.degToRad(incidenceAngle);
+    const criticalAngle = n1 > n2 ? THREE.MathUtils.radToDeg(Math.asin(n2 / n1)) : null;
+    const sinTheta2 = (n1 / n2) * Math.sin(theta1Rad);
+    const atCritical = criticalAngle !== null && Math.abs(incidenceAngle - criticalAngle) < 0.65;
+    const totalInternalReflection = criticalAngle !== null && incidenceAngle > criticalAngle + 0.3;
+
+    let theta2Deg = null;
+    if (atCritical) {
+      theta2Deg = 90;
+    } else if (!totalInternalReflection && Math.abs(sinTheta2) <= 1) {
+      theta2Deg = THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(sinTheta2, -1, 1)));
+    }
+
+    return {
+      theta1Deg: incidenceAngle,
+      theta2Deg,
+      criticalAngle,
+      totalInternalReflection,
+      atCritical
+    };
+  }
+
+  function formatAngle(value) {
+    return `${value.toFixed(1)}°`;
+  }
+
+  function queueLabel(id, text, position, className = 'scene-label') {
+    queuedLabels.push({ id, text, position, className });
+  }
+
+  function flushLabels() {
+    const activeIds = new Set();
+    queuedLabels.forEach((label) => {
+      activeIds.add(label.id);
+      let entry = labelState.get(label.id);
+      if (!entry) {
+        const el = document.createElement('div');
+        el.className = label.className;
+        labelLayer.appendChild(el);
+        entry = { el };
+        labelState.set(label.id, entry);
+      }
+
+      entry.el.className = label.className;
+      entry.el.textContent = label.text;
+
+      const projected = label.position.clone().project(camera);
+      const visible = projected.z < 1 && projected.z > -1 &&
+        projected.x >= -1.2 && projected.x <= 1.2 &&
+        projected.y >= -1.2 && projected.y <= 1.2;
+
+      if (!visible) {
+        entry.el.style.display = 'none';
+        return;
+      }
+
+      const x = (projected.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+      entry.el.style.display = 'block';
+      entry.el.style.left = `${x}px`;
+      entry.el.style.top = `${y}px`;
+    });
+
+    labelState.forEach((entry, id) => {
+      if (!activeIds.has(id)) {
+        entry.el.style.display = 'none';
+      }
+    });
+
+    queuedLabels = [];
+  }
+
+  function updateInterfaceDemo(demo, combo, info, options, time) {
+    setMediumAppearance(demo.upper, combo.medium1);
+    setMediumAppearance(demo.lower, combo.medium2);
+
+    demo.normalGroup.visible = options.showNormal;
+    demo.centerGlow.material.opacity = info.totalInternalReflection ? 0.82 : (info.atCritical ? 0.58 : 0.38);
+    demo.centerGlow.material.color.setHex(info.totalInternalReflection ? 0xffb14d : 0xffef96);
+
+    const theta1 = THREE.MathUtils.degToRad(info.theta1Deg);
+    const incidentStart = new THREE.Vector3(
+      -Math.sin(theta1) * demo.beamLength,
+      Math.cos(theta1) * demo.beamLength,
+      0
+    );
+    const interfacePoint = new THREE.Vector3(0, 0, 0);
+    const reflectionEnd = new THREE.Vector3(
+      Math.sin(theta1) * demo.beamLength,
+      Math.cos(theta1) * demo.beamLength,
+      0
+    );
+
+    let refractedEnd = null;
+    if (info.atCritical) {
+      refractedEnd = new THREE.Vector3(demo.beamLength, 0, 0);
+    } else if (!info.totalInternalReflection && info.theta2Deg !== null) {
+      const theta2 = THREE.MathUtils.degToRad(info.theta2Deg);
+      refractedEnd = new THREE.Vector3(
+        Math.sin(theta2) * demo.beamLength,
+        -Math.cos(theta2) * demo.beamLength,
+        0
+      );
+    }
+
+    updateBeam(demo.beams.incident, incidentStart, interfacePoint, {
+      visible: true,
+      color: 0xffdf58,
+      radius: 0.05,
+      opacity: 1,
+      haloOpacity: 0.36
+    });
+    updateBeam(demo.beams.reflection, interfacePoint, reflectionEnd, {
+      visible: true,
+      color: info.totalInternalReflection ? 0xffef7b : 0xffdf58,
+      radius: info.totalInternalReflection ? 0.055 : 0.042,
+      opacity: info.totalInternalReflection ? 1 : 0.32,
+      haloOpacity: info.totalInternalReflection ? 0.55 : 0.18
+    });
+    updateBeam(demo.beams.refracted, interfacePoint, refractedEnd ?? interfacePoint, {
+      visible: Boolean(refractedEnd),
+      color: info.atCritical ? 0x8ef4ff : 0xffdf58,
+      radius: 0.042,
+      opacity: info.atCritical ? 0.92 : 0.82,
+      haloOpacity: info.atCritical ? 0.4 : 0.24
+    });
+
+    updateWavefrontSet(
+      demo.waveIncident,
+      incidentStart,
+      interfacePoint,
+      time,
+      0.14 / combo.n1,
+      options.showWavefronts
+    );
+    updateWavefrontSet(
+      demo.waveRefracted,
+      interfacePoint,
+      refractedEnd ?? interfacePoint,
+      time + 0.2,
+      0.14 / combo.n2,
+      options.showWavefronts && Boolean(refractedEnd)
+    );
+
+    clearDynamicGroup(demo.angleGroup);
+    if (options.showAngles) {
+      if (info.theta1Deg > 0.4) {
+        const incidentArc = createArcLine(0.9, Math.PI / 2, Math.PI / 2 + theta1, 0xffd966, 0.92);
+        demo.angleGroup.add(incidentArc);
+        const labelAngle = Math.PI / 2 + theta1 * 0.5;
+        const labelPosition = new THREE.Vector3(
+          Math.cos(labelAngle) * 1.18,
+          Math.sin(labelAngle) * 1.18,
+          0.24
+        );
+        queueLabel(
+          `${demo.prefix}-theta1`,
+          `θ₁ ${formatAngle(info.theta1Deg)}`,
+          demo.group.localToWorld(labelPosition),
+          'scene-label angle'
+        );
+      }
+
+      if (!info.totalInternalReflection && info.theta2Deg !== null) {
+        const endAngle = info.atCritical ? 0 : -Math.PI / 2 + THREE.MathUtils.degToRad(info.theta2Deg);
+        const refractedArc = createArcLine(0.9, -Math.PI / 2, endAngle, 0x84ebff, 0.94);
+        demo.angleGroup.add(refractedArc);
+        const labelAngle = info.atCritical ? -0.18 : (-Math.PI / 2 + THREE.MathUtils.degToRad(info.theta2Deg) * 0.5);
+        const labelPosition = new THREE.Vector3(
+          Math.cos(labelAngle) * 1.18,
+          Math.sin(labelAngle) * 1.18,
+          0.24
+        );
+        queueLabel(
+          `${demo.prefix}-theta2`,
+          `θ₂ ${formatAngle(info.theta2Deg)}`,
+          demo.group.localToWorld(labelPosition),
+          'scene-label angle refracted'
+        );
+      }
+    }
+
+    queueLabel(
+      `${demo.prefix}-medium1`,
+      `${combo.medium1} · n=${combo.n1.toFixed(2)}`,
+      demo.topAnchor.getWorldPosition(new THREE.Vector3()),
+      'scene-label medium'
+    );
+    queueLabel(
+      `${demo.prefix}-medium2`,
+      `${combo.medium2} · n=${combo.n2.toFixed(2)}`,
+      demo.bottomAnchor.getWorldPosition(new THREE.Vector3()),
+      'scene-label medium'
+    );
+  }
+
+  function createFiberSystem(origin) {
+    const group = new THREE.Group();
+    group.position.copy(origin);
+
+    const structure = new THREE.Group();
+    const markers = new THREE.Group();
+    const particles = new THREE.Group();
+    group.add(structure, markers, particles);
+
+    const emitter = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 24, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0xffea74,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    emitter.position.set(-4.45, 0.55, 0);
+    group.add(emitter);
+
+    const emitterCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.13, 0.42, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xffea74,
+        transparent: true,
+        opacity: 0.78,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    emitterCone.rotation.z = -Math.PI / 2;
+    emitterCone.position.set(-4.8, 0.55, 0);
+    group.add(emitterCone);
+
+    const infoAnchor = new THREE.Object3D();
+    const inputAnchor = new THREE.Object3D();
+    group.add(infoAnchor, inputAnchor);
+
+    const pulseMeshes = [];
+    for (let i = 0; i < 10; i += 1) {
+      const pulse = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 16, 16),
+        new THREE.MeshBasicMaterial({
+          color: 0xfff1a0,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      particles.add(pulse);
+      pulseMeshes.push(pulse);
+    }
+
+    return {
+      group,
+      structure,
+      markers,
+      pulseMeshes,
+      emitter,
+      infoAnchor,
+      inputAnchor,
+      pathPoints: [],
+      cumulative: [],
+      totalLength: 0,
+      needsRebuild: true,
+      lastCurvature: null
+    };
+  }
+
+  function rebuildFiberGeometry(fiber, curvature) {
+    clearDynamicGroup(fiber.structure);
+    clearDynamicGroup(fiber.markers);
+
+    const c = curvature / 3;
+    const points = [
+      new THREE.Vector3(-4.3, 0.55, 0),
+      new THREE.Vector3(-2.8, 0.55 + 1.7 * c, 0.65 * c),
+      new THREE.Vector3(-1.1, 0.5 - 1.9 * c, -0.45 * c),
+      new THREE.Vector3(0.9, 0.4 + 1.95 * c, 0.55 * c),
+      new THREE.Vector3(2.7, 0.38 - 1.75 * c, -0.55 * c),
+      new THREE.Vector3(4.25, 0.56, 0.02)
+    ];
+
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+    const segments = 160;
+    const cladding = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, segments, 0.48, 24, false),
+      new THREE.MeshBasicMaterial({
+        color: 0x5e86ff,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide
+      })
+    );
+    const core = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, segments, 0.31, 24, false),
+      new THREE.MeshBasicMaterial({
+        color: 0x88ccff,
+        transparent: true,
+        opacity: 0.34,
+        side: THREE.DoubleSide
+      })
+    );
+    fiber.structure.add(cladding, core);
+
+    const guideLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(curve.getPoints(120)),
+      new THREE.LineBasicMaterial({
+        color: 0xc9f4ff,
+        transparent: true,
+        opacity: 0.18
+      })
+    );
+    fiber.structure.add(guideLine);
+
+    const frames = curve.computeFrenetFrames(44, false);
+    const zigzagPoints = [];
+    for (let i = 0; i <= 44; i += 1) {
+      const t = i / 44;
+      const frameIndex = Math.min(frames.normals.length - 1, i);
+      const center = curve.getPointAt(t);
+      const normal = frames.normals[frameIndex].clone();
+      const binormal = frames.binormals[frameIndex].clone();
+      const sign = i % 2 === 0 ? 1 : -1;
+      const point = center
+        .clone()
+        .add(normal.multiplyScalar(0.2 * sign))
+        .add(binormal.multiplyScalar(0.04 * Math.sin(i * 0.8)));
+      zigzagPoints.push(point);
+
+      if (i > 0 && i < 44) {
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.045, 12, 12),
+          new THREE.MeshBasicMaterial({
+            color: 0xffdd66,
+            transparent: true,
+            opacity: 0.38,
+            blending: THREE.AdditiveBlending
+          })
+        );
+        marker.position.copy(point);
+        fiber.markers.add(marker);
+      }
+    }
+
+    const lightPath = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(zigzagPoints),
+      new THREE.LineBasicMaterial({
+        color: 0xffec74,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    fiber.structure.add(lightPath);
+
+    const cumulative = [0];
+    let totalLength = 0;
+    for (let i = 1; i < zigzagPoints.length; i += 1) {
+      totalLength += zigzagPoints[i].distanceTo(zigzagPoints[i - 1]);
+      cumulative.push(totalLength);
+    }
+
+    fiber.pathPoints = zigzagPoints;
+    fiber.cumulative = cumulative;
+    fiber.totalLength = totalLength;
+    fiber.lastCurvature = curvature;
+    fiber.needsRebuild = false;
+
+    const midPoint = curve.getPointAt(0.55);
+    fiber.infoAnchor.position.copy(midPoint.clone().add(new THREE.Vector3(0.1, 1.5, 0.9)));
+    fiber.inputAnchor.position.copy(curve.getPointAt(0.05).add(new THREE.Vector3(-0.1, 0.7, 0.7)));
+  }
+
+  function getPointOnPolyline(points, cumulative, totalLength, distance) {
+    if (points.length === 0) return new THREE.Vector3();
+    if (distance <= 0) return points[0].clone();
+    if (distance >= totalLength) return points[points.length - 1].clone();
+
+    let index = 1;
+    while (index < cumulative.length && cumulative[index] < distance) {
+      index += 1;
+    }
+
+    const start = points[index - 1];
+    const end = points[index];
+    const segmentStart = cumulative[index - 1];
+    const segmentLength = cumulative[index] - segmentStart;
+    const localT = segmentLength <= 0 ? 0 : (distance - segmentStart) / segmentLength;
+    return start.clone().lerp(end, localT);
+  }
+
+  function updateFiberAnimation(fiber, time) {
+    if (fiber.needsRebuild || fiber.lastCurvature !== state.fiberCurvature) {
+      rebuildFiberGeometry(fiber, state.fiberCurvature);
+    }
+
+    fiber.emitter.material.opacity = 0.72 + 0.18 * Math.sin(time * 6.2);
+    fiber.emitter.scale.setScalar(0.92 + 0.08 * Math.sin(time * 4.8));
+
+    fiber.pulseMeshes.forEach((pulse, index) => {
+      if (fiber.totalLength <= 0) {
+        pulse.visible = false;
+        return;
+      }
+      pulse.visible = true;
+      const distance = (time * 2.35 + index * fiber.totalLength / fiber.pulseMeshes.length) % fiber.totalLength;
+      pulse.position.copy(getPointOnPolyline(fiber.pathPoints, fiber.cumulative, fiber.totalLength, distance));
+      const glow = 0.68 + 0.3 * Math.sin(time * 7 + index * 0.8);
+      pulse.material.opacity = glow;
+      pulse.scale.setScalar(0.85 + glow * 0.35);
+    });
+
+    queueLabel(
+      'fiber-main',
+      '광섬유: 전반사를 이용해 빛 신호 전달',
+      fiber.infoAnchor.getWorldPosition(new THREE.Vector3()),
+      'scene-label fiber'
+    );
+    queueLabel(
+      'fiber-input',
+      '코어 n=1.60 · 클래딩 n=1.40',
+      fiber.inputAnchor.getWorldPosition(new THREE.Vector3()),
+      'scene-label medium'
+    );
+  }
+
+  function updateUiTexts(combo, info) {
+    const modeText = state.mode === MODE_FIBER ? '전반사와 광섬유' : '굴절 법칙';
+    formula.mode.textContent = modeText;
+    formula.medium1.textContent = `${combo.medium1} (n₁ = ${combo.n1.toFixed(2)})`;
+    formula.medium2.textContent = `${combo.medium2} (n₂ = ${combo.n2.toFixed(2)})`;
+    formula.law.textContent = '스넬 법칙: n₁sinθ₁ = n₂sinθ₂';
+    formula.angle1.textContent = `θ₁ = ${formatAngle(info.theta1Deg)}`;
+    formula.angle2.textContent = info.totalInternalReflection
+      ? '굴절광 없음 (전반사)'
+      : `θ₂ = ${formatAngle(info.theta2Deg ?? 0)}`;
+
+    if (info.criticalAngle !== null) {
+      formula.critical.innerHTML = `전반사 조건 (n₁ &gt; n₂):<br><span class="mono">θc = arcsin(n₂ / n₁) = ${formatAngle(info.criticalAngle)}</span><br>현재는 ${info.theta1Deg.toFixed(1)}° ${info.totalInternalReflection ? '&gt;' : info.atCritical ? '≈' : '&lt;'} ${info.criticalAngle.toFixed(1)}°`;
+    } else {
+      formula.critical.innerHTML = '전반사 조건 (n₁ &gt; n₂): 현재 조합에서는 임계각이 정의되지 않습니다.';
+    }
+
+    let stateText = '굴절';
+    if (info.atCritical) stateText = '임계각 도달';
+    if (info.totalInternalReflection) stateText = '전반사';
+    formula.state.textContent = stateText;
+
+    formula.fiber.innerHTML = `<strong>광섬유:</strong> 코어(n = ${FIBER_INDICES.core.toFixed(2)}) &gt; 클래딩(n = ${FIBER_INDICES.cladding.toFixed(2)})<br>전반사를 이용해 빛 신호를 전달합니다.`;
+
+    if (state.mode === MODE_FIBER) {
+      titleDescription.textContent = `유리에서 공기로 진행하는 빛의 임계각은 ${formatAngle(computeOptics(1.5, 1.0, state.incidenceAngle).criticalAngle ?? 0)}입니다. 오른쪽 광섬유는 코어 내부 전반사를 반복하며 빛을 전달합니다.`;
+      fiberPanel.style.display = 'block';
+    } else {
+      titleDescription.textContent = '입사각과 매질 조합을 바꾸며 스넬 법칙, 임계각, 전반사를 한 화면에서 비교하고 광섬유 내부의 빛 전달까지 연결해 보세요.';
+      fiberPanel.style.display = 'none';
+    }
+
+    if (info.totalInternalReflection) {
+      statusChip.textContent = `현재 입사각 ${formatAngle(info.theta1Deg)}는 임계각 ${formatAngle(info.criticalAngle ?? 0)}보다 커서 굴절광 없이 100% 반사됩니다.`;
+    } else if (info.atCritical) {
+      statusChip.textContent = '입사각이 임계각에 도달해 굴절광이 경계면을 따라 진행합니다. 이 지점이 전반사가 시작되는 경계입니다.';
+    } else if (combo.n1 < combo.n2) {
+      statusChip.textContent = '빛이 더 느린 매질로 들어가면 법선 쪽으로 꺾입니다. 굴절률이 커질수록 빛의 속도는 더 느려집니다.';
+    } else {
+      statusChip.textContent = '빛이 더 빠른 매질로 나갈 때는 법선에서 멀어지며, 입사각이 충분히 커지면 전반사가 발생할 수 있습니다.';
+    }
+
+    formula.note.innerHTML = state.showWavefronts && state.mode === MODE_REFRACTION
+      ? '파면 표시가 켜져 있습니다. 경계면에 먼저 닿는 쪽과 늦게 닿는 쪽의 속도 차이 때문에 파면이 기울고, 그 결과 광선 경로가 굴절됩니다.'
+      : '빛의 속도는 <span class="mono">v = c / n</span> 입니다. 굴절률이 클수록 빛의 속도가 느려지고, 파면의 한쪽이 먼저 늦어지며 경로가 꺾입니다.';
+  }
+
+  let previousMode = state.mode;
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const time = now * 0.001;
+
+    background.rotation.y = time * 0.02;
+    background.rotation.x = Math.sin(time * 0.1) * 0.02;
+
+    const activeCombo = getActiveCombo();
+    const optics = computeOptics(activeCombo.n1, activeCombo.n2, state.incidenceAngle);
+
+    if (state.mode !== previousMode) {
+      updateUiTexts(activeCombo, optics);
+      previousMode = state.mode;
+    }
+
+    const isRefractionMode = state.mode === MODE_REFRACTION;
+    mode1Root.visible = isRefractionMode;
+    mode2Root.visible = !isRefractionMode;
+
+    if (isRefractionMode) {
+      updateInterfaceDemo(mainInterface, activeCombo, optics, {
+        showWavefronts: state.showWavefronts,
+        showNormal: state.showNormal,
+        showAngles: state.showAngles
+      }, time);
+      updateUiTexts(activeCombo, optics);
+      tirBanner.classList.toggle('show', optics.totalInternalReflection);
+    } else {
+      const fiberCombo = MEDIUM_COMBOS['유리→공기'];
+      const fiberOptics = computeOptics(fiberCombo.n1, fiberCombo.n2, state.incidenceAngle);
+      updateInterfaceDemo(tirInterface, fiberCombo, fiberOptics, {
+        showWavefronts: false,
+        showNormal: state.showNormal,
+        showAngles: state.showAngles
+      }, time);
+      updateFiberAnimation(fiberSystem, time);
+      updateUiTexts(fiberCombo, fiberOptics);
+      tirBanner.classList.toggle('show', fiberOptics.totalInternalReflection);
+    }
+
+    const targetGoal = state.mode === MODE_FIBER ? new THREE.Vector3(0.7, 0.3, 0) : new THREE.Vector3(0, 0.25, 0);
+    controls.target.lerp(targetGoal, 0.04);
+    controls.update();
+    flushLabels();
+    renderer.render(scene, camera);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>

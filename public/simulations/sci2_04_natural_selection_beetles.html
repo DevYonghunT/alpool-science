@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>변이와 자연선택 - 딱정벌레 시뮬레이션</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #92b7d4;
+      --panel: rgba(21, 23, 18, 0.74);
+      --panel-strong: rgba(18, 20, 16, 0.9);
+      --stroke: rgba(255, 255, 255, 0.12);
+      --text-main: rgba(255, 251, 244, 0.96);
+      --text-soft: rgba(255, 245, 232, 0.76);
+      --text-faint: rgba(255, 242, 228, 0.52);
+      --accent: #ffd28f;
+      --accent-cool: #c0ebff;
+      --accent-green: #b9f18a;
+      --accent-warn: #ff9a6e;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(255, 229, 171, 0.24), transparent 26%),
+        radial-gradient(circle at 82% 16%, rgba(255, 255, 255, 0.22), transparent 22%),
+        linear-gradient(180deg, #99bbdd 0%, #9ab8d0 42%, #8ea2a4 100%);
+      color: var(--text-main);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      position: relative;
+      user-select: none;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    #sim-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .panel {
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 238, 213, 0.88);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #hero-card {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      z-index: 25;
+      width: min(420px, calc(100vw - 32px));
+      padding: 18px 20px;
+      border-radius: 24px;
+    }
+
+    #hero-card h1 {
+      margin-top: 10px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+      text-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+    }
+
+    #hero-card p {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.72;
+      color: var(--text-soft);
+    }
+
+    #stage-pill {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff4df;
+      font-size: 12px;
+    }
+
+    #status-chip {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px);
+      z-index: 30;
+      opacity: 0;
+      pointer-events: none;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(21, 23, 18, 0.84);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: var(--shadow);
+      color: var(--text-main);
+      font-size: 12px;
+      transition: opacity 0.22s ease, transform 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+      backdrop-filter: blur(12px);
+    }
+
+    #status-chip.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #status-chip.success {
+      background: rgba(28, 53, 28, 0.9);
+      border-color: rgba(185, 241, 138, 0.36);
+      color: #f4ffe8;
+    }
+
+    #status-chip.warning {
+      background: rgba(76, 35, 24, 0.92);
+      border-color: rgba(255, 154, 110, 0.38);
+      color: #fff1ea;
+    }
+
+    #guide-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 31;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-main);
+      background: rgba(23, 26, 19, 0.88);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      transition: transform 0.16s ease, background 0.16s ease;
+    }
+
+    #guide-toggle:hover,
+    #guide-toggle:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+      background: rgba(29, 32, 24, 0.94);
+    }
+
+    #guide-panel {
+      position: fixed;
+      top: 64px;
+      right: 16px;
+      z-index: 30;
+      width: min(430px, calc(100vw - 32px));
+      max-height: min(72vh, 760px);
+      overflow: auto;
+      display: none;
+      padding: 18px;
+      border-radius: 22px;
+      background: var(--panel-strong);
+      border: 1px solid var(--stroke);
+      box-shadow: var(--shadow);
+      line-height: 1.74;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    #guide-panel.open {
+      display: block;
+    }
+
+    #guide-panel h3 {
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #fff0d3;
+    }
+
+    #guide-panel h4 {
+      margin-top: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    #guide-panel ul {
+      padding-left: 18px;
+    }
+
+    #guide-panel li {
+      margin-bottom: 5px;
+    }
+
+    .textbook-ref {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-faint);
+      font-size: 11px;
+    }
+
+    #tooltip {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 32;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(14, 16, 13, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff7ea;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.14s ease;
+      box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    #tooltip.show {
+      opacity: 1;
+    }
+
+    #formula-panel {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 24;
+      width: min(360px, calc(100vw - 32px));
+      padding: 18px 18px 16px;
+      border-radius: 24px;
+      font-size: 12px;
+      line-height: 1.72;
+    }
+
+    #formula-panel h3,
+    #histogram-panel h3 {
+      font-size: 16px;
+      color: #fff0d3;
+      margin-bottom: 10px;
+    }
+
+    .data-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+
+    .data-label {
+      width: 94px;
+      flex-shrink: 0;
+      color: var(--text-faint);
+    }
+
+    .data-value {
+      flex: 1;
+      color: var(--text-main);
+    }
+
+    .rule-box,
+    .desc-box {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-soft);
+    }
+
+    .rule-box strong,
+    .legend-row strong,
+    .desc-box strong {
+      color: var(--accent);
+    }
+
+    #histogram-panel {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 24;
+      width: min(360px, calc(100vw - 32px));
+      padding: 16px;
+      border-radius: 24px;
+    }
+
+    #histogram-canvas {
+      width: 100%;
+      height: 210px;
+      display: block;
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+        rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .legend-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    .legend-gradient {
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ccaa77 0%, #7d6647 52%, #222211 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #histogram-note {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-soft);
+    }
+
+    .lil-gui.root {
+      z-index: 29 !important;
+      position: fixed !important;
+      top: 64px !important;
+      right: 16px !important;
+      --width: 290px;
+    }
+
+    @media (max-width: 960px) {
+      #hero-card {
+        width: min(440px, calc(100vw - 24px));
+        left: 12px;
+        top: 12px;
+      }
+
+      #formula-panel,
+      #histogram-panel {
+        width: min(360px, calc(100vw - 24px));
+      }
+
+      #formula-panel {
+        left: 12px;
+        bottom: 12px;
+      }
+
+      #histogram-panel {
+        right: 12px;
+        bottom: 12px;
+      }
+
+      #guide-toggle {
+        top: 12px;
+        right: 12px;
+      }
+
+      #guide-panel {
+        right: 12px;
+        top: 60px;
+      }
+
+      .lil-gui.root {
+        top: auto !important;
+        bottom: 12px !important;
+        right: 12px !important;
+      }
+    }
+
+    @media (max-width: 760px) {
+      #hero-card {
+        width: calc(100vw - 24px);
+      }
+
+      #stage-pill {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+      }
+
+      #formula-panel {
+        width: calc(100vw - 24px);
+        max-height: 30vh;
+        overflow: auto;
+      }
+
+      #histogram-panel {
+        right: 12px;
+        bottom: 210px;
+        width: calc(100vw - 24px);
+      }
+
+      .lil-gui.root {
+        --width: min(270px, calc(100vw - 24px));
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="sim-canvas"></canvas>
+
+  <section id="hero-card" class="panel">
+    <div class="eyebrow">통합과학2 · 변화와 다양성</div>
+    <h1>변이와 자연선택</h1>
+    <p>산불 전후의 토양 색 변화에 따라 어떤 딱정벌레가 더 잘 살아남는지 관찰해 보세요. 몸 색깔 변이가 있는 집단에서 환경에 유리한 형질이 세대를 거치며 늘어나는 과정을 3D로 확인할 수 있습니다.</p>
+    <div id="stage-pill">현재 선택 압력: 밝은 토양에서는 어두운 딱정벌레가, 검은 토양에서는 밝은 딱정벌레가 더 잘 포식됩니다.</div>
+  </section>
+
+  <div id="status-chip"></div>
+  <button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+  <section id="guide-panel">
+    <h3>📖 학습 가이드</h3>
+    <p>다양한 변이가 있는 생물집단에서 생존과 번식에 유리한 형질을 가진 개체가 살아남아 더 많은 자손을 남기는 과정을 자연선택이라고 합니다. 자연선택은 생물집단이 변화하는 환경에 적응하도록 해 줍니다.</p>
+
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>산불이 나기 전 딱정벌레 집단에서 시간이 지남에 따라 개체수 비율이 가장 많이 증가하는 딱정벌레는 어떤 몸 색깔을 가지는지 설명해 보세요.</li>
+      <li>시간이 지남에 따라 딱정벌레 집단에서 개체수 비율이 증가한 까닭을 자연선택으로 설명해 보세요.</li>
+      <li>항생제 내성이 있는 세균이 증가하는 현상을 자연선택과 관련지어 설명해 보세요.</li>
+    </ul>
+
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>항생제 내성균의 증가</li>
+      <li>농약 내성 해충의 증가</li>
+      <li>살충제 내성 모기의 증가</li>
+    </ul>
+
+    <h4>관찰 포인트</h4>
+    <ul>
+      <li>밝은 토양에서는 밝은색 딱정벌레가 덜 눈에 띄어 생존에 유리합니다.</li>
+      <li>산불 뒤 토양이 검게 변하면 반대로 어두운색 딱정벌레의 생존 비율이 높아집니다.</li>
+      <li>세대가 반복될수록 히스토그램 막대가 유리한 색 쪽으로 이동합니다.</li>
+    </ul>
+
+    <div class="textbook-ref">미래엔 통합과학2 I편 p20~21 — 변이의 발생과 자연선택, 딱정벌레 색깔 변화</div>
+  </section>
+
+  <div id="tooltip"></div>
+
+  <section id="formula-panel" class="panel">
+    <h3>🪲 변이와 자연선택</h3>
+    <div class="data-row"><span class="data-label">현재 환경:</span><span id="env-value" class="data-value">밝은 토양</span></div>
+    <div class="data-row"><span class="data-label">세대:</span><span id="generation-value" class="data-value">1세대</span></div>
+    <div class="data-row"><span class="data-label">총 개체수:</span><span id="count-value" class="data-value">30마리</span></div>
+    <div class="data-row"><span class="data-label">밝은색 비율:</span><span id="light-ratio-value" class="data-value">50%</span></div>
+    <div class="data-row"><span class="data-label">어두운색 비율:</span><span id="dark-ratio-value" class="data-value">50%</span></div>
+    <div class="data-row"><span class="data-label">포식된 개체:</span><span id="predated-value" class="data-value">0마리</span></div>
+
+    <div class="rule-box">
+      <strong>자연선택:</strong><br>
+      환경에 유리한 형질을 가진 개체가 살아남아 더 많은 자손을 남깁니다.
+    </div>
+  </section>
+
+  <section id="histogram-panel" class="panel">
+    <h3>세대별 색상 분포</h3>
+    <canvas id="histogram-canvas" width="640" height="420"></canvas>
+    <div class="legend-row">
+      <span>밝은색</span>
+      <div class="legend-gradient"></div>
+      <span>어두운색</span>
+    </div>
+    <div id="histogram-note">현재 집단의 평균 몸 색깔과 각 구간 개체 수를 함께 비교합니다.</div>
+    <div class="desc-box">
+      <strong>해석:</strong> 환경과 비슷한 색의 딱정벌레는 포식자 눈에 덜 띄기 때문에 다음 세대에서 비율이 커지기 쉽습니다.
+    </div>
+  </section>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+    const canvas = document.getElementById('sim-canvas');
+    const tooltip = document.getElementById('tooltip');
+    const guideToggle = document.getElementById('guide-toggle');
+    const guidePanel = document.getElementById('guide-panel');
+    const statusChip = document.getElementById('status-chip');
+    const stagePill = document.getElementById('stage-pill');
+    const histogramCanvas = document.getElementById('histogram-canvas');
+    const histogramCtx = histogramCanvas.getContext('2d');
+
+    const ui = {
+      env: document.getElementById('env-value'),
+      generation: document.getElementById('generation-value'),
+      count: document.getElementById('count-value'),
+      lightRatio: document.getElementById('light-ratio-value'),
+      darkRatio: document.getElementById('dark-ratio-value'),
+      predated: document.getElementById('predated-value')
+    };
+
+    const BEETLE_COUNT = 30;
+    const LEG_COUNT_PER_BEETLE = 6;
+    const PLANE_SIZE = 20;
+    const ACTIVE_KILL_COUNT = 8;
+    const LIGHT_SOIL = new THREE.Color(0xccbb88);
+    const DARK_SOIL = new THREE.Color(0x333322);
+    const LIGHT_BEETLE = new THREE.Color(0xccaa77);
+    const DARK_BEETLE = new THREE.Color(0x222211);
+    const ENVIRONMENT_LABELS = {
+      light: '밝은 토양 (산불 전)',
+      dark: '검은 토양 (산불 후)'
+    };
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x99bbdd);
+    scene.fog = new THREE.Fog(0x99bbdd, 18, 34);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.position.set(0, 14.5, 9.2);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.3, 0);
+    controls.minDistance = 8;
+    controls.maxDistance = 20;
+    controls.minPolarAngle = 0.4;
+    controls.maxPolarAngle = 1.1;
+    controls.enablePan = false;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    directionalLight.position.set(5, 10, 4);
+    scene.add(directionalLight);
+
+    const hemi = new THREE.HemisphereLight(0xe8f3ff, 0x5a4730, 0.32);
+    scene.add(hemi);
+
+    const soilGroup = new THREE.Group();
+    scene.add(soilGroup);
+
+    const groundGeometry = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 60, 60);
+    const groundPosition = groundGeometry.attributes.position;
+    for (let i = 0; i < groundPosition.count; i += 1) {
+      const x = groundPosition.getX(i);
+      const y = groundPosition.getY(i);
+      const ripple = Math.sin(x * 0.8) * Math.cos(y * 0.6) * 0.06;
+      const noise = (Math.random() - 0.5) * 0.03;
+      groundPosition.setZ(i, ripple + noise);
+    }
+    groundGeometry.computeVertexNormals();
+
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: LIGHT_SOIL.clone(),
+      roughness: 0.95,
+      metalness: 0.02
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    soilGroup.add(ground);
+
+    const charLayerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x11110a,
+      transparent: true,
+      opacity: 0
+    });
+    const charLayer = new THREE.Mesh(new THREE.PlaneGeometry(PLANE_SIZE * 0.98, PLANE_SIZE * 0.98), charLayerMaterial);
+    charLayer.rotation.x = -Math.PI / 2;
+    charLayer.position.y = 0.015;
+    soilGroup.add(charLayer);
+
+    function createGrassField(count) {
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const colorA = new THREE.Color(0x74b54b);
+      const colorB = new THREE.Color(0xa2d66d);
+      for (let i = 0; i < count; i += 1) {
+        const idx = i * 3;
+        positions[idx] = THREE.MathUtils.randFloatSpread(PLANE_SIZE * 0.88);
+        positions[idx + 1] = THREE.MathUtils.randFloat(0.08, 0.28);
+        positions[idx + 2] = THREE.MathUtils.randFloatSpread(PLANE_SIZE * 0.88);
+        const mix = Math.random();
+        const c = colorA.clone().lerp(colorB, mix);
+        colors[idx] = c.r;
+        colors[idx + 1] = c.g;
+        colors[idx + 2] = c.b;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const material = new THREE.PointsMaterial({
+        size: 0.18,
+        transparent: true,
+        opacity: 0.9,
+        vertexColors: true,
+        depthWrite: false
+      });
+      const points = new THREE.Points(geometry, material);
+      points.position.y = 0.02;
+      return { geometry, material, points };
+    }
+
+    const grassField = createGrassField(260);
+    scene.add(grassField.points);
+
+    function createFireParticles(count) {
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const colorHot = new THREE.Color(0xff6600);
+      const colorCore = new THREE.Color(0xff2200);
+      for (let i = 0; i < count; i += 1) {
+        const idx = i * 3;
+        positions[idx] = THREE.MathUtils.randFloatSpread(7);
+        positions[idx + 1] = THREE.MathUtils.randFloat(0.1, 1.4);
+        positions[idx + 2] = THREE.MathUtils.randFloatSpread(7);
+        const c = colorHot.clone().lerp(colorCore, Math.random());
+        colors[idx] = c.r;
+        colors[idx + 1] = c.g;
+        colors[idx + 2] = c.b;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const material = new THREE.PointsMaterial({
+        size: 0.2,
+        transparent: true,
+        opacity: 0,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const points = new THREE.Points(geometry, material);
+      points.position.y = 0.1;
+      points.visible = false;
+      return { geometry, material, points };
+    }
+
+    const fireParticles = createFireParticles(200);
+    scene.add(fireParticles.points);
+
+    const beetleLayer = new THREE.Group();
+    scene.add(beetleLayer);
+
+    const beetleBodyGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.2);
+    const beetleHeadGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+    const beetleLegGeometry = new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6);
+    beetleLegGeometry.rotateZ(Math.PI / 2);
+
+    const beetleBodyMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.58,
+      metalness: 0.08,
+      vertexColors: true
+    });
+    const beetleHeadMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.62,
+      metalness: 0.04,
+      vertexColors: true
+    });
+    const beetleLegMaterial = new THREE.MeshStandardMaterial({
+      color: 0x15120e,
+      roughness: 0.9
+    });
+
+    const beetleBodyMesh = new THREE.InstancedMesh(beetleBodyGeometry, beetleBodyMaterial, BEETLE_COUNT);
+    const beetleHeadMesh = new THREE.InstancedMesh(beetleHeadGeometry, beetleHeadMaterial, BEETLE_COUNT);
+    const beetleLegMesh = new THREE.InstancedMesh(beetleLegGeometry, beetleLegMaterial, BEETLE_COUNT * LEG_COUNT_PER_BEETLE);
+    beetleBodyMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    beetleHeadMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    beetleLegMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    beetleLayer.add(beetleBodyMesh, beetleHeadMesh, beetleLegMesh);
+
+    const beetleRaycastTarget = beetleBodyMesh;
+    const beetles = [];
+    const beetleTemp = new THREE.Object3D();
+    const worldVector = new THREE.Vector3();
+    const forwardVector = new THREE.Vector3();
+    const sideVector = new THREE.Vector3();
+    const upVector = new THREE.Vector3(0, 1, 0);
+    const hiddenPosition = new THREE.Vector3(999, -999, 999);
+
+    function mixBeetleColor(shade) {
+      return LIGHT_BEETLE.clone().lerp(DARK_BEETLE, shade);
+    }
+
+    function formatShadeHex(shade) {
+      return `#${mixBeetleColor(shade).getHexString()}`;
+    }
+
+    function getShadeLabel(shade) {
+      if (shade < 0.33) return '밝은색';
+      if (shade < 0.66) return '중간색';
+      return '어두운색';
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function randomRange(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function pickWeighted(items) {
+      const total = items.reduce((sum, item) => sum + item.weight, 0);
+      let threshold = Math.random() * total;
+      for (const item of items) {
+        threshold -= item.weight;
+        if (threshold <= 0) {
+          return item.value;
+        }
+      }
+      return items[items.length - 1].value;
+    }
+
+    function visibilityAgainstEnvironment(shade, environmentKey) {
+      return environmentKey === 'light' ? shade : 1 - shade;
+    }
+
+    function camouflageFitness(shade, environmentKey) {
+      const visible = visibilityAgainstEnvironment(shade, environmentKey);
+      return 1 - visible;
+    }
+
+    function createBird(index, radius, height, phaseOffset) {
+      const group = new THREE.Group();
+
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0x433a2c, roughness: 0.82 })
+      );
+      group.add(body);
+
+      const wingGeometry = new THREE.BoxGeometry(0.5, 0.03, 0.2);
+      const wingMaterial = new THREE.MeshStandardMaterial({ color: 0x31291f, roughness: 0.84 });
+      const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+      const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+      leftWing.position.set(-0.3, 0, 0);
+      rightWing.position.set(0.3, 0, 0);
+      group.add(leftWing, rightWing);
+
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.16, 0.16),
+        new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.7 })
+      );
+      head.position.set(0.34, 0.02, 0);
+      group.add(head);
+
+      const beak = new THREE.Mesh(
+        new THREE.ConeGeometry(0.05, 0.16, 6),
+        new THREE.MeshStandardMaterial({ color: 0xd2ab58, roughness: 0.5 })
+      );
+      beak.rotation.z = -Math.PI / 2;
+      beak.position.set(0.46, 0.01, 0);
+      group.add(beak);
+
+      const tail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.04, 0.16),
+        new THREE.MeshStandardMaterial({ color: 0x2a241d, roughness: 0.9 })
+      );
+      tail.position.set(-0.38, 0.02, 0);
+      tail.rotation.y = 0.26;
+      group.add(tail);
+
+      const visionCone = new THREE.Mesh(
+        new THREE.ConeGeometry(1.3, 2.8, 32, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: 0xffe1a0,
+          transparent: true,
+          opacity: 0.08,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      visionCone.rotation.x = Math.PI;
+      visionCone.position.y = -1.6;
+      group.add(visionCone);
+
+      group.position.set(Math.cos(phaseOffset) * radius, height, Math.sin(phaseOffset) * radius);
+      scene.add(group);
+
+      return {
+        index,
+        group,
+        leftWing,
+        rightWing,
+        visionCone,
+        radius,
+        height,
+        phaseOffset,
+        mode: 'idle',
+        orbitAngle: phaseOffset,
+        attack: null
+      };
+    }
+
+    const birds = [
+      createBird(0, 6.3, 5.5, 0),
+      createBird(1, 7.1, 5.9, Math.PI)
+    ];
+
+    const fireState = {
+      active: false,
+      elapsed: 0,
+      duration: 2
+    };
+
+    const state = {
+      generation: 1,
+      environmentKey: 'light',
+      soilBlend: 0,
+      lastPredatedCount: 0,
+      hoveredId: null,
+      hoveredClientX: 0,
+      hoveredClientY: 0,
+      queue: [],
+      activeAction: null,
+      autoRunning: false,
+      statusTimer: 0,
+      stageDescription: '',
+      now: 0
+    };
+
+    function buildInitialShadePool() {
+      const shades = [];
+      for (let i = 0; i < 10; i += 1) shades.push(randomRange(0.08, 0.28));
+      for (let i = 0; i < 10; i += 1) shades.push(randomRange(0.35, 0.62));
+      for (let i = 0; i < 10; i += 1) shades.push(randomRange(0.72, 0.94));
+      return shuffle(shades);
+    }
+
+    function randomBeetlePosition() {
+      const limit = 8.7;
+      return {
+        x: randomRange(-limit, limit),
+        z: randomRange(-limit, limit)
+      };
+    }
+
+    function seedPopulation(shades) {
+      beetles.length = 0;
+      shades.forEach((shade, index) => {
+        const pos = randomBeetlePosition();
+        beetles.push({
+          id: index,
+          shade,
+          x: pos.x,
+          z: pos.z,
+          dir: randomRange(0, Math.PI * 2),
+          speed: randomRange(0.28, 0.48),
+          turnBias: randomRange(-0.6, 0.6),
+          bobOffset: randomRange(0, Math.PI * 2),
+          alive: true,
+          visible: true,
+          targeted: false,
+          selectedPulse: 0,
+          lastKilledFlash: 0
+        });
+      });
+      refreshBeetleColors();
+      updateBeetleMatrices(0);
+    }
+
+    function refreshBeetleColors() {
+      beetles.forEach((beetle, index) => {
+        const bodyColor = mixBeetleColor(beetle.shade);
+        const headColor = bodyColor.clone().offsetHSL(0, 0, -0.08);
+        beetleBodyMesh.setColorAt(index, bodyColor);
+        beetleHeadMesh.setColorAt(index, headColor);
+      });
+      beetleBodyMesh.instanceColor.needsUpdate = true;
+      beetleHeadMesh.instanceColor.needsUpdate = true;
+    }
+
+    function hideBeetle(index) {
+      beetleTemp.position.copy(hiddenPosition);
+      beetleTemp.scale.setScalar(0.0001);
+      beetleTemp.rotation.set(0, 0, 0);
+      beetleTemp.updateMatrix();
+      beetleBodyMesh.setMatrixAt(index, beetleTemp.matrix);
+      beetleHeadMesh.setMatrixAt(index, beetleTemp.matrix);
+      for (let leg = 0; leg < LEG_COUNT_PER_BEETLE; leg += 1) {
+        beetleLegMesh.setMatrixAt(index * LEG_COUNT_PER_BEETLE + leg, beetleTemp.matrix);
+      }
+    }
+
+    function updateBeetleMatrices(time) {
+      const bodyQuat = new THREE.Quaternion();
+      const localQuat = new THREE.Quaternion();
+      const legOffsets = [
+        [-0.08, -0.06, -0.12, -0.65],
+        [-0.08, -0.06, 0, -0.45],
+        [-0.08, -0.06, 0.12, -0.65],
+        [0.08, -0.06, -0.12, 0.65],
+        [0.08, -0.06, 0, 0.45],
+        [0.08, -0.06, 0.12, 0.65]
+      ];
+
+      beetles.forEach((beetle, index) => {
+        if (!beetle.visible) {
+          hideBeetle(index);
+          return;
+        }
+
+        const bob = Math.sin(time * 4 + beetle.bobOffset) * 0.01;
+        const bodyY = 0.12 + bob;
+        const pulse = beetle.selectedPulse > 0 ? 1 + Math.sin(beetle.selectedPulse * Math.PI) * 0.12 : 1;
+        const flashShrink = beetle.lastKilledFlash > 0 ? THREE.MathUtils.lerp(1, 0.25, 1 - beetle.lastKilledFlash) : 1;
+        const scale = pulse * flashShrink;
+
+        bodyQuat.setFromAxisAngle(upVector, beetle.dir);
+        forwardVector.set(1, 0, 0).applyQuaternion(bodyQuat);
+        sideVector.set(0, 0, 1).applyQuaternion(bodyQuat);
+
+        beetleTemp.position.set(beetle.x, bodyY, beetle.z);
+        beetleTemp.quaternion.copy(bodyQuat);
+        beetleTemp.scale.set(scale, scale, scale);
+        beetleTemp.updateMatrix();
+        beetleBodyMesh.setMatrixAt(index, beetleTemp.matrix);
+
+        worldVector.copy(forwardVector).multiplyScalar(0.19).addScaledVector(upVector, 0.03);
+        beetleTemp.position.set(beetle.x + worldVector.x, bodyY + worldVector.y, beetle.z + worldVector.z);
+        beetleTemp.quaternion.copy(bodyQuat);
+        beetleTemp.scale.set(scale, scale, scale);
+        beetleTemp.updateMatrix();
+        beetleHeadMesh.setMatrixAt(index, beetleTemp.matrix);
+
+        for (let legIndex = 0; legIndex < legOffsets.length; legIndex += 1) {
+          const [sx, sy, sz, angle] = legOffsets[legIndex];
+          const swing = Math.sin(time * 8 + beetle.bobOffset + legIndex) * 0.18;
+          const localOffset = new THREE.Vector3(sx, sy, sz);
+          localOffset.applyQuaternion(bodyQuat);
+          const legPos = new THREE.Vector3(beetle.x, bodyY, beetle.z).add(localOffset);
+
+          localQuat.setFromEuler(new THREE.Euler(0, 0, angle + swing));
+          localQuat.multiply(bodyQuat);
+
+          beetleTemp.position.copy(legPos);
+          beetleTemp.quaternion.copy(localQuat);
+          beetleTemp.scale.set(scale, scale, scale);
+          beetleTemp.updateMatrix();
+          beetleLegMesh.setMatrixAt(index * LEG_COUNT_PER_BEETLE + legIndex, beetleTemp.matrix);
+        }
+      });
+
+      beetleBodyMesh.instanceMatrix.needsUpdate = true;
+      beetleHeadMesh.instanceMatrix.needsUpdate = true;
+      beetleLegMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function updateBeetleMovement(delta) {
+      beetles.forEach((beetle) => {
+        if (beetle.selectedPulse > 0) {
+          beetle.selectedPulse = Math.max(0, beetle.selectedPulse - delta * 1.8);
+        }
+        if (beetle.lastKilledFlash > 0) {
+          beetle.lastKilledFlash = Math.max(0, beetle.lastKilledFlash - delta * 4);
+          if (beetle.lastKilledFlash === 0 && !beetle.alive) {
+            beetle.visible = false;
+          }
+        }
+
+        if (!beetle.alive || beetle.targeted) return;
+
+        beetle.dir += (Math.sin(state.now * 0.8 + beetle.bobOffset) * 0.3 + beetle.turnBias * 0.2) * delta;
+        beetle.x += Math.cos(beetle.dir) * beetle.speed * delta;
+        beetle.z += Math.sin(beetle.dir) * beetle.speed * delta;
+
+        const limit = 9.1;
+        if (beetle.x > limit || beetle.x < -limit) {
+          beetle.dir = Math.PI - beetle.dir;
+          beetle.x = clamp(beetle.x, -limit, limit);
+        }
+        if (beetle.z > limit || beetle.z < -limit) {
+          beetle.dir *= -1;
+          beetle.z = clamp(beetle.z, -limit, limit);
+        }
+      });
+    }
+
+    function setStatus(message, type = '') {
+      statusChip.textContent = message;
+      statusChip.className = '';
+      statusChip.id = 'status-chip';
+      statusChip.classList.add('show');
+      if (type) {
+        statusChip.classList.add(type);
+      }
+      state.statusTimer = 2.4;
+    }
+
+    function setStageDescription(text) {
+      state.stageDescription = text;
+      stagePill.textContent = text;
+    }
+
+    function stopCurrentAction() {
+      state.queue.length = 0;
+      state.activeAction = null;
+      birds.forEach((bird) => {
+        bird.mode = 'idle';
+        bird.attack = null;
+      });
+      state.autoRunning = false;
+    }
+
+    function setEnvironmentInstant(environmentKey) {
+      state.environmentKey = environmentKey;
+      state.soilBlend = environmentKey === 'dark' ? 1 : 0;
+      fireState.active = false;
+      fireState.elapsed = 0;
+      fireParticles.points.visible = false;
+      fireParticles.material.opacity = 0;
+      charLayerMaterial.opacity = state.soilBlend * 0.46;
+      groundMaterial.color.copy(LIGHT_SOIL).lerp(DARK_SOIL, state.soilBlend);
+      grassField.material.opacity = 1 - state.soilBlend;
+    }
+
+    function resetSimulation(environmentKey = 'light') {
+      stopCurrentAction();
+      state.generation = 1;
+      state.lastPredatedCount = 0;
+      setEnvironmentInstant(environmentKey);
+      seedPopulation(buildInitialShadePool());
+      settings.환경 = ENVIRONMENT_LABELS[environmentKey];
+      syncGui();
+      if (environmentKey === 'light') {
+        setStageDescription('현재 선택 압력: 밝은 토양에서는 어두운 딱정벌레가, 검은 토양에서는 밝은 딱정벌레가 더 잘 포식됩니다.');
+      } else {
+        setStageDescription('현재 선택 압력: 검은 토양에서는 밝은 딱정벌레가 더 눈에 띄고, 어두운 딱정벌레가 더 유리합니다.');
+      }
+      setStatus('초기 집단을 다시 배치했습니다.');
+    }
+
+    function getPopulationStats() {
+      const alive = beetles.filter((beetle) => beetle.alive);
+      const lightCount = alive.filter((beetle) => beetle.shade < 0.5).length;
+      const darkCount = alive.length - lightCount;
+      const meanShade = alive.reduce((sum, beetle) => sum + beetle.shade, 0) / Math.max(alive.length, 1);
+      return {
+        total: alive.length,
+        lightCount,
+        darkCount,
+        lightRatio: alive.length ? Math.round((lightCount / alive.length) * 100) : 0,
+        darkRatio: alive.length ? Math.round((darkCount / alive.length) * 100) : 0,
+        meanShade
+      };
+    }
+
+    function drawHistogram() {
+      const { width, height } = histogramCanvas;
+      histogramCtx.clearRect(0, 0, width, height);
+
+      const bins = new Array(6).fill(0);
+      const alive = beetles.filter((beetle) => beetle.alive);
+      alive.forEach((beetle) => {
+        const index = Math.min(bins.length - 1, Math.floor(beetle.shade * bins.length));
+        bins[index] += 1;
+      });
+      const maxCount = Math.max(5, ...bins);
+
+      histogramCtx.fillStyle = 'rgba(255,255,255,0.03)';
+      histogramCtx.fillRect(0, 0, width, height);
+
+      histogramCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      histogramCtx.lineWidth = 1;
+      for (let i = 0; i < 5; i += 1) {
+        const y = 40 + i * ((height - 90) / 4);
+        histogramCtx.beginPath();
+        histogramCtx.moveTo(52, y);
+        histogramCtx.lineTo(width - 24, y);
+        histogramCtx.stroke();
+      }
+
+      const chartWidth = width - 84;
+      const chartHeight = height - 90;
+      const barWidth = chartWidth / bins.length;
+
+      bins.forEach((value, index) => {
+        const ratio = value / maxCount;
+        const barHeight = ratio * chartHeight;
+        const x = 54 + index * barWidth;
+        const y = height - 38 - barHeight;
+        const color = LIGHT_BEETLE.clone().lerp(DARK_BEETLE, (index + 0.5) / bins.length);
+        const gradient = histogramCtx.createLinearGradient(x, y, x, height - 38);
+        gradient.addColorStop(0, `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, 1)`);
+        gradient.addColorStop(1, `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, 0.35)`);
+        histogramCtx.fillStyle = gradient;
+        histogramCtx.fillRect(x + 8, y, barWidth - 16, barHeight);
+
+        histogramCtx.fillStyle = 'rgba(255, 248, 235, 0.72)';
+        histogramCtx.font = '12px Pretendard';
+        histogramCtx.textAlign = 'center';
+        histogramCtx.fillText(String(value), x + barWidth / 2, y - 8);
+      });
+
+      histogramCtx.fillStyle = 'rgba(255, 244, 228, 0.6)';
+      histogramCtx.font = '12px Pretendard';
+      histogramCtx.textAlign = 'right';
+      histogramCtx.fillText('개체 수', 46, 26);
+
+      histogramCtx.textAlign = 'center';
+      histogramCtx.fillText('밝음', 72, height - 12);
+      histogramCtx.fillText('어두움', width - 52, height - 12);
+
+      const stats = getPopulationStats();
+      const meanX = 54 + chartWidth * stats.meanShade;
+      histogramCtx.strokeStyle = state.environmentKey === 'light' ? 'rgba(255, 236, 162, 0.95)' : 'rgba(210, 232, 255, 0.95)';
+      histogramCtx.lineWidth = 3;
+      histogramCtx.beginPath();
+      histogramCtx.moveTo(meanX, 30);
+      histogramCtx.lineTo(meanX, height - 40);
+      histogramCtx.stroke();
+
+      histogramCtx.fillStyle = state.environmentKey === 'light' ? 'rgba(255, 236, 162, 0.95)' : 'rgba(210, 232, 255, 0.95)';
+      histogramCtx.font = '13px Pretendard';
+      histogramCtx.fillText('평균 색', meanX, 22);
+
+      histogramCtx.fillStyle = 'rgba(255, 245, 232, 0.92)';
+      histogramCtx.textAlign = 'left';
+      histogramCtx.font = '13px Pretendard';
+      histogramCtx.fillText(`세대 ${state.generation}`, 54, 26);
+    }
+
+    function syncPanels() {
+      const stats = getPopulationStats();
+      ui.env.textContent = state.environmentKey === 'light' ? '밝은 토양' : '검은 토양';
+      ui.generation.textContent = `${state.generation}세대`;
+      ui.count.textContent = `${stats.total}마리`;
+      ui.lightRatio.textContent = `${stats.lightRatio}%`;
+      ui.darkRatio.textContent = `${stats.darkRatio}%`;
+      ui.predated.textContent = `${state.lastPredatedCount}마리`;
+
+      if (state.environmentKey === 'light') {
+        document.getElementById('histogram-note').textContent = '밝은 토양에서는 어두운 개체가 더 눈에 띄므로, 세대가 지날수록 밝은색 쪽 막대가 상대적으로 커집니다.';
+      } else {
+        document.getElementById('histogram-note').textContent = '검은 토양에서는 밝은 개체가 더 눈에 띄므로, 세대가 지날수록 어두운색 쪽 막대가 상대적으로 커집니다.';
+      }
+      drawHistogram();
+    }
+
+    function planGeneration() {
+      const alive = beetles.filter((beetle) => beetle.alive);
+      const ranked = alive
+        .map((beetle) => ({
+          id: beetle.id,
+          score: visibilityAgainstEnvironment(beetle.shade, state.environmentKey) + Math.random() * 0.12
+        }))
+        .sort((a, b) => b.score - a.score);
+      return ranked.slice(0, Math.min(ACTIVE_KILL_COUNT, ranked.length - 1)).map((item) => item.id);
+    }
+
+    function makeNextGeneration(survivors) {
+      const survivorCopies = survivors.map((beetle) => clamp(beetle.shade + randomRange(-0.01, 0.01), 0, 1));
+      const weightedParents = survivors.map((beetle) => ({
+        value: beetle.shade,
+        weight: 1 + camouflageFitness(beetle.shade, state.environmentKey) * 2.8
+      }));
+
+      const nextShades = [...survivorCopies];
+      while (nextShades.length < BEETLE_COUNT) {
+        const parentShade = pickWeighted(weightedParents);
+        const childShade = clamp(parentShade + randomRange(-0.09, 0.09), 0, 1);
+        nextShades.push(childShade);
+      }
+      return shuffle(nextShades);
+    }
+
+    function beginGenerationAction() {
+      if (state.activeAction) return;
+      const targetIds = planGeneration();
+      beetles.forEach((beetle) => {
+        beetle.targeted = false;
+      });
+      state.activeAction = {
+        type: 'generation',
+        targetIds,
+        removedIds: [],
+        currentAttack: null
+      };
+      if (state.environmentKey === 'light') {
+        setStatus('밝은 토양에서 어두운색 딱정벌레가 먼저 포식됩니다.');
+        setStageDescription('현재 선택 압력: 밝은 토양에서는 눈에 잘 띄는 어두운 딱정벌레가 생존에 불리합니다.');
+      } else {
+        setStatus('검은 토양에서 밝은색 딱정벌레가 먼저 포식됩니다.');
+        setStageDescription('현재 선택 압력: 검은 토양에서는 눈에 잘 띄는 밝은 딱정벌레가 생존에 불리합니다.');
+      }
+    }
+
+    function beginAttack(action) {
+      if (!action.targetIds.length) return;
+      const targetId = action.targetIds.shift();
+      const bird = birds[action.removedIds.length % birds.length];
+      const beetle = beetles[targetId];
+      beetle.targeted = true;
+
+      bird.mode = 'attack';
+      bird.attack = {
+        beetleId: targetId,
+        duration: 0.34 / settings.포식속도,
+        elapsed: 0,
+        killed: false,
+        start: bird.group.position.clone(),
+        target: new THREE.Vector3(beetle.x, 0.8, beetle.z)
+      };
+      action.currentAttack = bird;
+    }
+
+    function updateBirds(delta) {
+      birds.forEach((bird) => {
+        const wingWave = Math.sin(state.now * 10 + bird.phaseOffset) * 0.35;
+        bird.leftWing.rotation.z = 0.16 + wingWave;
+        bird.rightWing.rotation.z = -0.16 - wingWave;
+
+        if (bird.mode === 'attack' && bird.attack) {
+          bird.attack.elapsed += delta;
+          const t = clamp(bird.attack.elapsed / bird.attack.duration, 0, 1);
+          const divePhase = t < 0.56 ? t / 0.56 : 1 - (t - 0.56) / 0.44;
+          const eased = THREE.MathUtils.smootherstep(clamp(divePhase, 0, 1), 0, 1);
+          const targetPos = bird.attack.target;
+          const startPos = bird.attack.start;
+          const pos = new THREE.Vector3().lerpVectors(startPos, targetPos, eased);
+          pos.y += Math.sin(eased * Math.PI) * 0.12;
+          if (t > 0.56) {
+            const retreat = THREE.MathUtils.smootherstep((t - 0.56) / 0.44, 0, 1);
+            pos.lerp(startPos, retreat);
+            pos.y = THREE.MathUtils.lerp(targetPos.y, startPos.y, retreat) + Math.sin((1 - retreat) * Math.PI) * 0.08;
+          }
+          bird.group.position.copy(pos);
+          bird.group.lookAt(targetPos.x, 0.12, targetPos.z);
+          bird.visionCone.scale.setScalar(1.3);
+          bird.visionCone.material.opacity = 0.14;
+
+          if (!bird.attack.killed && t >= 0.48) {
+            const beetle = beetles[bird.attack.beetleId];
+            beetle.alive = false;
+            beetle.targeted = false;
+            beetle.lastKilledFlash = 1;
+            state.lastPredatedCount += 1;
+            bird.attack.killed = true;
+            state.activeAction.removedIds.push(beetle.id);
+          }
+
+          if (t >= 1) {
+            bird.mode = 'idle';
+            bird.attack = null;
+            state.activeAction.currentAttack = null;
+          }
+          return;
+        }
+
+        bird.orbitAngle += delta * (0.34 + bird.index * 0.04);
+        const x = Math.cos(bird.orbitAngle) * bird.radius;
+        const z = Math.sin(bird.orbitAngle) * bird.radius;
+        const y = bird.height + Math.sin(state.now * 1.3 + bird.phaseOffset) * 0.18;
+        bird.group.position.set(x, y, z);
+        bird.group.lookAt(0, 0.1, 0);
+        bird.visionCone.scale.setScalar(1);
+        bird.visionCone.material.opacity = 0.08;
+      });
+    }
+
+    function finishGeneration() {
+      const survivors = beetles.filter((beetle) => beetle.alive);
+      survivors.forEach((beetle) => {
+        beetle.selectedPulse = 1;
+      });
+      const nextShades = makeNextGeneration(survivors);
+      state.generation += 1;
+      seedPopulation(nextShades);
+      setStatus(`다음 세대로 번식했습니다. ${state.generation}세대가 형성되었습니다.`, 'success');
+      state.activeAction = null;
+    }
+
+    function beginTransitionAction(targetEnvironment, withFire) {
+      if (state.activeAction) return;
+      state.environmentKey = targetEnvironment;
+      settings.환경 = ENVIRONMENT_LABELS[targetEnvironment];
+      syncGui();
+      state.activeAction = {
+        type: 'transition',
+        targetEnvironment,
+        withFire,
+        duration: withFire ? 2 : 1.6,
+        elapsed: 0,
+        fromBlend: state.soilBlend,
+        toBlend: targetEnvironment === 'dark' ? 1 : 0
+      };
+
+      if (withFire) {
+        fireState.active = true;
+        fireState.elapsed = 0;
+        fireParticles.points.visible = true;
+        setStatus('산불이 발생했습니다. 토양이 검게 변하고 있습니다.', 'warning');
+        setStageDescription('산불 후 토양이 검어지면 밝은 개체가 더 눈에 띄고, 어두운 개체가 생존에 유리해집니다.');
+      } else if (targetEnvironment === 'light') {
+        setStatus('환경을 밝은 토양으로 되돌렸습니다.');
+        setStageDescription('현재 선택 압력: 밝은 토양에서는 어두운 딱정벌레가 더 눈에 띕니다.');
+      } else {
+        setStatus('환경을 검은 토양으로 전환했습니다.');
+        setStageDescription('현재 선택 압력: 검은 토양에서는 밝은 딱정벌레가 더 눈에 띕니다.');
+      }
+    }
+
+    function queueGenerations(count) {
+      for (let i = 0; i < count; i += 1) {
+        state.queue.push({ type: 'generation' });
+      }
+    }
+
+    function startAutoSequence() {
+      resetSimulation('light');
+      state.queue.length = 0;
+      state.autoRunning = true;
+      queueGenerations(3);
+      state.queue.push({ type: 'transition', targetEnvironment: 'dark', withFire: true });
+      queueGenerations(5);
+      setStatus('자동 진행을 시작합니다. 산불 전 3세대 → 산불 → 산불 후 5세대 순서로 진행됩니다.');
+    }
+
+    function processActionQueue() {
+      if (state.activeAction || !state.queue.length) return;
+      const next = state.queue.shift();
+      if (next.type === 'generation') {
+        state.lastPredatedCount = 0;
+        beginGenerationAction();
+      } else if (next.type === 'transition') {
+        beginTransitionAction(next.targetEnvironment, next.withFire);
+      }
+    }
+
+    function updateGenerationAction() {
+      const action = state.activeAction;
+      if (!action || action.type !== 'generation') return;
+
+      if (!action.currentAttack && action.targetIds.length) {
+        beginAttack(action);
+        return;
+      }
+
+      if (!action.currentAttack && !action.targetIds.length) {
+        finishGeneration();
+        if (state.autoRunning && !state.queue.length) {
+          state.autoRunning = false;
+          setStatus('자동 진행이 완료되었습니다. 검은 토양에서 어두운 딱정벌레 비율이 커졌는지 확인해 보세요.', 'success');
+        }
+      }
+    }
+
+    function updateTransitionAction(delta) {
+      const action = state.activeAction;
+      if (!action || action.type !== 'transition') return;
+      action.elapsed += delta;
+      const t = clamp(action.elapsed / action.duration, 0, 1);
+      const eased = THREE.MathUtils.smootherstep(t, 0, 1);
+      state.soilBlend = THREE.MathUtils.lerp(action.fromBlend, action.toBlend, eased);
+      if (t >= 1) {
+        state.activeAction = null;
+      }
+    }
+
+    function updateEnvironmentVisuals(delta) {
+      groundMaterial.color.copy(LIGHT_SOIL).lerp(DARK_SOIL, state.soilBlend);
+      charLayerMaterial.opacity = state.soilBlend * 0.46;
+      grassField.material.opacity = 1 - state.soilBlend;
+      grassField.points.rotation.y += delta * 0.06;
+
+      if (fireState.active) {
+        fireState.elapsed += delta;
+        const positions = fireParticles.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i += 1) {
+          let x = positions.getX(i);
+          let y = positions.getY(i);
+          let z = positions.getZ(i);
+          y += delta * randomRange(0.8, 2.2);
+          x += Math.sin(state.now * 6 + i) * 0.01;
+          z += Math.cos(state.now * 6 + i) * 0.01;
+          if (y > 2.4) {
+            x = THREE.MathUtils.randFloatSpread(7);
+            y = randomRange(0.08, 0.4);
+            z = THREE.MathUtils.randFloatSpread(7);
+          }
+          positions.setXYZ(i, x, y, z);
+        }
+        positions.needsUpdate = true;
+
+        const fade = 1 - clamp(fireState.elapsed / fireState.duration, 0, 1);
+        fireParticles.material.opacity = 0.95 * fade;
+        if (fireState.elapsed >= fireState.duration) {
+          fireState.active = false;
+          fireParticles.points.visible = false;
+          fireParticles.material.opacity = 0;
+        }
+      }
+    }
+
+    const pointer = new THREE.Vector2(10, 10);
+    const raycaster = new THREE.Raycaster();
+
+    function updateTooltip() {
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObject(beetleRaycastTarget);
+      if (!hits.length || hits[0].instanceId == null) {
+        state.hoveredId = null;
+        tooltip.classList.remove('show');
+        return;
+      }
+
+      const beetle = beetles[hits[0].instanceId];
+      if (!beetle || !beetle.alive) {
+        state.hoveredId = null;
+        tooltip.classList.remove('show');
+        return;
+      }
+
+      state.hoveredId = beetle.id;
+      tooltip.innerHTML = `${getShadeLabel(beetle.shade)} 딱정벌레<br>색상값 ${formatShadeHex(beetle.shade)} · 명도 ${Math.round((1 - beetle.shade) * 100)}%`;
+      tooltip.style.left = `${state.hoveredClientX}px`;
+      tooltip.style.top = `${state.hoveredClientY}px`;
+      tooltip.classList.add('show');
+    }
+
+    function onPointerMove(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      state.hoveredClientX = event.clientX;
+      state.hoveredClientY = event.clientY;
+    }
+
+    function onPointerLeave() {
+      pointer.set(10, 10);
+      tooltip.classList.remove('show');
+    }
+
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerleave', onPointerLeave);
+    renderer.domElement.addEventListener('touchstart', () => tooltip.classList.remove('show'), { passive: true });
+
+    guideToggle.addEventListener('click', () => {
+      guidePanel.classList.toggle('open');
+    });
+
+    const settings = {
+      환경: ENVIRONMENT_LABELS.light,
+      세대수: 1,
+      포식속도: 1,
+      '다음 세대': () => {
+        if (state.autoRunning) {
+          setStatus('자동 진행 중에는 수동 세대 진행을 잠시 기다려 주세요.');
+          return;
+        }
+        queueGenerations(settings.세대수);
+      },
+      '자동 진행': () => {
+        if (state.autoRunning) {
+          stopCurrentAction();
+          resetSimulation(state.environmentKey);
+          setStatus('자동 진행을 중단하고 현재 환경에서 초기화했습니다.');
+          return;
+        }
+        startAutoSequence();
+      },
+      초기화: () => {
+        resetSimulation(state.environmentKey);
+      }
+    };
+
+    const gui = new GUI({ title: '변이와 자연선택' });
+    gui.add(settings, '환경', Object.values(ENVIRONMENT_LABELS)).name('환경').onChange((value) => {
+      const targetEnvironment = value === ENVIRONMENT_LABELS.dark ? 'dark' : 'light';
+      if (targetEnvironment === state.environmentKey && !state.activeAction) return;
+      if (state.autoRunning) {
+        setStatus('자동 진행 중에는 환경 변경을 잠시 기다려 주세요.');
+        settings.환경 = ENVIRONMENT_LABELS[state.environmentKey];
+        syncGui();
+        return;
+      }
+      if (targetEnvironment === 'dark') {
+        state.queue.push({ type: 'transition', targetEnvironment: 'dark', withFire: true });
+      } else {
+        state.queue.push({ type: 'transition', targetEnvironment: 'light', withFire: false });
+      }
+    });
+    gui.add(settings, '세대수', 1, 10, 1).name('세대 수');
+    gui.add(settings, '다음 세대').name('다음 세대');
+    gui.add(settings, '자동 진행').name('자동 진행');
+    gui.add(settings, '포식속도', 0.5, 3, 0.1).name('포식 속도');
+    gui.add(settings, '초기화').name('초기화');
+
+    function syncGui() {
+      gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+      if (window.innerWidth < 840) {
+        gui.close();
+      }
+    }
+
+    function resize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      syncGui();
+    }
+
+    window.addEventListener('resize', resize);
+
+    resetSimulation('light');
+    syncGui();
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+      state.now += delta;
+
+      processActionQueue();
+      if (state.activeAction?.type === 'generation') {
+        updateGenerationAction();
+      } else if (state.activeAction?.type === 'transition') {
+        updateTransitionAction(delta);
+      }
+
+      updateBirds(delta);
+      updateBeetleMovement(delta);
+      updateEnvironmentVisuals(delta);
+      updateBeetleMatrices(state.now);
+      updateTooltip();
+      syncPanels();
+
+      if (state.statusTimer > 0) {
+        state.statusTimer -= delta;
+        if (state.statusTimer <= 0) {
+          statusChip.classList.remove('show', 'success', 'warning');
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

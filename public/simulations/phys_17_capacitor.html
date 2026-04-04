@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>축전기의 원리와 활용 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep: #0a0a20;
+    --panel-dark: rgba(8, 12, 30, 0.86);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text-main: #eef6ff;
+    --text-dim: rgba(238, 246, 255, 0.68);
+    --text-soft: rgba(238, 246, 255, 0.52);
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(67, 120, 255, 0.18), transparent 24%),
+      radial-gradient(circle at 82% 18%, rgba(255, 213, 91, 0.1), transparent 26%),
+      linear-gradient(180deg, #0c1028 0%, #090d1f 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.98fr);
+  }
+
+  #scene-panel,
+  #graph-panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #scene-panel {
+    background:
+      radial-gradient(circle at 18% 14%, rgba(84, 118, 255, 0.16), transparent 26%),
+      radial-gradient(circle at 78% 18%, rgba(255, 204, 68, 0.1), transparent 24%),
+      linear-gradient(180deg, #0b0e22 0%, #0a0a20 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #graph-panel {
+    background:
+      radial-gradient(circle at 20% 10%, rgba(78, 255, 172, 0.12), transparent 24%),
+      radial-gradient(circle at 85% 15%, rgba(106, 133, 255, 0.12), transparent 22%),
+      linear-gradient(180deg, #0d1331 0%, #0a0f25 100%);
+  }
+
+  #scene-canvas,
+  #graph-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #scene-title {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 14;
+    width: min(760px, calc(100% - 188px));
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(238, 246, 255, 0.55);
+  }
+
+  #scene-title h1 {
+    margin-top: 6px;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+    text-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  #scene-title p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: rgba(238, 246, 255, 0.72);
+  }
+
+  #guide-toggle {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 20;
+    padding: 10px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(7, 12, 28, 0.72);
+    color: #f4fbff;
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+  }
+
+  #guide-panel {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    z-index: 20;
+    width: min(450px, calc(100vw - 32px));
+    max-height: min(76vh, 760px);
+    overflow-y: auto;
+    display: none;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 12, 30, 0.94);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 26px 44px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(18px);
+    line-height: 1.72;
+    font-size: 13px;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    margin: 14px 0 6px;
+    font-size: 15px;
+    color: #97dfff;
+  }
+
+  #guide-panel h3:first-child { margin-top: 0; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 6px; }
+
+  #status-chip {
+    position: absolute;
+    top: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    min-width: 340px;
+    max-width: min(82vw, 760px);
+    padding: 14px 18px;
+    border-radius: 20px;
+    background: rgba(7, 12, 28, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.26);
+    text-align: center;
+  }
+
+  #status-chip[data-mode="charging"] {
+    border-color: rgba(255, 212, 91, 0.36);
+    box-shadow: 0 18px 40px rgba(255, 212, 91, 0.08);
+  }
+
+  #status-chip[data-mode="charged"] {
+    border-color: rgba(110, 230, 255, 0.32);
+  }
+
+  #status-chip[data-mode="discharging"] {
+    border-color: rgba(255, 182, 106, 0.42);
+    box-shadow: 0 18px 40px rgba(255, 182, 106, 0.1);
+  }
+
+  #status-chip .title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #status-chip .body {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.64;
+    color: var(--text-dim);
+  }
+
+  #gui-mount {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    z-index: 30;
+  }
+
+  #gui-mount .lil-gui {
+    --widget-color: #d9e7ff;
+    --background-color: rgba(8, 12, 30, 0.88);
+    --title-background-color: rgba(15, 23, 52, 0.96);
+    --text-color: #eef6ff;
+    --hover-color: rgba(255, 255, 255, 0.08);
+    --font-size: 12px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 36px rgba(0, 0, 0, 0.28);
+  }
+
+  #formula-panel {
+    max-height: min(34vh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    z-index: 16;
+    width: min(398px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: rgba(8, 12, 30, 0.84);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 24px 40px rgba(0, 0, 0, 0.26);
+    font-size: 12px;
+    line-height: 1.75;
+  }
+
+  #formula-panel .panel-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff1b3;
+  }
+
+  #formula-panel .panel-sub {
+    margin-top: 4px;
+    color: var(--text-dim);
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 11px 0 12px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #formula-panel .line {
+    display: flex;
+    gap: 10px;
+  }
+
+  #formula-panel .label {
+    width: 92px;
+    flex-shrink: 0;
+    color: var(--text-soft);
+  }
+
+  #formula-panel .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  #formula-panel .highlight {
+    margin-top: 12px;
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  #formula-panel .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #graph-header {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    right: 22px;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  #graph-header h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #graph-header p {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #graph-legend {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .legend-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #metric-grid {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 170px;
+    z-index: 9;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .metric-card {
+    padding: 12px 13px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    min-height: 94px;
+  }
+
+  .metric-card .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.54);
+  }
+
+  .metric-card strong {
+    display: block;
+    margin-top: 7px;
+    font-size: 16px;
+    color: #ffffff;
+  }
+
+  .metric-card p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.58;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #usecase-panel {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 18px;
+    z-index: 10;
+    padding: 15px 16px 14px;
+    border-radius: 22px;
+    background: rgba(8, 12, 30, 0.76);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+  }
+
+  #usecase-panel .heading {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  #usecase-buttons {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .usecase-btn {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    color: #e7f4ff;
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .usecase-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .usecase-btn.active {
+    background: rgba(110, 230, 255, 0.14);
+    border-color: rgba(110, 230, 255, 0.32);
+    color: #ffffff;
+  }
+
+  #usecase-title {
+    margin-top: 12px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #usecase-body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.64;
+    color: var(--text-dim);
+  }
+
+  #flash-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.72), rgba(255, 245, 215, 0.3) 16%, rgba(255, 255, 255, 0) 34%),
+      radial-gradient(circle at 50% 45%, rgba(255, 214, 113, 0.25), rgba(255, 214, 113, 0) 42%);
+    mix-blend-mode: screen;
+  }
+
+  @media (max-width: 1120px) {
+    #app {
+      grid-template-columns: minmax(0, 1.15fr) minmax(340px, 1fr);
+    }
+
+    #scene-title {
+      width: min(620px, calc(100% - 176px));
+    }
+  }
+
+  @media (max-width: 920px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 1.15fr) minmax(360px, 0.95fr);
+    }
+
+    #scene-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #scene-title {
+      width: min(720px, calc(100% - 150px));
+    }
+  }
+
+  @media (max-width: 720px) {
+    #guide-toggle {
+      top: 12px;
+      left: 12px;
+    }
+
+    #scene-title {
+      top: 66px;
+      width: calc(100% - 28px);
+    }
+
+    #scene-title h1 { font-size: 23px; }
+
+    #status-chip {
+      top: 152px;
+      width: calc(100% - 28px);
+      min-width: 0;
+    }
+
+    #gui-mount {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      max-height: 28vh;
+      overflow-y: auto;
+    }
+
+    #gui-mount .lil-gui {
+      max-height: 28vh;
+      overflow-y: auto;
+    }
+
+    #formula-panel {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      bottom: 12px;
+    }
+
+    #graph-header {
+      top: 14px;
+      left: 16px;
+      right: 16px;
+    }
+
+    #metric-grid {
+      left: 16px;
+      right: 16px;
+      bottom: 188px;
+      grid-template-columns: 1fr;
+    }
+
+    #usecase-panel {
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="scene-panel">
+    <canvas id="scene-canvas"></canvas>
+    <div id="flash-overlay"></div>
+
+    <button id="guide-toggle">📖 학습 가이드</button>
+    <div id="guide-panel">
+      <h3>핵심 원리</h3>
+      <p>축전기는 전하를 저장하는 장치입니다. 전기 용량은 <strong>C = Q/V</strong>로 정의되며, 평행판 축전기에서는 <strong>C = εε₀A/d</strong>입니다. 같은 전압이라도 유전체를 넣으면 전기 용량이 커져 더 많은 전하를 저장할 수 있습니다.</p>
+
+      <h3>탐구 질문</h3>
+      <ul>
+        <li>축전기의 판 간격을 줄이면 전기 용량은 어떻게 변하나요?</li>
+        <li>유전체를 삽입하면 같은 전압에서 더 많은 전하를 저장할 수 있는 까닭은 무엇인가요?</li>
+        <li>카메라 플래시가 축전기를 이용하는 까닭은 무엇인가요? (힌트: 순간적인 대전류)</li>
+      </ul>
+
+      <h3>실생활 예시</h3>
+      <ul>
+        <li>카메라 플래시: 축전기에 에너지를 저장했다가 순간 방전해 강한 빛을 냅니다.</li>
+        <li>심장 제세동기(AED): 축전기에 저장한 전기 에너지를 짧은 시간에 전달합니다.</li>
+        <li>터치스크린: 손가락이 가까워질 때 정전 용량 변화로 입력을 감지합니다.</li>
+        <li>전기차 회생 제동: 짧은 시간에 에너지를 저장하고 다시 쓰는 장치 설계와 연결됩니다.</li>
+      </ul>
+
+      <h3>교과서 연계</h3>
+      <p>물리학 II편 p92~97</p>
+      <p>축전기, 전기 용량, 저장 에너지, 유전체 효과를 한 장면 안에서 3D 구조와 그래프로 함께 재구성했습니다.</p>
+    </div>
+
+    <div id="scene-title">
+      <div class="eyebrow">Physics II Interactive Lab</div>
+      <h1>축전기의 원리와 활용</h1>
+      <p>평행판 축전기의 전하 저장, 유전체 효과, 그리고 충전·방전 과정을 3D 구조와 Q-V / Q-t 그래프로 함께 탐구합니다.</p>
+    </div>
+
+    <div id="status-chip" data-mode="ready">
+      <div class="title" id="status-title">충전 전 상태</div>
+      <div class="body" id="status-body">전압, 판 간격, 판 면적을 바꾼 뒤 충전 시작을 눌러 보세요. 오른쪽 그래프에서는 기울기 C와 면적 1/2QV를 함께 확인할 수 있습니다.</div>
+    </div>
+
+    <div id="gui-mount"></div>
+
+    <div id="formula-panel">
+      <div class="panel-title">🔋 축전기의 원리와 활용</div>
+      <div class="panel-sub">평행판 축전기의 저장 전하와 에너지를 실시간으로 확인합니다.</div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">전압 V</span><span class="value" id="formula-voltage">0.00 V</span></div>
+      <div class="line"><span class="label">판 간격 d</span><span class="value" id="formula-gap">0.0000 m</span></div>
+      <div class="line"><span class="label">판 면적 A</span><span class="value" id="formula-area">0.0000 m²</span></div>
+      <div class="line"><span class="label">전기 용량 C</span><span class="value" id="formula-capacitance">0 F</span></div>
+      <div class="line"><span class="label">유전 상수 ε</span><span class="value" id="formula-epsilon">1</span></div>
+      <div class="divider"></div>
+      <div class="line"><span class="label">전하량 Q</span><span class="value" id="formula-charge">0 C</span></div>
+      <div class="line"><span class="label">저장 에너지 U</span><span class="value" id="formula-energy">0 J</span></div>
+      <div class="line"><span class="label">전기장 E</span><span class="value" id="formula-field">0 V/m</span></div>
+      <div class="highlight">
+        <div class="mono">전기 용량: C = Q / V = εε₀A / d</div>
+        <div class="mono" id="formula-qv">전하량: Q = CV = 0 C</div>
+        <div class="mono" id="formula-u">저장 에너지: U = 1/2 CV² = 0 J</div>
+        <div style="margin-top:8px; color:var(--text-dim);" id="formula-note">유전체 삽입 → C 증가, 같은 V에서 더 많은 전하 저장</div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="graph-panel">
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="graph-header">
+      <h2>Q-V 그래프와 충전/방전 추적</h2>
+      <p>위 그래프는 <strong>Q = CV</strong> 직선과 저장 에너지 <strong>U = 1/2QV</strong> 면적을, 아래 그래프는 충전·방전 중의 <strong>Q-t</strong> 변화를 함께 보여줍니다.</p>
+      <div id="graph-legend">
+        <div class="legend-chip"><span class="dot" style="background:#44ff88;"></span>Q-V 직선</div>
+        <div class="legend-chip"><span class="dot" style="background:#ffd45b;"></span>저장 에너지 면적</div>
+        <div class="legend-chip"><span class="dot" style="background:#6ee6ff;"></span>현재 상태 점</div>
+        <div class="legend-chip"><span class="dot" style="background:#ffb66a;"></span>Q-t 이력</div>
+      </div>
+    </div>
+
+    <div id="metric-grid">
+      <div class="metric-card">
+        <div class="label">Capacitance</div>
+        <strong id="metric-capacitance">0 F</strong>
+        <p id="metric-capacitance-body">기울기 C가 클수록 같은 전압에서 더 많은 전하를 저장합니다.</p>
+      </div>
+      <div class="metric-card">
+        <div class="label">Stored Charge</div>
+        <strong id="metric-charge">0 C</strong>
+        <p id="metric-charge-body">현재 축적된 전하량입니다.</p>
+      </div>
+      <div class="metric-card">
+        <div class="label">Stored Energy</div>
+        <strong id="metric-energy">0 J</strong>
+        <p id="metric-energy-body">Q-V 그래프 아래 삼각형 면적과 같습니다.</p>
+      </div>
+      <div class="metric-card">
+        <div class="label">Electric Field</div>
+        <strong id="metric-field">0 V/m</strong>
+        <p id="metric-field-body">E = V / d 이므로 판 간격이 좁을수록 전기장이 강해집니다.</p>
+      </div>
+    </div>
+
+    <div id="usecase-panel">
+      <div class="heading">실생활 활용</div>
+      <div id="usecase-buttons">
+        <button class="usecase-btn active" data-app="flash">카메라 플래시</button>
+        <button class="usecase-btn" data-app="aed">심장 제세동기</button>
+        <button class="usecase-btn" data-app="touch">터치스크린</button>
+      </div>
+      <div id="usecase-title">카메라 플래시</div>
+      <p id="usecase-body">축전기를 천천히 충전해 에너지를 저장한 뒤, 촬영 순간에 매우 짧은 시간 동안 방전해 강한 빛을 냅니다. 충전 후 방전을 눌러 순간 효과를 확인해 보세요.</p>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const EPSILON_0 = 8.854e-12;
+const MAX_VOLTAGE = 12;
+const MAX_VISIBLE_CHARGES = 50;
+const FIELD_GRID_COUNT = 5;
+
+const scenePanelEl = document.getElementById('scene-panel');
+const graphPanelEl = document.getElementById('graph-panel');
+const sceneCanvasEl = document.getElementById('scene-canvas');
+const graphCanvasEl = document.getElementById('graph-canvas');
+const flashOverlayEl = document.getElementById('flash-overlay');
+const guideToggleEl = document.getElementById('guide-toggle');
+const guidePanelEl = document.getElementById('guide-panel');
+const guiMountEl = document.getElementById('gui-mount');
+
+const statusChipEl = document.getElementById('status-chip');
+const statusTitleEl = document.getElementById('status-title');
+const statusBodyEl = document.getElementById('status-body');
+
+const formulaVoltageEl = document.getElementById('formula-voltage');
+const formulaGapEl = document.getElementById('formula-gap');
+const formulaAreaEl = document.getElementById('formula-area');
+const formulaCapacitanceEl = document.getElementById('formula-capacitance');
+const formulaEpsilonEl = document.getElementById('formula-epsilon');
+const formulaChargeEl = document.getElementById('formula-charge');
+const formulaEnergyEl = document.getElementById('formula-energy');
+const formulaFieldEl = document.getElementById('formula-field');
+const formulaQvEl = document.getElementById('formula-qv');
+const formulaUEl = document.getElementById('formula-u');
+const formulaNoteEl = document.getElementById('formula-note');
+
+const metricCapacitanceEl = document.getElementById('metric-capacitance');
+const metricCapacitanceBodyEl = document.getElementById('metric-capacitance-body');
+const metricChargeEl = document.getElementById('metric-charge');
+const metricChargeBodyEl = document.getElementById('metric-charge-body');
+const metricEnergyEl = document.getElementById('metric-energy');
+const metricEnergyBodyEl = document.getElementById('metric-energy-body');
+const metricFieldEl = document.getElementById('metric-field');
+const metricFieldBodyEl = document.getElementById('metric-field-body');
+
+const usecaseButtons = Array.from(document.querySelectorAll('.usecase-btn'));
+const usecaseTitleEl = document.getElementById('usecase-title');
+const usecaseBodyEl = document.getElementById('usecase-body');
+
+const APPLICATIONS = {
+  flash: {
+    title: '카메라 플래시',
+    body: '축전기를 천천히 충전해 에너지를 저장한 뒤, 촬영 순간에 매우 짧은 시간 동안 방전해 강한 빛을 냅니다. 충전 후 방전을 눌러 순간 효과를 확인해 보세요.',
+    status: '카메라 플래시는 긴 충전 시간과 매우 짧은 방전 시간을 이용합니다.'
+  },
+  aed: {
+    title: '심장 제세동기',
+    body: 'AED는 축전기에 저장한 전기 에너지를 짧은 시간에 전달해 심장 리듬 회복을 돕습니다. 충분히 충전된 뒤 방전하면 펄스 링으로 전달 이미지를 보여줍니다.',
+    status: '제세동기는 저장된 에너지를 짧고 강한 전기 펄스로 전달합니다.'
+  },
+  touch: {
+    title: '터치스크린',
+    body: '터치스크린은 손가락이 가까워질 때 정전 용량이 바뀌는 것을 감지합니다. 유전체를 켜고 판 간격을 조절하며 정전 용량이 어떻게 달라지는지 함께 살펴보세요.',
+    status: '터치스크린은 정전 용량의 아주 작은 변화를 읽어 입력으로 바꿉니다.'
+  }
+};
+
+const params = {
+  voltage: 6,
+  plateGap: 3,
+  plateArea: 3,
+  dielectricEnabled: false,
+  dielectricConstant: 1,
+  showField: true,
+  chargeStart: () => startCharging(),
+  dischargeStart: () => startDischarging(),
+  reset: () => resetSimulation()
+};
+
+const runtime = {
+  mode: 'ready',
+  application: 'flash',
+  currentCharge: 0,
+  currentVoltage: 0,
+  chargeRate: 0,
+  elapsed: 0,
+  phaseTime: 0,
+  phaseHistory: [],
+  historySampleTime: 0,
+  referenceCharge: 1,
+  flashLevel: 0,
+  pulseLevel: 0,
+  touchPhase: 0
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a20);
+scene.fog = new THREE.Fog(0x0a0a20, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+camera.position.set(11, 6.2, 10);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: sceneCanvasEl,
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(0, 0.2, 0);
+controls.minDistance = 7;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+const pointLight = new THREE.PointLight(0xffffff, 0.5, 40);
+pointLight.position.set(8, 8, 10);
+scene.add(pointLight);
+
+const graphContext = graphCanvasEl.getContext('2d');
+const clock = new THREE.Clock();
+const tempObject = new THREE.Object3D();
+const tempVector = new THREE.Vector3();
+
+const starGeometry = new THREE.BufferGeometry();
+const starPositions = new Float32Array(180 * 3);
+for (let i = 0; i < 180; i += 1) {
+  const radius = 18 + Math.random() * 10;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.random() * Math.PI * 0.8;
+  starPositions[i * 3] = Math.cos(theta) * Math.sin(phi) * radius;
+  starPositions[i * 3 + 1] = Math.cos(phi) * radius * 0.45 + 6;
+  starPositions[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * radius;
+}
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starField = new THREE.Points(
+  starGeometry,
+  new THREE.PointsMaterial({ color: 0x8ea5ff, size: 0.08, transparent: true, opacity: 0.9 })
+);
+scene.add(starField);
+
+const floor = new THREE.Mesh(
+  new THREE.CylinderGeometry(9.6, 10.6, 0.3, 72),
+  new THREE.MeshStandardMaterial({
+    color: 0x121935,
+    roughness: 0.95,
+    metalness: 0.08
+  })
+);
+floor.position.set(0, -3.35, 0);
+scene.add(floor);
+
+const floorRing = new THREE.Mesh(
+  new THREE.TorusGeometry(8.2, 0.04, 14, 120),
+  new THREE.MeshBasicMaterial({ color: 0x274b8a, transparent: true, opacity: 0.25 })
+);
+floorRing.rotation.x = Math.PI / 2;
+floorRing.position.y = -3.16;
+scene.add(floorRing);
+
+const capacitorGroup = new THREE.Group();
+scene.add(capacitorGroup);
+
+const plateGeometry = new THREE.PlaneGeometry(1, 1);
+const plateEdgeGeometry = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.02, 1.02));
+
+const positivePlateMaterial = new THREE.MeshStandardMaterial({
+  color: 0xff4444,
+  metalness: 0.75,
+  roughness: 0.22,
+  emissive: 0x3a0d12,
+  emissiveIntensity: 0.45,
+  side: THREE.DoubleSide
+});
+const negativePlateMaterial = new THREE.MeshStandardMaterial({
+  color: 0x4444ff,
+  metalness: 0.75,
+  roughness: 0.22,
+  emissive: 0x10173a,
+  emissiveIntensity: 0.45,
+  side: THREE.DoubleSide
+});
+
+const positivePlate = new THREE.Mesh(plateGeometry, positivePlateMaterial);
+positivePlate.rotation.y = Math.PI / 2;
+capacitorGroup.add(positivePlate);
+
+const negativePlate = new THREE.Mesh(plateGeometry, negativePlateMaterial);
+negativePlate.rotation.y = Math.PI / 2;
+capacitorGroup.add(negativePlate);
+
+const positiveEdge = new THREE.LineSegments(
+  plateEdgeGeometry,
+  new THREE.LineBasicMaterial({ color: 0xffb0b0, transparent: true, opacity: 0.7 })
+);
+positiveEdge.rotation.y = Math.PI / 2;
+capacitorGroup.add(positiveEdge);
+
+const negativeEdge = new THREE.LineSegments(
+  plateEdgeGeometry,
+  new THREE.LineBasicMaterial({ color: 0xaebaff, transparent: true, opacity: 0.7 })
+);
+negativeEdge.rotation.y = Math.PI / 2;
+capacitorGroup.add(negativeEdge);
+
+const dielectricMaterial = new THREE.MeshStandardMaterial({
+  color: 0xffcc44,
+  transparent: true,
+  opacity: 0.3,
+  emissive: 0x3b2d08,
+  emissiveIntensity: 0.5
+});
+const dielectricMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), dielectricMaterial);
+capacitorGroup.add(dielectricMesh);
+
+const positiveLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createTextTexture('+', '#ffd6d6', '#550000'),
+  transparent: true,
+  depthWrite: false
+}));
+positiveLabel.scale.set(0.84, 0.84, 1);
+capacitorGroup.add(positiveLabel);
+
+const negativeLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createTextTexture('−', '#dce3ff', '#06144e'),
+  transparent: true,
+  depthWrite: false
+}));
+negativeLabel.scale.set(0.84, 0.84, 1);
+capacitorGroup.add(negativeLabel);
+
+const chargeGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+const positiveChargeMaterial = new THREE.MeshStandardMaterial({
+  color: 0xff6666,
+  emissive: 0xff3e3e,
+  emissiveIntensity: 0.5,
+  metalness: 0.12,
+  roughness: 0.28
+});
+const negativeChargeMaterial = new THREE.MeshStandardMaterial({
+  color: 0x6c8cff,
+  emissive: 0x4366ff,
+  emissiveIntensity: 0.5,
+  metalness: 0.12,
+  roughness: 0.28
+});
+
+const positiveCharges = new THREE.InstancedMesh(chargeGeometry, positiveChargeMaterial, MAX_VISIBLE_CHARGES);
+positiveCharges.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+positiveCharges.count = 0;
+capacitorGroup.add(positiveCharges);
+
+const negativeCharges = new THREE.InstancedMesh(chargeGeometry, negativeChargeMaterial, MAX_VISIBLE_CHARGES);
+negativeCharges.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+negativeCharges.count = 0;
+capacitorGroup.add(negativeCharges);
+
+const fieldGroup = new THREE.Group();
+capacitorGroup.add(fieldGroup);
+const fieldArrows = [];
+for (let i = 0; i < FIELD_GRID_COUNT * FIELD_GRID_COUNT; i += 1) {
+  const arrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(),
+    1,
+    0x44ff88,
+    0.24,
+    0.12
+  );
+  arrow.line.material.transparent = true;
+  arrow.cone.material.transparent = true;
+  fieldGroup.add(arrow);
+  fieldArrows.push(arrow);
+}
+
+const batteryGroup = new THREE.Group();
+scene.add(batteryGroup);
+batteryGroup.position.set(-6.4, -1.35, 0);
+
+const batteryBody = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, 2.2, 0.9),
+  new THREE.MeshStandardMaterial({
+    color: 0x1b233d,
+    metalness: 0.42,
+    roughness: 0.38
+  })
+);
+batteryGroup.add(batteryBody);
+
+const batteryTopCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.14, 0.14, 0.18, 24),
+  new THREE.MeshStandardMaterial({ color: 0xff7b7b, emissive: 0x662020, emissiveIntensity: 0.4 })
+);
+batteryTopCap.rotation.z = Math.PI / 2;
+batteryTopCap.position.set(0.78, 0.42, 0);
+batteryGroup.add(batteryTopCap);
+
+const batteryBottomCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.11, 0.11, 0.16, 24),
+  new THREE.MeshStandardMaterial({ color: 0x7ea2ff, emissive: 0x203066, emissiveIntensity: 0.35 })
+);
+batteryBottomCap.rotation.z = Math.PI / 2;
+batteryBottomCap.position.set(0.78, -0.42, 0);
+batteryGroup.add(batteryBottomCap);
+
+const batteryPlusLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createTextTexture('+', '#ffe6e6', '#661111'),
+  transparent: true,
+  depthWrite: false
+}));
+batteryPlusLabel.position.set(-0.18, 0.54, 0.46);
+batteryPlusLabel.scale.set(0.56, 0.56, 1);
+batteryGroup.add(batteryPlusLabel);
+
+const batteryMinusLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createTextTexture('−', '#e8efff', '#13265e'),
+  transparent: true,
+  depthWrite: false
+}));
+batteryMinusLabel.position.set(-0.18, -0.54, 0.46);
+batteryMinusLabel.scale.set(0.56, 0.56, 1);
+batteryGroup.add(batteryMinusLabel);
+
+const bulbGroup = new THREE.Group();
+scene.add(bulbGroup);
+bulbGroup.position.set(6.35, -1.4, 0);
+
+const bulbBase = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.34, 0.42, 0.72, 28),
+  new THREE.MeshStandardMaterial({
+    color: 0x666b82,
+    metalness: 0.65,
+    roughness: 0.32
+  })
+);
+bulbBase.position.y = -0.56;
+bulbGroup.add(bulbBase);
+
+const bulbGlassMaterial = new THREE.MeshStandardMaterial({
+  color: 0xcde4ff,
+  transparent: true,
+  opacity: 0.34,
+  emissive: 0xffd47a,
+  emissiveIntensity: 0.08,
+  metalness: 0.05,
+  roughness: 0.12
+});
+const bulbGlass = new THREE.Mesh(new THREE.SphereGeometry(0.62, 28, 28), bulbGlassMaterial);
+bulbGlass.position.y = 0.2;
+bulbGroup.add(bulbGlass);
+
+const filament = new THREE.Mesh(
+  new THREE.TorusGeometry(0.12, 0.018, 10, 36),
+  new THREE.MeshBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.5 })
+);
+filament.rotation.x = Math.PI / 2;
+filament.position.y = 0.02;
+bulbGroup.add(filament);
+
+const bulbLight = new THREE.PointLight(0xffd27d, 0, 7, 2.2);
+bulbLight.position.set(0, 0.2, 0);
+bulbGroup.add(bulbLight);
+
+const pulseSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createRingTexture('#86ffd8'),
+  transparent: true,
+  opacity: 0,
+  depthWrite: false
+}));
+pulseSprite.position.set(6.35, -0.2, 0);
+pulseSprite.scale.set(1.8, 1.8, 1);
+scene.add(pulseSprite);
+
+const touchSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createRingTexture('#7fe8ff'),
+  transparent: true,
+  opacity: 0,
+  depthWrite: false
+}));
+touchSprite.scale.set(2.3, 2.3, 1);
+capacitorGroup.add(touchSprite);
+
+const wireGroup = new THREE.Group();
+scene.add(wireGroup);
+
+let wireCurves = {
+  chargeFeed: null,
+  returnPath: null,
+  dischargeA: null,
+  dischargeB: null,
+  dischargeCombined: null
+};
+
+const wireLines = {
+  chargeFeed: null,
+  returnPath: null,
+  dischargeA: null,
+  dischargeB: null
+};
+
+const chargeFeedParticles = createFlowParticles(8);
+const chargeReturnParticles = createFlowParticles(8);
+const dischargeParticles = createFlowParticles(10);
+
+const gui = new GUI({ container: guiMountEl, title: '컨트롤 패널' });
+const voltageController = gui.add(params, 'voltage', 1, 12, 1).name('전압 V').onChange(() => handleParamChange());
+const gapController = gui.add(params, 'plateGap', 1, 6, 0.5).name('판 간격 d').onChange(() => handleParamChange());
+const areaController = gui.add(params, 'plateArea', 1, 5, 1).name('판 면적').onChange(() => handleParamChange());
+const dielectricController = gui.add(params, 'dielectricEnabled').name('유전체').onChange(() => handleParamChange());
+const epsilonController = gui.add(params, 'dielectricConstant', 1, 10, 1).name('유전 상수 ε').onChange(() => handleParamChange());
+gui.add(params, 'chargeStart').name('충전 시작');
+gui.add(params, 'dischargeStart').name('방전 시작');
+gui.add(params, 'showField').name('전기장 표시').onChange(() => handleParamChange());
+gui.add(params, 'reset').name('초기화');
+
+guideToggleEl.addEventListener('click', () => {
+  guidePanelEl.classList.toggle('open');
+});
+
+usecaseButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    runtime.application = button.dataset.app;
+    updateUsecasePanel();
+    updateStatusPanel();
+  });
+});
+
+window.addEventListener('resize', () => {
+  resizeRenderer();
+  resizeGraphCanvas();
+});
+
+function createTextTexture(text, backgroundColor, textColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = backgroundColor;
+  ctx.beginPath();
+  ctx.arc(128, 128, 104, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.36)';
+  ctx.beginPath();
+  ctx.arc(100, 96, 36, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = textColor;
+  ctx.font = 'bold 150px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 136);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createRingTexture(color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(128, 128, 28, 128, 128, 112);
+  gradient.addColorStop(0, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.55, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.72, color);
+  gradient.addColorStop(0.82, 'rgba(255,255,255,0.18)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 256, 256);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createFlowParticles(count) {
+  return Array.from({ length: count }, (_, index) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 14, 14),
+      new THREE.MeshBasicMaterial({ color: 0xffd45b, transparent: true, opacity: 0.9 })
+    );
+    mesh.visible = false;
+    scene.add(mesh);
+    return {
+      mesh,
+      offset: index / count
+    };
+  });
+}
+
+function getScenePlateSize() {
+  return params.plateArea;
+}
+
+function getPhysicalPlateSideMeters() {
+  return 0.08 + params.plateArea * 0.05;
+}
+
+function getPhysicalArea() {
+  const side = getPhysicalPlateSideMeters();
+  return side * side;
+}
+
+function getPhysicalGap() {
+  return params.plateGap * 0.0025;
+}
+
+function getEffectiveEpsilon() {
+  return params.dielectricEnabled ? params.dielectricConstant : 1;
+}
+
+function getCapacitance() {
+  return getEffectiveEpsilon() * EPSILON_0 * getPhysicalArea() / getPhysicalGap();
+}
+
+function getMaxCapacitance() {
+  const maxAreaSide = 0.08 + 5 * 0.05;
+  const maxArea = maxAreaSide * maxAreaSide;
+  const minGap = 1 * 0.0025;
+  return 10 * EPSILON_0 * maxArea / minGap;
+}
+
+function getMaxCharge() {
+  return getMaxCapacitance() * MAX_VOLTAGE;
+}
+
+function getTargetCharge() {
+  return getCapacitance() * params.voltage;
+}
+
+function getStoredEnergy() {
+  return 0.5 * runtime.currentCharge * runtime.currentVoltage;
+}
+
+function getElectricField() {
+  return getPhysicalGap() > 0 ? runtime.currentVoltage / getPhysicalGap() : 0;
+}
+
+function buildWireCurves() {
+  const size = getScenePlateSize();
+  const gap = params.plateGap;
+  const positivePlatePoint = new THREE.Vector3(-gap / 2 + 0.03, -size * 0.34, 0);
+  const negativePlatePoint = new THREE.Vector3(gap / 2 - 0.03, -size * 0.34, 0);
+  const batteryPositive = batteryGroup.position.clone().add(new THREE.Vector3(0.78, 0.42, 0));
+  const batteryNegative = batteryGroup.position.clone().add(new THREE.Vector3(0.78, -0.42, 0));
+  const bulbLeft = bulbGroup.position.clone().add(new THREE.Vector3(-0.72, -0.08, 0));
+  const bulbRight = bulbGroup.position.clone().add(new THREE.Vector3(0.72, -0.08, 0));
+
+  const chargeFeed = new THREE.CatmullRomCurve3([
+    batteryNegative,
+    new THREE.Vector3(-4.9, -2.15, 0),
+    new THREE.Vector3(0.8, -2.55, 0),
+    new THREE.Vector3(negativePlatePoint.x, -1.68, 0),
+    negativePlatePoint
+  ]);
+
+  const returnPath = new THREE.CatmullRomCurve3([
+    positivePlatePoint,
+    new THREE.Vector3(positivePlatePoint.x, 1.94, 0),
+    new THREE.Vector3(-2.7, 2.46, 0),
+    new THREE.Vector3(-5.2, 1.7, 0),
+    batteryPositive
+  ]);
+
+  const dischargeA = new THREE.CatmullRomCurve3([
+    negativePlatePoint,
+    new THREE.Vector3(negativePlatePoint.x, -1.82, 0),
+    new THREE.Vector3(3.6, -2.18, 0),
+    bulbLeft
+  ]);
+
+  const dischargeB = new THREE.CatmullRomCurve3([
+    bulbRight,
+    new THREE.Vector3(3.1, 2.12, 0),
+    new THREE.Vector3(-1.4, 2.3, 0),
+    new THREE.Vector3(positivePlatePoint.x, 1.84, 0),
+    positivePlatePoint
+  ]);
+
+  const dischargeCombined = new THREE.CatmullRomCurve3([
+    negativePlatePoint,
+    new THREE.Vector3(negativePlatePoint.x, -1.82, 0),
+    new THREE.Vector3(3.6, -2.18, 0),
+    bulbLeft,
+    bulbGroup.position.clone(),
+    bulbRight,
+    new THREE.Vector3(3.1, 2.12, 0),
+    new THREE.Vector3(-1.4, 2.3, 0),
+    new THREE.Vector3(positivePlatePoint.x, 1.84, 0),
+    positivePlatePoint
+  ]);
+
+  return { chargeFeed, returnPath, dischargeA, dischargeB, dischargeCombined };
+}
+
+function disposeGroup(group) {
+  while (group.children.length) {
+    const child = group.children.pop();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
+      else child.material.dispose();
+    }
+    group.remove(child);
+  }
+}
+
+function createWireLine(curve, color) {
+  const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(80));
+  const material = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.34
+  });
+  return new THREE.Line(geometry, material);
+}
+
+function rebuildWires() {
+  disposeGroup(wireGroup);
+  wireCurves = buildWireCurves();
+
+  wireLines.chargeFeed = createWireLine(wireCurves.chargeFeed, 0xffd45b);
+  wireLines.returnPath = createWireLine(wireCurves.returnPath, 0xffd45b);
+  wireLines.dischargeA = createWireLine(wireCurves.dischargeA, 0xffb66a);
+  wireLines.dischargeB = createWireLine(wireCurves.dischargeB, 0xffb66a);
+
+  wireGroup.add(wireLines.chargeFeed, wireLines.returnPath, wireLines.dischargeA, wireLines.dischargeB);
+}
+
+function handleParamChange() {
+  refreshSceneConfiguration();
+  syncGuiDisplay();
+}
+
+function startCharging() {
+  runtime.mode = 'charging';
+  runtime.phaseTime = 0;
+  runtime.historySampleTime = 0;
+  runtime.phaseHistory = [];
+  runtime.referenceCharge = Math.max(runtime.currentCharge, getTargetCharge(), getMaxCharge() * 0.14);
+  pushPhaseHistory();
+  updateStatusPanel();
+}
+
+function startDischarging() {
+  runtime.mode = 'discharging';
+  runtime.phaseTime = 0;
+  runtime.historySampleTime = 0;
+  runtime.phaseHistory = [];
+  runtime.referenceCharge = Math.max(runtime.currentCharge, getTargetCharge(), getMaxCharge() * 0.14);
+  if (runtime.application === 'flash' && runtime.currentCharge > getMaxCharge() * 0.03) {
+    runtime.flashLevel = 1;
+  }
+  if (runtime.application === 'aed' && runtime.currentCharge > getMaxCharge() * 0.03) {
+    runtime.pulseLevel = 1;
+  }
+  pushPhaseHistory();
+  updateStatusPanel();
+}
+
+function resetSimulation() {
+  runtime.mode = 'ready';
+  runtime.currentCharge = 0;
+  runtime.currentVoltage = 0;
+  runtime.chargeRate = 0;
+  runtime.phaseTime = 0;
+  runtime.historySampleTime = 0;
+  runtime.phaseHistory = [];
+  runtime.flashLevel = 0;
+  runtime.pulseLevel = 0;
+  refreshSceneConfiguration();
+  updateStatusPanel();
+}
+
+function pushPhaseHistory() {
+  runtime.phaseHistory.push({
+    t: runtime.phaseTime,
+    q: runtime.currentCharge
+  });
+  if (runtime.phaseHistory.length > 360) {
+    runtime.phaseHistory.shift();
+  }
+}
+
+function updatePhysics(deltaTime) {
+  runtime.elapsed += deltaTime;
+  runtime.touchPhase += deltaTime;
+
+  const previousCharge = runtime.currentCharge;
+  const currentCapacitance = getCapacitance();
+  const chargeTarget = runtime.mode === 'charging' || runtime.mode === 'charged' ? getTargetCharge() : 0;
+  const chargeDifference = chargeTarget - runtime.currentCharge;
+
+  if (runtime.mode === 'charging' || runtime.mode === 'charged') {
+    const timeConstant = 0.46 + (currentCapacitance / getMaxCapacitance()) * 1.2;
+    const alpha = 1 - Math.exp(-deltaTime / timeConstant);
+    runtime.currentCharge += chargeDifference * alpha;
+    if (Math.abs(chargeDifference) < runtime.referenceCharge * 0.004 + 1e-15) {
+      runtime.currentCharge = chargeTarget;
+      runtime.mode = 'charged';
+    } else {
+      runtime.mode = 'charging';
+    }
+  } else if (runtime.mode === 'discharging') {
+    const timeConstant = 0.42 + (currentCapacitance / getMaxCapacitance()) * 1.35;
+    const alpha = 1 - Math.exp(-deltaTime / timeConstant);
+    runtime.currentCharge += (0 - runtime.currentCharge) * alpha;
+    if (runtime.currentCharge < runtime.referenceCharge * 0.004 + 1e-15) {
+      runtime.currentCharge = 0;
+      runtime.mode = 'ready';
+    }
+  }
+
+  runtime.currentVoltage = currentCapacitance > 0 ? runtime.currentCharge / currentCapacitance : 0;
+  runtime.chargeRate = (runtime.currentCharge - previousCharge) / Math.max(deltaTime, 1e-6);
+
+  runtime.phaseTime += deltaTime;
+  runtime.historySampleTime += deltaTime;
+  if ((runtime.mode === 'charging' || runtime.mode === 'charged' || runtime.mode === 'discharging') && runtime.historySampleTime >= 0.045) {
+    runtime.historySampleTime = 0;
+    pushPhaseHistory();
+  }
+
+  runtime.flashLevel = Math.max(0, runtime.flashLevel - deltaTime * 2.4);
+  runtime.pulseLevel = Math.max(0, runtime.pulseLevel - deltaTime * 1.35);
+}
+
+function refreshSceneConfiguration() {
+  const size = getScenePlateSize();
+  const gap = params.plateGap;
+  const epsilon = getEffectiveEpsilon();
+
+  positivePlate.scale.set(size, size, 1);
+  negativePlate.scale.set(size, size, 1);
+  positiveEdge.scale.set(size, size, 1);
+  negativeEdge.scale.set(size, size, 1);
+
+  positivePlate.position.set(-gap / 2, 0, 0);
+  negativePlate.position.set(gap / 2, 0, 0);
+  positiveEdge.position.copy(positivePlate.position);
+  negativeEdge.position.copy(negativePlate.position);
+
+  dielectricMesh.visible = params.dielectricEnabled;
+  dielectricMesh.position.set(0, 0, 0);
+  dielectricMesh.scale.set(Math.max(gap - 0.22, 0.2), size * 0.92, size * 0.92);
+  dielectricMaterial.opacity = params.dielectricEnabled ? 0.24 + epsilon * 0.012 : 0.3;
+
+  positiveLabel.position.set(-gap / 2 - 0.22, size * 0.56, 0);
+  negativeLabel.position.set(gap / 2 + 0.22, size * 0.56, 0);
+
+  touchSprite.position.set(0, 0, 0);
+
+  rebuildWires();
+  updateChargeInstances();
+  updateFieldArrows();
+  updateCircuitAppearance();
+  updateAccessoryEffects();
+  updateFormulaPanel();
+  updateMetricCards();
+  updateUsecasePanel();
+  updateStatusPanel();
+}
+
+function updateChargeInstances() {
+  const normalizedCharge = THREE.MathUtils.clamp(runtime.currentCharge / Math.max(getMaxCharge(), 1e-18), 0, 1);
+  const visibleCount = runtime.currentCharge > 0 ? Math.max(2, Math.round(normalizedCharge * MAX_VISIBLE_CHARGES)) : 0;
+  const size = getScenePlateSize();
+  const gap = params.plateGap;
+  const gridDimension = Math.ceil(Math.sqrt(MAX_VISIBLE_CHARGES));
+  const spacing = size / gridDimension;
+  const positiveX = -gap / 2 + 0.09;
+  const negativeX = gap / 2 - 0.09;
+
+  for (let index = 0; index < MAX_VISIBLE_CHARGES; index += 1) {
+    const row = Math.floor(index / gridDimension);
+    const column = index % gridDimension;
+    const baseY = -size / 2 + spacing * (row + 0.5);
+    const baseZ = -size / 2 + spacing * (column + 0.5);
+    const jitterY = ((((index * 13) % 7) / 7) - 0.5) * spacing * 0.24;
+    const jitterZ = ((((index * 17) % 11) / 11) - 0.5) * spacing * 0.24;
+
+    tempObject.position.set(positiveX, baseY + jitterY, baseZ + jitterZ);
+    tempObject.scale.setScalar(index < visibleCount ? 1 : 0.0001);
+    tempObject.updateMatrix();
+    positiveCharges.setMatrixAt(index, tempObject.matrix);
+
+    tempObject.position.set(negativeX, baseY + jitterY, baseZ + jitterZ);
+    tempObject.scale.setScalar(index < visibleCount ? 1 : 0.0001);
+    tempObject.updateMatrix();
+    negativeCharges.setMatrixAt(index, tempObject.matrix);
+  }
+
+  positiveCharges.count = visibleCount;
+  negativeCharges.count = visibleCount;
+  positiveCharges.instanceMatrix.needsUpdate = true;
+  negativeCharges.instanceMatrix.needsUpdate = true;
+}
+
+function updateFieldArrows() {
+  const size = getScenePlateSize();
+  const gap = params.plateGap;
+  const fieldStrength = getElectricField();
+  const maxFieldStrength = MAX_VOLTAGE / 0.0025;
+  const intensity = THREE.MathUtils.clamp(fieldStrength / maxFieldStrength, 0, 1);
+  const arrowLength = THREE.MathUtils.clamp(gap - 0.34, 0.4, 5.6);
+  const padding = size * 0.36;
+
+  let index = 0;
+  for (let row = 0; row < FIELD_GRID_COUNT; row += 1) {
+    for (let column = 0; column < FIELD_GRID_COUNT; column += 1) {
+      const arrow = fieldArrows[index];
+      const y = THREE.MathUtils.lerp(-padding, padding, FIELD_GRID_COUNT === 1 ? 0.5 : row / (FIELD_GRID_COUNT - 1));
+      const z = THREE.MathUtils.lerp(-padding, padding, FIELD_GRID_COUNT === 1 ? 0.5 : column / (FIELD_GRID_COUNT - 1));
+      arrow.position.set(-gap / 2 + 0.17, y, z);
+      arrow.setDirection(new THREE.Vector3(1, 0, 0));
+      arrow.setLength(arrowLength, 0.22 + intensity * 0.14, 0.12 + intensity * 0.09);
+      arrow.visible = params.showField && runtime.currentCharge > 1e-15;
+      arrow.line.material.opacity = 0.2 + intensity * 0.75;
+      arrow.cone.material.opacity = 0.2 + intensity * 0.75;
+      index += 1;
+    }
+  }
+}
+
+function updateCircuitAppearance() {
+  const chargingActive = runtime.mode === 'charging' || runtime.mode === 'charged';
+  const dischargingActive = runtime.mode === 'discharging';
+
+  if (wireLines.chargeFeed) wireLines.chargeFeed.material.opacity = chargingActive ? 0.92 : 0.26;
+  if (wireLines.returnPath) wireLines.returnPath.material.opacity = chargingActive ? 0.92 : 0.26;
+  if (wireLines.dischargeA) wireLines.dischargeA.material.opacity = dischargingActive ? 0.92 : 0.22;
+  if (wireLines.dischargeB) wireLines.dischargeB.material.opacity = dischargingActive ? 0.92 : 0.22;
+
+  batteryTopCap.material.emissiveIntensity = chargingActive ? 1.2 : 0.4;
+  batteryBottomCap.material.emissiveIntensity = chargingActive ? 1.0 : 0.35;
+}
+
+function updateAccessoryEffects() {
+  const dischargeStrength = runtime.mode === 'discharging'
+    ? THREE.MathUtils.clamp(Math.abs(runtime.chargeRate) / Math.max(runtime.referenceCharge * 2.8, 1e-18), 0, 1)
+    : 0;
+
+  bulbGlassMaterial.emissiveIntensity = 0.08 + dischargeStrength * 1.25;
+  bulbGlassMaterial.opacity = 0.34 + dischargeStrength * 0.16;
+  filament.material.opacity = 0.5 + dischargeStrength * 0.5;
+  bulbLight.intensity = dischargeStrength * 4.8;
+
+  if (runtime.application === 'aed') {
+    pulseSprite.material.opacity = runtime.pulseLevel * 0.88;
+    pulseSprite.scale.setScalar(1.8 + (1 - runtime.pulseLevel) * 2.6);
+    pulseSprite.visible = runtime.pulseLevel > 0.02;
+  } else {
+    pulseSprite.material.opacity = 0;
+    pulseSprite.visible = false;
+  }
+
+  if (runtime.application === 'touch') {
+    const touchStrength = 0.45 + Math.sin(runtime.touchPhase * 2.2) * 0.22 + (params.dielectricEnabled ? 0.18 : 0);
+    touchSprite.material.opacity = Math.max(0.08, touchStrength * 0.42);
+    touchSprite.scale.setScalar(1.7 + touchStrength * 1.2);
+    dielectricMaterial.emissiveIntensity = params.dielectricEnabled ? 0.45 + touchStrength * 0.45 : 0.28;
+    touchSprite.visible = true;
+  } else {
+    touchSprite.material.opacity = 0;
+    touchSprite.visible = false;
+    dielectricMaterial.emissiveIntensity = params.dielectricEnabled ? 0.42 : 0.2;
+  }
+
+  flashOverlayEl.style.opacity = String(runtime.application === 'flash' ? runtime.flashLevel : 0);
+}
+
+function updateFlowParticles() {
+  const chargingVisible = runtime.mode === 'charging' || runtime.mode === 'charged';
+  const chargeStrength = chargingVisible
+    ? THREE.MathUtils.clamp(Math.abs(getTargetCharge() - runtime.currentCharge) / Math.max(runtime.referenceCharge, 1e-18), 0.08, 1)
+    : 0;
+  const dischargeStrength = runtime.mode === 'discharging'
+    ? THREE.MathUtils.clamp(Math.abs(runtime.currentCharge) / Math.max(runtime.referenceCharge, 1e-18), 0.08, 1)
+    : 0;
+
+  updateParticleArray(chargeFeedParticles, wireCurves.chargeFeed, chargeStrength, false, chargingVisible);
+  updateParticleArray(chargeReturnParticles, wireCurves.returnPath, chargeStrength, true, chargingVisible);
+  updateParticleArray(dischargeParticles, wireCurves.dischargeCombined, dischargeStrength, false, runtime.mode === 'discharging');
+}
+
+function updateParticleArray(particles, curve, strength, reverse, visible) {
+  particles.forEach((particle) => {
+    if (!visible || !curve) {
+      particle.mesh.visible = false;
+      return;
+    }
+
+    const speed = 0.15 + strength * 0.45;
+    const rawT = (runtime.elapsed * speed + particle.offset) % 1;
+    const t = reverse ? 1 - rawT : rawT;
+    curve.getPointAt(t, tempVector);
+    particle.mesh.position.copy(tempVector);
+    particle.mesh.visible = true;
+    particle.mesh.material.opacity = 0.38 + strength * 0.62;
+  });
+}
+
+function updateFormulaPanel() {
+  const capacitance = getCapacitance();
+  const energy = getStoredEnergy();
+  const electricField = getElectricField();
+  const epsilon = getEffectiveEpsilon();
+
+  formulaVoltageEl.textContent = `${runtime.currentVoltage.toFixed(2)} V (설정 ${params.voltage.toFixed(0)} V)`;
+  formulaGapEl.textContent = `${formatNumber(getPhysicalGap(), 4)} m`;
+  formulaAreaEl.textContent = `${formatNumber(getPhysicalArea(), 4)} m²`;
+  formulaCapacitanceEl.textContent = formatSI(capacitance, 'F');
+  formulaEpsilonEl.textContent = `${epsilon}`;
+  formulaChargeEl.textContent = formatSI(runtime.currentCharge, 'C');
+  formulaEnergyEl.textContent = formatSI(energy, 'J');
+  formulaFieldEl.textContent = formatElectricField(electricField);
+  formulaQvEl.textContent = `전하량: Q = CV = ${formatSI(runtime.currentCharge, 'C')}`;
+  formulaUEl.textContent = `저장 에너지: U = 1/2 CV² = ${formatSI(energy, 'J')}`;
+  formulaNoteEl.textContent = params.dielectricEnabled
+    ? `유전체 삽입 → 전기 용량이 ${epsilon.toFixed(0)}배 커져 같은 전압에서 더 많은 전하를 저장합니다.`
+    : '유전체를 켜면 극판 사이 전기장이 바뀌고, 같은 전압에서 저장 가능한 전하량이 증가합니다.';
+}
+
+function updateMetricCards() {
+  const capacitance = getCapacitance();
+  const energy = getStoredEnergy();
+  const electricField = getElectricField();
+  const slopeBoost = getEffectiveEpsilon();
+
+  metricCapacitanceEl.textContent = formatSI(capacitance, 'F');
+  metricCapacitanceBodyEl.textContent = params.dielectricEnabled
+    ? `유전체가 들어가 기울기 C가 ${slopeBoost.toFixed(0)}배 커졌습니다.`
+    : '기울기 C는 판 면적이 클수록 커지고, 판 간격이 좁을수록 커집니다.';
+
+  metricChargeEl.textContent = formatSI(runtime.currentCharge, 'C');
+  metricChargeBodyEl.textContent = runtime.mode === 'discharging'
+    ? '방전 중이라 축적 전하가 지수적으로 감소하고 있습니다.'
+    : '현재 조건에서 축전기에 쌓인 전하량을 의미합니다.';
+
+  metricEnergyEl.textContent = formatSI(energy, 'J');
+  metricEnergyBodyEl.textContent = 'Q-V 그래프 아래 삼각형 면적과 저장 에너지가 서로 대응합니다.';
+
+  metricFieldEl.textContent = formatElectricField(electricField);
+  metricFieldBodyEl.textContent = params.showField
+    ? '초록 화살표는 양극판에서 음극판으로 향하는 균일 전기장을 나타냅니다.'
+    : '전기장 표시를 켜면 극판 사이 균일 전기장을 확인할 수 있습니다.';
+}
+
+function updateUsecasePanel() {
+  const content = APPLICATIONS[runtime.application];
+  usecaseTitleEl.textContent = content.title;
+  usecaseBodyEl.textContent = content.body;
+  usecaseButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.app === runtime.application);
+  });
+}
+
+function updateStatusPanel() {
+  const capacitance = getCapacitance();
+  const epsilon = getEffectiveEpsilon();
+  let title = '충전 전 상태';
+  let body = '전압, 판 간격, 판 면적을 바꾼 뒤 충전 시작을 눌러 보세요. 오른쪽 그래프에서는 기울기 C와 면적 1/2QV를 함께 확인할 수 있습니다.';
+
+  if (runtime.mode === 'charging') {
+    title = '축전기 충전 중';
+    body = `배터리가 연결되어 전자가 이동하고 있습니다. 현재 전하량은 ${formatSI(runtime.currentCharge, 'C')}이며, 목표 전압 ${params.voltage.toFixed(0)} V까지 서서히 접근합니다.`;
+  } else if (runtime.mode === 'charged') {
+    title = '충전 완료';
+    body = `축전기가 ${formatSI(capacitance, 'F')}의 전기 용량으로 ${formatSI(runtime.currentCharge, 'C')}를 저장했습니다. ${APPLICATIONS[runtime.application].status}`;
+  } else if (runtime.mode === 'discharging') {
+    title = '축전기 방전 중';
+    body = `저항(전구)을 통해 전하가 흘러 저장 에너지가 방출되고 있습니다. 남은 전하량은 ${formatSI(runtime.currentCharge, 'C')}입니다.`;
+  }
+
+  if (params.dielectricEnabled) {
+    body += ` 유전체 ε=${epsilon.toFixed(0)}가 삽입되어 같은 전압에서도 더 큰 C를 만듭니다.`;
+  }
+
+  statusChipEl.dataset.mode = runtime.mode;
+  statusTitleEl.textContent = title;
+  statusBodyEl.textContent = body;
+}
+
+function drawGraph() {
+  resizeGraphCanvas();
+  const pixelRatio = Math.min(window.devicePixelRatio, 2);
+  const width = graphCanvasEl.width / pixelRatio;
+  const height = graphCanvasEl.height / pixelRatio;
+
+  graphContext.clearRect(0, 0, width, height);
+
+  const topReserved = 120;
+  const bottomReserved = width < 720 ? 250 : 236;
+  const contentHeight = Math.max(260, height - topReserved - bottomReserved);
+  const qvHeight = contentHeight * 0.6;
+  const qtHeight = contentHeight - qvHeight - 26;
+  const qvRect = { x: 46, y: topReserved, w: width - 86, h: qvHeight };
+  const qtRect = { x: 46, y: topReserved + qvHeight + 26, w: width - 86, h: Math.max(96, qtHeight) };
+
+  drawPanelGrid(qvRect);
+  drawPanelGrid(qtRect);
+  drawQVGraph(qvRect);
+  drawQTGraph(qtRect);
+}
+
+function drawPanelGrid(rect) {
+  graphContext.save();
+  graphContext.strokeStyle = 'rgba(255,255,255,0.06)';
+  graphContext.lineWidth = 1;
+  for (let i = 0; i <= 5; i += 1) {
+    const y = rect.y + (rect.h / 5) * i;
+    graphContext.beginPath();
+    graphContext.moveTo(rect.x, y);
+    graphContext.lineTo(rect.x + rect.w, y);
+    graphContext.stroke();
+  }
+  for (let i = 0; i <= 6; i += 1) {
+    const x = rect.x + (rect.w / 6) * i;
+    graphContext.beginPath();
+    graphContext.moveTo(x, rect.y);
+    graphContext.lineTo(x, rect.y + rect.h);
+    graphContext.stroke();
+  }
+  graphContext.restore();
+}
+
+function drawAxes(rect, xLabel, yLabel) {
+  graphContext.save();
+  graphContext.strokeStyle = 'rgba(255,255,255,0.22)';
+  graphContext.lineWidth = 1.4;
+  graphContext.beginPath();
+  graphContext.moveTo(rect.x, rect.y + rect.h);
+  graphContext.lineTo(rect.x + rect.w, rect.y + rect.h);
+  graphContext.lineTo(rect.x + rect.w - 10, rect.y + rect.h - 5);
+  graphContext.moveTo(rect.x + rect.w, rect.y + rect.h);
+  graphContext.lineTo(rect.x + rect.w - 10, rect.y + rect.h + 5);
+  graphContext.moveTo(rect.x, rect.y + rect.h);
+  graphContext.lineTo(rect.x, rect.y);
+  graphContext.lineTo(rect.x - 5, rect.y + 10);
+  graphContext.moveTo(rect.x, rect.y);
+  graphContext.lineTo(rect.x + 5, rect.y + 10);
+  graphContext.stroke();
+
+  graphContext.fillStyle = 'rgba(255,255,255,0.78)';
+  graphContext.font = '12px Pretendard';
+  graphContext.fillText(xLabel, rect.x + rect.w - 18, rect.y + rect.h + 22);
+  graphContext.save();
+  graphContext.translate(rect.x - 28, rect.y + 14);
+  graphContext.rotate(-Math.PI / 2);
+  graphContext.fillText(yLabel, 0, 0);
+  graphContext.restore();
+  graphContext.restore();
+}
+
+function drawQVGraph(rect) {
+  const capacitance = getCapacitance();
+  const maxQ = getMaxCharge() * 1.08;
+  const xMax = MAX_VOLTAGE;
+  const yMax = Math.max(maxQ, 1e-18);
+  const currentV = runtime.currentVoltage;
+  const currentQ = runtime.currentCharge;
+
+  drawAxes(rect, 'V', 'Q');
+
+  const originX = rect.x;
+  const originY = rect.y + rect.h;
+  const currentX = rect.x + (currentV / xMax) * rect.w;
+  const currentY = originY - (currentQ / yMax) * rect.h;
+
+  graphContext.save();
+  graphContext.fillStyle = 'rgba(255, 212, 91, 0.26)';
+  if (currentV > 0.0001) {
+    graphContext.beginPath();
+    graphContext.moveTo(originX, originY);
+    graphContext.lineTo(currentX, originY);
+    graphContext.lineTo(currentX, currentY);
+    graphContext.closePath();
+    graphContext.fill();
+  }
+
+  graphContext.strokeStyle = '#44ff88';
+  graphContext.lineWidth = 3;
+  graphContext.beginPath();
+  graphContext.moveTo(originX, originY);
+  for (let step = 0; step <= 60; step += 1) {
+    const voltage = (xMax / 60) * step;
+    const charge = capacitance * voltage;
+    const x = rect.x + (voltage / xMax) * rect.w;
+    const y = originY - (charge / yMax) * rect.h;
+    if (step === 0) graphContext.moveTo(x, y);
+    else graphContext.lineTo(x, y);
+  }
+  graphContext.stroke();
+
+  graphContext.setLineDash([6, 5]);
+  graphContext.strokeStyle = 'rgba(110, 230, 255, 0.55)';
+  graphContext.lineWidth = 1.2;
+  graphContext.beginPath();
+  graphContext.moveTo(currentX, originY);
+  graphContext.lineTo(currentX, currentY);
+  graphContext.lineTo(originX, currentY);
+  graphContext.stroke();
+  graphContext.setLineDash([]);
+
+  graphContext.fillStyle = '#6ee6ff';
+  graphContext.beginPath();
+  graphContext.arc(currentX, currentY, 5.5, 0, Math.PI * 2);
+  graphContext.fill();
+
+  graphContext.fillStyle = 'rgba(255,255,255,0.88)';
+  graphContext.font = '12px Pretendard';
+  graphContext.fillText(`기울기 = ${formatSI(capacitance, 'F')}`, rect.x + 14, rect.y + 18);
+  graphContext.fillText(`U = 1/2QV = ${formatSI(getStoredEnergy(), 'J')}`, rect.x + 14, rect.y + 36);
+
+  for (let tick = 0; tick <= 6; tick += 1) {
+    const voltage = (xMax / 6) * tick;
+    const x = rect.x + (rect.w / 6) * tick;
+    graphContext.fillStyle = 'rgba(255,255,255,0.56)';
+    graphContext.fillText(voltage.toFixed(0), x - 4, originY + 18);
+  }
+
+  for (let tick = 0; tick <= 5; tick += 1) {
+    const charge = (yMax / 5) * tick;
+    const y = originY - (rect.h / 5) * tick;
+    graphContext.fillStyle = 'rgba(255,255,255,0.56)';
+    graphContext.fillText(formatCompactSI(charge, 'C'), rect.x - 40, y + 4);
+  }
+  graphContext.restore();
+}
+
+function drawQTGraph(rect) {
+  drawAxes(rect, 't', 'Q');
+
+  const samples = runtime.phaseHistory.length ? runtime.phaseHistory : [{ t: 0, q: runtime.currentCharge }];
+  const maxTime = Math.max(4, samples[samples.length - 1].t, 6);
+  const referenceCharge = Math.max(
+    runtime.referenceCharge,
+    ...samples.map((sample) => sample.q),
+    getTargetCharge(),
+    getMaxCharge() * 0.04
+  );
+
+  graphContext.save();
+  graphContext.strokeStyle = '#ffb66a';
+  graphContext.lineWidth = 2.6;
+  graphContext.beginPath();
+
+  samples.forEach((sample, index) => {
+    const x = rect.x + (sample.t / maxTime) * rect.w;
+    const y = rect.y + rect.h - (sample.q / referenceCharge) * rect.h;
+    if (index === 0) graphContext.moveTo(x, y);
+    else graphContext.lineTo(x, y);
+  });
+  graphContext.stroke();
+
+  graphContext.setLineDash([6, 5]);
+  graphContext.strokeStyle = 'rgba(255,255,255,0.2)';
+  if (runtime.mode === 'charging' || runtime.mode === 'charged') {
+    const targetY = rect.y + rect.h - (getTargetCharge() / referenceCharge) * rect.h;
+    graphContext.beginPath();
+    graphContext.moveTo(rect.x, targetY);
+    graphContext.lineTo(rect.x + rect.w, targetY);
+    graphContext.stroke();
+  }
+  graphContext.setLineDash([]);
+
+  graphContext.fillStyle = 'rgba(255,255,255,0.84)';
+  graphContext.font = '12px Pretendard';
+  graphContext.fillText(
+    runtime.mode === 'discharging' ? 'Q(t): 지수적 감소' : 'Q(t): 지수적 증가',
+    rect.x + 14,
+    rect.y + 18
+  );
+
+  for (let tick = 0; tick <= 6; tick += 1) {
+    const time = (maxTime / 6) * tick;
+    const x = rect.x + (rect.w / 6) * tick;
+    graphContext.fillStyle = 'rgba(255,255,255,0.56)';
+    graphContext.fillText(`${time.toFixed(1)}s`, x - 8, rect.y + rect.h + 18);
+  }
+
+  for (let tick = 0; tick <= 5; tick += 1) {
+    const charge = (referenceCharge / 5) * tick;
+    const y = rect.y + rect.h - (rect.h / 5) * tick;
+    graphContext.fillStyle = 'rgba(255,255,255,0.56)';
+    graphContext.fillText(formatCompactSI(charge, 'C'), rect.x - 40, y + 4);
+  }
+  graphContext.restore();
+}
+
+function formatNumber(value, digits) {
+  return value.toFixed(digits);
+}
+
+function formatSI(value, unit) {
+  const abs = Math.abs(value);
+  if (abs >= 1) return `${value.toFixed(3)} ${unit}`;
+  if (abs >= 1e-3) return `${(value * 1e3).toFixed(3)} m${unit}`;
+  if (abs >= 1e-6) return `${(value * 1e6).toFixed(3)} μ${unit}`;
+  if (abs >= 1e-9) return `${(value * 1e9).toFixed(3)} n${unit}`;
+  if (abs >= 1e-12) return `${(value * 1e12).toFixed(3)} p${unit}`;
+  if (abs === 0) return `0 ${unit}`;
+  return `${value.toExponential(2)} ${unit}`;
+}
+
+function formatCompactSI(value, unit) {
+  const abs = Math.abs(value);
+  if (abs >= 1e-6) return `${(value * 1e6).toFixed(1)}μ${unit}`;
+  if (abs >= 1e-9) return `${(value * 1e9).toFixed(1)}n${unit}`;
+  if (abs >= 1e-12) return `${(value * 1e12).toFixed(1)}p${unit}`;
+  if (abs === 0) return `0${unit}`;
+  return value.toExponential(1);
+}
+
+function formatElectricField(value) {
+  const abs = Math.abs(value);
+  if (abs >= 1e6) return `${(value / 1e6).toFixed(2)} MV/m`;
+  if (abs >= 1e3) return `${(value / 1e3).toFixed(2)} kV/m`;
+  return `${value.toFixed(2)} V/m`;
+}
+
+function syncGuiDisplay() {
+  epsilonController.domElement.style.opacity = params.dielectricEnabled ? '1' : '0.45';
+  epsilonController.domElement.style.pointerEvents = params.dielectricEnabled ? 'auto' : 'none';
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function resizeRenderer() {
+  const width = scenePanelEl.clientWidth;
+  const height = scenePanelEl.clientHeight;
+  if (!width || !height) return;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height, false);
+}
+
+function resizeGraphCanvas() {
+  const width = graphPanelEl.clientWidth;
+  const height = graphPanelEl.clientHeight;
+  if (!width || !height) return;
+  const pixelRatio = Math.min(window.devicePixelRatio, 2);
+  graphCanvasEl.width = Math.round(width * pixelRatio);
+  graphCanvasEl.height = Math.round(height * pixelRatio);
+  graphCanvasEl.style.width = `${width}px`;
+  graphCanvasEl.style.height = `${height}px`;
+  graphContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const deltaTime = Math.min(clock.getDelta(), 0.05);
+
+  updatePhysics(deltaTime);
+  updateChargeInstances();
+  updateFieldArrows();
+  updateCircuitAppearance();
+  updateAccessoryEffects();
+  updateFlowParticles();
+  updateFormulaPanel();
+  updateMetricCards();
+  updateStatusPanel();
+  drawGraph();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+refreshSceneConfiguration();
+updateUsecasePanel();
+syncGuiDisplay();
+resizeRenderer();
+resizeGraphCanvas();
+animate();
+</script>
+</body>
+</html>

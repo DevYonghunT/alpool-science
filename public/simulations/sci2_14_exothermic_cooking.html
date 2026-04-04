@@ -1,0 +1,1861 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>발열 반응을 이용한 음식 조리 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --panel: rgba(255, 252, 247, 0.9);
+    --panel-strong: rgba(255, 250, 243, 0.96);
+    --panel-dark: rgba(55, 45, 39, 0.86);
+    --line: rgba(116, 93, 78, 0.18);
+    --shadow: 0 20px 48px rgba(102, 85, 71, 0.18);
+    --text: #2f261f;
+    --muted: #7b6658;
+    --accent: #d86f43;
+    --blue: #2f7ae5;
+    --green: #31a35a;
+    --red: #dc5947;
+    --amber: #f0a433;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 14% 14%, rgba(255,255,255,0.72), transparent 32%),
+      radial-gradient(circle at 82% 10%, rgba(232, 176, 126, 0.16), transparent 24%),
+      linear-gradient(180deg, #f8f4ed 0%, var(--bg) 62%, #efe7db 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  canvas { display: block; }
+
+  #scene-container {
+    position: fixed;
+    inset: 0;
+  }
+
+  #title-panel {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    width: min(430px, calc(100vw - 28px));
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: linear-gradient(140deg, rgba(255,255,255,0.95), rgba(250,245,238,0.88));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+  }
+
+  #title-panel .eyebrow {
+    font-size: 11px;
+    color: #9d6a49;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  #title-panel h1 {
+    margin-top: 4px;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: -0.04em;
+  }
+
+  #title-panel p {
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.68;
+  }
+
+  #graph-panel {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    bottom: 14px;
+    width: min(420px, 36vw);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(37, 31, 28, 0.95), rgba(57, 45, 40, 0.92));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 22px 60px rgba(70, 53, 42, 0.32);
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+  }
+
+  #graph-head {
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: #fff5ed;
+  }
+
+  #graph-head h2 {
+    font-size: 18px;
+    letter-spacing: -0.03em;
+  }
+
+  #graph-head p {
+    margin-top: 6px;
+    color: rgba(255,245,237,0.7);
+    font-size: 11px;
+    line-height: 1.65;
+  }
+
+  #graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    font-size: 11px;
+    color: rgba(255,255,255,0.86);
+  }
+
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 14px currentColor;
+  }
+
+  #graph-canvas {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 41;
+    width: min(360px, calc(100vw - 28px));
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #b5552f;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(181,85,47,0.44), rgba(181,85,47,0.02));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .info-row .label {
+    width: 96px;
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .info-row .value {
+    flex: 1;
+    font-weight: 600;
+  }
+
+  .formula-box,
+  .principle-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(167, 111, 76, 0.14);
+    background: rgba(216, 111, 67, 0.06);
+  }
+
+  .formula-box strong,
+  .principle-box strong {
+    color: #ad572e;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: calc(min(420px, 36vw) + 28px);
+    z-index: 50;
+    border: 1px solid var(--line);
+    background: var(--panel-strong);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 52px;
+    left: 14px;
+    z-index: 49;
+    width: min(460px, calc(100vw - 28px));
+    max-height: min(62vh, 760px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255, 250, 243, 0.96);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    font-size: 16px;
+    color: #b5552f;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #9d6a49;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 4px;
+  }
+
+  .guide-note {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(216, 111, 67, 0.07);
+    color: #6f594a;
+  }
+
+  #sensor-display {
+    position: fixed;
+    z-index: 45;
+    min-width: 124px;
+    padding: 10px 12px 9px;
+    border-radius: 16px;
+    background: rgba(22, 25, 29, 0.88);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 46px rgba(0,0,0,0.24);
+    color: #f5f7fb;
+    text-align: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    backdrop-filter: blur(14px);
+  }
+
+  #sensor-display .sensor-label {
+    font-size: 10px;
+    color: rgba(245,247,251,0.68);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  #sensor-display .sensor-temp {
+    display: block;
+    margin-top: 2px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+  }
+
+  #status-chip,
+  #result-panel {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 42;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(16px);
+  }
+
+  #status-chip {
+    top: 92px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(255,252,247,0.88);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  #result-panel {
+    bottom: 18px;
+    width: min(500px, calc(100vw - 40px));
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: var(--panel-dark);
+    color: #fff7f1;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  #result-panel .result-title {
+    font-size: 16px;
+    color: #ffd18f;
+  }
+
+  #result-panel .result-body {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.75;
+    color: rgba(255,247,241,0.86);
+  }
+
+  .textbook-ref {
+    margin-top: 10px;
+    font-size: 11px;
+    color: rgba(255,247,241,0.64);
+  }
+
+  .lil-gui.root {
+    --width: 282px;
+    position: fixed;
+    top: 14px;
+    right: 22px;
+    z-index: 60;
+  }
+
+  .lil-gui {
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  @media (max-width: 1100px) {
+    #graph-panel {
+      width: min(360px, 40vw);
+    }
+
+    #guide-toggle {
+      right: calc(min(360px, 40vw) + 28px);
+    }
+  }
+
+  @media (max-width: 860px) {
+    #title-panel {
+      width: calc(100vw - 28px);
+      padding-right: 90px;
+    }
+
+    #graph-panel {
+      top: auto;
+      width: calc(100vw - 20px);
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      height: 34vh;
+    }
+
+    #guide-toggle {
+      right: 14px;
+      top: 116px;
+    }
+
+    #formula-panel {
+      bottom: calc(34vh + 24px);
+      width: min(340px, calc(100vw - 28px));
+    }
+
+    #status-chip {
+      top: 150px;
+      width: calc(100vw - 28px);
+      text-align: center;
+    }
+
+    #result-panel {
+      bottom: calc(34vh + 18px);
+    }
+
+    .lil-gui.root {
+      top: 150px;
+      right: 14px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-panel h1 { font-size: 20px; }
+    #formula-panel,
+    #guide-panel,
+    #result-panel {
+      width: calc(100vw - 20px);
+      left: 10px;
+      transform: none;
+    }
+
+    #formula-panel {
+      bottom: calc(34vh + 126px);
+    }
+
+    #result-panel {
+      bottom: calc(34vh + 12px);
+    }
+
+    #sensor-display {
+      min-width: 110px;
+      padding: 8px 10px;
+    }
+
+    #sensor-display .sensor-temp {
+      font-size: 22px;
+    }
+
+    .lil-gui.root {
+      --width: min(260px, calc(100vw - 20px));
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="scene-container"></div>
+
+  <section id="title-panel">
+    <div class="eyebrow">통합과학2 · 에너지의 흡수와 방출</div>
+    <h1>발열 반응을 이용한 음식 조리</h1>
+    <p>산화 칼슘(CaO) 주머니 수를 바꾸며 물과 반응할 때 발생하는 열에너지가 조리 용기의 물을 얼마나 데우는지 비교해 보세요.</p>
+  </section>
+
+  <button id="guide-toggle">📖 학습 가이드</button>
+  <section id="guide-panel" aria-label="학습 가이드">
+    <h3>📖 학습 가이드</h3>
+    <h4>핵심 원리</h4>
+    <p>물과 산화 칼슘의 반응은 에너지를 방출하는 발열 반응입니다. 산화 칼슘의 양이 많을수록 더 많은 에너지가 방출되어 온도가 높아지고, 이 열로 가열 장치 없이도 음식을 데울 수 있습니다.</p>
+    <h4>탐구 질문</h4>
+    <ul>
+      <li>물과 산화 칼슘의 반응이 일어날 때 온도는 어떻게 변하나요?</li>
+      <li>산화 칼슘 주머니 수가 많아질수록 최고 온도는 어떻게 달라지나요?</li>
+      <li>반응 용기와 조리 용기를 어떻게 설계하면 음식을 더 잘 조리할 수 있을까요?</li>
+    </ul>
+    <h4>실생활 예시</h4>
+    <ul>
+      <li>자가 발열 도시락</li>
+      <li>군용 MRE(전투 식량)</li>
+      <li>자가 발열 음료 캔</li>
+    </ul>
+    <div class="guide-note">교과서 연계: 미래엔 통합과학2 I편 p58~59 — 탐구: 물과 산화 칼슘을 이용한 음식 조리</div>
+  </section>
+
+  <div id="status-chip">산화 칼슘 주머니 수를 정한 뒤 실험을 시작해 보세요.</div>
+
+  <section id="graph-panel" aria-label="온도 변화 그래프">
+    <div id="graph-head">
+      <h2>실시간 온도 변화 그래프</h2>
+      <p>X축은 시간(0~300초), Y축은 온도(0~100℃)입니다. 이전 실험을 겹쳐 보면 산화 칼슘 양에 따른 발열 차이를 쉽게 비교할 수 있습니다.</p>
+      <div id="graph-legend">
+        <span class="legend-chip"><span class="swatch" style="color:#2f7ae5;background:#2f7ae5;"></span>1개</span>
+        <span class="legend-chip"><span class="swatch" style="color:#31a35a;background:#31a35a;"></span>3개</span>
+        <span class="legend-chip"><span class="swatch" style="color:#dc5947;background:#dc5947;"></span>5개</span>
+      </div>
+    </div>
+    <canvas id="graph-canvas"></canvas>
+  </section>
+
+  <section id="formula-panel" aria-live="polite">
+    <h3>🍳 발열 반응을 이용한 음식 조리</h3>
+    <div class="divider"></div>
+    <div class="info-row"><span class="label">산화 칼슘 주머니</span><span class="value" id="fp-bags">3개</span></div>
+    <div class="info-row"><span class="label">현재 온도</span><span class="value" id="fp-temp">20.0°C</span></div>
+    <div class="info-row"><span class="label">최고 온도</span><span class="value" id="fp-peak">65.0°C</span></div>
+    <div class="info-row"><span class="label">경과 시간</span><span class="value" id="fp-time">0초</span></div>
+    <div class="formula-box">
+      <strong>화학 반응</strong><br>
+      CaO + H₂O → Ca(OH)₂ + 열에너지<br>
+      (산화 칼슘 + 물 → 수산화 칼슘 + 열)
+    </div>
+    <div class="principle-box">
+      <strong>원리</strong><br>
+      산화 칼슘이 많을수록 더 많은 에너지가 방출되어 온도가 높아집니다. 발생한 열은 위쪽 조리 용기로 전달되어 음식 조리에 활용됩니다.
+    </div>
+  </section>
+
+  <div id="sensor-display" aria-hidden="true">
+    <div class="sensor-label">온도 센서</div>
+    <span class="sensor-temp" id="sensor-temp">20.0°C</span>
+  </div>
+
+  <section id="result-panel">
+    <div class="result-title" id="result-title">실험 준비 완료</div>
+    <div class="result-body" id="result-body">주머니 수를 조절한 뒤 실험을 시작하면 반응 용기와 조리 용기의 온도 변화를 확인할 수 있습니다.</div>
+    <div class="textbook-ref">미래엔 통합과학2 I편 p58~59 — 물과 산화 칼슘을 이용한 음식 조리 탐구</div>
+  </section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const BAG_TARGETS = { 1: 35, 2: 50, 3: 65, 4: 78, 5: 90 };
+const BAG_PEAK_TIMES = { 1: 84, 2: 102, 3: 118, 4: 132, 5: 148 };
+const BAG_END_TEMPS = { 1: 26, 2: 33, 3: 40, 4: 48, 5: 55 };
+const RUN_COLORS = { 1: '#2f7ae5', 2: '#3ab0ff', 3: '#31a35a', 4: '#f0a433', 5: '#dc5947' };
+const COOK_TRANSFER = { 1: 0.36, 2: 0.48, 3: 0.68, 4: 0.8, 5: 0.92 };
+
+const dom = {
+  sceneContainer: document.getElementById('scene-container'),
+  graphCanvas: document.getElementById('graph-canvas'),
+  graphCtx: document.getElementById('graph-canvas').getContext('2d'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel'),
+  sensorDisplay: document.getElementById('sensor-display'),
+  sensorTemp: document.getElementById('sensor-temp'),
+  fpBags: document.getElementById('fp-bags'),
+  fpTemp: document.getElementById('fp-temp'),
+  fpPeak: document.getElementById('fp-peak'),
+  fpTime: document.getElementById('fp-time'),
+  statusChip: document.getElementById('status-chip'),
+  resultTitle: document.getElementById('result-title'),
+  resultBody: document.getElementById('result-body')
+};
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xf5f0e8, 1);
+dom.sceneContainer.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf5f0e8);
+scene.fog = new THREE.Fog(0xf5f0e8, 10, 20);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 60);
+camera.position.set(6.2, 4.2, 7.1);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0.1, 1.7, 0.1);
+controls.minDistance = 4.6;
+controls.maxDistance = 11.5;
+controls.maxPolarAngle = Math.PI * 0.47;
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(4, 9, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -8;
+dirLight.shadow.camera.right = 8;
+dirLight.shadow.camera.top = 8;
+dirLight.shadow.camera.bottom = -8;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 28;
+scene.add(dirLight);
+
+const fillLight = new THREE.PointLight(0xffd7ab, 0.8, 18, 2.2);
+fillLight.position.set(-4, 3.4, 4.5);
+scene.add(fillLight);
+
+const backLight = new THREE.PointLight(0xc4d9ff, 0.5, 18, 2);
+backLight.position.set(5, 5, -4);
+scene.add(backLight);
+
+const clock = new THREE.Clock();
+const tempVector = new THREE.Vector3();
+const tempVectorB = new THREE.Vector3();
+const tempQuaternion = new THREE.Quaternion();
+const tempScale = new THREE.Vector3();
+const upAxis = new THREE.Vector3(0, 1, 0);
+
+const shared = {
+  bagGeometry: new THREE.BoxGeometry(0.34, 0.18, 0.34),
+  bagMaterial: new THREE.MeshStandardMaterial({
+    color: 0xededed,
+    roughness: 0.9,
+    metalness: 0.05
+  })
+};
+
+const apparatus = {
+  root: new THREE.Group(),
+  reactionGroup: new THREE.Group(),
+  bagGroup: new THREE.Group(),
+  steam: null,
+  heat: null,
+  reactionWater: null,
+  reactionWaterSurface: null,
+  potWater: null,
+  potWaterSurface: null,
+  measuringCup: null,
+  pourStream: null,
+  eggGroup: null,
+  ramenGroup: null,
+  sensorMonitor: null,
+  sensorAnchor: new THREE.Object3D(),
+  sensorRod: null
+};
+
+scene.add(apparatus.root);
+
+const state = {
+  phase: 'idle',
+  running: false,
+  activeCount: 3,
+  elapsed: 0,
+  currentTemp: 20,
+  cookTemp: 20,
+  maxTempReached: 20,
+  phaseClock: 0,
+  waterFill: 0.05,
+  reactionIntensity: 0,
+  lastSampleTime: 0,
+  currentHistory: [],
+  histories: [],
+  graphDirty: true
+};
+
+const params = {
+  bagCount: 3,
+  timeScale: 5,
+  overlayHistory: true,
+  startExperiment() {
+    startExperiment();
+  },
+  reset() {
+    resetSimulation(true);
+  }
+};
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function easeOutBack(t) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function formatTemp(value) {
+  return `${value.toFixed(1)}°C`;
+}
+
+function getSimTemp(count, timeSec) {
+  const start = 20;
+  const peak = BAG_TARGETS[count];
+  const peakTime = BAG_PEAK_TIMES[count];
+  const end = BAG_END_TEMPS[count];
+  const t = clamp(timeSec, 0, 300);
+
+  if (t <= peakTime) {
+    const n = t / peakTime;
+    return lerp(start, peak, Math.pow(Math.sin((n * Math.PI) / 2), 1.06));
+  }
+
+  const coolN = (t - peakTime) / (300 - peakTime);
+  return lerp(peak, end, easeInOutSine(coolN));
+}
+
+function getCookTargetTemp(count, reactionTemp) {
+  const ratio = COOK_TRANSFER[count];
+  const boost = count === 5 ? clamp((reactionTemp - 72) * 0.08, 0, 6) : 0;
+  return clamp(20 + (reactionTemp - 20) * ratio + boost, 20, 96);
+}
+
+function buildEnvironment() {
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(11, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0xe8dccf,
+      roughness: 0.95,
+      metalness: 0.02
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const table = new THREE.Mesh(
+    new THREE.BoxGeometry(8.8, 0.18, 4.8),
+    new THREE.MeshStandardMaterial({
+      color: 0xc79e72,
+      roughness: 0.75,
+      metalness: 0.04
+    })
+  );
+  table.position.set(0, 0.55, 0);
+  table.castShadow = true;
+  table.receiveShadow = true;
+  scene.add(table);
+
+  const legGeometry = new THREE.BoxGeometry(0.18, 1.05, 0.18);
+  const legMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8c6342,
+    roughness: 0.85
+  });
+  [
+    [-3.8, 0.06, -1.9],
+    [3.8, 0.06, -1.9],
+    [-3.8, 0.06, 1.9],
+    [3.8, 0.06, 1.9]
+  ].forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(legGeometry, legMaterial);
+    leg.position.set(x, y, z);
+    leg.castShadow = true;
+    leg.receiveShadow = true;
+    scene.add(leg);
+  });
+
+  const backCard = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 6.4),
+    new THREE.MeshStandardMaterial({
+      color: 0xf3ebdf,
+      roughness: 1
+    })
+  );
+  backCard.position.set(0, 3.1, -3.3);
+  scene.add(backCard);
+}
+
+function buildApparatus() {
+  apparatus.root.position.set(0, 0, 0);
+
+  const platform = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.25, 2.45, 0.12, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x6e5b50,
+      roughness: 0.84,
+      metalness: 0.12
+    })
+  );
+  platform.position.set(0, 0.73, 0);
+  platform.receiveShadow = true;
+  apparatus.root.add(platform);
+
+  apparatus.reactionGroup.position.set(0, 0.77, 0);
+  apparatus.root.add(apparatus.reactionGroup);
+
+  const metalBody = new THREE.MeshStandardMaterial({
+    color: 0xd7d2c8,
+    roughness: 0.35,
+    metalness: 0.72
+  });
+  const metalDark = new THREE.MeshStandardMaterial({
+    color: 0x9c968c,
+    roughness: 0.45,
+    metalness: 0.62
+  });
+
+  const bottom = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.12, 2.25), metalBody);
+  bottom.position.set(0, 0, 0);
+  bottom.castShadow = true;
+  bottom.receiveShadow = true;
+  apparatus.reactionGroup.add(bottom);
+
+  [
+    [0, 0.55, -1.07, 2.45, 1.1, 0.12],
+    [0, 0.55, 1.07, 2.45, 1.1, 0.12],
+    [-1.16, 0.55, 0, 0.12, 1.1, 2.25],
+    [1.16, 0.55, 0, 0.12, 1.1, 2.25]
+  ].forEach(([x, y, z, w, h, d]) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), metalBody);
+    wall.position.set(x, y, z);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    apparatus.reactionGroup.add(wall);
+  });
+
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.05, 14, 64), metalDark);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(0, 1.11, 0);
+  apparatus.reactionGroup.add(rim);
+
+  apparatus.reactionWater = new THREE.Mesh(
+    new THREE.BoxGeometry(1.92, 0.36, 1.72),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x89b9d1,
+      transparent: true,
+      opacity: 0.38,
+      transmission: 0.32,
+      roughness: 0.16,
+      thickness: 0.5,
+      metalness: 0.04
+    })
+  );
+  apparatus.reactionWater.position.set(0, 0.17, 0);
+  apparatus.reactionGroup.add(apparatus.reactionWater);
+
+  apparatus.reactionWaterSurface = new THREE.Mesh(
+    new THREE.CircleGeometry(0.92, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x9bd8f1,
+      transparent: true,
+      opacity: 0.64,
+      roughness: 0.08,
+      metalness: 0.1
+    })
+  );
+  apparatus.reactionWaterSurface.rotation.x = -Math.PI / 2;
+  apparatus.reactionWaterSurface.position.set(0, 0.36, 0);
+  apparatus.reactionWaterSurface.scale.set(1, 0.92, 1);
+  apparatus.reactionGroup.add(apparatus.reactionWaterSurface);
+
+  apparatus.reactionGroup.add(apparatus.bagGroup);
+
+  const potGroup = new THREE.Group();
+  potGroup.position.set(0, 1.38, 0.03);
+  apparatus.root.add(potGroup);
+
+  const potOuter = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.86, 0.9, 0.82, 48, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: 0xd0cbc3,
+      roughness: 0.32,
+      metalness: 0.78,
+      side: THREE.DoubleSide
+    })
+  );
+  potOuter.position.y = 0.45;
+  potOuter.castShadow = true;
+  potOuter.receiveShadow = true;
+  potGroup.add(potOuter);
+
+  const potBottom = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.76, 0.76, 0.06, 48),
+    metalDark
+  );
+  potBottom.position.y = 0.07;
+  potBottom.castShadow = true;
+  potBottom.receiveShadow = true;
+  potGroup.add(potBottom);
+
+  const potRim = new THREE.Mesh(new THREE.TorusGeometry(0.87, 0.04, 12, 48), metalDark);
+  potRim.rotation.x = Math.PI / 2;
+  potRim.position.y = 0.85;
+  potGroup.add(potRim);
+
+  [-1, 1].forEach((side) => {
+    const handle = new THREE.Mesh(
+      new THREE.TorusGeometry(0.16, 0.028, 10, 28, Math.PI),
+      metalDark
+    );
+    handle.rotation.z = side * Math.PI / 2;
+    handle.position.set(side * 0.92, 0.5, 0);
+    potGroup.add(handle);
+  });
+
+  apparatus.potWater = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.72, 0.72, 0.46, 42),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x9bd8f1,
+      transparent: true,
+      opacity: 0.52,
+      transmission: 0.22,
+      roughness: 0.14,
+      thickness: 0.4
+    })
+  );
+  apparatus.potWater.position.set(0, 0.34, 0);
+  potGroup.add(apparatus.potWater);
+
+  apparatus.potWaterSurface = new THREE.Mesh(
+    new THREE.CircleGeometry(0.72, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x9fe5ff,
+      transparent: true,
+      opacity: 0.68
+    })
+  );
+  apparatus.potWaterSurface.rotation.x = -Math.PI / 2;
+  apparatus.potWaterSurface.position.set(0, 0.57, 0);
+  potGroup.add(apparatus.potWaterSurface);
+
+  const waterMark = new THREE.Mesh(
+    new THREE.TorusGeometry(0.75, 0.005, 8, 40),
+    new THREE.MeshStandardMaterial({ color: 0x2e84b5, roughness: 0.6 })
+  );
+  waterMark.rotation.x = Math.PI / 2;
+  waterMark.position.set(0, 0.57, 0);
+  potGroup.add(waterMark);
+
+  const labelPlate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.18, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0x263341, roughness: 0.4, metalness: 0.2 })
+  );
+  labelPlate.position.set(0, 0.44, 0.76);
+  potGroup.add(labelPlate);
+
+  const sensorRod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, 1.22, 18),
+    new THREE.MeshStandardMaterial({ color: 0x505b66, roughness: 0.48, metalness: 0.72 })
+  );
+  sensorRod.position.set(0.4, 1.08, 0.06);
+  sensorRod.rotation.z = -0.12;
+  sensorRod.castShadow = true;
+  apparatus.root.add(sensorRod);
+  apparatus.sensorRod = sensorRod;
+
+  const sensorTip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0x2f3032, roughness: 0.4, metalness: 0.3 })
+  );
+  sensorTip.position.set(0.4, 0.57 + 1.38, 0.06);
+  apparatus.root.add(sensorTip);
+
+  const monitor = new THREE.Group();
+  monitor.position.set(1.95, 1.85, 0.9);
+  apparatus.root.add(monitor);
+
+  const monitorBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.88, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0x30353b, roughness: 0.5, metalness: 0.4 })
+  );
+  monitorBody.castShadow = true;
+  monitor.add(monitorBody);
+
+  const monitorScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.96, 0.6),
+    new THREE.MeshStandardMaterial({
+      color: 0x1f2a31,
+      emissive: 0x16232c,
+      emissiveIntensity: 0.8
+    })
+  );
+  monitorScreen.position.z = 0.065;
+  monitor.add(monitorScreen);
+
+  const monitorStand = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.52, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x565d66, roughness: 0.6, metalness: 0.45 })
+  );
+  monitorStand.position.set(0, -0.62, 0);
+  monitor.add(monitorStand);
+
+  const monitorFoot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.4, 0.05, 32),
+    new THREE.MeshStandardMaterial({ color: 0x616872, roughness: 0.65, metalness: 0.45 })
+  );
+  monitorFoot.position.set(0, -0.9, 0.02);
+  monitor.add(monitorFoot);
+
+  apparatus.sensorMonitor = monitor;
+  apparatus.sensorAnchor.position.set(0, 0, 0.08);
+  monitor.add(apparatus.sensorAnchor);
+
+  const wirePoints = [
+    new THREE.Vector3(0.4, 2.22, 0.06),
+    new THREE.Vector3(0.95, 2.25, 0.42),
+    new THREE.Vector3(1.5, 2.15, 0.7),
+    new THREE.Vector3(1.95, 1.85, 0.86)
+  ];
+  const wire = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(wirePoints),
+    new THREE.LineBasicMaterial({ color: 0x535c64 })
+  );
+  apparatus.root.add(wire);
+
+  const cupGroup = new THREE.Group();
+  cupGroup.position.set(-2.4, 2.08, 0.6);
+  apparatus.root.add(cupGroup);
+  apparatus.measuringCup = cupGroup;
+
+  const cupBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.28, 0.76, 32, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xcce4ef,
+      transparent: true,
+      opacity: 0.32,
+      transmission: 0.4,
+      roughness: 0.05,
+      thickness: 0.12
+    })
+  );
+  cupBody.castShadow = true;
+  cupGroup.add(cupBody);
+
+  const cupRim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.32, 0.02, 10, 40),
+    new THREE.MeshStandardMaterial({ color: 0x96a5b1, roughness: 0.4, metalness: 0.5 })
+  );
+  cupRim.rotation.x = Math.PI / 2;
+  cupRim.position.y = 0.38;
+  cupGroup.add(cupRim);
+
+  const cupWater = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.25, 0.34, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0x88bbdd,
+      transparent: true,
+      opacity: 0.54
+    })
+  );
+  cupWater.position.y = 0.02;
+  cupGroup.add(cupWater);
+
+  const cupHandle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.14, 0.018, 10, 24, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x96a5b1, roughness: 0.4, metalness: 0.5 })
+  );
+  cupHandle.rotation.z = Math.PI / 2;
+  cupHandle.position.set(0.36, 0.02, 0);
+  cupGroup.add(cupHandle);
+
+  cupGroup.rotation.z = -0.12;
+
+  apparatus.pourStream = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.06, 1, 16, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: 0x90d8ff,
+      transparent: true,
+      opacity: 0.7,
+      emissive: 0x366f96,
+      emissiveIntensity: 0.3
+    })
+  );
+  apparatus.pourStream.visible = false;
+  apparatus.root.add(apparatus.pourStream);
+
+  apparatus.eggGroup = createEggModel();
+  apparatus.eggGroup.visible = false;
+  potGroup.add(apparatus.eggGroup);
+
+  apparatus.ramenGroup = createRamenModel();
+  apparatus.ramenGroup.visible = false;
+  potGroup.add(apparatus.ramenGroup);
+
+  apparatus.steam = createParticleSystem(170, 0xdddddd, 0.11, 0.72);
+  apparatus.heat = createParticleSystem(130, 0xff8848, 0.09, 0.58);
+  apparatus.root.add(apparatus.steam.points);
+  apparatus.root.add(apparatus.heat.points);
+}
+
+function createEggModel() {
+  const group = new THREE.Group();
+  group.position.set(0, 0.56, 0);
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.48, 0.48, 0.18, 36),
+    new THREE.MeshStandardMaterial({
+      color: 0xe7bf62,
+      roughness: 0.7
+    })
+  );
+  base.position.y = -0.02;
+  group.add(base);
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 32, 24, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({
+      color: 0xf6d27a,
+      roughness: 0.55
+    })
+  );
+  dome.position.y = 0.06;
+  group.add(dome);
+
+  const garnish = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.012, 8, 28),
+    new THREE.MeshStandardMaterial({ color: 0x6ba85e, roughness: 0.75 })
+  );
+  garnish.rotation.x = Math.PI / 2;
+  garnish.position.y = 0.26;
+  group.add(garnish);
+
+  return group;
+}
+
+function createRamenModel() {
+  const group = new THREE.Group();
+  group.position.set(0, 0.58, 0);
+
+  const broth = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.52, 0.52, 0.12, 40),
+    new THREE.MeshStandardMaterial({
+      color: 0xe59a4d,
+      transparent: true,
+      opacity: 0.88,
+      emissive: 0x8f4318,
+      emissiveIntensity: 0.25
+    })
+  );
+  group.add(broth);
+
+  const noodleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf4d95b,
+    roughness: 0.62
+  });
+  for (let i = 0; i < 7; i += 1) {
+    const loop = new THREE.Mesh(
+      new THREE.TorusGeometry(0.22 + i * 0.035, 0.015, 10, 42),
+      noodleMaterial
+    );
+    loop.rotation.x = Math.PI / 2;
+    loop.rotation.z = i * 0.42;
+    loop.position.y = 0.04 + i * 0.003;
+    group.add(loop);
+  }
+
+  const topping = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.04, 0.16),
+    new THREE.MeshStandardMaterial({ color: 0x689853, roughness: 0.8 })
+  );
+  topping.position.set(0.18, 0.08, -0.12);
+  topping.rotation.y = 0.35;
+  group.add(topping);
+
+  return group;
+}
+
+function createParticleSystem(count, color, size, areaScale) {
+  const positions = new Float32Array(count * 3);
+  const alphas = new Float32Array(count);
+  const metadata = [];
+
+  for (let i = 0; i < count; i += 1) {
+    positions[i * 3] = 0;
+    positions[i * 3 + 1] = -20;
+    positions[i * 3 + 2] = 0;
+    alphas[i] = 0;
+    metadata.push({
+      active: false,
+      life: 0,
+      maxLife: 1,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      origin: new THREE.Vector3(),
+      areaScale
+    });
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+
+  const material = new THREE.PointsMaterial({
+    color,
+    size,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+
+  return {
+    points,
+    geometry,
+    positions,
+    alphas,
+    metadata,
+    material
+  };
+}
+
+function rebuildBags(count) {
+  while (apparatus.bagGroup.children.length) {
+    apparatus.bagGroup.remove(apparatus.bagGroup.children[0]);
+  }
+
+  const slots = [
+    [-0.48, 0, -0.38],
+    [0, 0, -0.38],
+    [0.48, 0, -0.38],
+    [-0.24, 0, 0.18],
+    [0.24, 0, 0.18]
+  ];
+
+  for (let i = 0; i < count; i += 1) {
+    const mesh = new THREE.Mesh(shared.bagGeometry, shared.bagMaterial);
+    const slot = slots[i];
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.start = new THREE.Vector3(slot[0], 1.36 + (i % 2) * 0.08, slot[2]);
+    mesh.userData.end = new THREE.Vector3(slot[0], 0.18 + (i % 3) * 0.02, slot[2] + (i % 2) * 0.04);
+    mesh.position.copy(mesh.userData.start);
+    mesh.rotation.set(0, (i - 2) * 0.18, (i % 2 === 0 ? -1 : 1) * 0.08);
+    apparatus.bagGroup.add(mesh);
+  }
+}
+
+function updateBagAnimation(progress) {
+  const eased = easeOutBack(progress);
+  apparatus.bagGroup.children.forEach((bag, index) => {
+    const start = bag.userData.start;
+    const end = bag.userData.end;
+    bag.position.lerpVectors(start, end, clamp(eased, 0, 1));
+    bag.rotation.x = Math.sin(progress * Math.PI + index * 0.5) * 0.14 * (1 - progress);
+  });
+}
+
+function updateWaterVisuals(time) {
+  const reactionHeight = lerp(0.03, 0.35, state.waterFill);
+  apparatus.reactionWater.scale.y = Math.max(0.08, state.waterFill);
+  apparatus.reactionWater.position.y = reactionHeight * 0.5;
+  apparatus.reactionWater.visible = state.waterFill > 0.02;
+  apparatus.reactionWaterSurface.position.y = reactionHeight + 0.01;
+  apparatus.reactionWaterSurface.visible = state.waterFill > 0.02;
+
+  const agitation = state.reactionIntensity * 0.028;
+  apparatus.reactionWaterSurface.rotation.z = Math.sin(time * 2.1) * agitation;
+  apparatus.reactionWaterSurface.scale.x = 1 + Math.sin(time * 3.2) * agitation;
+  apparatus.reactionWaterSurface.scale.y = 0.92 + Math.cos(time * 2.7) * agitation;
+
+  const cookRatio = clamp((state.cookTemp - 20) / 70, 0, 1);
+  apparatus.potWater.material.color.setHSL(0.54 - cookRatio * 0.14, 0.65, 0.72 - cookRatio * 0.1);
+  apparatus.potWater.material.opacity = 0.5 + cookRatio * 0.12;
+  apparatus.potWaterSurface.material.color.setHSL(0.56 - cookRatio * 0.16, 0.78, 0.72 - cookRatio * 0.08);
+  apparatus.potWaterSurface.position.y = 0.57 + Math.sin(time * (1.2 + cookRatio * 3)) * (0.008 + cookRatio * 0.012);
+  apparatus.potWaterSurface.rotation.z = Math.sin(time * 1.8) * cookRatio * 0.03;
+}
+
+function updateCupAndStream(progress) {
+  const p = clamp(progress, 0, 1);
+  const pourEase = easeInOutSine(p);
+  apparatus.measuringCup.position.set(
+    lerp(-2.4, -1.6, pourEase),
+    lerp(2.08, 2.1, pourEase),
+    lerp(0.6, 0.36, pourEase)
+  );
+  apparatus.measuringCup.rotation.z = lerp(-0.12, -1.16, pourEase);
+
+  if (p <= 0.03 || p >= 0.98) {
+    apparatus.pourStream.visible = false;
+    return;
+  }
+
+  const start = apparatus.measuringCup.localToWorld(new THREE.Vector3(-0.03, 0.32, 0));
+  const end = apparatus.reactionGroup.localToWorld(new THREE.Vector3(0.16, 0.5, 0));
+  const direction = tempVector.subVectors(end, start);
+  const length = direction.length();
+
+  apparatus.pourStream.visible = true;
+  apparatus.pourStream.position.copy(start).addScaledVector(direction, 0.5);
+  apparatus.pourStream.scale.set(1, length, 1);
+  apparatus.pourStream.quaternion.setFromUnitVectors(upAxis, direction.normalize());
+}
+
+function resetCupAndStream() {
+  apparatus.measuringCup.position.set(-2.4, 2.08, 0.6);
+  apparatus.measuringCup.rotation.set(0, 0, -0.12);
+  apparatus.pourStream.visible = false;
+}
+
+function respawnParticle(system, item, index, originRange, type) {
+  item.active = true;
+  item.life = 0;
+  item.maxLife = type === 'steam'
+    ? 1.6 + Math.random() * 1.6
+    : 0.8 + Math.random() * 0.9;
+
+  const radius = originRange * Math.sqrt(Math.random());
+  const angle = Math.random() * Math.PI * 2;
+  item.origin.set(
+    Math.cos(angle) * radius,
+    type === 'steam' ? 2.02 + Math.random() * 0.18 : 1.38 + Math.random() * 0.45,
+    Math.sin(angle) * radius * 0.8
+  );
+  item.vx = (Math.random() - 0.5) * (type === 'steam' ? 0.22 : 0.42);
+  item.vy = type === 'steam' ? 0.45 + Math.random() * 0.45 : 0.26 + Math.random() * 0.2;
+  item.vz = (Math.random() - 0.5) * (type === 'steam' ? 0.22 : 0.42);
+
+  system.positions[index * 3] = item.origin.x;
+  system.positions[index * 3 + 1] = item.origin.y;
+  system.positions[index * 3 + 2] = item.origin.z;
+  system.alphas[index] = 0.88;
+}
+
+function updateParticles(system, dt, intensity, type) {
+  const spawnCount = Math.floor(intensity * system.metadata.length * dt * (type === 'steam' ? 0.8 : 0.56));
+
+  for (let i = 0; i < spawnCount; i += 1) {
+    const index = Math.floor(Math.random() * system.metadata.length);
+    const item = system.metadata[index];
+    respawnParticle(system, item, index, type === 'steam' ? 0.68 : 1.0, type);
+  }
+
+  for (let i = 0; i < system.metadata.length; i += 1) {
+    const item = system.metadata[i];
+    const offset = i * 3;
+    if (!item.active) {
+      system.positions[offset + 1] = -20;
+      system.alphas[i] = 0;
+      continue;
+    }
+
+    item.life += dt;
+    if (item.life >= item.maxLife) {
+      item.active = false;
+      system.positions[offset + 1] = -20;
+      system.alphas[i] = 0;
+      continue;
+    }
+
+    const n = item.life / item.maxLife;
+    system.positions[offset] += item.vx * dt;
+    system.positions[offset + 1] += item.vy * dt;
+    system.positions[offset + 2] += item.vz * dt;
+    system.alphas[i] = (1 - n) * (type === 'steam' ? 0.75 : 0.92);
+  }
+
+  system.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateFoodModels(dt) {
+  const eggLevel = state.activeCount >= 3 && state.activeCount < 5
+    ? clamp((state.cookTemp - 48) / 16, 0, 1)
+    : 0;
+  const ramenLevel = state.activeCount === 5
+    ? clamp((state.cookTemp - 72) / 12, 0, 1)
+    : 0;
+
+  apparatus.eggGroup.visible = eggLevel > 0.01;
+  apparatus.ramenGroup.visible = ramenLevel > 0.01;
+
+  if (apparatus.eggGroup.visible) {
+    apparatus.eggGroup.scale.setScalar(0.7 + eggLevel * 0.3);
+    apparatus.eggGroup.position.y = 0.56 + Math.sin(clock.elapsedTime * 2) * 0.008 * eggLevel;
+  }
+
+  if (apparatus.ramenGroup.visible) {
+    apparatus.ramenGroup.scale.setScalar(0.78 + ramenLevel * 0.22);
+    apparatus.ramenGroup.position.y = 0.58 + Math.sin(clock.elapsedTime * 2.6) * 0.01 * ramenLevel;
+    apparatus.ramenGroup.rotation.y += dt * 0.14 * ramenLevel;
+  }
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function preserveCurrentHistory() {
+  if (!state.currentHistory.length) return;
+  if (!params.overlayHistory) {
+    state.histories = [];
+    return;
+  }
+  state.histories.push({
+    count: state.activeCount,
+    color: RUN_COLORS[state.activeCount],
+    points: state.currentHistory.map((point) => ({ ...point }))
+  });
+  if (state.histories.length > 8) {
+    state.histories.shift();
+  }
+}
+
+function startExperiment() {
+  if (state.running) return;
+
+  if (state.phase === 'done' && state.currentHistory.length) {
+    preserveCurrentHistory();
+  }
+
+  state.phase = 'dropping';
+  state.running = true;
+  state.activeCount = params.bagCount;
+  state.elapsed = 0;
+  state.currentTemp = 20;
+  state.cookTemp = 20;
+  state.maxTempReached = 20;
+  state.phaseClock = 0;
+  state.waterFill = 0.05;
+  state.reactionIntensity = 0;
+  state.lastSampleTime = 0;
+  state.currentHistory = [{ time: 0, temp: 20 }];
+  state.graphDirty = true;
+
+  rebuildBags(state.activeCount);
+  resetCupAndStream();
+  apparatus.eggGroup.visible = false;
+  apparatus.ramenGroup.visible = false;
+  updateBagAnimation(0);
+  updateInterface();
+  syncGui();
+}
+
+function resetSimulation(clearHistory) {
+  state.phase = 'idle';
+  state.running = false;
+  state.activeCount = params.bagCount;
+  state.elapsed = 0;
+  state.currentTemp = 20;
+  state.cookTemp = 20;
+  state.maxTempReached = 20;
+  state.phaseClock = 0;
+  state.waterFill = 0.05;
+  state.reactionIntensity = 0;
+  state.lastSampleTime = 0;
+  state.currentHistory = [];
+  if (clearHistory) {
+    state.histories = [];
+  }
+  state.graphDirty = true;
+
+  rebuildBags(params.bagCount);
+  updateBagAnimation(0);
+  resetCupAndStream();
+  apparatus.eggGroup.visible = false;
+  apparatus.ramenGroup.visible = false;
+  updateInterface();
+  syncGui();
+}
+
+function updateResultText() {
+  if (state.phase === 'idle') {
+    dom.statusChip.textContent = '산화 칼슘 주머니 수를 정한 뒤 실험을 시작해 보세요.';
+    dom.resultTitle.textContent = '실험 준비 완료';
+    dom.resultBody.textContent = '주머니 수를 조절한 뒤 실험을 시작하면 반응 용기와 조리 용기의 온도 변화를 확인할 수 있습니다.';
+    return;
+  }
+
+  if (state.phase === 'dropping') {
+    dom.statusChip.textContent = '1단계: 산화 칼슘 주머니를 반응 용기에 넣는 중입니다.';
+    dom.resultTitle.textContent = '주머니 투입 중';
+    dom.resultBody.textContent = '산화 칼슘 주머니가 물과 반응할 준비를 하고 있습니다. 주머니 수가 많을수록 잠재적인 발열량도 커집니다.';
+    return;
+  }
+
+  if (state.phase === 'pouring') {
+    dom.statusChip.textContent = '2단계: 120 mL의 물을 붓고 있습니다.';
+    dom.resultTitle.textContent = '물 주입 중';
+    dom.resultBody.textContent = '물과 산화 칼슘이 만나면 발열 반응이 시작됩니다. 곧 증기와 열기 효과가 나타납니다.';
+    return;
+  }
+
+  dom.statusChip.textContent = `반응 진행 중 · ${params.timeScale.toFixed(0)}x 배속`;
+  if (state.phase === 'done') {
+    dom.statusChip.textContent = '실험 종료 · 초기화하거나 다른 조건으로 다시 실험해 보세요.';
+  }
+
+  if (state.activeCount === 1) {
+    dom.resultTitle.textContent = '온도가 충분하지 않습니다';
+    dom.resultBody.textContent = `최고 온도는 ${formatTemp(state.maxTempReached)}로, 조리 용기의 물을 데우기에는 열이 부족합니다. 산화 칼슘 양을 더 늘려 보세요.`;
+    return;
+  }
+
+  if (state.activeCount === 2) {
+    dom.resultTitle.textContent = state.phase === 'done' ? '따뜻해졌지만 조리에는 다소 부족합니다' : '온도 상승 중';
+    dom.resultBody.textContent = `현재 ${formatTemp(state.currentTemp)}까지 올라갔지만 안정적인 조리를 위해서는 더 큰 발열량이 필요합니다. 3개 이상으로 비교해 보세요.`;
+    return;
+  }
+
+  if (state.activeCount >= 3 && state.activeCount < 5) {
+    if (state.cookTemp >= 58) {
+      dom.resultTitle.textContent = '달걀찜 조리 가능!';
+      dom.resultBody.textContent = `조리 용기의 물이 ${formatTemp(state.cookTemp)}까지 올라 달걀찜을 익힐 수 있는 수준에 도달했습니다. 발열 반응의 열이 위쪽 용기로 전달되고 있습니다.`;
+    } else {
+      dom.resultTitle.textContent = '달걀찜이 익어가는 중';
+      dom.resultBody.textContent = `현재 조리 용기 온도는 ${formatTemp(state.cookTemp)}입니다. 조금 더 시간이 지나면 달걀찜 조리가 가능한 수준에 도달합니다.`;
+    }
+    return;
+  }
+
+  if (state.cookTemp >= 80) {
+    dom.resultTitle.textContent = '라면도 가능!';
+    dom.resultBody.textContent = `최고 온도 ${formatTemp(state.maxTempReached)}를 기록하며 조리 용기의 물도 ${formatTemp(state.cookTemp)}까지 상승했습니다. 뜨거운 물을 이용한 간편 조리가 가능합니다.`;
+  } else {
+    dom.resultTitle.textContent = '고온의 물 생성 중';
+    dom.resultBody.textContent = `산화 칼슘 5개가 많은 열에너지를 방출하고 있습니다. 조리 용기 온도가 ${formatTemp(state.cookTemp)}에 도달해 라면 조리에 가까워지고 있습니다.`;
+  }
+}
+
+function updateInterface() {
+  const displayCount = state.phase === 'idle' ? params.bagCount : state.activeCount;
+  const peakTemp = state.phase === 'idle' ? BAG_TARGETS[params.bagCount] : state.maxTempReached;
+  dom.fpBags.textContent = `${displayCount}개`;
+  dom.fpTemp.textContent = formatTemp(state.currentTemp);
+  dom.fpPeak.textContent = formatTemp(peakTemp);
+  dom.fpTime.textContent = `${Math.round(state.elapsed)}초`;
+  dom.sensorTemp.textContent = formatTemp(state.currentTemp);
+  updateResultText();
+}
+
+function addHistorySample() {
+  if (!state.currentHistory.length) return;
+  if (state.elapsed - state.lastSampleTime < 2 && state.elapsed < 300) return;
+
+  state.currentHistory.push({
+    time: state.elapsed,
+    temp: state.currentTemp
+  });
+  state.lastSampleTime = state.elapsed;
+  state.graphDirty = true;
+}
+
+function ensureFinalHistoryPoint() {
+  if (!state.currentHistory.length) return;
+  const lastPoint = state.currentHistory[state.currentHistory.length - 1];
+  if (lastPoint.time >= 300) return;
+  state.currentHistory.push({
+    time: 300,
+    temp: getSimTemp(state.activeCount, 300)
+  });
+  state.graphDirty = true;
+}
+
+function updateSimulation(dt) {
+  const now = clock.elapsedTime;
+
+  if (state.phase === 'dropping') {
+    state.phaseClock += dt;
+    updateBagAnimation(clamp(state.phaseClock / 1, 0, 1));
+    if (state.phaseClock >= 1) {
+      state.phase = 'pouring';
+      state.phaseClock = 0;
+    }
+  } else if (state.phase === 'pouring') {
+    state.phaseClock += dt;
+    const progress = clamp(state.phaseClock / 1, 0, 1);
+    updateBagAnimation(1);
+    state.waterFill = 0.05 + progress * 0.95;
+    updateCupAndStream(progress);
+    if (state.phaseClock >= 1) {
+      state.phase = 'heating';
+      state.phaseClock = 0;
+      resetCupAndStream();
+    }
+  } else if (state.phase === 'heating') {
+    const simDt = dt * params.timeScale;
+    state.elapsed = clamp(state.elapsed + simDt, 0, 300);
+    state.currentTemp = getSimTemp(state.activeCount, state.elapsed);
+    state.cookTemp += (getCookTargetTemp(state.activeCount, state.currentTemp) - state.cookTemp) * (1 - Math.exp(-dt * 1.6 * params.timeScale));
+    state.maxTempReached = Math.max(state.maxTempReached, state.currentTemp);
+    addHistorySample();
+
+    if (state.elapsed >= 300) {
+      state.currentTemp = getSimTemp(state.activeCount, 300);
+      state.cookTemp = getCookTargetTemp(state.activeCount, state.currentTemp);
+      ensureFinalHistoryPoint();
+      state.running = false;
+      state.phase = 'done';
+      state.graphDirty = true;
+    }
+  } else if (state.phase === 'done') {
+    state.currentTemp = getSimTemp(state.activeCount, state.elapsed);
+    state.maxTempReached = Math.max(state.maxTempReached, state.currentTemp);
+  }
+
+  if (state.phase === 'idle') {
+    state.currentTemp = 20;
+    state.cookTemp = 20;
+  }
+
+  const peakTime = BAG_PEAK_TIMES[state.phase === 'idle' ? params.bagCount : state.activeCount];
+  const warmRatio = clamp((state.currentTemp - 20) / 70, 0, 1);
+  const activeRatio = state.phase === 'heating' || state.phase === 'done'
+    ? warmRatio * (state.elapsed < peakTime ? 1 : lerp(1, 0.55, (state.elapsed - peakTime) / (300 - peakTime)))
+    : state.phase === 'pouring'
+      ? state.phaseClock
+      : 0;
+
+  state.reactionIntensity = clamp(activeRatio, 0, 1);
+  updateWaterVisuals(now);
+  updateParticles(apparatus.steam, dt, state.reactionIntensity, 'steam');
+  updateParticles(apparatus.heat, dt, state.reactionIntensity * 0.9, 'heat');
+  apparatus.steam.material.opacity = 0.3 + state.reactionIntensity * 0.55;
+  apparatus.heat.material.opacity = 0.2 + state.reactionIntensity * 0.72;
+  updateFoodModels(dt);
+  updateInterface();
+}
+
+function drawSeries(points, color, alpha, lineWidth, showPeak) {
+  if (!points || points.length < 2) return;
+  const width = dom.graphCanvas.clientWidth;
+  const height = dom.graphCanvas.clientHeight;
+  const ctx = dom.graphCtx;
+  const padding = { left: 48, right: 20, top: 18, bottom: 42 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const xFor = (time) => padding.left + (time / 300) * plotWidth;
+  const yFor = (temp) => padding.top + (1 - temp / 100) * plotHeight;
+
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const x = xFor(point.time);
+    const y = yFor(point.temp);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (!showPeak) return;
+  const peakPoint = points.reduce((best, point) => (point.temp > best.temp ? point : best), points[0]);
+  const peakX = xFor(peakPoint.time);
+  const peakY = yFor(peakPoint.temp);
+  ctx.fillStyle = '#fffaf6';
+  ctx.beginPath();
+  ctx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawGraph() {
+  const ctx = dom.graphCtx;
+  const width = dom.graphCanvas.clientWidth;
+  const height = dom.graphCanvas.clientHeight;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = '#221c1a';
+  ctx.fillRect(0, 0, width, height);
+
+  const padding = { left: 48, right: 20, top: 18, bottom: 42 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const xFor = (time) => padding.left + (time / 300) * plotWidth;
+  const yFor = (temp) => padding.top + (1 - temp / 100) * plotHeight;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(padding.left, padding.top, plotWidth, plotHeight);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let time = 0; time <= 300; time += 60) {
+    const x = xFor(time);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, padding.top + plotHeight);
+    ctx.stroke();
+  }
+  for (let temp = 0; temp <= 100; temp += 10) {
+    const y = yFor(temp);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + plotWidth, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + plotHeight);
+  ctx.lineTo(padding.left + plotWidth, padding.top + plotHeight);
+  ctx.stroke();
+
+  ctx.font = '11px Pretendard';
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.textAlign = 'center';
+  for (let time = 0; time <= 300; time += 60) {
+    ctx.fillText(String(time), xFor(time), height - 16);
+  }
+
+  ctx.textAlign = 'right';
+  for (let temp = 0; temp <= 100; temp += 20) {
+    ctx.fillText(String(temp), padding.left - 8, yFor(temp) + 4);
+  }
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = '600 12px Pretendard';
+  ctx.textAlign = 'center';
+  ctx.fillText('시간 (초)', padding.left + plotWidth * 0.5, height - 8);
+  ctx.translate(18, padding.top + plotHeight * 0.5);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('온도 (°C)', 0, 0);
+  ctx.restore();
+
+  if (params.overlayHistory) {
+    state.histories.forEach((run) => {
+      drawSeries(run.points, run.color, 0.36, 2.2, true);
+    });
+  }
+
+  if (state.currentHistory.length > 1) {
+    drawSeries(
+      state.currentHistory,
+      RUN_COLORS[state.phase === 'idle' ? params.bagCount : state.activeCount],
+      0.98,
+      3,
+      state.phase === 'done' || state.elapsed >= BAG_PEAK_TIMES[state.activeCount]
+    );
+  } else if (state.phase === 'idle') {
+    const count = params.bagCount;
+    const preview = [];
+    for (let i = 0; i <= 300; i += 6) {
+      preview.push({ time: i, temp: getSimTemp(count, i) });
+    }
+    drawSeries(preview, RUN_COLORS[count], 0.25, 2, true);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.font = '11px Pretendard';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${count}개 조건 미리보기`, padding.left, 16);
+  }
+
+  if (state.currentHistory.length > 0) {
+    const latest = state.currentHistory[state.currentHistory.length - 1];
+    const x = xFor(latest.time);
+    const y = yFor(latest.temp);
+    ctx.fillStyle = '#fff7f1';
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.textAlign = 'left';
+    ctx.font = '600 11px Pretendard';
+    ctx.fillText(formatTemp(latest.temp), Math.min(x + 10, width - 86), Math.max(y - 10, 16));
+  }
+
+  state.graphDirty = false;
+}
+
+function resizeGraphCanvas() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = Math.max(1, dom.graphCanvas.clientWidth);
+  const height = Math.max(1, dom.graphCanvas.clientHeight);
+  dom.graphCanvas.width = Math.round(width * dpr);
+  dom.graphCanvas.height = Math.round(height * dpr);
+  dom.graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  state.graphDirty = true;
+}
+
+function updateSensorOverlay() {
+  apparatus.sensorAnchor.getWorldPosition(tempVectorB);
+  tempVectorB.project(camera);
+
+  const x = (tempVectorB.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-tempVectorB.y * 0.5 + 0.5) * window.innerHeight;
+  const hidden = tempVectorB.z > 1 || tempVectorB.z < -1;
+
+  dom.sensorDisplay.style.display = hidden ? 'none' : 'block';
+  if (!hidden) {
+    dom.sensorDisplay.style.left = `${x}px`;
+    dom.sensorDisplay.style.top = `${y}px`;
+  }
+}
+
+function resize() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  resizeGraphCanvas();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  controls.update();
+  updateSimulation(dt);
+  updateSensorOverlay();
+
+  if (state.graphDirty || state.running || state.phase === 'heating') {
+    drawGraph();
+  }
+
+  renderer.render(scene, camera);
+}
+
+buildEnvironment();
+buildApparatus();
+rebuildBags(params.bagCount);
+updateBagAnimation(0);
+updateInterface();
+resize();
+
+const gui = new GUI({ title: '실험 제어', width: 282 });
+const bagController = gui.add(params, 'bagCount', 1, 5, 1).name('산화 칼슘 주머니 수');
+bagController.onChange((value) => {
+  if (state.running) {
+    params.bagCount = state.activeCount;
+    syncGui();
+    return;
+  }
+  params.bagCount = value;
+  rebuildBags(value);
+  updateBagAnimation(0);
+  state.graphDirty = true;
+  updateInterface();
+});
+
+gui.add(params, 'startExperiment').name('실험 시작');
+gui.add(params, 'timeScale', 1, 10, 1).name('시간 배속');
+gui.add(params, 'overlayHistory').name('온도 그래프 겹치기').onChange((value) => {
+  if (!value) {
+    state.histories = [];
+  }
+  state.graphDirty = true;
+});
+gui.add(params, 'reset').name('초기화');
+
+if (window.innerWidth < 860) {
+  gui.close();
+}
+
+dom.guideToggle.addEventListener('click', () => {
+  dom.guidePanel.classList.toggle('open');
+});
+
+window.addEventListener('resize', resize);
+
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탄소의 순환 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --panel-bg: rgba(9, 16, 25, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-main: #f5fbff;
+    --text-dim: rgba(245, 251, 255, 0.68);
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 14%, rgba(129, 198, 255, 0.12), transparent 24%),
+      radial-gradient(circle at 78% 18%, rgba(66, 128, 219, 0.12), transparent 26%),
+      linear-gradient(180deg, #23384a 0%, #162635 38%, #111b26 62%, #0e1620 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  canvas { display: block; }
+
+  #sim-canvas,
+  #overlay-root {
+    position: fixed;
+    inset: 0;
+  }
+
+  #overlay-root {
+    pointer-events: none;
+    z-index: 22;
+  }
+
+  #title-pill {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: rgba(8, 14, 22, 0.76);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
+  }
+
+  #title-pill .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-pill strong {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  #camera-pill {
+    margin-top: 2px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 60;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(8, 14, 22, 0.82);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    right: 14px;
+    z-index: 58;
+    width: min(430px, calc(100vw - 28px));
+    max-height: min(68vh, 760px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    background: rgba(8, 14, 22, 0.93);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    display: none;
+    font-size: 12px;
+    line-height: 1.78;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #b9ecff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 11px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd39b;
+  }
+
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 10px;
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 48;
+    width: min(372px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+    font-size: 11px;
+    line-height: 1.72;
+  }
+
+  #formula-panel h3 {
+    font-size: 16px;
+    color: #c6f29f;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.02));
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .stat-row .label {
+    width: 90px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .stat-row .value { flex: 1; }
+
+  .info-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .info-box strong { color: #b8e8ff; }
+
+  .distribution-list,
+  .path-list {
+    margin-top: 8px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .distribution-item,
+  .path-item {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  .distribution-item span:first-child,
+  .path-item span:first-child {
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #graph-wrap {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 46;
+    width: min(460px, calc(100vw - 420px));
+    min-width: 320px;
+    height: 210px;
+    border-radius: 22px;
+    padding: 14px 14px 10px;
+    background: rgba(8, 14, 22, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.2);
+    display: none;
+  }
+
+  #graph-wrap.visible { display: block; }
+
+  .graph-head h3 {
+    font-size: 14px;
+    color: #a6d6ff;
+  }
+
+  .graph-head p {
+    margin-top: 3px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.64);
+  }
+
+  #graph-canvas {
+    width: 100%;
+    height: calc(100% - 40px);
+    margin-top: 10px;
+  }
+
+  #hint-chip {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 30;
+    max-width: 420px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(8, 14, 22, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+  }
+
+  .floating-label {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.2s ease;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.34);
+  }
+
+  .floating-label.zone {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(9, 16, 25, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .floating-label.process {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(9, 16, 25, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .floating-label.metric {
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 10px;
+  }
+
+  .floating-label.energy {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 220, 119, 0.14);
+    border: 1px solid rgba(255, 215, 120, 0.25);
+    font-size: 10px;
+    color: #ffe29a;
+  }
+
+  .floating-label.small { font-size: 10px; }
+
+  .lil-gui {
+    z-index: 65 !important;
+    margin-top: 54px;
+    margin-right: 14px;
+  }
+
+  @media (max-width: 1180px) {
+    #graph-wrap {
+      width: min(420px, calc(100vw - 28px));
+    }
+  }
+
+  @media (max-width: 900px) {
+    #title-pill strong { font-size: 20px; }
+
+    #graph-wrap {
+      left: 14px;
+      right: 14px;
+      width: auto;
+      min-width: 0;
+      bottom: 14px;
+    }
+
+    #formula-panel {
+      bottom: 236px;
+      max-height: min(42vh, 420px);
+      overflow-y: auto;
+    }
+
+    #hint-chip {
+      left: 14px;
+      right: 14px;
+      bottom: auto;
+      top: 86px;
+      transform: none;
+      max-width: none;
+      border-radius: 14px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    #title-pill {
+      right: 14px;
+      padding: 11px 14px;
+    }
+
+    #title-pill strong { font-size: 18px; }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 14px;
+      right: 14px;
+    }
+
+    #guide-panel {
+      top: 14px;
+      right: 14px;
+      bottom: 62px;
+      max-height: none;
+    }
+
+    .lil-gui { margin-top: 120px; }
+
+    #formula-panel {
+      left: 10px;
+      right: 10px;
+      width: auto;
+      bottom: 204px;
+      padding: 16px;
+    }
+
+    #graph-wrap {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      height: 184px;
+      padding: 12px;
+    }
+
+    #hint-chip { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="sim-canvas"></canvas>
+<div id="overlay-root"></div>
+
+<div id="title-pill">
+  <span class="eyebrow">통합과학1 III. 시스템과 상호작용</span>
+  <strong>23. 탄소의 순환</strong>
+  <span id="camera-pill">카메라: 다이어그램</span>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>탄소는 기권, 수권, 지권, 생물권 사이를 끊임없이 순환합니다. 화석 연료 연소가 커질수록 기권의 CO₂ 농도가 증가하고, 광합성과 해수 용해는 일부 탄소를 다른 권역으로 이동시켜 균형을 조절합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>광합성과 호흡은 탄소 순환에서 어떤 역할을 하나요?</li>
+    <li>화석 연료를 많이 태우면 기권의 CO₂ 농도는 어떻게 변하나요?</li>
+    <li>탄소의 분포량이 가장 많은 곳은 어디인가요? 정답은 지권의 석회암입니다.</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>화석 연료 사용이 늘어나면 대기 중 CO₂가 증가해 온실 효과가 강화됩니다.</li>
+    <li>식물 조림은 광합성을 통해 대기 탄소를 생물권으로 이동시키는 활동입니다.</li>
+    <li>해양 산성화는 대기 CO₂가 바다에 더 많이 녹아드는 현상과 연결됩니다.</li>
+    <li>탄소 포집 기술(CCS)은 지권 저장을 인위적으로 늘리는 사례입니다.</li>
+  </ul>
+
+  <div class="textbook-ref">교과서 연계: 미래엔 통합과학1 III편 p109 - 탄소의 순환 (그림 III-8)</div>
+</div>
+
+<div id="formula-panel" aria-live="polite">
+  <h3>🌿 탄소의 순환</h3>
+  <div class="divider"></div>
+
+  <div class="stat-row"><span class="label">CO₂ 농도:</span><span class="value" id="co2-value">420 ppm</span></div>
+  <div class="stat-row"><span class="label">연소량:</span><span class="value" id="burn-value">3.0 / 10</span></div>
+  <div class="stat-row"><span class="label">광합성:</span><span class="value" id="photo-value">5.0 / 10</span></div>
+  <div class="stat-row"><span class="label">현재 경향:</span><span class="value" id="trend-value">기권 CO₂가 비교적 안정적입니다.</span></div>
+
+  <div class="info-box">
+    <strong>탄소의 분포</strong>
+    <div class="distribution-list">
+      <div class="distribution-item"><span>기권</span><span>CO₂, CH₄ 같은 기체 형태</span></div>
+      <div class="distribution-item"><span>수권</span><span>CO₃²⁻ 같은 탄산 이온</span></div>
+      <div class="distribution-item"><span>지권</span><span>CaCO₃ 석회암, 화석 연료</span></div>
+      <div class="distribution-item"><span>생물권</span><span>유기물(C-H-O-N) 형태</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>주요 순환 경로</strong>
+    <div class="path-list">
+      <div class="path-item"><span>광합성</span><span>6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂</span></div>
+      <div class="path-item"><span>호흡</span><span>C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O</span></div>
+      <div class="path-item"><span>연소</span><span>CₓHᵧ + O₂ → CO₂ + H₂O</span></div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>탄소 분포량 최다</strong><br>
+    <span id="reservoir-value">지권의 석회암이 가장 큰 탄소 저장소입니다.</span>
+  </div>
+</div>
+
+<div id="graph-wrap">
+  <div class="graph-head">
+    <h3>CO₂ 농도 그래프</h3>
+    <p>시간에 따라 기권 CO₂ 농도가 어떻게 바뀌는지 확인하세요.</p>
+  </div>
+  <canvas id="graph-canvas"></canvas>
+</div>
+
+<div id="hint-chip">다이어그램 보기에서는 교과서식 순환 구조를 한눈에 보고, 원근 보기에서는 분자와 입체 배치를 더 가까이 살펴볼 수 있습니다.</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const DEFAULTS = Object.freeze({
+  fossilFuelBurn: 3,
+  photosynthesis: 5,
+  cycleSpeed: 1,
+  routeSelection: '전체',
+  showEnergyFlow: false,
+  showGraph: false,
+  cameraView: '다이어그램'
+});
+
+const ROUTE_SELECTION_MAP = {
+  '전체': null,
+  '광합성만': 'photosynthesis',
+  '호흡만': 'respiration',
+  '연소만': 'combustion',
+  '용해만': 'dissolution',
+  '석회암만': 'limestone',
+  '화석연료만': 'fossilization'
+};
+
+const canvas = document.getElementById('sim-canvas');
+const overlayRoot = document.getElementById('overlay-root');
+const graphWrap = document.getElementById('graph-wrap');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphCtx = graphCanvas.getContext('2d');
+const cameraPill = document.getElementById('camera-pill');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const co2Value = document.getElementById('co2-value');
+const burnValue = document.getElementById('burn-value');
+const photoValue = document.getElementById('photo-value');
+const trendValue = document.getElementById('trend-value');
+const reservoirValue = document.getElementById('reservoir-value');
+
+const params = {
+  ...DEFAULTS,
+  reset: resetSimulation
+};
+
+const runtime = {
+  width: window.innerWidth,
+  height: window.innerHeight,
+  co2Ppm: 420,
+  co2History: Array.from({ length: 60 }, (_, index) => 420 + Math.sin(index * 0.14) * 3),
+  graphSampleTimer: 0,
+  disposed: false
+};
+
+const tempVector = new THREE.Vector3();
+const routes = [];
+const energyFlows = [];
+const atmosphereDrifters = [];
+const methaneDrifters = [];
+const trees = [];
+const animals = [];
+const fishSchool = [];
+const carbonateIons = [];
+const labelEntries = [];
+const clock = new THREE.Clock();
+let guideOpen = false;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function mapRange(value, inMin, inMax, outMin, outMax) {
+  const t = clamp((value - inMin) / (inMax - inMin), 0, 1);
+  return lerp(outMin, outMax, t);
+}
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function getRouteEmphasis(key) {
+  const selected = ROUTE_SELECTION_MAP[params.routeSelection];
+  return !selected || selected === key ? 1 : 0.14;
+}
+
+function getTargetCo2() {
+  const combustionEffect = (params.fossilFuelBurn - 3) * 34;
+  const photosynthesisEffect = (params.photosynthesis - 5) * -26;
+  const imbalanceEffect = (params.fossilFuelBurn - params.photosynthesis) * 5;
+  return clamp(420 + combustionEffect + photosynthesisEffect + imbalanceEffect, 280, 760);
+}
+
+function getRouteCounts() {
+  const photosynthesis = clamp(Math.round(2 + params.photosynthesis * 0.45), 2, 7);
+  const respiration = clamp(Math.round(2 + (10 - params.photosynthesis) * 0.15), 2, 4);
+  const combustion = clamp(Math.round(1 + params.fossilFuelBurn * 0.65), 1, 7);
+  const dissolution = clamp(Math.round(2 + mapRange(runtime.co2Ppm, 340, 700, 0, 4)), 2, 6);
+  const limestone = clamp(Math.round(1 + mapRange(runtime.co2Ppm, 360, 700, 0, 3)), 1, 4);
+  const fossilization = clamp(Math.round(1 + (params.photosynthesis + (10 - params.fossilFuelBurn)) * 0.16), 1, 4);
+  return { photosynthesis, respiration, combustion, dissolution, limestone, fossilization };
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2a3a);
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true
+});
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x1a2a3a, 1);
+
+const perspectiveCamera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
+perspectiveCamera.position.set(0, 5.2, 16.6);
+
+const orthoCamera = new THREE.OrthographicCamera(-8, 8, 6, -6, 0.1, 100);
+orthoCamera.position.set(0, 0.2, 16.5);
+
+let activeCamera = orthoCamera;
+
+const perspectiveControls = new OrbitControls(perspectiveCamera, canvas);
+perspectiveControls.enableDamping = true;
+perspectiveControls.dampingFactor = 0.07;
+perspectiveControls.minDistance = 10;
+perspectiveControls.maxDistance = 28;
+perspectiveControls.maxPolarAngle = Math.PI * 0.49;
+perspectiveControls.target.set(0, -0.3, 0);
+perspectiveControls.enabled = false;
+perspectiveControls.saveState();
+
+const orthoControls = new OrbitControls(orthoCamera, canvas);
+orthoControls.enableRotate = false;
+orthoControls.enableDamping = true;
+orthoControls.dampingFactor = 0.08;
+orthoControls.minZoom = 0.7;
+orthoControls.maxZoom = 1.8;
+orthoControls.target.set(0, -0.2, 0);
+orthoControls.saveState();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.42));
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.58);
+keyLight.position.set(9, 12, 10);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x7fb6ff, 0.34);
+rimLight.position.set(-8, 4, 7);
+scene.add(rimLight);
+
+const world = new THREE.Group();
+scene.add(world);
+
+function makeAnchor(x, y, z = 0) {
+  const anchor = new THREE.Object3D();
+  anchor.position.set(x, y, z);
+  world.add(anchor);
+  return anchor;
+}
+
+function createLabel({ text, className, anchor, getText, getOpacity, getVisible }) {
+  const element = document.createElement('div');
+  element.className = `floating-label ${className || ''}`;
+  element.textContent = text || '';
+  overlayRoot.appendChild(element);
+  labelEntries.push({ element, anchor, getText, getOpacity, getVisible });
+  return element;
+}
+
+function updateLabels() {
+  for (const entry of labelEntries) {
+    const isVisible = entry.getVisible ? entry.getVisible() : true;
+    if (!isVisible) {
+      entry.element.style.display = 'none';
+      continue;
+    }
+
+    entry.anchor.getWorldPosition(tempVector);
+    tempVector.project(activeCamera);
+    const onScreen =
+      tempVector.z > -1 &&
+      tempVector.z < 1 &&
+      tempVector.x > -1.15 &&
+      tempVector.x < 1.15 &&
+      tempVector.y > -1.15 &&
+      tempVector.y < 1.15;
+
+    if (!onScreen) {
+      entry.element.style.display = 'none';
+      continue;
+    }
+
+    const x = (tempVector.x * 0.5 + 0.5) * runtime.width;
+    const y = (-tempVector.y * 0.5 + 0.5) * runtime.height;
+    entry.element.style.display = 'block';
+    entry.element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+    entry.element.style.opacity = `${entry.getOpacity ? entry.getOpacity() : 1}`;
+    if (entry.getText) {
+      entry.element.textContent = entry.getText();
+    }
+  }
+}
+
+function createPanelPlane(width, height, color, opacity, x, y, z) {
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide
+    })
+  );
+  plane.position.set(x, y, z);
+  world.add(plane);
+
+  const frame = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.PlaneGeometry(width, height)),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 })
+  );
+  frame.position.copy(plane.position);
+  world.add(frame);
+  return plane;
+}
+
+function createGlowDisc(radius, color, opacity, x, y, z) {
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(radius, 40),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    })
+  );
+  disc.position.set(x, y, z);
+  world.add(disc);
+  return disc;
+}
+
+function createCO2Molecule() {
+  const group = new THREE.Group();
+  const carbon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.45 })
+  );
+  const oxygenMaterial = new THREE.MeshStandardMaterial({ color: 0xff665d, roughness: 0.35 });
+  const oxygenLeft = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), oxygenMaterial);
+  const oxygenRight = oxygenLeft.clone();
+  oxygenLeft.position.x = -0.14;
+  oxygenRight.position.x = 0.14;
+  const bondMaterial = new THREE.MeshStandardMaterial({ color: 0xdadada, roughness: 0.4 });
+  const bondLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 10), bondMaterial);
+  const bondRight = bondLeft.clone();
+  bondLeft.rotation.z = Math.PI / 2;
+  bondRight.rotation.z = Math.PI / 2;
+  bondLeft.position.x = -0.07;
+  bondRight.position.x = 0.07;
+  group.add(carbon, oxygenLeft, oxygenRight, bondLeft, bondRight);
+  return group;
+}
+
+function createMethaneMolecule() {
+  const group = new THREE.Group();
+  const carbon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 14, 14),
+    new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.45 })
+  );
+  group.add(carbon);
+  const hydrogenMaterial = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.4 });
+  const offsets = [
+    [0.12, 0.12, 0.12],
+    [-0.12, -0.1, 0.1],
+    [0.12, -0.1, -0.12],
+    [-0.1, 0.12, -0.12]
+  ];
+  for (const [x, y, z] of offsets) {
+    const hydrogen = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 10), hydrogenMaterial);
+    hydrogen.position.set(x, y, z);
+    group.add(hydrogen);
+  }
+  return group;
+}
+
+function createDrifter(factory, bounds, scaleRange) {
+  const object = factory();
+  object.position.set(
+    randomBetween(bounds.minX, bounds.maxX),
+    randomBetween(bounds.minY, bounds.maxY),
+    randomBetween(bounds.minZ, bounds.maxZ)
+  );
+  object.scale.setScalar(randomBetween(scaleRange[0], scaleRange[1]));
+  object.rotation.set(
+    randomBetween(0, Math.PI * 2),
+    randomBetween(0, Math.PI * 2),
+    randomBetween(0, Math.PI * 2)
+  );
+  world.add(object);
+  return {
+    object,
+    base: object.position.clone(),
+    amplitude: new THREE.Vector3(randomBetween(0.2, 0.6), randomBetween(0.08, 0.22), randomBetween(0.12, 0.4)),
+    speed: new THREE.Vector3(randomBetween(0.2, 0.45), randomBetween(0.28, 0.6), randomBetween(0.16, 0.4)),
+    phase: randomBetween(0, Math.PI * 2)
+  };
+}
+
+function createTree(x, z, scale = 1) {
+  const group = new THREE.Group();
+  group.position.set(x, -1.28, z);
+
+  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x704224, roughness: 0.9 });
+  const leafMaterial = new THREE.MeshStandardMaterial({ color: 0x2f8c3d, roughness: 0.72 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.24, 1.2, 12), trunkMaterial);
+  trunk.position.y = 0.58;
+  group.add(trunk);
+
+  const canopyPositions = [
+    [0, 1.45, 0],
+    [-0.26, 1.24, 0.08],
+    [0.28, 1.2, -0.08]
+  ];
+  canopyPositions.forEach(([cx, cy, cz], index) => {
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(index === 0 ? 0.66 : 0.46, 18, 18),
+      leafMaterial
+    );
+    sphere.position.set(cx, cy, cz);
+    group.add(sphere);
+  });
+
+  for (let i = 0; i < 6; i += 1) {
+    const carbonDot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.03, 10, 10),
+      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 })
+    );
+    carbonDot.position.set(randomBetween(-0.3, 0.3), randomBetween(0.95, 1.6), randomBetween(-0.26, 0.26));
+    group.add(carbonDot);
+  }
+
+  group.scale.setScalar(scale);
+  world.add(group);
+  return {
+    group,
+    leafMaterial,
+    baseScale: scale,
+    swayOffset: randomBetween(0, Math.PI * 2)
+  };
+}
+
+function createAnimal(x, z, scale = 1) {
+  const group = new THREE.Group();
+  group.position.set(x, -1.34, z);
+
+  const material = new THREE.MeshStandardMaterial({ color: 0x8b5a34, roughness: 0.88 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.32, 0.26), material);
+  body.position.set(0, 0.34, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.22), material);
+  head.position.set(0.48, 0.48, 0);
+  group.add(body, head);
+
+  const legGeometry = new THREE.BoxGeometry(0.08, 0.3, 0.08);
+  [-0.26, -0.06, 0.14, 0.32].forEach((offset) => {
+    const leg = new THREE.Mesh(legGeometry, material);
+    leg.position.set(offset, 0.14, 0);
+    group.add(leg);
+  });
+
+  for (let i = 0; i < 4; i += 1) {
+    const carbonDot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.024, 10, 10),
+      new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 })
+    );
+    carbonDot.position.set(randomBetween(-0.26, 0.18), randomBetween(0.22, 0.46), randomBetween(-0.08, 0.08));
+    group.add(carbonDot);
+  }
+
+  group.scale.setScalar(scale);
+  world.add(group);
+  return {
+    group,
+    bobOffset: randomBetween(0, Math.PI * 2)
+  };
+}
+
+function createFish(color) {
+  const group = new THREE.Group();
+  const bodyGeometry = new THREE.BufferGeometry();
+  bodyGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(
+      new Float32Array([
+        0.28, 0, 0,
+        -0.22, 0.16, 0,
+        -0.22, -0.16, 0
+      ]),
+      3
+    )
+  );
+  bodyGeometry.computeVertexNormals();
+  const body = new THREE.Mesh(
+    bodyGeometry,
+    new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, roughness: 0.42 })
+  );
+  const tail = new THREE.Mesh(
+    new THREE.ConeGeometry(0.1, 0.18, 3),
+    new THREE.MeshStandardMaterial({ color: 0xb6e4ff, roughness: 0.45 })
+  );
+  tail.rotation.z = Math.PI / 2;
+  tail.position.set(-0.28, 0, 0);
+  group.add(body, tail);
+  world.add(group);
+  return group;
+}
+
+function createCarbonateIon(x, y, z) {
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 16, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x4fa7ff,
+      roughness: 0.3,
+      metalness: 0.08,
+      emissive: 0x123e6f,
+      emissiveIntensity: 0.4
+    })
+  );
+  sphere.position.set(x, y, z);
+  world.add(sphere);
+  return {
+    mesh: sphere,
+    base: sphere.position.clone(),
+    phase: randomBetween(0, Math.PI * 2),
+    speed: randomBetween(0.5, 0.9)
+  };
+}
+
+function createRoute({ key, color, label, start, controlA, controlB, end, maxParticles }) {
+  const curve = new THREE.CubicBezierCurve3(start.clone(), controlA.clone(), controlB.clone(), end.clone());
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(curve.getPoints(64)),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 })
+  );
+  line.renderOrder = 4;
+  world.add(line);
+
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.14, 0.42, 14),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.86 })
+  );
+  const tangent = curve.getTangent(0.995).normalize();
+  head.position.copy(end);
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+  head.renderOrder = 4;
+  world.add(head);
+
+  const positions = new Float32Array(maxParticles * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setDrawRange(0, maxParticles);
+  const particles = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: 0x101010,
+      size: 0.21,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false
+    })
+  );
+  particles.renderOrder = 5;
+  world.add(particles);
+
+  const labelAnchor = makeAnchor(0, 0, 0.02);
+  labelAnchor.position.copy(curve.getPoint(0.5)).add(new THREE.Vector3(0, 0.26, 0));
+
+  const route = {
+    key,
+    curve,
+    line,
+    head,
+    geometry,
+    particles,
+    positions,
+    maxParticles,
+    phaseOffsets: Array.from({ length: maxParticles }, (_, index) => (index / maxParticles) + Math.random() * 0.08),
+    speedScale: randomBetween(0.88, 1.08)
+  };
+
+  createLabel({
+    className: 'process',
+    anchor: labelAnchor,
+    text: label,
+    getOpacity: () => getRouteEmphasis(key)
+  });
+
+  routes.push(route);
+}
+
+function createEnergyFlow(key, start, end, color, label) {
+  const direction = end.clone().sub(start).normalize();
+  const group = new THREE.Group();
+
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([start, end]),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.88 })
+  );
+  line.renderOrder = 6;
+  group.add(line);
+
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.12, 0.3, 10),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92 })
+  );
+  head.position.copy(end);
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+  head.renderOrder = 6;
+  group.add(head);
+
+  world.add(group);
+
+  const labelAnchor = makeAnchor(0, 0, 0.04);
+  labelAnchor.position.copy(start).lerp(end, 0.58).add(new THREE.Vector3(0, 0.24, 0));
+
+  createLabel({
+    className: 'energy',
+    anchor: labelAnchor,
+    text: label,
+    getVisible: () => params.showEnergyFlow,
+    getOpacity: () => getRouteEmphasis(key)
+  });
+
+  energyFlows.push({ key, group });
+}
+
+function resizeRenderer() {
+  runtime.width = window.innerWidth;
+  runtime.height = window.innerHeight;
+  renderer.setSize(runtime.width, runtime.height, false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const aspect = runtime.width / runtime.height;
+  perspectiveCamera.aspect = aspect;
+  perspectiveCamera.updateProjectionMatrix();
+
+  const orthoHeight = 12.6;
+  const orthoWidth = orthoHeight * aspect;
+  orthoCamera.left = -orthoWidth / 2;
+  orthoCamera.right = orthoWidth / 2;
+  orthoCamera.top = orthoHeight / 2;
+  orthoCamera.bottom = -orthoHeight / 2;
+  orthoCamera.updateProjectionMatrix();
+}
+
+function resizeGraphCanvas() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const rect = graphCanvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (graphCanvas.width !== width || graphCanvas.height !== height) {
+    graphCanvas.width = width;
+    graphCanvas.height = height;
+  }
+}
+
+function drawGraph() {
+  if (!params.showGraph) {
+    return;
+  }
+
+  resizeGraphCanvas();
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const width = graphCanvas.width / dpr;
+  const height = graphCanvas.height / dpr;
+  graphCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  graphCtx.clearRect(0, 0, width, height);
+
+  const margin = { top: 16, right: 14, bottom: 22, left: 34 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+
+  const gradient = graphCtx.createLinearGradient(0, margin.top, 0, height - margin.bottom);
+  gradient.addColorStop(0, 'rgba(127, 181, 255, 0.16)');
+  gradient.addColorStop(1, 'rgba(8, 14, 22, 0.04)');
+  graphCtx.fillStyle = gradient;
+  graphCtx.fillRect(margin.left, margin.top, innerWidth, innerHeight);
+
+  const minValue = 300;
+  const maxValue = 760;
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  graphCtx.lineWidth = 1;
+  graphCtx.font = "10px 'Pretendard', sans-serif";
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.54)';
+
+  for (let i = 0; i <= 4; i += 1) {
+    const y = margin.top + innerHeight * (i / 4);
+    graphCtx.beginPath();
+    graphCtx.moveTo(margin.left, y);
+    graphCtx.lineTo(width - margin.right, y);
+    graphCtx.stroke();
+    const value = Math.round(maxValue - (maxValue - minValue) * (i / 4));
+    graphCtx.fillText(`${value}`, 4, y + 3);
+  }
+
+  graphCtx.beginPath();
+  graphCtx.moveTo(margin.left, height - margin.bottom);
+  graphCtx.lineTo(width - margin.right, height - margin.bottom);
+  graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  graphCtx.stroke();
+
+  graphCtx.strokeStyle = '#86c2ff';
+  graphCtx.lineWidth = 2.4;
+  graphCtx.beginPath();
+  runtime.co2History.forEach((value, index) => {
+    const x = margin.left + (innerWidth * index) / Math.max(1, runtime.co2History.length - 1);
+    const y = margin.top + innerHeight * (1 - (value - minValue) / (maxValue - minValue));
+    if (index === 0) {
+      graphCtx.moveTo(x, y);
+    } else {
+      graphCtx.lineTo(x, y);
+    }
+  });
+  graphCtx.stroke();
+
+  const lastX = margin.left + innerWidth;
+  const lastY = margin.top + innerHeight * (1 - (runtime.co2Ppm - minValue) / (maxValue - minValue));
+  graphCtx.fillStyle = '#d7f0ff';
+  graphCtx.beginPath();
+  graphCtx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+  graphCtx.fill();
+
+  graphCtx.fillStyle = '#dcefff';
+  graphCtx.fillText(`현재 ${runtime.co2Ppm.toFixed(0)} ppm`, width - margin.right - 86, margin.top + 11);
+  graphCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  graphCtx.fillText('시간', width - margin.right - 18, height - 6);
+}
+
+function updateInfoPanel() {
+  co2Value.textContent = `${runtime.co2Ppm.toFixed(0)} ppm`;
+  burnValue.textContent = `${params.fossilFuelBurn.toFixed(1)} / 10`;
+  photoValue.textContent = `${params.photosynthesis.toFixed(1)} / 10`;
+
+  const trend = params.fossilFuelBurn - params.photosynthesis;
+  if (trend > 2) {
+    trendValue.textContent = '연소가 우세해 기권 CO₂가 빠르게 증가합니다.';
+  } else if (trend > 0.5) {
+    trendValue.textContent = '연소가 조금 우세해 CO₂가 서서히 증가합니다.';
+  } else if (trend < -2) {
+    trendValue.textContent = '광합성 흡수가 커져 CO₂가 눈에 띄게 감소합니다.';
+  } else if (trend < -0.5) {
+    trendValue.textContent = '광합성이 우세해 CO₂가 완만히 감소합니다.';
+  } else {
+    trendValue.textContent = '기권 CO₂가 비교적 안정적입니다.';
+  }
+
+  if (runtime.co2Ppm > 560) {
+    reservoirValue.textContent = '지권의 석회암이 가장 큰 저장소이며, 현재는 기권 CO₂가 과도하게 늘어난 상태입니다.';
+  } else {
+    reservoirValue.textContent = '지권의 석회암이 가장 큰 탄소 저장소입니다.';
+  }
+}
+
+function setCameraView(view) {
+  params.cameraView = view;
+  const usePerspective = view === '원근';
+  activeCamera = usePerspective ? perspectiveCamera : orthoCamera;
+  perspectiveControls.enabled = usePerspective;
+  orthoControls.enabled = !usePerspective;
+  cameraPill.textContent = `카메라: ${view}`;
+}
+
+function resetSimulation() {
+  Object.assign(params, DEFAULTS);
+  runtime.co2Ppm = 420;
+  runtime.co2History = Array.from({ length: 60 }, (_, index) => 420 + Math.sin(index * 0.14) * 3);
+  runtime.graphSampleTimer = 0;
+  setCameraView(params.cameraView);
+  perspectiveControls.reset();
+  orthoControls.reset();
+  graphWrap.classList.toggle('visible', params.showGraph);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  updateInfoPanel();
+}
+
+createGlowDisc(2.3, 0x9bd3ff, 0.08, -6.6, 4.9, -1.8);
+const sunGlow = createGlowDisc(0.7, 0xffde8d, 0.55, -6.8, 5.12, -0.5);
+sunGlow.material.opacity = 0.48;
+
+const atmospherePlane = createPanelPlane(18, 3.4, 0x88ccee, 0.16, 0, 4.3, -1.2);
+const greenhouseGlow = createGlowDisc(8.8, 0xffb571, 0.0, 0, 4.2, -1.7);
+createPanelPlane(6, 4.3, 0x3b8a5e, 0.09, -4.7, 0.6, -1.1);
+createPanelPlane(6, 4.3, 0x2b5aa8, 0.08, 4.7, 0.6, -1.1);
+createPanelPlane(18, 3.6, 0x664422, 0.17, 0, -4.25, -1.2);
+
+const atmosphereLabelAnchor = makeAnchor(-5.2, 5.1, 0.18);
+const biosphereLabelAnchor = makeAnchor(-5.0, 2.45, 0.28);
+const hydrosphereLabelAnchor = makeAnchor(4.7, 2.45, 0.28);
+const geosphereLabelAnchor = makeAnchor(0.2, -2.85, 0.22);
+const co2MetricAnchor = makeAnchor(6.2, 4.75, 0.3);
+const carbonateLabelAnchor = makeAnchor(4.7, 0.56, 0.95);
+const limestoneAnchor = makeAnchor(5.0, -3.25, 0.3);
+const fossilAnchor = makeAnchor(-2.6, -3.25, 0.34);
+const photosynthesisTagAnchor = makeAnchor(-4.9, 1.85, 0.5);
+const respirationTagAnchor = makeAnchor(-4.2, 0.26, 0.52);
+
+createLabel({ className: 'zone', anchor: atmosphereLabelAnchor, text: '기권 - CO₂, CH₄' });
+createLabel({ className: 'zone', anchor: biosphereLabelAnchor, text: '생물권 - 유기물' });
+createLabel({ className: 'zone', anchor: hydrosphereLabelAnchor, text: '수권 - CO₃²⁻' });
+createLabel({ className: 'zone', anchor: geosphereLabelAnchor, text: '지권 - CaCO₃ / 화석 연료' });
+createLabel({
+  className: 'metric small',
+  anchor: co2MetricAnchor,
+  getText: () => `CO₂: ${runtime.co2Ppm.toFixed(0)} ppm`
+});
+createLabel({ className: 'metric small', anchor: carbonateLabelAnchor, text: 'CO₃²⁻' });
+createLabel({ className: 'metric small', anchor: limestoneAnchor, text: 'CaCO₃' });
+createLabel({ className: 'metric small', anchor: fossilAnchor, text: '석탄 / 석유' });
+createLabel({ className: 'metric small', anchor: photosynthesisTagAnchor, text: '광합성' });
+createLabel({ className: 'metric small', anchor: respirationTagAnchor, text: '호흡' });
+
+for (let i = 0; i < 12; i += 1) {
+  atmosphereDrifters.push(createDrifter(createCO2Molecule, {
+    minX: -7.6,
+    maxX: 7.6,
+    minY: 3.5,
+    maxY: 5.3,
+    minZ: -0.5,
+    maxZ: 0.9
+  }, [0.85, 1.25]));
+}
+
+for (let i = 0; i < 4; i += 1) {
+  methaneDrifters.push(createDrifter(createMethaneMolecule, {
+    minX: -6.8,
+    maxX: 7.1,
+    minY: 3.8,
+    maxY: 5.2,
+    minZ: -0.4,
+    maxZ: 0.9
+  }, [0.92, 1.24]));
+}
+
+trees.push(createTree(-6.1, 0.22, 0.95));
+trees.push(createTree(-4.8, -0.18, 1.08));
+trees.push(createTree(-3.45, 0.08, 0.88));
+
+animals.push(createAnimal(-5.65, 0.1, 0.95));
+animals.push(createAnimal(-4.0, -0.08, 0.82));
+
+const water = new THREE.Mesh(
+  new THREE.BoxGeometry(5.6, 4.0, 1.8),
+  new THREE.MeshPhongMaterial({
+    color: 0x2255aa,
+    transparent: true,
+    opacity: 0.52,
+    shininess: 90
+  })
+);
+water.position.set(4.7, 0.38, 0);
+world.add(water);
+
+const waterSurface = new THREE.Mesh(
+  new THREE.PlaneGeometry(5.7, 1.8),
+  new THREE.MeshBasicMaterial({
+    color: 0x8fd7ff,
+    transparent: true,
+    opacity: 0.18,
+    side: THREE.DoubleSide
+  })
+);
+waterSurface.rotation.x = -Math.PI / 2;
+waterSurface.position.set(4.7, 2.42, 0);
+world.add(waterSurface);
+
+const seabed = new THREE.Mesh(
+  new THREE.BoxGeometry(5.8, 0.3, 2.1),
+  new THREE.MeshStandardMaterial({ color: 0x7f6f5f, roughness: 0.95 })
+);
+seabed.position.set(4.7, -1.62, 0);
+world.add(seabed);
+
+[
+  [4.0, -1.18, -0.2],
+  [4.8, -1.05, 0.28],
+  [5.6, -1.22, -0.1]
+].forEach(([x, y, z]) => {
+  const rock = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(randomBetween(0.24, 0.34), 0),
+    new THREE.MeshStandardMaterial({ color: 0xddd5c2, roughness: 0.95 })
+  );
+  rock.position.set(x, y, z);
+  rock.rotation.set(randomBetween(0, Math.PI), randomBetween(0, Math.PI), randomBetween(0, Math.PI));
+  world.add(rock);
+});
+
+[
+  { x: 3.9, y: 0.9, z: 0.45, color: 0x79cfff },
+  { x: 4.9, y: 0.2, z: -0.35, color: 0x96f0ff },
+  { x: 5.7, y: -0.28, z: 0.12, color: 0x69b6ff },
+  { x: 4.5, y: -0.7, z: 0.28, color: 0xc8efff }
+].forEach(({ x, y, z, color }) => {
+  const fish = createFish(color);
+  fish.position.set(x, y, z);
+  fish.rotation.y = randomBetween(-0.4, 0.5);
+  fishSchool.push({
+    fish,
+    base: fish.position.clone(),
+    speed: randomBetween(0.45, 0.88),
+    phase: randomBetween(0, Math.PI * 2)
+  });
+});
+
+[
+  [3.7, 1.2, -0.45],
+  [4.25, 0.45, 0.35],
+  [4.9, 1.0, 0.1],
+  [5.35, -0.15, -0.22],
+  [5.85, 0.58, 0.38],
+  [4.55, -0.76, -0.3]
+].forEach(([x, y, z]) => {
+  carbonateIons.push(createCarbonateIon(x, y, z));
+});
+
+const fossilMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.92 });
+[
+  [-3.35, -4.22, -0.25],
+  [-2.55, -4.15, 0.18],
+  [-1.9, -4.28, -0.08]
+].forEach(([x, y, z], index) => {
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.52 + index * 0.07, 0.55),
+    fossilMaterial
+  );
+  cube.position.set(x, y, z);
+  world.add(cube);
+});
+
+const limestoneBlock = new THREE.Mesh(
+  new THREE.BoxGeometry(0.86, 0.74, 0.76),
+  new THREE.MeshStandardMaterial({ color: 0xddccaa, roughness: 0.94 })
+);
+limestoneBlock.position.set(5.0, -4.08, 0.1);
+world.add(limestoneBlock);
+
+const volcano = new THREE.Mesh(
+  new THREE.ConeGeometry(0.8, 1.55, 22),
+  new THREE.MeshStandardMaterial({ color: 0x664444, roughness: 0.93 })
+);
+volcano.position.set(1.85, -3.98, 0.24);
+world.add(volcano);
+
+const crater = new THREE.Mesh(
+  new THREE.TorusGeometry(0.22, 0.05, 10, 20),
+  new THREE.MeshStandardMaterial({ color: 0x3e2525, roughness: 0.82 })
+);
+crater.rotation.x = Math.PI / 2;
+crater.position.set(1.85, -3.2, 0.24);
+world.add(crater);
+
+const lavaCount = 26;
+const lavaPositions = new Float32Array(lavaCount * 3);
+const lavaGeometry = new THREE.BufferGeometry();
+lavaGeometry.setAttribute('position', new THREE.BufferAttribute(lavaPositions, 3));
+const lavaParticles = new THREE.Points(
+  lavaGeometry,
+  new THREE.PointsMaterial({
+    color: 0xff5a36,
+    size: 0.14,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false
+  })
+);
+world.add(lavaParticles);
+
+const lavaData = Array.from({ length: lavaCount }, () => ({
+  angle: randomBetween(0, Math.PI * 2),
+  radius: randomBetween(0.05, 0.18),
+  height: randomBetween(0, 0.45),
+  speed: randomBetween(0.7, 1.4)
+}));
+
+createRoute({
+  key: 'photosynthesis',
+  color: 0x44aa44,
+  label: '광합성',
+  start: new THREE.Vector3(-1.2, 3.92, 0.32),
+  controlA: new THREE.Vector3(-2.1, 3.35, 0.8),
+  controlB: new THREE.Vector3(-3.6, 2.4, 0.52),
+  end: new THREE.Vector3(-4.85, 1.55, 0.44),
+  maxParticles: 7
+});
+
+createRoute({
+  key: 'respiration',
+  color: 0xff6644,
+  label: '호흡',
+  start: new THREE.Vector3(-4.55, -0.1, 0.28),
+  controlA: new THREE.Vector3(-4.25, 1.05, 0.7),
+  controlB: new THREE.Vector3(-3.2, 2.5, 0.7),
+  end: new THREE.Vector3(-2.2, 4.05, 0.42),
+  maxParticles: 4
+});
+
+createRoute({
+  key: 'combustion',
+  color: 0xff4422,
+  label: '연소 / 화산',
+  start: new THREE.Vector3(0.35, -4.1, 0.24),
+  controlA: new THREE.Vector3(-0.15, -1.1, 0.5),
+  controlB: new THREE.Vector3(0.18, 1.9, 0.65),
+  end: new THREE.Vector3(0.38, 4.22, 0.45),
+  maxParticles: 7
+});
+
+createRoute({
+  key: 'dissolution',
+  color: 0x4488ff,
+  label: '용해',
+  start: new THREE.Vector3(2.05, 3.94, 0.3),
+  controlA: new THREE.Vector3(2.8, 3.0, 0.58),
+  controlB: new THREE.Vector3(3.9, 2.2, 0.45),
+  end: new THREE.Vector3(4.45, 1.15, 0.3),
+  maxParticles: 6
+});
+
+createRoute({
+  key: 'limestone',
+  color: 0x886644,
+  label: '석회암 형성',
+  start: new THREE.Vector3(4.95, -0.25, 0.08),
+  controlA: new THREE.Vector3(5.05, -1.2, 0.16),
+  controlB: new THREE.Vector3(5.0, -2.55, 0.14),
+  end: new THREE.Vector3(4.96, -3.68, 0.12),
+  maxParticles: 4
+});
+
+createRoute({
+  key: 'fossilization',
+  color: 0x444444,
+  label: '화석연료 형성',
+  start: new THREE.Vector3(-4.5, -0.62, 0.18),
+  controlA: new THREE.Vector3(-4.12, -1.5, 0.32),
+  controlB: new THREE.Vector3(-3.1, -2.72, 0.3),
+  end: new THREE.Vector3(-2.45, -3.75, 0.26),
+  maxParticles: 4
+});
+
+createEnergyFlow(
+  'photosynthesis',
+  new THREE.Vector3(-6.75, 5.0, 0.2),
+  new THREE.Vector3(-5.25, 2.3, 0.28),
+  0xffd35f,
+  '태양 에너지'
+);
+
+createEnergyFlow(
+  'respiration',
+  new THREE.Vector3(-4.2, 0.2, 0.3),
+  new THREE.Vector3(-3.55, 1.6, 0.34),
+  0xff9d5f,
+  '열 에너지'
+);
+
+createEnergyFlow(
+  'combustion',
+  new THREE.Vector3(1.95, -3.4, 0.34),
+  new THREE.Vector3(2.7, -1.55, 0.36),
+  0xff5b3d,
+  '열 + 빛'
+);
+
+function handleGuideToggle() {
+  guideOpen = !guideOpen;
+  guidePanel.classList.toggle('open', guideOpen);
+}
+
+guideToggle.addEventListener('click', handleGuideToggle);
+
+const gui = new GUI({ title: '탄소 순환 제어' });
+gui.add(params, 'fossilFuelBurn', 0, 10, 0.1).name('화석 연료 연소량');
+gui.add(params, 'photosynthesis', 0, 10, 0.1).name('광합성 활동');
+gui.add(params, 'cycleSpeed', 0.5, 5, 0.1).name('순환 속도');
+gui.add(params, 'routeSelection', Object.keys(ROUTE_SELECTION_MAP)).name('경로 선택');
+gui.add(params, 'showEnergyFlow').name('에너지 흐름 표시');
+gui.add(params, 'showGraph').name('CO₂ 농도 그래프').onChange((value) => {
+  graphWrap.classList.toggle('visible', value);
+});
+gui.add(params, 'cameraView', ['다이어그램', '원근']).name('카메라').onChange((value) => {
+  setCameraView(value);
+});
+gui.add(params, 'reset').name('초기화');
+if (window.innerWidth < 760) {
+  gui.close();
+}
+
+setCameraView(params.cameraView);
+graphWrap.classList.toggle('visible', params.showGraph);
+resizeRenderer();
+updateInfoPanel();
+
+function drawFrame(delta, elapsed) {
+  const targetCo2 = getTargetCo2();
+  runtime.co2Ppm += (targetCo2 - runtime.co2Ppm) * Math.min(1, delta * 0.9 * params.cycleSpeed * 3);
+  const routeCounts = getRouteCounts();
+
+  atmospherePlane.material.opacity = mapRange(runtime.co2Ppm, 320, 700, 0.15, 0.34);
+  greenhouseGlow.material.opacity = mapRange(runtime.co2Ppm, 360, 700, 0.0, 0.12);
+
+  atmosphereDrifters.forEach((item) => {
+    item.object.position.set(
+      item.base.x + Math.sin(elapsed * item.speed.x + item.phase) * item.amplitude.x,
+      item.base.y + Math.cos(elapsed * item.speed.y + item.phase * 0.8) * item.amplitude.y,
+      item.base.z + Math.sin(elapsed * item.speed.z + item.phase * 1.4) * item.amplitude.z
+    );
+    item.object.rotation.y += delta * 0.25;
+  });
+
+  methaneDrifters.forEach((item) => {
+    item.object.position.set(
+      item.base.x + Math.cos(elapsed * item.speed.x + item.phase) * item.amplitude.x,
+      item.base.y + Math.sin(elapsed * item.speed.y + item.phase * 0.9) * item.amplitude.y,
+      item.base.z + Math.cos(elapsed * item.speed.z + item.phase * 1.3) * item.amplitude.z
+    );
+    item.object.rotation.x += delta * 0.18;
+  });
+
+  trees.forEach((tree, index) => {
+    const growth = mapRange(params.photosynthesis, 0, 10, 0.84, 1.35);
+    tree.group.scale.setScalar(tree.baseScale * growth);
+    tree.group.rotation.z = Math.sin(elapsed * 0.8 + tree.swayOffset + index * 0.3) * 0.03;
+    const greenMix = mapRange(params.photosynthesis, 0, 10, 0.16, 0.38);
+    tree.leafMaterial.color.setHSL(0.32, 0.58 + greenMix * 0.2, 0.26 + greenMix * 0.18);
+  });
+
+  animals.forEach((animal, index) => {
+    animal.group.position.y = -1.34 + Math.sin(elapsed * 1.3 + animal.bobOffset + index) * 0.05;
+  });
+
+  fishSchool.forEach((entry, index) => {
+    const sway = Math.sin(elapsed * entry.speed + entry.phase);
+    entry.fish.position.x = entry.base.x + sway * 0.45;
+    entry.fish.position.y = entry.base.y + Math.cos(elapsed * entry.speed * 1.2 + entry.phase) * 0.16;
+    entry.fish.rotation.y = sway > 0 ? 0 : Math.PI;
+    entry.fish.rotation.z = Math.sin(elapsed * entry.speed * 2 + index) * 0.08;
+  });
+
+  carbonateIons.forEach((ion, index) => {
+    ion.mesh.position.set(
+      ion.base.x + Math.sin(elapsed * ion.speed + ion.phase) * 0.34,
+      ion.base.y + Math.cos(elapsed * ion.speed * 0.8 + ion.phase) * 0.18,
+      ion.base.z + Math.sin(elapsed * ion.speed * 1.1 + index) * 0.26
+    );
+  });
+
+  lavaData.forEach((particle, index) => {
+    const burst = (elapsed * particle.speed * (1 + params.fossilFuelBurn * 0.07)) % 1;
+    lavaPositions[index * 3] = 1.85 + Math.cos(particle.angle) * particle.radius * (1 - burst * 0.55);
+    lavaPositions[index * 3 + 1] = -3.15 + burst * (0.55 + particle.height);
+    lavaPositions[index * 3 + 2] = 0.24 + Math.sin(particle.angle) * particle.radius * (1 - burst * 0.25);
+  });
+  lavaGeometry.attributes.position.needsUpdate = true;
+  lavaParticles.material.opacity = 0.42 + params.fossilFuelBurn * 0.04;
+
+  routes.forEach((route) => {
+    const emphasis = getRouteEmphasis(route.key);
+    const activeCount = routeCounts[route.key];
+    const routeOpacity = emphasis * (0.25 + activeCount / route.maxParticles * 0.7);
+    route.line.material.opacity = routeOpacity;
+    route.head.material.opacity = Math.min(1, routeOpacity + 0.1);
+    route.particles.material.opacity = emphasis * 0.92;
+    route.geometry.setDrawRange(0, activeCount);
+
+    for (let i = 0; i < route.maxParticles; i += 1) {
+      if (i < activeCount) {
+        const progress = (elapsed * params.cycleSpeed * 0.5 * route.speedScale + route.phaseOffsets[i]) % 1;
+        const position = route.curve.getPoint(progress);
+        route.positions[i * 3] = position.x;
+        route.positions[i * 3 + 1] = position.y;
+        route.positions[i * 3 + 2] = position.z;
+      } else {
+        route.positions[i * 3] = 999;
+        route.positions[i * 3 + 1] = 999;
+        route.positions[i * 3 + 2] = 999;
+      }
+    }
+
+    route.geometry.attributes.position.needsUpdate = true;
+  });
+
+  energyFlows.forEach((flow) => {
+    const visible = params.showEnergyFlow;
+    flow.group.visible = visible;
+    if (visible) {
+      const emphasis = getRouteEmphasis(flow.key);
+      flow.group.children.forEach((child) => {
+        child.material.opacity = emphasis * (child.isLine ? 0.88 : 0.94);
+      });
+    }
+  });
+
+  runtime.graphSampleTimer += delta;
+  if (runtime.graphSampleTimer >= 0.22) {
+    runtime.graphSampleTimer = 0;
+    runtime.co2History.push(runtime.co2Ppm);
+    if (runtime.co2History.length > 180) {
+      runtime.co2History.shift();
+    }
+  }
+
+  updateInfoPanel();
+  updateLabels();
+  drawGraph();
+}
+
+function animate() {
+  if (runtime.disposed) {
+    return;
+  }
+
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const elapsed = clock.elapsedTime;
+
+  drawFrame(delta, elapsed);
+
+  if (activeCamera === perspectiveCamera) {
+    perspectiveControls.update();
+  } else {
+    orthoControls.update();
+  }
+
+  renderer.render(scene, activeCamera);
+}
+
+function handleResize() {
+  resizeRenderer();
+  graphWrap.classList.toggle('visible', params.showGraph);
+}
+
+function disposeSceneGraph(root) {
+  root.traverse((object) => {
+    if (object.geometry) {
+      object.geometry.dispose();
+    }
+    if (object.material) {
+      if (Array.isArray(object.material)) {
+        object.material.forEach((material) => material.dispose());
+      } else {
+        object.material.dispose();
+      }
+    }
+  });
+}
+
+function cleanup() {
+  if (runtime.disposed) {
+    return;
+  }
+  runtime.disposed = true;
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('beforeunload', cleanup);
+  guideToggle.removeEventListener('click', handleGuideToggle);
+  gui.destroy();
+  perspectiveControls.dispose();
+  orthoControls.dispose();
+  disposeSceneGraph(scene);
+  renderer.dispose();
+}
+
+window.addEventListener('resize', handleResize);
+window.addEventListener('beforeunload', cleanup);
+
+animate();
+</script>
+</body>
+</html>

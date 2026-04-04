@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스펙트럼과 원소 분석 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #111;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+  }
+
+  /* ── 좌우 분할 ── */
+  #scene-container {
+    width: 60%;
+    height: 100vh;
+    position: relative;
+  }
+  #spectrum-container {
+    width: 40%;
+    height: 100vh;
+    background: rgba(10,10,20,0.95);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+
+  #spectrum-container h3 {
+    font-size: 13px;
+    margin-bottom: 10px;
+    color: #c8b6ff;
+  }
+  .spectrum-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  .spectrum-canvas-wrap {
+    position: relative;
+    margin-bottom: 6px;
+  }
+  .spectrum-canvas {
+    width: 100%;
+    height: 50px;
+    border-radius: 6px;
+    cursor: crosshair;
+  }
+  .spectrum-ruler {
+    width: 100%;
+    height: 20px;
+  }
+
+  /* 툴팁 */
+  #tooltip {
+    position: fixed;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 50;
+    display: none;
+    white-space: nowrap;
+  }
+
+  /* 매칭 결과 텍스트 */
+  #match-result {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(0,255,100,0.08);
+    border: 1px solid rgba(0,255,100,0.2);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #88ffaa;
+    display: none;
+    line-height: 1.5;
+  }
+
+  /* ── 수식 패널 ── */
+  #formula-panel {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    width: 300px;
+    background: rgba(15,15,30,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    z-index: 25;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  #formula-panel h3 { font-size: 13px; margin-bottom: 8px; color: #7ecfff; }
+  #formula-panel .row { display: flex; margin-bottom: 2px; }
+  #formula-panel .row .label { width: 90px; flex-shrink: 0; color: rgba(255,255,255,0.5); font-size: 10px; }
+  #formula-panel .row .value { flex: 1; font-size: 11px; }
+  #fp-lines { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10px; color: rgba(255,255,255,0.6); }
+  .formula-note { margin-top: 6px; font-size: 9px; color: rgba(255,255,255,0.4); line-height: 1.5; }
+
+  /* ── 학습 가이드 ── */
+  #guide-toggle {
+    position: fixed; left: 50%; top: 8px; transform: translateX(-50%);
+    background: rgba(15,15,30,0.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    padding: 4px 12px; color: #fff; font-size: 11px;
+    font-family: 'Pretendard', sans-serif; cursor: pointer; z-index: 35;
+  }
+  #guide-panel {
+    position: fixed; left: 50%; top: 36px; transform: translateX(-50%);
+    width: 440px; max-height: 60vh; overflow-y: auto;
+    background: rgba(15,15,30,0.95); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+    padding: 18px; z-index: 34; font-size: 12px; line-height: 1.8; display: none;
+  }
+  #guide-panel h3 { font-size: 14px; margin-bottom: 8px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 12px; margin-top: 10px; margin-bottom: 4px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 16px; }
+  #guide-panel li { margin-bottom: 3px; }
+  .textbook-ref { margin-top: 10px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 10px; color: rgba(255,255,255,0.5); }
+
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    #scene-container { width: 100%; height: 50vh; }
+    #spectrum-container { width: 100%; height: 50vh; }
+    #formula-panel { width: 220px; font-size: 10px; }
+    #guide-panel { width: calc(100vw - 40px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="scene-container"></div>
+
+<div id="spectrum-container">
+  <h3 id="spectrum-title">🌈 연속 스펙트럼</h3>
+
+  <!-- 파장 눈금자 -->
+  <canvas id="ruler-canvas" class="spectrum-ruler"></canvas>
+
+  <!-- 메인 스펙트럼 -->
+  <div class="spectrum-label" id="main-spectrum-label">백열등과 같은 광원에서 방출한 빛</div>
+  <div class="spectrum-canvas-wrap">
+    <canvas id="main-spectrum" class="spectrum-canvas"></canvas>
+  </div>
+
+  <!-- 별 매칭 모드용 추가 스펙트럼 -->
+  <div id="matching-section" style="display:none;">
+    <div class="spectrum-label">수소(H) 방출 스펙트럼</div>
+    <div class="spectrum-canvas-wrap">
+      <canvas id="h-spectrum" class="spectrum-canvas"></canvas>
+    </div>
+    <div class="spectrum-label">헬륨(He) 방출 스펙트럼</div>
+    <div class="spectrum-canvas-wrap">
+      <canvas id="he-spectrum" class="spectrum-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- 오로라 보조 표시 (산소 선택 시) -->
+  <div id="aurora-display" style="display:none; margin-top:10px; padding:12px; background:rgba(0,255,100,0.05); border:1px solid rgba(0,255,100,0.15); border-radius:10px; text-align:center;">
+    <div style="font-size:28px; text-shadow:0 0 30px rgba(68,255,102,0.8), 0 0 60px rgba(68,255,102,0.4); margin-bottom:6px;">🌌 ✨</div>
+    <div style="font-size:12px; color:#88ffaa; font-weight:600;">오로라의 초록색 빛 = 산소의 방출 스펙트럼</div>
+    <div style="font-size:10px; color:rgba(255,255,255,0.5); margin-top:4px;">산소 원자가 557.7nm 파장의 초록색 빛을 방출하여 오로라가 나타남</div>
+  </div>
+
+  <div id="match-result">
+    ✅ 이 별의 대기에 <strong>수소</strong>와 <strong>헬륨</strong>이 포함되어 있습니다!<br>
+    흡수선과 방출선의 위치가 정확히 일치합니다.
+  </div>
+</div>
+
+<!-- 툴팁 -->
+<div id="tooltip"></div>
+
+<!-- 수식 패널 -->
+<div id="formula-panel">
+  <h3>🌈 스펙트럼 분석</h3>
+  <div class="row"><span class="label">광원 모드:</span><span class="value" id="fp-mode">연속</span></div>
+  <div class="row"><span class="label">선택 원소:</span><span class="value" id="fp-element">—</span></div>
+  <div class="row"><span class="label">스펙트럼 유형:</span><span class="value" id="fp-type">연속 스펙트럼</span></div>
+  <div class="row"><span class="label">가시광선:</span><span class="value">400nm(보라) ~ 700nm(빨강)</span></div>
+  <div id="fp-lines"></div>
+  <div class="formula-note">원리: 원소마다 고유한 에너지 준위를 가지므로<br>고유한 파장의 빛을 방출/흡수한다.</div>
+</div>
+
+<!-- 학습 가이드 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>원소마다 고유한 위치에 스펙트럼 선이 나타나므로, 스펙트럼을 분석하면 물질에 포함된 원소를 알아낼 수 있습니다. 이 원리로 수백만 광년 떨어진 별의 성분도 알 수 있습니다.</p>
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>나트륨 전등의 빛이 노란색인 까닭을 나트륨의 방출 스펙트럼과 관련지어 설명해 보세요.</li>
+    <li>태양의 스펙트럼에서 검은 선(프라운호퍼 선)이 나타나는 까닭은 무엇인가요?</li>
+    <li>별의 스펙트럼에서 수소의 흡수선이 발견된다면 이 별에 대해 무엇을 알 수 있나요?</li>
+  </ul>
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>불꽃 반응</strong>: 원소 확인 (구리 → 청록, 나트륨 → 노랑)</li>
+    <li><strong>네온사인</strong>: 기체 방전관 원리</li>
+    <li><strong>천문학</strong>: 별의 성분 분석</li>
+    <li><strong>형광등</strong>: 수은 스펙트럼 활용</li>
+  </ul>
+  <div class="textbook-ref">📚 교과서 참고: 미래엔 통합과학1 II편 p48~50 — 스펙트럼, 프라운호퍼, 별의 스펙트럼 분석</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 원소 스펙트럼 데이터 ───
+const ELEMENTS = {
+  H:  { name: '수소',   symbol: 'H',  lines: [656.3, 486.1, 434.0, 410.2], glowColor: 0xff6688 },
+  He: { name: '헬륨',   symbol: 'He', lines: [587.6, 501.6, 471.3, 447.1], glowColor: 0xffaa44 },
+  Na: { name: '나트륨', symbol: 'Na', lines: [589.0, 589.6],               glowColor: 0xffcc00 },
+  Ca: { name: '칼슘',   symbol: 'Ca', lines: [422.7, 612.2],               glowColor: 0xff5522 },
+  O:  { name: '산소',   symbol: 'O',  lines: [557.7, 630.0],               glowColor: 0x44ff66 }
+};
+
+// 7색 무지개
+const RAINBOW = [
+  { nm: 700, color: '#ff0000' },
+  { nm: 620, color: '#ff8800' },
+  { nm: 580, color: '#ffff00' },
+  { nm: 530, color: '#00ff00' },
+  { nm: 480, color: '#0088ff' },
+  { nm: 450, color: '#0000cc' },
+  { nm: 400, color: '#8800ff' }
+];
+
+// 파장 → RGB 변환
+function wavelengthToRGB(nm) {
+  let r = 0, g = 0, b = 0;
+  if (nm >= 380 && nm < 440) { r = -(nm - 440) / 60; b = 1; }
+  else if (nm >= 440 && nm < 490) { g = (nm - 440) / 50; b = 1; }
+  else if (nm >= 490 && nm < 510) { g = 1; b = -(nm - 510) / 20; }
+  else if (nm >= 510 && nm < 580) { r = (nm - 510) / 70; g = 1; }
+  else if (nm >= 580 && nm < 645) { r = 1; g = -(nm - 645) / 65; }
+  else if (nm >= 645 && nm <= 780) { r = 1; }
+
+  // 끝 부분 감쇠
+  let factor = 1;
+  if (nm >= 380 && nm < 420) factor = 0.3 + 0.7 * (nm - 380) / 40;
+  else if (nm > 700 && nm <= 780) factor = 0.3 + 0.7 * (780 - nm) / 80;
+
+  return {
+    r: Math.round(r * factor * 255),
+    g: Math.round(g * factor * 255),
+    b: Math.round(b * factor * 255)
+  };
+}
+
+function wavelengthToHex(nm) {
+  const c = wavelengthToRGB(nm);
+  return (c.r << 16) | (c.g << 8) | c.b;
+}
+
+function wavelengthToCSS(nm) {
+  const c = wavelengthToRGB(nm);
+  return `rgb(${c.r},${c.g},${c.b})`;
+}
+
+function wavelengthToColorName(nm) {
+  if (nm < 440) return '보라';
+  if (nm < 480) return '파랑';
+  if (nm < 500) return '남색';
+  if (nm < 530) return '청록';
+  if (nm < 570) return '초록';
+  if (nm < 590) return '노랑';
+  if (nm < 620) return '주황';
+  return '빨강';
+}
+
+// ─── 상태 ───
+const state = {
+  mode: 'continuous',   // 'continuous' | 'emission' | 'absorption' | 'star'
+  element: 'H',
+  prismAngle: 0,
+  lightIntensity: 0.7,
+  showMatching: false,
+  sceneObjects: [],
+  animCallbacks: [],
+  clock: new THREE.Clock()
+};
+
+// ─── Three.js 초기화 ───
+const sceneEl = document.getElementById('scene-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111118);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 4, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+sceneEl.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 1, 0);
+
+// 조명
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+scene.add(ambientLight);
+const pointLight = new THREE.PointLight(0xffffff, 0.5, 20);
+pointLight.position.set(-5, 3, 0);
+scene.add(pointLight);
+
+// 바닥
+const floorGeo = new THREE.PlaneGeometry(20, 20);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ─── 프리즘 (항상 표시) ───
+const prismShape = new THREE.Shape();
+prismShape.moveTo(-1, -0.577);
+prismShape.lineTo(1, -0.577);
+prismShape.lineTo(0, 1.155);
+prismShape.closePath();
+
+const prismGeo = new THREE.ExtrudeGeometry(prismShape, { depth: 2, bevelEnabled: false });
+const prismMat = new THREE.MeshPhysicalMaterial({
+  color: 0xeeffff,
+  transmission: 0.9,
+  roughness: 0.05,
+  ior: 1.5,
+  thickness: 1.5,
+  transparent: true,
+  opacity: 0.3
+});
+const prism = new THREE.Mesh(prismGeo, prismMat);
+prism.position.set(0, 1.2, -1);
+scene.add(prism);
+
+// 스크린
+const screenGeo = new THREE.PlaneGeometry(3, 2);
+const screenMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+screenMesh.position.set(6, 1.2, -1);
+screenMesh.rotation.y = -Math.PI / 8;
+scene.add(screenMesh);
+
+// ─── 광원 + 빛 관리 ───
+let lightSourceGroup = null;
+let lightBeamsGroup = null;
+
+function disposeGroup(group) {
+  if (!group) return;
+  group.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+      else child.material.dispose();
+    }
+  });
+  scene.remove(group);
+}
+
+function createLightSource() {
+  disposeGroup(lightSourceGroup);
+  lightSourceGroup = new THREE.Group();
+  lightSourceGroup.position.set(-5, 1.2, -1);
+
+  if (state.mode === 'continuous') {
+    // 백열등
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffdd88, emissiveIntensity: state.lightIntensity })
+    );
+    lightSourceGroup.add(bulb);
+    const shade = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 0.6, 16, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide })
+    );
+    shade.position.y = 0.4;
+    lightSourceGroup.add(shade);
+    pointLight.color.set(0xffffcc);
+  } else if (state.mode === 'emission') {
+    // 기체 방전관
+    const tubeOuter = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 1.5, 16),
+      new THREE.MeshStandardMaterial({ color: 0xaaccdd, transparent: true, opacity: 0.3, roughness: 0.05 })
+    );
+    tubeOuter.rotation.z = Math.PI / 2;
+    lightSourceGroup.add(tubeOuter);
+    const glowColor = ELEMENTS[state.element] ? ELEMENTS[state.element].glowColor : 0xff6688;
+    const tubeInner = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 1.4, 16),
+      new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, opacity: state.lightIntensity })
+    );
+    tubeInner.rotation.z = Math.PI / 2;
+    lightSourceGroup.add(tubeInner);
+    pointLight.color.set(glowColor);
+  } else {
+    // 태양
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xffdd00, emissive: 0xffdd00, emissiveIntensity: state.lightIntensity })
+    );
+    lightSourceGroup.add(sun);
+    pointLight.color.set(0xffdd00);
+  }
+
+  pointLight.intensity = state.lightIntensity * 0.8;
+  pointLight.position.copy(lightSourceGroup.position);
+  scene.add(lightSourceGroup);
+}
+
+function createLightBeams() {
+  disposeGroup(lightBeamsGroup);
+  lightBeamsGroup = new THREE.Group();
+
+  // 입사광 (광원 → 프리즘)
+  const incidentGeo = new THREE.CylinderGeometry(0.02, 0.05, 3, 8);
+  const incidentColor = state.mode === 'emission'
+    ? (ELEMENTS[state.element]?.glowColor || 0xff6688)
+    : 0xffffcc;
+  const incidentMat = new THREE.MeshBasicMaterial({ color: incidentColor, transparent: true, opacity: 0.6 * state.lightIntensity });
+  const incident = new THREE.Mesh(incidentGeo, incidentMat);
+  incident.rotation.z = Math.PI / 2;
+  incident.position.set(-3.5, 1.2, -1);
+  lightBeamsGroup.add(incident);
+
+  // 분산광 (프리즘 → 스크린, 부채꼴)
+  const prismAngleRad = state.prismAngle * Math.PI / 180;
+  const beamColors = state.mode === 'continuous' || state.mode === 'absorption' || state.mode === 'star'
+    ? [0xff0000, 0xff8800, 0xffff00, 0x00ff00, 0x0088ff, 0x0000cc, 0x8800ff]
+    : getEmissionBeamColors();
+
+  beamColors.forEach((color, i) => {
+    const spreadAngle = (i - 3) * 0.04 + prismAngleRad * 0.01;
+    const beamGeo = new THREE.CylinderGeometry(0.008, 0.015, 4, 6);
+    const beamMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 * state.lightIntensity });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.rotation.z = Math.PI / 2 + spreadAngle;
+    beam.position.set(3, 1.2 + Math.sin(spreadAngle) * 2, -1 + (i - 3) * 0.15);
+    lightBeamsGroup.add(beam);
+  });
+
+  scene.add(lightBeamsGroup);
+}
+
+function getEmissionBeamColors() {
+  const elem = ELEMENTS[state.element];
+  if (!elem) return [0xff6688];
+  return elem.lines.map(nm => wavelengthToHex(nm));
+}
+
+// ─── 스펙트럼 캔버스 ───
+const rulerCanvas = document.getElementById('ruler-canvas');
+const mainSpectrum = document.getElementById('main-spectrum');
+const hSpectrum = document.getElementById('h-spectrum');
+const heSpectrum = document.getElementById('he-spectrum');
+const matchingSection = document.getElementById('matching-section');
+const matchResult = document.getElementById('match-result');
+const tooltip = document.getElementById('tooltip');
+const spectrumTitle = document.getElementById('spectrum-title');
+const mainSpectrumLabel = document.getElementById('main-spectrum-label');
+
+function resizeSpectrumCanvases() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  [rulerCanvas, mainSpectrum, hSpectrum, heSpectrum].forEach(c => {
+    const w = c.parentElement ? c.parentElement.offsetWidth : c.offsetWidth;
+    const h = parseInt(getComputedStyle(c).height);
+    c.width = w * dpr;
+    c.height = h * dpr;
+  });
+}
+
+// 파장 눈금자
+function drawRuler() {
+  const c = rulerCanvas;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  const dpr = w / (c.offsetWidth || 1);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = 10 * dpr;
+  const gw = w - pad * 2;
+
+  // 무지개 그라데이션 (얇은 바)
+  const grad = ctx.createLinearGradient(pad, 0, pad + gw, 0);
+  for (let nm = 400; nm <= 700; nm += 10) {
+    const t = (nm - 400) / 300;
+    grad.addColorStop(t, wavelengthToCSS(nm));
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(pad, 0, gw, 4 * dpr);
+
+  // 눈금
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = `${8 * dpr}px Pretendard`;
+  ctx.textAlign = 'center';
+  for (let nm = 400; nm <= 700; nm += 50) {
+    const x = pad + ((nm - 400) / 300) * gw;
+    ctx.fillRect(x - 0.5 * dpr, 4 * dpr, dpr, 6 * dpr);
+    ctx.fillText(`${nm}`, x, h - 2 * dpr);
+  }
+}
+
+// 연속 스펙트럼
+function drawContinuousSpectrum(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const dpr = w / (canvas.offsetWidth || 1);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = 10 * dpr;
+  const gw = w - pad * 2;
+
+  const grad = ctx.createLinearGradient(pad, 0, pad + gw, 0);
+  for (let nm = 400; nm <= 700; nm += 5) {
+    grad.addColorStop((nm - 400) / 300, wavelengthToCSS(nm));
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(pad, 0, gw, h);
+}
+
+// 방출 스펙트럼 (밝은 선)
+function drawEmissionSpectrum(canvas, elementKey) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const dpr = w / (canvas.offsetWidth || 1);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = 10 * dpr;
+  const gw = w - pad * 2;
+
+  // 검은 배경
+  ctx.fillStyle = '#000';
+  ctx.fillRect(pad, 0, gw, h);
+
+  // 밝은 선
+  const elements = elementKey === 'all' ? Object.keys(ELEMENTS) : [elementKey];
+  elements.forEach(key => {
+    const elem = ELEMENTS[key];
+    if (!elem) return;
+    elem.lines.forEach(nm => {
+      const x = pad + ((nm - 400) / 300) * gw;
+      const lineW = Math.max(2 * dpr, 3);
+      ctx.fillStyle = wavelengthToCSS(nm);
+      ctx.shadowColor = wavelengthToCSS(nm);
+      ctx.shadowBlur = 6 * dpr;
+      ctx.fillRect(x - lineW / 2, 0, lineW, h);
+      ctx.shadowBlur = 0;
+    });
+  });
+}
+
+// 흡수 스펙트럼 (검은 선)
+function drawAbsorptionSpectrum(canvas, elementKey) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const dpr = w / (canvas.offsetWidth || 1);
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = 10 * dpr;
+  const gw = w - pad * 2;
+
+  // 무지개 배경
+  const grad = ctx.createLinearGradient(pad, 0, pad + gw, 0);
+  for (let nm = 400; nm <= 700; nm += 5) {
+    grad.addColorStop((nm - 400) / 300, wavelengthToCSS(nm));
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(pad, 0, gw, h);
+
+  // 검은 선 (프라운호퍼 선)
+  const elements = elementKey === 'all'
+    ? Object.keys(ELEMENTS)
+    : [elementKey];
+  elements.forEach(key => {
+    const elem = ELEMENTS[key];
+    if (!elem) return;
+    elem.lines.forEach(nm => {
+      const x = pad + ((nm - 400) / 300) * gw;
+      const lineW = Math.max(2 * dpr, 3);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x - lineW / 2, 0, lineW, h);
+    });
+  });
+}
+
+// 별 매칭 모드: 흡수 스펙트럼 + 연결선
+function drawStarSpectrum() {
+  // 메인: 별의 흡수 스펙트럼 (수소 + 헬륨)
+  drawAbsorptionSpectrum(mainSpectrum, 'all');
+  // 하단: 수소 방출, 헬륨 방출
+  drawEmissionSpectrum(hSpectrum, 'H');
+  drawEmissionSpectrum(heSpectrum, 'He');
+
+  // 매칭 연결선
+  if (state.showMatching) {
+    const ctx = mainSpectrum.getContext('2d');
+    const w = mainSpectrum.width, h = mainSpectrum.height;
+    const dpr = w / (mainSpectrum.offsetWidth || 1);
+    const pad = 10 * dpr;
+    const gw = w - pad * 2;
+
+    ctx.strokeStyle = '#44ff88';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.setLineDash([4 * dpr, 3 * dpr]);
+
+    ['H', 'He'].forEach(key => {
+      ELEMENTS[key].lines.forEach(nm => {
+        const x = pad + ((nm - 400) / 300) * gw;
+        ctx.beginPath();
+        ctx.moveTo(x, h - 2);
+        ctx.lineTo(x, h + 10 * dpr);
+        ctx.stroke();
+      });
+    });
+    ctx.setLineDash([]);
+  }
+}
+
+// 메인 스펙트럼 업데이트
+function updateSpectrum() {
+  resizeSpectrumCanvases();
+  drawRuler();
+
+  matchingSection.style.display = state.mode === 'star' ? 'block' : 'none';
+  matchResult.style.display = (state.mode === 'star' && state.showMatching) ? 'block' : 'none';
+
+  // 오로라 보조 표시: 산소(O) 선택 시
+  const auroraDisplay = document.getElementById('aurora-display');
+  auroraDisplay.style.display = (state.element === 'O' && (state.mode === 'emission' || state.mode === 'absorption')) ? 'block' : 'none';
+
+  if (state.mode === 'continuous') {
+    spectrumTitle.textContent = '🌈 연속 스펙트럼';
+    mainSpectrumLabel.textContent = '연속 스펙트럼 — 백열등과 같은 광원에서 방출한 빛';
+    drawContinuousSpectrum(mainSpectrum);
+  } else if (state.mode === 'emission') {
+    spectrumTitle.textContent = '🌈 방출 스펙트럼';
+    const elem = ELEMENTS[state.element];
+    mainSpectrumLabel.textContent = `방출 스펙트럼 — ${elem?.name || ''}(${state.element}) 기체 방전`;
+    drawEmissionSpectrum(mainSpectrum, state.element);
+  } else if (state.mode === 'absorption') {
+    spectrumTitle.textContent = '🌈 흡수 스펙트럼 (프라운호퍼 선)';
+    mainSpectrumLabel.textContent = '흡수 스펙트럼 — 태양빛이 저온 기체를 통과할 때 특정 파장이 흡수됨';
+    drawAbsorptionSpectrum(mainSpectrum, state.element === 'all' ? 'all' : state.element);
+  } else {
+    spectrumTitle.textContent = '🌈 별 스펙트럼 매칭';
+    mainSpectrumLabel.textContent = '별의 흡수 스펙트럼 (수소 + 헬륨 흡수선 포함)';
+    drawStarSpectrum();
+  }
+}
+
+// ─── 툴팁 (호버) ───
+function setupSpectrumHover(canvas) {
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pad = 10;
+    const gw = rect.width - pad * 2;
+    const nm = 400 + ((x - pad) / gw) * 300;
+
+    if (nm < 395 || nm > 705) { tooltip.style.display = 'none'; return; }
+
+    // 가장 가까운 스펙트럼 선 찾기
+    let closest = null;
+    let minDist = 5; // 5nm 이내
+    Object.entries(ELEMENTS).forEach(([key, elem]) => {
+      elem.lines.forEach(lineNm => {
+        const dist = Math.abs(nm - lineNm);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = { nm: lineNm, element: key, name: elem.name };
+        }
+      });
+    });
+
+    if (closest) {
+      tooltip.textContent = `${closest.nm}nm — ${closest.name}(${closest.element})`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 20) + 'px';
+    } else {
+      tooltip.textContent = `${nm.toFixed(0)}nm`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 20) + 'px';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+}
+
+setupSpectrumHover(mainSpectrum);
+setupSpectrumHover(hSpectrum);
+setupSpectrumHover(heSpectrum);
+
+// ─── 수식 패널 업데이트 ───
+function updateFormulaPanel() {
+  const modeNames = { continuous: '연속', emission: '방출', absorption: '흡수', star: '별 매칭' };
+  const typeNames = { continuous: '연속 스펙트럼', emission: '선 스펙트럼 (방출)', absorption: '선 스펙트럼 (흡수)', star: '흡수 스펙트럼 매칭' };
+
+  document.getElementById('fp-mode').textContent = modeNames[state.mode];
+  document.getElementById('fp-type').textContent = typeNames[state.mode];
+
+  const fpElement = document.getElementById('fp-element');
+  const fpLines = document.getElementById('fp-lines');
+
+  if (state.mode === 'continuous') {
+    fpElement.textContent = '— (전체 가시광선)';
+    fpLines.textContent = '';
+  } else if (state.mode === 'star') {
+    fpElement.textContent = '수소(H) + 헬륨(He)';
+    fpLines.innerHTML = '';
+    ['H', 'He'].forEach(key => {
+      const elem = ELEMENTS[key];
+      elem.lines.forEach(nm => {
+        const div = document.createElement('div');
+        div.textContent = `${nm}nm — ${wavelengthToColorName(nm)} (${elem.name})`;
+        fpLines.appendChild(div);
+      });
+    });
+  } else {
+    const elem = ELEMENTS[state.element];
+    fpElement.textContent = elem ? `${elem.name} (${elem.symbol})` : '전체';
+    fpLines.innerHTML = '';
+    const elements = state.element === 'all' ? Object.keys(ELEMENTS) : [state.element];
+    elements.forEach(key => {
+      const el = ELEMENTS[key];
+      if (!el) return;
+      el.lines.forEach(nm => {
+        const div = document.createElement('div');
+        div.textContent = `${nm}nm — ${wavelengthToColorName(nm)}`;
+        fpLines.appendChild(div);
+      });
+    });
+  }
+}
+
+// ─── lil-gui ───
+const gui = new GUI({ title: '스펙트럼 분석' });
+
+const MODE_NAMES = {
+  '백열등 (연속)': 'continuous',
+  '기체 방전관 (방출)': 'emission',
+  '태양+저온 기체 (흡수)': 'absorption',
+  '별 (매칭)': 'star'
+};
+
+const ELEMENT_NAMES = {
+  '수소(H)': 'H',
+  '헬륨(He)': 'He',
+  '나트륨(Na)': 'Na',
+  '칼슘(Ca)': 'Ca',
+  '산소(O)': 'O',
+  '전체': 'all'
+};
+
+const params = {
+  광원모드: 'continuous',
+  원소선택: 'H',
+  프리즘회전: 0,
+  빛세기: 0.7,
+  매칭확인: () => { state.showMatching = true; updateSpectrum(); },
+  초기화: () => resetAll()
+};
+
+gui.add(params, '광원모드', MODE_NAMES).name('광원 모드').onChange(val => {
+  state.mode = val;
+  state.showMatching = false;
+  createLightSource();
+  createLightBeams();
+  updateSpectrum();
+  updateFormulaPanel();
+  updateGUIVisibility();
+});
+
+const elementController = gui.add(params, '원소선택', ELEMENT_NAMES).name('원소 선택').onChange(val => {
+  state.element = val;
+  createLightSource();
+  createLightBeams();
+  updateSpectrum();
+  updateFormulaPanel();
+});
+
+gui.add(params, '프리즘회전', -30, 30, 1).name('프리즘 회전 (°)').onChange(val => {
+  state.prismAngle = val;
+  prism.rotation.y = val * Math.PI / 180;
+  createLightBeams();
+});
+
+gui.add(params, '빛세기', 0.1, 1.0, 0.1).name('빛 세기').onChange(val => {
+  state.lightIntensity = val;
+  createLightSource();
+  createLightBeams();
+});
+
+const matchBtn = gui.add(params, '매칭확인').name('🔍 매칭 확인');
+gui.add(params, '초기화').name('↩ 초기화');
+
+if (window.innerWidth < 768) gui.close();
+
+function updateGUIVisibility() {
+  const isEmissionOrAbsorption = state.mode === 'emission' || state.mode === 'absorption';
+  elementController.domElement.parentElement.style.display = isEmissionOrAbsorption ? '' : 'none';
+  matchBtn.domElement.parentElement.style.display = state.mode === 'star' ? '' : 'none';
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+function resetAll() {
+  state.mode = 'continuous';
+  state.element = 'H';
+  state.prismAngle = 0;
+  state.lightIntensity = 0.7;
+  state.showMatching = false;
+
+  params.광원모드 = 'continuous';
+  params.원소선택 = 'H';
+  params.프리즘회전 = 0;
+  params.빛세기 = 0.7;
+
+  prism.rotation.y = 0;
+  createLightSource();
+  createLightBeams();
+  updateSpectrum();
+  updateFormulaPanel();
+  updateGUIVisibility();
+}
+
+// ─── 학습 가이드 ───
+let guideOpen = false;
+document.getElementById('guide-toggle').addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  document.getElementById('guide-panel').style.display = guideOpen ? 'block' : 'none';
+});
+
+// ─── 리사이즈 ───
+function resize() {
+  const w = sceneEl.clientWidth;
+  const h = sceneEl.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  resizeSpectrumCanvases();
+  updateSpectrum();
+  if (window.innerWidth < 768) gui.close();
+}
+window.addEventListener('resize', resize);
+
+// ─── 애니메이션 루프 ───
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─── 시작 ───
+resize();
+createLightSource();
+createLightBeams();
+updateSpectrum();
+updateFormulaPanel();
+updateGUIVisibility();
+animate();
+
+</script>
+</body>
+</html>

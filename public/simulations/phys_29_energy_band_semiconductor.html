@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에너지띠와 반도체 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a20;
+    --panel: rgba(10, 16, 36, 0.72);
+    --panel-strong: rgba(10, 16, 36, 0.9);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-main: #edf4ff;
+    --text-sub: rgba(237, 244, 255, 0.72);
+    --valence: #4488ff;
+    --conduction: #ff8844;
+    --electron: #ffe66a;
+    --donor: #ff6644;
+    --acceptor: #44aaff;
+    --hole: #ff5252;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(68, 136, 255, 0.16), transparent 26%),
+      radial-gradient(circle at 84% 18%, rgba(255, 136, 68, 0.12), transparent 24%),
+      linear-gradient(180deg, #0a0a20 0%, #060611 100%);
+    font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+  }
+
+  body {
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  #app {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 60fr 40fr;
+  }
+
+  .panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #band-panel {
+    background:
+      radial-gradient(circle at 18% 10%, rgba(77, 135, 255, 0.18), transparent 26%),
+      linear-gradient(180deg, rgba(10, 16, 36, 0.98), rgba(8, 12, 28, 0.96));
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #lattice-panel {
+    background:
+      radial-gradient(circle at 78% 14%, rgba(255, 160, 102, 0.14), transparent 28%),
+      linear-gradient(180deg, rgba(10, 14, 30, 0.98), rgba(5, 8, 20, 1));
+  }
+
+  .panel-overlay {
+    position: absolute;
+    z-index: 10;
+    backdrop-filter: blur(18px);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  }
+
+  .panel-head {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    right: 18px;
+    z-index: 11;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .head-card {
+    max-width: min(520px, 72%);
+    padding: 16px 18px;
+    border-radius: 22px;
+    background: rgba(10, 18, 40, 0.7);
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(173, 201, 255, 0.72);
+  }
+
+  .head-card h1,
+  .head-card h2 {
+    margin-top: 4px;
+    font-size: 27px;
+    line-height: 1.04;
+    letter-spacing: -0.04em;
+  }
+
+  .head-card p {
+    margin-top: 8px;
+    color: var(--text-sub);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .status-card {
+    min-width: 220px;
+    max-width: 260px;
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: rgba(7, 13, 30, 0.82);
+  }
+
+  .status-card .label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(186, 206, 247, 0.58);
+  }
+
+  .status-card .value {
+    margin-top: 7px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+  }
+
+  .status-card .sub {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+    line-height: 1.6;
+  }
+
+  .legend {
+    position: absolute;
+    top: 130px;
+    left: 18px;
+    z-index: 11;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(9, 16, 35, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(240, 246, 255, 0.86);
+    backdrop-filter: blur(14px);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .summary-grid {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 11;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .summary-card {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(9, 15, 34, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+  }
+
+  .summary-card .label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(193, 213, 247, 0.56);
+  }
+
+  .summary-card .value {
+    margin-top: 7px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+  }
+
+  .summary-card .sub {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-sub);
+    line-height: 1.65;
+  }
+
+  .empty-state {
+    position: absolute;
+    top: 154px;
+    left: 18px;
+    right: 18px;
+    bottom: 112px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px;
+    border-radius: 24px;
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(228, 238, 255, 0.58);
+    font-size: 14px;
+    line-height: 1.7;
+    z-index: 12;
+    backdrop-filter: blur(12px);
+  }
+
+  #mini-diagram {
+    top: 146px;
+    right: 18px;
+    width: min(290px, calc(100% - 36px));
+    padding: 16px 16px 14px;
+    border-radius: 22px;
+    background: rgba(8, 14, 34, 0.82);
+  }
+
+  #mini-diagram .title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff7d5;
+  }
+
+  #mini-diagram .sub {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-sub);
+  }
+
+  .diagram-shell {
+    position: relative;
+    margin-top: 12px;
+    height: 182px;
+    padding-left: 34px;
+  }
+
+  .diagram-axis {
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 18px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .diagram-axis::before {
+    content: "";
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.6));
+  }
+
+  .diagram-axis span {
+    position: absolute;
+    top: -3px;
+    left: -8px;
+    font-size: 10px;
+    color: rgba(222, 233, 255, 0.6);
+    letter-spacing: 0.08em;
+    writing-mode: vertical-rl;
+  }
+
+  .diagram-field {
+    position: relative;
+    height: 100%;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    overflow: hidden;
+  }
+
+  .diagram-band {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .diagram-band.conduction {
+    top: 18px;
+    background: linear-gradient(90deg, rgba(255, 136, 68, 0.7), rgba(255, 167, 113, 0.92));
+  }
+
+  .diagram-band.valence {
+    bottom: 18px;
+    background: linear-gradient(90deg, rgba(68, 136, 255, 0.76), rgba(111, 167, 255, 0.9));
+  }
+
+  #diagram-level {
+    position: absolute;
+    left: 36px;
+    right: 58px;
+    height: 4px;
+    top: 90px;
+    border-radius: 999px;
+    background: #ffe06b;
+    box-shadow: 0 0 14px rgba(255, 224, 107, 0.7);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  #diagram-level.acceptor {
+    background: #7ecbff;
+    box-shadow: 0 0 14px rgba(126, 203, 255, 0.65);
+  }
+
+  #diagram-level-label {
+    position: absolute;
+    right: 14px;
+    top: 80px;
+    font-size: 11px;
+    color: rgba(255, 246, 205, 0.92);
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  #diagram-carrier {
+    position: absolute;
+    right: 16px;
+    bottom: 54px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+    color: rgba(241, 246, 255, 0.84);
+  }
+
+  #diagram-note {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: rgba(232, 239, 255, 0.74);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 30;
+    width: min(390px, calc(100vw - 32px));
+    padding: 18px 18px 16px;
+    border-radius: 24px;
+    background: var(--panel-strong);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(20px);
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #formula-panel .title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff1c0;
+  }
+
+  #formula-panel .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  }
+
+  .formula-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .formula-label {
+    width: 96px;
+    flex-shrink: 0;
+    color: rgba(237, 244, 255, 0.58);
+  }
+
+  .formula-value {
+    flex: 1;
+    color: rgba(237, 244, 255, 0.96);
+  }
+
+  .formula-box {
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(241, 246, 255, 0.9);
+    white-space: pre-line;
+  }
+
+  .formula-box strong {
+    color: #a9d3ff;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 40;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(10, 16, 36, 0.84);
+    color: var(--text-main);
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 58px;
+    left: 16px;
+    z-index: 39;
+    display: none;
+    width: min(430px, calc(100vw - 32px));
+    max-height: min(74vh, 720px);
+    overflow-y: auto;
+    padding: 18px 18px 16px;
+    border-radius: 22px;
+    background: rgba(8, 14, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 46px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(18px);
+    font-size: 13px;
+    line-height: 1.76;
+  }
+
+  #guide-panel h3 {
+    margin: 12px 0 6px;
+    font-size: 15px;
+    color: #a8d3ff;
+  }
+
+  #guide-panel h3:first-child {
+    margin-top: 0;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li + li {
+    margin-top: 5px;
+  }
+
+  #guide-panel .ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(237, 244, 255, 0.68);
+    font-size: 12px;
+  }
+
+  .lil-gui {
+    --width: 310px;
+    z-index: 45 !important;
+  }
+
+  @media (max-width: 1180px) {
+    .panel-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .head-card,
+    .status-card {
+      max-width: min(100%, 560px);
+    }
+
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 980px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 56vh 44vh;
+    }
+
+    #band-panel {
+      border-right: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #mini-diagram {
+      top: 154px;
+      left: 18px;
+      right: 18px;
+      width: auto;
+    }
+
+    #lattice-summary {
+      bottom: 18px;
+      left: 18px;
+      right: 18px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .panel-head {
+      top: 12px;
+      left: 12px;
+      right: 12px;
+    }
+
+    .head-card h1,
+    .head-card h2 {
+      font-size: 22px;
+    }
+
+    .head-card p,
+    .status-card .sub,
+    .summary-card .sub {
+      font-size: 11px;
+    }
+
+    .legend {
+      top: 144px;
+      left: 12px;
+    }
+
+    .summary-grid {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+    }
+
+    .empty-state {
+      left: 12px;
+      right: 12px;
+      top: 170px;
+      bottom: 96px;
+    }
+
+    #mini-diagram {
+      top: 152px;
+      left: 12px;
+      right: 12px;
+      padding: 14px;
+      max-height: 190px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: min(340px, calc(100vw - 24px));
+      padding: 15px;
+      font-size: 11px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 12px;
+      left: 12px;
+    }
+
+    #guide-panel {
+      top: auto;
+      bottom: 58px;
+      left: 12px;
+      width: min(430px, calc(100vw - 24px));
+      max-height: min(56vh, 520px);
+    }
+
+    .lil-gui {
+      --width: min(290px, calc(100vw - 24px));
+    }
+
+    .diagram-shell {
+      height: 124px;
+      padding-left: 28px;
+    }
+
+    .diagram-band {
+      left: 14px;
+      right: 14px;
+      height: 24px;
+      padding: 0 10px;
+      font-size: 11px;
+    }
+
+    #diagram-carrier {
+      right: 12px;
+      bottom: 42px;
+      font-size: 10px;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="band-panel" class="panel">
+    <canvas id="band-canvas"></canvas>
+
+    <div class="panel-head">
+      <div class="head-card panel-overlay">
+        <div class="eyebrow">Energy Band Diagram</div>
+        <h1>도체 · 반도체 · 부도체</h1>
+        <p>가전자띠와 전도띠 사이의 띠틈 크기를 비교하며, 왜 도체는 전류가 잘 흐르고 반도체는 온도와 도핑에 민감한지 3D 에너지띠 블록으로 확인해 보세요.</p>
+      </div>
+
+      <div class="status-card panel-overlay">
+        <div class="label">현재 보기</div>
+        <div class="value" id="band-status-value">전체 비교</div>
+        <div class="sub" id="band-status-sub">도체, 반도체, 부도체의 밴드 구조를 같은 화면에서 나란히 관찰합니다.</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-chip"><span class="legend-dot" style="background: var(--valence)"></span>가전자띠</div>
+      <div class="legend-chip"><span class="legend-dot" style="background: var(--conduction)"></span>전도띠</div>
+      <div class="legend-chip"><span class="legend-dot" style="background: var(--electron)"></span>전자</div>
+    </div>
+
+    <div id="band-empty" class="empty-state">에너지띠 다이어그램이 꺼져 있습니다. 우측 GUI에서 <strong>에너지띠 다이어그램</strong>을 켜면 다시 비교할 수 있습니다.</div>
+
+    <div id="band-summary" class="summary-grid">
+      <div class="summary-card">
+        <div class="label">선택 물질</div>
+        <div class="value" id="band-focus">전체 비교</div>
+        <div class="sub" id="band-focus-sub">세 가지 물질의 띠 구조를 동시에 봅니다.</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">띠틈</div>
+        <div class="value" id="band-gap">0 / 1.1 / 5.5 eV</div>
+        <div class="sub" id="band-gap-sub">도체는 거의 0, 반도체는 중간, 부도체는 큽니다.</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">온도 효과</div>
+        <div class="value" id="band-temp-effect">반도체 전도성 증가</div>
+        <div class="sub" id="band-temp-sub">온도가 오르면 반도체는 전도띠로 올라가는 전자가 늘고, 도체는 산란이 늘어 이동성이 감소합니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="lattice-panel" class="panel">
+    <canvas id="lattice-canvas"></canvas>
+
+    <div class="panel-head">
+      <div class="head-card panel-overlay">
+        <div class="eyebrow">Impurity Semiconductor</div>
+        <h2>순수 · n형 · p형 반도체</h2>
+        <p>규소 격자에 인(P)이나 붕소(B)를 도핑하면 띠틈 안에 도너 준위 또는 억셉터 준위가 생기고, 전자 또는 양공이 주 운반자로 바뀝니다.</p>
+      </div>
+
+      <div class="status-card panel-overlay">
+        <div class="label">반도체 종류</div>
+        <div class="value" id="lattice-status-value">순수(진성)</div>
+        <div class="sub" id="lattice-status-sub">순수 규소에서는 가전자띠가 거의 가득 차 있고 전도띠는 거의 비어 있습니다.</div>
+      </div>
+    </div>
+
+    <div id="mini-diagram" class="panel-overlay">
+      <div class="title">불순물 반도체 에너지 다이어그램</div>
+      <div class="sub">도핑에 따라 띠틈 안쪽 준위가 어디에 생기는지 확인하세요.</div>
+      <div class="diagram-shell">
+        <div class="diagram-axis"><span>에너지 ↑</span></div>
+        <div class="diagram-field">
+          <div class="diagram-band conduction">전도띠</div>
+          <div id="diagram-level"></div>
+          <div id="diagram-level-label"></div>
+          <div class="diagram-band valence">가전자띠</div>
+          <div id="diagram-carrier">주 운반자: 전자·양공 쌍</div>
+        </div>
+      </div>
+      <div id="diagram-note">순수 반도체에서는 가전자띠가 거의 가득 차 있고 전도띠는 거의 비어 있습니다.</div>
+    </div>
+
+    <div id="lattice-empty" class="empty-state">격자 구조 보기가 꺼져 있습니다. 우측 GUI에서 <strong>격자 구조</strong>를 켜면 규소 격자와 도핑 효과를 다시 볼 수 있습니다.</div>
+
+    <div id="lattice-summary" class="summary-grid">
+      <div class="summary-card">
+        <div class="label">도핑 상태</div>
+        <div class="value" id="lattice-mode">순수(진성)</div>
+        <div class="sub" id="lattice-mode-sub">규소 원자 4개의 공유 결합으로 안정한 격자를 이룹니다.</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">주 운반자</div>
+        <div class="value" id="lattice-carrier">전자·양공 쌍</div>
+        <div class="sub" id="lattice-carrier-sub">진성 반도체에서는 열에 의해 생성된 전자와 양공이 함께 이동합니다.</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">전기장 상태</div>
+        <div class="value" id="lattice-field">ON</div>
+        <div class="sub" id="lattice-field-sub">전자와 양공 이동 방향을 화살표와 캐리어 애니메이션으로 확인할 수 있습니다.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="formula-panel">
+  <div class="title">에너지띠와 반도체</div>
+  <div>띠틈의 크기와 도핑이 전기 전도성을 어떻게 바꾸는지 연결해 보세요.</div>
+  <div class="divider"></div>
+
+  <div class="formula-row"><span class="formula-label">물질</span><span class="formula-value" id="formula-material">전체 비교</span></div>
+  <div class="formula-row"><span class="formula-label">반도체 종류</span><span class="formula-value" id="formula-semi">순수(진성)</span></div>
+  <div class="formula-row"><span class="formula-label">온도</span><span class="formula-value" id="formula-temp">300 K</span></div>
+  <div class="formula-row"><span class="formula-label">띠틈</span><span class="formula-value" id="formula-gap">도체 0 / 반도체 1.1 / 부도체 5.5 eV</span></div>
+  <div class="formula-row"><span class="formula-label">주 운반자</span><span class="formula-value" id="formula-carrier">전자·양공 쌍</span></div>
+  <div class="formula-row"><span class="formula-label">핵심 설명</span><span class="formula-value" id="formula-note">고체에서 에너지 준위가 넓어져 에너지띠를 만들며, 띠틈 크기에 따라 전기적 성질이 달라집니다.</span></div>
+
+  <div class="formula-box"><strong>에너지띠</strong>
+도체: 띠틈 ≈ 0 → 전류 잘 흐름
+반도체: Eg ≈ 1.1eV → 온도↑ 전도성↑
+부도체: Eg ≈ 5.5eV → 전류 거의 안 흐름</div>
+
+  <div class="formula-box" id="formula-doping"><strong>불순물 반도체</strong>
+n형: Si에 P(5족) 도핑 → 여분 전자
+p형: Si에 B(3족) 도핑 → 양공
+도핑 → 전도성 크게 향상</div>
+</div>
+
+<button id="guide-toggle" aria-expanded="false">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>핵심 원리</h3>
+  <p>고체에서 많은 원자가 모이면 개별 에너지 준위가 넓어져 가전자띠와 전도띠 같은 에너지띠를 형성합니다. 두 띠 사이의 띠틈 크기에 따라 도체, 반도체, 부도체로 구분되며, 반도체는 온도와 도핑에 따라 전도성이 크게 달라집니다.</p>
+
+  <h3>탐구 질문</h3>
+  <ul>
+    <li>도체, 반도체, 부도체의 에너지띠 구조는 어떻게 다를까요?</li>
+    <li>순수 규소에 인(P)을 도핑하면 왜 n형 반도체가 될까요?</li>
+    <li>반도체의 전기 전도성이 온도가 높아질수록 증가하는 까닭은 무엇일까요?</li>
+  </ul>
+
+  <h3>실생활 예시</h3>
+  <ul>
+    <li>트랜지스터와 CPU: 규소 반도체의 도핑과 전하 이동 제어</li>
+    <li>태양 전지: p-n 접합에서 전자와 양공의 분리 이용</li>
+    <li>LED와 다이오드: 띠 구조와 전하 재결합, 정류 특성 활용</li>
+  </ul>
+
+  <h3>관찰 포인트</h3>
+  <ul>
+    <li>온도를 올리면 반도체의 전도띠 전자 수가 증가합니다.</li>
+    <li>n형은 전자가, p형은 양공이 주 운반자입니다.</li>
+    <li>전기장을 켜면 전자는 전기장 반대 방향, 양공은 전기장 방향으로 이동하는 모습을 볼 수 있습니다.</li>
+  </ul>
+
+  <div class="ref">교과서 연계: 물리학 III편 p164~169 — 에너지띠, 반도체, n형 반도체, p형 반도체</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const bandCanvas = document.getElementById('band-canvas');
+const latticeCanvas = document.getElementById('lattice-canvas');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const bandEmpty = document.getElementById('band-empty');
+const latticeEmpty = document.getElementById('lattice-empty');
+
+const bandStatusValueEl = document.getElementById('band-status-value');
+const bandStatusSubEl = document.getElementById('band-status-sub');
+const bandFocusEl = document.getElementById('band-focus');
+const bandFocusSubEl = document.getElementById('band-focus-sub');
+const bandGapEl = document.getElementById('band-gap');
+const bandGapSubEl = document.getElementById('band-gap-sub');
+const bandTempEffectEl = document.getElementById('band-temp-effect');
+const bandTempSubEl = document.getElementById('band-temp-sub');
+
+const latticeStatusValueEl = document.getElementById('lattice-status-value');
+const latticeStatusSubEl = document.getElementById('lattice-status-sub');
+const latticeModeEl = document.getElementById('lattice-mode');
+const latticeModeSubEl = document.getElementById('lattice-mode-sub');
+const latticeCarrierEl = document.getElementById('lattice-carrier');
+const latticeCarrierSubEl = document.getElementById('lattice-carrier-sub');
+const latticeFieldEl = document.getElementById('lattice-field');
+const latticeFieldSubEl = document.getElementById('lattice-field-sub');
+
+const formulaMaterialEl = document.getElementById('formula-material');
+const formulaSemiEl = document.getElementById('formula-semi');
+const formulaTempEl = document.getElementById('formula-temp');
+const formulaGapEl = document.getElementById('formula-gap');
+const formulaCarrierEl = document.getElementById('formula-carrier');
+const formulaNoteEl = document.getElementById('formula-note');
+const formulaDopingEl = document.getElementById('formula-doping');
+
+const diagramLevelEl = document.getElementById('diagram-level');
+const diagramLevelLabelEl = document.getElementById('diagram-level-label');
+const diagramCarrierEl = document.getElementById('diagram-carrier');
+const diagramNoteEl = document.getElementById('diagram-note');
+
+const MATERIAL_OPTIONS = {
+  '전체 비교': 'all',
+  '도체(Cu)': 'conductor',
+  '반도체(Si)': 'semiconductor',
+  '부도체(다이아몬드)': 'insulator'
+};
+
+const SEMI_OPTIONS = {
+  '순수(진성)': 'intrinsic',
+  'n형(P도핑)': 'n',
+  'p형(B도핑)': 'p'
+};
+
+const MATERIAL_META = {
+  all: {
+    label: '전체 비교',
+    gap: '0 / 1.1 / 5.5 eV',
+    shortGap: '세 물질 비교',
+    status: '도체, 반도체, 부도체를 동시에 관찰합니다.',
+    note: '세 가지 밴드 구조를 나란히 두고 띠틈 크기 차이를 비교합니다.'
+  },
+  conductor: {
+    label: '도체(Cu)',
+    gap: '띠틈 ≈ 0 eV',
+    shortGap: '겹침 또는 거의 0',
+    status: '전도띠와 가전자띠가 겹쳐 자유 전자가 쉽게 이동합니다.',
+    note: '자유 전자가 많아 전류가 잘 흐르지만, 온도가 오르면 격자 산란이 증가해 이동성은 감소합니다.'
+  },
+  semiconductor: {
+    label: '반도체(Si)',
+    gap: 'Eg ≈ 1.1 eV',
+    shortGap: '중간 띠틈',
+    status: '상온에서 일부 전자만 전도띠로 올라가며 온도에 민감합니다.',
+    note: '작은 띠틈 덕분에 온도 상승과 도핑에 따라 전도성이 크게 변합니다.'
+  },
+  insulator: {
+    label: '부도체(다이아몬드)',
+    gap: 'Eg ≈ 5.5 eV',
+    shortGap: '큰 띠틈',
+    status: '전도띠가 너무 멀리 떨어져 있어 전자가 거의 이동하지 못합니다.',
+    note: '큰 띠틈 때문에 상온에서 전도띠로 올라가는 전자가 거의 없습니다.'
+  }
+};
+
+const SEMI_META = {
+  intrinsic: {
+    label: '순수(진성)',
+    carrier: '전자·양공 쌍',
+    shortCarrier: '열여기 전자·양공',
+    status: '순수 규소에서는 열에 의해 생성된 전자와 양공이 함께 전류를 운반합니다.',
+    note: '가전자띠는 거의 꽉 차 있고 전도띠는 거의 비어 있습니다.'
+  },
+  n: {
+    label: 'n형(P도핑)',
+    carrier: '전자',
+    shortCarrier: '여분 전자',
+    status: '인(P)의 5번째 전자가 띠틈 안 도너 준위를 통해 쉽게 전도띠로 올라갑니다.',
+    note: 'n형에서는 전자가 전류의 주 운반자입니다.'
+  },
+  p: {
+    label: 'p형(B도핑)',
+    carrier: '양공',
+    shortCarrier: '양공',
+    status: '붕소(B) 도핑으로 생긴 전자 한 개의 부족이 양공을 만들고, 양공이 전류를 운반합니다.',
+    note: 'p형에서는 양공이 전류의 주 운반자입니다.'
+  }
+};
+
+const COLORS = {
+  valence: 0x4488ff,
+  conduction: 0xff8844,
+  electron: 0xffef72,
+  donor: 0xff6644,
+  acceptor: 0x44aaff,
+  hole: 0xff5252
+};
+
+const state = {
+  material: 'all',
+  semiType: 'intrinsic',
+  temperature: 300,
+  electricField: true,
+  showBands: true,
+  showLattice: true
+};
+
+const guiActions = {
+  reset() {
+    resetState();
+  }
+};
+
+let gui;
+let bandScene;
+let bandCamera;
+let bandRenderer;
+let bandControls;
+let latticeScene;
+let latticeCamera;
+let latticeRenderer;
+let latticeControls;
+let bandRoot = null;
+let latticeRoot = null;
+let latticeCarrierPath = null;
+const bandAnimators = [];
+const latticeAnimators = [];
+const clock = new THREE.Clock();
+
+function makeCanvas(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const lines = String(text).split('\n');
+  const fontSize = options.fontSize ?? 34;
+  const paddingX = options.paddingX ?? 20;
+  const paddingY = options.paddingY ?? 16;
+  const canvas = makeCanvas(16, 16);
+  const ctx = canvas.getContext('2d');
+  ctx.font = `700 ${fontSize}px "Pretendard Variable", "Pretendard", sans-serif`;
+  const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  canvas.width = Math.ceil(maxWidth + paddingX * 2);
+  canvas.height = Math.ceil(lines.length * fontSize * 1.28 + paddingY * 2);
+  ctx.font = `700 ${fontSize}px "Pretendard Variable", "Pretendard", sans-serif`;
+
+  roundedRect(ctx, 0, 0, canvas.width, canvas.height, 26);
+  ctx.fillStyle = options.background ?? 'rgba(9, 15, 34, 0.78)';
+  ctx.fill();
+  ctx.strokeStyle = options.border ?? 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = options.color ?? '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const totalHeight = (lines.length - 1) * fontSize * 1.28;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 - totalHeight / 2 + index * fontSize * 1.28;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(material);
+  const scale = options.scale ?? 1;
+  sprite.scale.set((canvas.width / canvas.height) * scale, scale, 1);
+  sprite.renderOrder = 20;
+  return sprite;
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  Object.values(material).forEach((value) => {
+    if (value && value.isTexture) value.dispose();
+  });
+  material.dispose?.();
+}
+
+function disposeHierarchy(object) {
+  if (!object) return;
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+      else disposeMaterial(child.material);
+    }
+  });
+  object.parent?.remove(object);
+}
+
+function syncGui() {
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getSemiconductorExcitedCount(temp) {
+  return clamp(Math.round(THREE.MathUtils.mapLinear(temp, 0, 500, 0, 6)), 0, 6);
+}
+
+function getInsulatorExcitedCount(temp) {
+  return temp > 440 ? 1 : 0;
+}
+
+function getConductorMobility(temp) {
+  return clamp(1.12 - temp / 700, 0.45, 1.08);
+}
+
+function getSemiconductorMobility(temp) {
+  return clamp(0.35 + temp / 380, 0.25, 1.7);
+}
+
+function createRenderer(canvas) {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  return renderer;
+}
+
+function setupScenes() {
+  bandRenderer = createRenderer(bandCanvas);
+  latticeRenderer = createRenderer(latticeCanvas);
+
+  bandScene = new THREE.Scene();
+  bandCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+  bandCamera.position.set(0, 5.6, 14.2);
+  bandControls = new OrbitControls(bandCamera, bandRenderer.domElement);
+  bandControls.enableDamping = true;
+  bandControls.dampingFactor = 0.06;
+  bandControls.minDistance = 7;
+  bandControls.maxDistance = 28;
+  bandControls.target.set(0, 1.4, 0);
+
+  bandScene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const bandLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  bandLight.position.set(5, 8, 7);
+  bandScene.add(bandLight);
+  const bandFill = new THREE.PointLight(0x4d8fff, 0.55, 30);
+  bandFill.position.set(-6, 4, 6);
+  bandScene.add(bandFill);
+
+  latticeScene = new THREE.Scene();
+  latticeCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+  latticeCamera.position.set(7.4, 6.2, 8.8);
+  latticeControls = new OrbitControls(latticeCamera, latticeRenderer.domElement);
+  latticeControls.enableDamping = true;
+  latticeControls.dampingFactor = 0.06;
+  latticeControls.minDistance = 5.5;
+  latticeControls.maxDistance = 20;
+  latticeControls.target.set(0, 0.9, 0);
+
+  latticeScene.add(new THREE.AmbientLight(0xffffff, 0.68));
+  const latticeLight = new THREE.DirectionalLight(0xffffff, 0.82);
+  latticeLight.position.set(7, 9, 5);
+  latticeScene.add(latticeLight);
+  const latticeFill = new THREE.PointLight(0xffa46e, 0.46, 30);
+  latticeFill.position.set(-4, 5, 4);
+  latticeScene.add(latticeFill);
+}
+
+function createFrame(width, height, depth, color) {
+  const group = new THREE.Group();
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.08
+    })
+  );
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(shell.geometry),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.36 })
+  );
+  group.add(shell, edges);
+  return group;
+}
+
+function createBandElectron(color = COLORS.electron, radius = 0.12) {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      metalness: 0.18
+    })
+  );
+}
+
+function addBandScaffold(root, singleView) {
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(singleView ? 10 : 16, 9.5),
+    new THREE.MeshBasicMaterial({
+      color: 0x152245,
+      transparent: true,
+      opacity: 0.24
+    })
+  );
+  plate.position.set(0, 1.5, -1.3);
+  root.add(plate);
+
+  const grid = new THREE.GridHelper(singleView ? 10 : 16, singleView ? 10 : 16, 0x33528f, 0x1a2a50);
+  grid.position.y = -2.1;
+  root.add(grid);
+
+  const axisX = singleView ? -2.8 : -6.5;
+  const axis = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(axisX, -1.9, 0), 6.3, 0xaed2ff, 0.3, 0.15);
+  root.add(axis);
+
+  const axisLabel = createTextSprite('에너지 ↑', {
+    scale: 0.7,
+    fontSize: 30,
+    background: 'rgba(7, 13, 30, 0.75)',
+    border: 'rgba(174, 210, 255, 0.3)',
+    color: '#dcecff'
+  });
+  axisLabel.position.set(axisX - 0.15, 4.75, 0);
+  root.add(axisLabel);
+}
+
+function createBandColumn(materialKey, x, singleView) {
+  const meta = MATERIAL_META[materialKey];
+  const group = new THREE.Group();
+  group.position.x = x;
+  if (singleView) group.scale.setScalar(1.14);
+
+  const layout = {
+    conductor: { valenceY: 0, conductionY: 1.0, gapHeight: 0, gapLabel: '띠틈 없음' },
+    semiconductor: { valenceY: 0, conductionY: 2.0, gapHeight: 0.5, gapLabel: 'Eg ≈ 1.1 eV' },
+    insulator: { valenceY: 0, conductionY: 3.0, gapHeight: 1.5, gapLabel: 'Eg ≈ 5.5 eV' }
+  }[materialKey];
+
+  const frame = createFrame(2.5, 5.8, 0.8, materialKey === 'conductor' ? 0x7aa6ff : materialKey === 'semiconductor' ? 0xffd16b : 0xd2d8ff);
+  frame.position.y = 1.15;
+  group.add(frame);
+
+  const valenceBand = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 1.5, 0.5),
+    new THREE.MeshStandardMaterial({
+      color: COLORS.valence,
+      emissive: 0x17387a,
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.92,
+      roughness: 0.4
+    })
+  );
+  valenceBand.position.y = layout.valenceY;
+  group.add(valenceBand);
+
+  const conductionBand = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 1.5, 0.5),
+    new THREE.MeshStandardMaterial({
+      color: COLORS.conduction,
+      emissive: 0x7a3217,
+      emissiveIntensity: 0.18,
+      transparent: true,
+      opacity: 0.92,
+      roughness: 0.38
+    })
+  );
+  conductionBand.position.y = layout.conductionY;
+  group.add(conductionBand);
+
+  if (layout.gapHeight > 0) {
+    const gapY = (layout.valenceY + 0.75 + layout.conductionY - 0.75) * 0.5;
+    const gapBlock = new THREE.Mesh(
+      new THREE.BoxGeometry(2.06, layout.gapHeight, 0.52),
+      new THREE.MeshBasicMaterial({
+        color: 0xf5f8ff,
+        transparent: true,
+        opacity: 0.07
+      })
+    );
+    gapBlock.position.y = gapY;
+    group.add(gapBlock);
+
+    const gapLabel = createTextSprite(layout.gapLabel, {
+      scale: 0.72,
+      fontSize: 26,
+      background: 'rgba(9, 15, 34, 0.78)',
+      border: 'rgba(255,255,255,0.2)',
+      color: '#fff4d8'
+    });
+    gapLabel.position.set(0, gapY, 0.58);
+    group.add(gapLabel);
+  }
+
+  const title = createTextSprite(`${meta.label}\n${meta.shortGap}`, {
+    scale: 1.08,
+    fontSize: 28,
+    background: 'rgba(9, 15, 34, 0.82)',
+    border: materialKey === 'semiconductor' ? 'rgba(255, 209, 107, 0.32)' : 'rgba(173, 201, 255, 0.24)'
+  });
+  title.position.set(0, 4.35, 0);
+  group.add(title);
+
+  const bottomLabel = createTextSprite(
+    materialKey === 'conductor'
+      ? '전류 잘 흐름'
+      : materialKey === 'semiconductor'
+        ? '온도↑ 전도성↑'
+        : '전류 거의 안 흐름',
+    {
+      scale: 0.82,
+      fontSize: 26,
+      background: 'rgba(9, 15, 34, 0.72)',
+      border: 'rgba(255,255,255,0.18)'
+    }
+  );
+  bottomLabel.position.set(0, -1.55, 0);
+  group.add(bottomLabel);
+
+  const valenceCount = materialKey === 'insulator' ? 12 : 10;
+  for (let i = 0; i < valenceCount; i++) {
+    const electron = createBandElectron(COLORS.electron, 0.1);
+    const col = i % 5;
+    const row = Math.floor(i / 5);
+    const base = new THREE.Vector3(-0.72 + col * 0.36, layout.valenceY - 0.28 + row * 0.34, (i % 2 === 0 ? -0.1 : 0.1));
+    electron.position.copy(base);
+    group.add(electron);
+    bandAnimators.push({
+      type: 'bound',
+      mesh: electron,
+      base,
+      phase: i * 0.85
+    });
+  }
+
+  const conductionCount =
+    materialKey === 'conductor'
+      ? 8
+      : materialKey === 'semiconductor'
+        ? getSemiconductorExcitedCount(state.temperature)
+        : getInsulatorExcitedCount(state.temperature);
+
+  for (let i = 0; i < conductionCount; i++) {
+    const electron = createBandElectron(COLORS.electron, 0.12);
+    const bounds = {
+      minX: -0.82,
+      maxX: 0.82,
+      minY: layout.conductionY - 0.42,
+      maxY: layout.conductionY + 0.42
+    };
+    electron.position.set(
+      THREE.MathUtils.lerp(bounds.minX, bounds.maxX, Math.random()),
+      THREE.MathUtils.lerp(bounds.minY, bounds.maxY, Math.random()),
+      (Math.random() - 0.5) * 0.16
+    );
+    group.add(electron);
+    bandAnimators.push({
+      type: 'free',
+      mesh: electron,
+      materialKey,
+      bounds,
+      progress: Math.random(),
+      phase: Math.random() * Math.PI * 2,
+      zSeed: (Math.random() - 0.5) * 0.12,
+      speed: 0.12 + Math.random() * 0.08
+    });
+  }
+
+  const fieldArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(-1.3, 3.35, 0),
+    2.6,
+    0x8cf0ff,
+    0.24,
+    0.14
+  );
+  fieldArrow.visible = state.electricField;
+  group.add(fieldArrow);
+
+  const fieldLabel = createTextSprite('전기장 E', {
+    scale: 0.66,
+    fontSize: 24,
+    background: 'rgba(9, 20, 34, 0.7)',
+    border: 'rgba(140, 240, 255, 0.24)',
+    color: '#d8fbff'
+  });
+  fieldLabel.position.set(0, 3.35, 0.45);
+  fieldLabel.visible = state.electricField;
+  group.add(fieldLabel);
+
+  bandAnimators.push({
+    type: 'fieldIndicator',
+    arrow: fieldArrow,
+    label: fieldLabel
+  });
+
+  return group;
+}
+
+function buildBandView() {
+  disposeHierarchy(bandRoot);
+  bandAnimators.length = 0;
+
+  bandRoot = new THREE.Group();
+  bandScene.add(bandRoot);
+
+  const keys = state.material === 'all' ? ['conductor', 'semiconductor', 'insulator'] : [state.material];
+  const singleView = keys.length === 1;
+  addBandScaffold(bandRoot, singleView);
+
+  const spacing = singleView ? 0 : 4.3;
+  const startX = -((keys.length - 1) * spacing) / 2;
+  keys.forEach((key, index) => {
+    const column = createBandColumn(key, startX + spacing * index, singleView);
+    bandRoot.add(column);
+  });
+
+  bandRoot.visible = state.showBands;
+  bandCamera.position.set(0, singleView ? 5 : 5.8, singleView ? 11.3 : 14.2);
+  bandControls.target.set(0, 1.2, 0);
+  bandControls.update();
+}
+
+function createBond(start, end, color = 0xb8bfd1) {
+  const direction = end.clone().sub(start);
+  const length = direction.length();
+  const midpoint = start.clone().add(end).multiplyScalar(0.5);
+  const bond = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.07, length, 16),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.35,
+      metalness: 0.12
+    })
+  );
+  bond.position.copy(midpoint);
+  bond.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  return bond;
+}
+
+function createAtom(radius, color, emissive = 0x111111) {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 28, 28),
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive,
+      emissiveIntensity: 0.18,
+      roughness: 0.4,
+      metalness: 0.16
+    })
+  );
+}
+
+function buildLatticeView() {
+  disposeHierarchy(latticeRoot);
+  latticeAnimators.length = 0;
+
+  latticeRoot = new THREE.Group();
+  latticeScene.add(latticeRoot);
+
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(11.5, 9.5),
+    new THREE.MeshStandardMaterial({
+      color: 0x11192f,
+      roughness: 0.96,
+      metalness: 0.04
+    })
+  );
+  board.rotation.x = -Math.PI / 2;
+  latticeRoot.add(board);
+
+  const grid = new THREE.GridHelper(10, 10, 0x304c8f, 0x1a294f);
+  grid.position.y = 0.01;
+  latticeRoot.add(grid);
+
+  const platformFrame = createFrame(10.2, 0.22, 8.4, 0x4466aa);
+  platformFrame.position.y = 0.11;
+  latticeRoot.add(platformFrame);
+
+  const spacing = 1.75;
+  const positions = [];
+  const dopantIndex = 10;
+  const valenceGeometry = new THREE.SphereGeometry(0.08, 14, 14);
+  const valenceMaterial = new THREE.MeshStandardMaterial({
+    color: 0x7eb6ff,
+    emissive: 0x2b63b5,
+    emissiveIntensity: 0.22,
+    roughness: 0.32
+  });
+
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const index = row * 4 + col;
+      const pos = new THREE.Vector3((col - 1.5) * spacing, 0.5, (row - 1.5) * spacing);
+      positions.push(pos);
+
+      const isDopant = index === dopantIndex && state.semiType !== 'intrinsic';
+      const atomColor = isDopant
+        ? state.semiType === 'n'
+          ? COLORS.donor
+          : COLORS.acceptor
+        : 0x888888;
+      const emissive = isDopant ? (state.semiType === 'n' ? 0x612010 : 0x103963) : 0x161616;
+      const atom = createAtom(0.24, atomColor, emissive);
+      atom.position.copy(pos);
+      latticeRoot.add(atom);
+      latticeAnimators.push({
+        type: 'atom',
+        mesh: atom,
+        base: pos.clone(),
+        phase: index * 0.4
+      });
+
+      const electronCount = isDopant && state.semiType === 'p' ? 3 : 4;
+      for (let i = 0; i < electronCount; i++) {
+        const angle = (Math.PI / 2) * i + Math.PI / 4;
+        const electron = new THREE.Mesh(valenceGeometry, valenceMaterial);
+        electron.position.set(
+          pos.x + Math.cos(angle) * 0.34,
+          pos.y + 0.12 + Math.sin(angle * 2) * 0.04,
+          pos.z + Math.sin(angle) * 0.34
+        );
+        latticeRoot.add(electron);
+        latticeAnimators.push({
+          type: 'orbitElectron',
+          mesh: electron,
+          center: pos.clone(),
+          radius: 0.34,
+          height: 0.12,
+          phase: angle,
+          speed: 0.52 + (i % 2) * 0.08
+        });
+      }
+
+      if (isDopant) {
+        const dopantLabel = createTextSprite(state.semiType === 'n' ? 'P' : 'B', {
+          scale: 0.58,
+          fontSize: 34,
+          background: state.semiType === 'n' ? 'rgba(120, 42, 20, 0.82)' : 'rgba(18, 58, 100, 0.82)',
+          border: 'rgba(255,255,255,0.18)'
+        });
+        dopantLabel.position.copy(pos.clone().add(new THREE.Vector3(0, 0.62, 0)));
+        latticeRoot.add(dopantLabel);
+      }
+    }
+  }
+
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const index = row * 4 + col;
+      if (col < 3) latticeRoot.add(createBond(positions[index], positions[index + 1]));
+      if (row < 3) latticeRoot.add(createBond(positions[index], positions[index + 4]));
+    }
+  }
+
+  latticeCarrierPath = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(3.2, 0.72, -2.6),
+    new THREE.Vector3(1.4, 0.76, -1.4),
+    new THREE.Vector3(0.2, 0.7, 0.1),
+    new THREE.Vector3(-1.5, 0.74, 1.6),
+    new THREE.Vector3(-3.1, 0.72, 2.6),
+    new THREE.Vector3(-2.1, 0.75, 0.8),
+    new THREE.Vector3(-0.2, 0.7, -0.8),
+    new THREE.Vector3(1.8, 0.74, -2.0),
+    new THREE.Vector3(3.2, 0.72, -2.6)
+  ], true);
+
+  const fieldArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(-4.25, 2.25, 0),
+    8.2,
+    0x8cf0ff,
+    0.4,
+    0.22
+  );
+  fieldArrow.visible = state.electricField;
+  latticeRoot.add(fieldArrow);
+
+  const fieldLabel = createTextSprite('전기장 E', {
+    scale: 0.7,
+    fontSize: 24,
+    background: 'rgba(10, 18, 34, 0.72)',
+    border: 'rgba(140, 240, 255, 0.24)',
+    color: '#d8fbff'
+  });
+  fieldLabel.position.set(0, 2.5, 0.55);
+  fieldLabel.visible = state.electricField;
+  latticeRoot.add(fieldLabel);
+  latticeAnimators.push({ type: 'fieldIndicator', arrow: fieldArrow, label: fieldLabel });
+
+  const carrierLabel = createTextSprite(
+    state.semiType === 'n'
+      ? 'n형: 전자가 전류의 주 운반자'
+      : state.semiType === 'p'
+        ? 'p형: 양공이 전류의 주 운반자'
+        : '진성 반도체: 열여기 전자와 양공',
+    {
+      scale: 1.18,
+      fontSize: 28,
+      background: 'rgba(10, 16, 34, 0.78)',
+      border: state.semiType === 'n'
+        ? 'rgba(255, 140, 110, 0.28)'
+        : state.semiType === 'p'
+          ? 'rgba(126, 203, 255, 0.28)'
+          : 'rgba(255,255,255,0.18)'
+    }
+  );
+  carrierLabel.position.set(0, 3.45, 0);
+  latticeRoot.add(carrierLabel);
+
+  if (state.semiType === 'n') {
+    const extraElectron = createBandElectron(COLORS.electron, 0.16);
+    extraElectron.position.copy(positions[dopantIndex].clone().add(new THREE.Vector3(0.48, 0.28, -0.22)));
+    latticeRoot.add(extraElectron);
+    latticeAnimators.push({
+      type: 'carrierElectron',
+      mesh: extraElectron,
+      progress: 0.18,
+      speed: 0.12
+    });
+  } else if (state.semiType === 'p') {
+    const hole = new THREE.Mesh(
+      new THREE.RingGeometry(0.1, 0.18, 32),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.hole,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide
+      })
+    );
+    hole.rotation.x = -Math.PI / 2;
+    hole.position.copy(positions[dopantIndex].clone().add(new THREE.Vector3(0.38, 0.04, 0.2)));
+    latticeRoot.add(hole);
+    latticeAnimators.push({
+      type: 'carrierHole',
+      mesh: hole,
+      progress: 0.62,
+      speed: 0.1
+    });
+
+    const hopElectron = createBandElectron(0xffd267, 0.1);
+    hopElectron.position.copy(hole.position.clone().add(new THREE.Vector3(-0.45, 0.15, 0)));
+    latticeRoot.add(hopElectron);
+    latticeAnimators.push({
+      type: 'hopElectron',
+      mesh: hopElectron,
+      phase: 0
+    });
+  } else if (state.temperature > 180) {
+    const thermalElectron = createBandElectron(COLORS.electron, 0.13);
+    thermalElectron.position.set(0.1, 1.45, -0.1);
+    latticeRoot.add(thermalElectron);
+    latticeAnimators.push({
+      type: 'thermalElectron',
+      mesh: thermalElectron,
+      progress: 0.08,
+      speed: 0.08
+    });
+
+    const thermalHole = new THREE.Mesh(
+      new THREE.RingGeometry(0.08, 0.15, 28),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.hole,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide
+      })
+    );
+    thermalHole.rotation.x = -Math.PI / 2;
+    thermalHole.position.set(-0.1, 0.55, 0.1);
+    latticeRoot.add(thermalHole);
+    latticeAnimators.push({
+      type: 'thermalHole',
+      mesh: thermalHole,
+      progress: 0.48,
+      speed: 0.06
+    });
+  }
+
+  latticeRoot.visible = state.showLattice;
+  latticeControls.target.set(0, 0.8, 0);
+  latticeControls.update();
+}
+
+function updateBandAnimation(delta, elapsed) {
+  bandAnimators.forEach((item) => {
+    if (item.type === 'bound') {
+      const jitter = 0.03 + state.temperature * 0.00008;
+      item.mesh.position.set(
+        item.base.x + Math.sin(elapsed * 1.4 + item.phase) * jitter,
+        item.base.y + Math.cos(elapsed * 1.6 + item.phase) * jitter,
+        item.base.z + Math.sin(elapsed * 1.2 + item.phase) * jitter * 0.5
+      );
+      return;
+    }
+
+    if (item.type === 'free') {
+      const mobility =
+        item.materialKey === 'conductor'
+          ? getConductorMobility(state.temperature)
+          : item.materialKey === 'semiconductor'
+            ? getSemiconductorMobility(state.temperature)
+            : 0.14;
+      const driftFactor = state.electricField ? 1 : 0.18;
+      item.progress = (item.progress + delta * item.speed * mobility * driftFactor) % 1;
+      item.mesh.position.set(
+        THREE.MathUtils.lerp(item.bounds.minX, item.bounds.maxX, item.progress),
+        THREE.MathUtils.lerp(item.bounds.minY, item.bounds.maxY, 0.5 + Math.sin(elapsed * 2.2 + item.phase) * 0.5),
+        item.zSeed + Math.cos(elapsed * 1.8 + item.phase) * 0.05
+      );
+      item.mesh.material.emissiveIntensity = state.electricField ? 0.9 : 0.45;
+      return;
+    }
+
+    if (item.type === 'fieldIndicator') {
+      item.arrow.visible = state.electricField;
+      item.label.visible = state.electricField;
+    }
+  });
+}
+
+function updateLatticeAnimation(delta, elapsed) {
+  latticeAnimators.forEach((item) => {
+    if (item.type === 'atom') {
+      const jitter = state.temperature * 0.00035;
+      item.mesh.position.set(
+        item.base.x,
+        item.base.y + Math.sin(elapsed * 2.5 + item.phase) * jitter,
+        item.base.z
+      );
+      return;
+    }
+
+    if (item.type === 'orbitElectron') {
+      item.phase += delta * item.speed;
+      item.mesh.position.set(
+        item.center.x + Math.cos(item.phase) * item.radius,
+        item.center.y + item.height + Math.sin(elapsed * 2.2 + item.phase) * 0.04,
+        item.center.z + Math.sin(item.phase) * item.radius
+      );
+      return;
+    }
+
+    if (item.type === 'carrierElectron') {
+      item.progress = (item.progress - delta * item.speed * (state.electricField ? 1.0 : 0.15) + 1) % 1;
+      item.mesh.position.copy(latticeCarrierPath.getPointAt(item.progress));
+      item.mesh.material.emissiveIntensity = state.electricField ? 1 : 0.55;
+      return;
+    }
+
+    if (item.type === 'carrierHole') {
+      item.progress = (item.progress + delta * item.speed * (state.electricField ? 1.0 : 0.15)) % 1;
+      item.mesh.position.copy(latticeCarrierPath.getPointAt(item.progress));
+      item.mesh.position.y = 0.06;
+      return;
+    }
+
+    if (item.type === 'hopElectron') {
+      item.phase += delta * (state.electricField ? 2.4 : 0.8);
+      item.mesh.position.set(
+        Math.sin(item.phase) * 0.9,
+        0.72 + Math.abs(Math.cos(item.phase)) * 0.15,
+        Math.cos(item.phase) * 0.7
+      );
+      return;
+    }
+
+    if (item.type === 'thermalElectron') {
+      item.progress = (item.progress + delta * item.speed * (state.electricField ? 1.0 : 0.3)) % 1;
+      item.mesh.position.copy(latticeCarrierPath.getPointAt(item.progress));
+      item.mesh.position.y += 0.42;
+      return;
+    }
+
+    if (item.type === 'thermalHole') {
+      item.progress = (item.progress + delta * item.speed * (state.electricField ? 0.9 : 0.25)) % 1;
+      item.mesh.position.copy(latticeCarrierPath.getPointAt(item.progress));
+      item.mesh.position.y = 0.06;
+      return;
+    }
+
+    if (item.type === 'fieldIndicator') {
+      item.arrow.visible = state.electricField;
+      item.label.visible = state.electricField;
+    }
+  });
+}
+
+function updateDiagram() {
+  diagramLevelEl.style.opacity = '0';
+  diagramLevelLabelEl.style.opacity = '0';
+  diagramLevelEl.classList.remove('acceptor');
+
+  if (state.semiType === 'intrinsic') {
+    diagramCarrierEl.textContent = '주 운반자: 전자·양공 쌍';
+    diagramNoteEl.textContent = '순수 반도체에서는 가전자띠가 거의 가득 차 있고 전도띠는 거의 비어 있습니다.';
+    return;
+  }
+
+  if (state.semiType === 'n') {
+    diagramLevelEl.style.top = '54px';
+    diagramLevelEl.style.opacity = '1';
+    diagramLevelLabelEl.style.top = '44px';
+    diagramLevelLabelEl.style.opacity = '1';
+    diagramLevelLabelEl.textContent = '도너 준위';
+    diagramCarrierEl.textContent = '주 운반자: 전자';
+    diagramNoteEl.textContent = '인(P) 도핑으로 생긴 도너 준위는 전도띠 바로 아래에 있어, 여분 전자가 쉽게 전도띠로 올라갑니다.';
+    return;
+  }
+
+  diagramLevelEl.classList.add('acceptor');
+  diagramLevelEl.style.top = '118px';
+  diagramLevelEl.style.opacity = '1';
+  diagramLevelLabelEl.style.top = '108px';
+  diagramLevelLabelEl.style.opacity = '1';
+  diagramLevelLabelEl.textContent = '억셉터 준위';
+  diagramCarrierEl.textContent = '주 운반자: 양공';
+  diagramNoteEl.textContent = '붕소(B) 도핑으로 생긴 억셉터 준위는 가전자띠 바로 위에 있어 전자가 빠져나간 자리, 즉 양공이 쉽게 만들어집니다.';
+}
+
+function updateUi() {
+  const materialMeta = MATERIAL_META[state.material];
+  const semiMeta = SEMI_META[state.semiType];
+  const excitedCount = getSemiconductorExcitedCount(state.temperature);
+  const electricFieldText = state.electricField ? 'ON' : 'OFF';
+
+  bandStatusValueEl.textContent = materialMeta.label;
+  bandStatusSubEl.textContent = materialMeta.status;
+  bandFocusEl.textContent = materialMeta.label;
+  bandFocusSubEl.textContent = materialMeta.note;
+
+  if (state.material === 'all') {
+    bandGapEl.textContent = '0 / 1.1 / 5.5 eV';
+    bandGapSubEl.textContent = '도체는 띠틈이 거의 없고, 반도체는 작고, 부도체는 큽니다.';
+  } else {
+    bandGapEl.textContent = materialMeta.gap;
+    bandGapSubEl.textContent = materialMeta.status;
+  }
+
+  bandTempEffectEl.textContent = state.temperature >= 350 ? '온도 효과 뚜렷' : '상온 기준 비교';
+  bandTempSubEl.textContent = `현재 ${state.temperature}K에서 반도체의 여기 전자 수는 약 ${excitedCount}개로 표현됩니다. 도체는 온도 상승으로 산란이 증가합니다.`;
+
+  latticeStatusValueEl.textContent = semiMeta.label;
+  latticeStatusSubEl.textContent = semiMeta.status;
+  latticeModeEl.textContent = semiMeta.label;
+  latticeModeSubEl.textContent =
+    state.semiType === 'n'
+      ? '인(P) 원자 1개가 규소를 치환해 5번째 전자가 느슨하게 결합합니다.'
+      : state.semiType === 'p'
+        ? '붕소(B) 원자 1개가 규소를 치환해 결합 전자가 하나 부족해집니다.'
+        : '규소 원자 4개의 공유 결합으로 안정한 격자를 이룹니다.';
+  latticeCarrierEl.textContent = semiMeta.shortCarrier;
+  latticeCarrierSubEl.textContent = semiMeta.status;
+  latticeFieldEl.textContent = electricFieldText;
+  latticeFieldSubEl.textContent = state.electricField
+    ? (state.semiType === 'p'
+      ? '양공은 전기장 방향으로 이동하며, 전자는 그 반대 방향으로 이동합니다.'
+      : '전자는 전기장 반대 방향으로 이동합니다. n형에서는 여분 전자가 더 쉽게 흐릅니다.')
+    : '전기장이 꺼져 있어 캐리어는 주로 열운동과 국소 진동만 보입니다.';
+
+  formulaMaterialEl.textContent = materialMeta.label;
+  formulaSemiEl.textContent = semiMeta.label;
+  formulaTempEl.textContent = `${state.temperature} K`;
+  formulaGapEl.textContent = state.material === 'all' ? '도체 0 / 반도체 1.1 / 부도체 5.5 eV' : materialMeta.gap;
+  formulaCarrierEl.textContent = semiMeta.shortCarrier;
+  formulaNoteEl.textContent =
+    state.semiType === 'n'
+      ? 'P 도핑으로 생긴 도너 준위 덕분에 전자가 쉽게 전도띠로 올라가 전도성이 커집니다.'
+      : state.semiType === 'p'
+        ? 'B 도핑으로 생긴 양공이 가전자띠에서 이동해 p형 반도체의 전류를 운반합니다.'
+        : state.material === 'conductor'
+          ? '도체는 띠틈이 거의 없어 자유 전자가 많고, 온도 상승 시 격자 산란으로 이동성은 감소합니다.'
+          : '고체에서 에너지 준위가 넓어져 에너지띠를 만들며, 띠틈 크기에 따라 전기적 성질이 달라집니다.';
+  formulaDopingEl.innerHTML = `<strong>불순물 반도체</strong>
+${state.semiType === 'n'
+  ? 'n형: Si에 P(5족) 도핑 → 여분 전자\n도너 준위가 전도띠 바로 아래에 생겨 전자가 쉽게 이동'
+  : state.semiType === 'p'
+    ? 'p형: Si에 B(3족) 도핑 → 양공\n억셉터 준위가 가전자띠 바로 위에 생겨 양공 이동'
+    : '진성: 순수 Si 격자\n온도가 올라가면 전자-양공 쌍이 더 많이 생성'}\n도핑 → 전도성 크게 향상`;
+
+  bandEmpty.style.display = state.showBands ? 'none' : 'flex';
+  latticeEmpty.style.display = state.showLattice ? 'none' : 'flex';
+  bandRoot.visible = state.showBands;
+  latticeRoot.visible = state.showLattice;
+  updateDiagram();
+  syncGui();
+}
+
+function refreshView() {
+  buildBandView();
+  buildLatticeView();
+  updateUi();
+}
+
+function resetState() {
+  state.material = 'all';
+  state.semiType = 'intrinsic';
+  state.temperature = 300;
+  state.electricField = true;
+  state.showBands = true;
+  state.showLattice = true;
+  refreshView();
+}
+
+function onResize() {
+  const bandRect = bandCanvas.getBoundingClientRect();
+  bandCamera.aspect = Math.max(bandRect.width, 1) / Math.max(bandRect.height, 1);
+  bandCamera.updateProjectionMatrix();
+  bandRenderer.setSize(Math.max(bandRect.width, 1), Math.max(bandRect.height, 1), false);
+
+  const latticeRect = latticeCanvas.getBoundingClientRect();
+  latticeCamera.aspect = Math.max(latticeRect.width, 1) / Math.max(latticeRect.height, 1);
+  latticeCamera.updateProjectionMatrix();
+  latticeRenderer.setSize(Math.max(latticeRect.width, 1), Math.max(latticeRect.height, 1), false);
+}
+
+function cleanup() {
+  window.removeEventListener('resize', onResize);
+  bandRenderer.dispose();
+  latticeRenderer.dispose();
+  gui.destroy();
+  disposeHierarchy(bandRoot);
+  disposeHierarchy(latticeRoot);
+}
+
+setupScenes();
+
+gui = new GUI({ title: '에너지띠 제어 패널' });
+gui.domElement.style.zIndex = '45';
+gui.add(state, 'material', MATERIAL_OPTIONS).name('물질').onChange(refreshView);
+gui.add(state, 'semiType', SEMI_OPTIONS).name('반도체 종류').onChange(refreshView);
+gui.add(state, 'temperature', 0, 500, 1).name('온도 (K)').onChange(refreshView);
+gui.add(state, 'electricField').name('전기장 적용').onChange(updateUi);
+gui.add(state, 'showBands').name('에너지띠 다이어그램').onChange(updateUi);
+gui.add(state, 'showLattice').name('격자 구조').onChange(updateUi);
+gui.add(guiActions, 'reset').name('초기화');
+
+if (window.innerWidth < 900) {
+  gui.close();
+}
+
+guideToggle.addEventListener('click', () => {
+  const isOpen = guidePanel.style.display === 'block';
+  guidePanel.style.display = isOpen ? 'none' : 'block';
+  guideToggle.setAttribute('aria-expanded', String(!isOpen));
+});
+
+window.addEventListener('resize', onResize);
+window.addEventListener('pagehide', cleanup, { once: true });
+
+refreshView();
+onResize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  updateBandAnimation(delta, elapsed);
+  updateLatticeAnimation(delta, elapsed);
+
+  bandControls.update();
+  latticeControls.update();
+
+  bandRenderer.render(bandScene, bandCamera);
+  latticeRenderer.render(latticeScene, latticeCamera);
+}
+
+animate();
+</script>
+</body>
+</html>

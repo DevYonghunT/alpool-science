@@ -1,0 +1,1947 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상호 유도와 무선 충전 - 3D 시뮬레이션</title>
+<style>
+  :root {
+    --bg: rgba(20, 24, 46, 0.84);
+    --bg-strong: rgba(12, 16, 32, 0.9);
+    --border: rgba(255, 255, 255, 0.12);
+    --text-main: #f3f7ff;
+    --text-dim: rgba(243, 247, 255, 0.7);
+    --accent-primary: #ff835f;
+    --accent-secondary: #6e89ff;
+    --accent-field: #64f0a7;
+    --accent-energy: #ffe07a;
+    --shadow: 0 18px 44px rgba(0, 0, 0, 0.26);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 16% 18%, rgba(255, 131, 95, 0.16), transparent 22%),
+      radial-gradient(circle at 84% 14%, rgba(110, 137, 255, 0.16), transparent 22%),
+      linear-gradient(180deg, #202443 0%, #171a33 40%, #111425 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #scene-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .glass {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+
+  #title-card {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: min(520px, calc(100vw - 180px));
+    padding: 12px 20px 14px;
+    border-radius: 22px;
+    text-align: center;
+    z-index: 28;
+    pointer-events: none;
+  }
+
+  #title-card .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #title-card h1 {
+    margin-top: 4px;
+    font-size: 25px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  #title-card p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 40;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(11, 18, 34, 0.92);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    top: 54px;
+    left: 14px;
+    z-index: 39;
+    width: min(420px, calc(100vw - 28px));
+    max-height: 74vh;
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 20px;
+    display: none;
+    font-size: 12px;
+    line-height: 1.76;
+  }
+
+  #guide-panel.open {
+    display: block;
+  }
+
+  #guide-panel h3 {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #d5ddff;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffd38f;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  #guide-panel li {
+    margin-bottom: 5px;
+  }
+
+  .ref-box {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  #status-chip {
+    position: fixed;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 24;
+    width: min(560px, calc(100vw - 28px));
+    padding: 10px 14px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+  }
+
+  #status-chip strong {
+    color: #ffe392;
+  }
+
+  #formula-panel,
+  #graph-panel {
+    position: fixed;
+    bottom: 14px;
+    z-index: 24;
+    width: min(370px, calc(100vw - 28px));
+    border-radius: 22px;
+  }
+
+  #formula-panel {
+    left: 14px;
+    padding: 18px 18px 16px;
+    font-size: 12px;
+    line-height: 1.72;
+  }
+
+  #graph-panel {
+    right: 14px;
+    padding: 16px;
+  }
+
+  #formula-panel h3,
+  #graph-panel h3 {
+    font-size: 17px;
+    color: #ffffff;
+  }
+
+  .divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04));
+  }
+
+  .info-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .info-row .label {
+    width: 112px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .info-row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.96);
+  }
+
+  .concept-box {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  .concept-box strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #dbe3ff;
+  }
+
+  .mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  #graph-canvas {
+    margin-top: 12px;
+    width: 100%;
+    height: auto;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  #graph-caption {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 11px;
+  }
+
+  .lil-gui {
+    z-index: 48 !important;
+    margin-top: 12px;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 960px) {
+    #status-chip {
+      top: 84px;
+      width: min(92vw, 560px);
+    }
+
+    #formula-panel,
+    #graph-panel {
+      width: calc(100vw - 28px);
+    }
+
+    #graph-panel {
+      bottom: 188px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #title-card {
+      min-width: 0;
+      max-width: calc(100vw - 126px);
+      padding: 10px 14px 12px;
+    }
+
+    #title-card h1 {
+      font-size: 20px;
+    }
+
+    #formula-panel {
+      font-size: 11px;
+    }
+
+    #graph-panel {
+      font-size: 11px;
+    }
+
+    .lil-gui {
+      max-height: 44vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="title-card" class="glass">
+  <div class="eyebrow">Physics II</div>
+  <h1>상호 유도와 무선 충전</h1>
+  <p>물리학 II · 전자기 유도와 에너지 전달</p>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel" class="glass">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>두 코일 사이에서 일어나는 전자기 유도를 상호 유도라 합니다. 한 코일의 전류가 변하면 자기장이 변하고, 이웃한 코일에 유도 기전력이 발생합니다. 무선 충전기, 인덕션 레인지, NFC 등이 이 원리를 활용합니다.</p>
+
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>무선 충전기에서 에너지가 전달되는 과정을 상호 유도로 설명해 보세요.</li>
+    <li>인덕션 레인지 위에 유리 그릇을 올리면 가열되지 않는 까닭은 무엇인가요?</li>
+    <li>코일 간 거리가 멀어지면 무선 충전 효율이 감소하는 까닭은 무엇인가요?</li>
+  </ul>
+
+  <h4>실생활 예시</h4>
+  <ul>
+    <li>스마트폰 무선 충전기</li>
+    <li>인덕션 레인지와 금속 냄비</li>
+    <li>교통 카드와 휴대전화 NFC</li>
+    <li>변압기, 전기 기타 픽업, 금속 탐지기</li>
+  </ul>
+
+  <h4>관찰 포인트</h4>
+  <ul>
+    <li>1차 코일의 교류 전류가 바뀔 때만 자기장과 유도 전류가 강해집니다.</li>
+    <li>거리와 각도가 조금만 달라져도 결합 계수와 효율이 크게 달라집니다.</li>
+    <li>같은 상호 유도 원리라도 무선 충전, 인덕션, NFC의 출력과 목적은 다릅니다.</li>
+  </ul>
+
+  <div class="ref-box">교과서 연계: 물리학 II편 p118~123 — 상호 유도, 무선 충전, 전자기 유도의 활용</div>
+</div>
+
+<div id="status-chip" class="glass"></div>
+
+<div id="formula-panel" class="glass">
+  <h3>📡 상호 유도와 무선 충전</h3>
+  <div class="divider"></div>
+  <div class="info-row"><span class="label">활용 사례</span><span class="value" id="fp-scenario">기본 원리</span></div>
+  <div class="info-row"><span class="label">1차 전류</span><span class="value mono" id="fp-primary-current">2.00 A</span></div>
+  <div class="info-row"><span class="label">교류 주파수</span><span class="value mono" id="fp-frequency">3.00 Hz</span></div>
+  <div class="info-row"><span class="label">코일 간 거리</span><span class="value mono" id="fp-distance">1.00</span></div>
+  <div class="info-row"><span class="label">2차 유도 전류</span><span class="value mono" id="fp-induced-current">0.00 A</span></div>
+  <div class="info-row"><span class="label">전달 효율</span><span class="value mono" id="fp-efficiency">0.0 %</span></div>
+  <div class="info-row"><span class="label">상태</span><span class="value" id="fp-status">코일 간 자기 결합을 관찰하세요.</span></div>
+
+  <div class="concept-box">
+    <strong>상호 유도</strong>
+    1차 코일 전류 변화 → 자기장 변화 → 2차 코일 유도 기전력 → 유도 전류 → 에너지 전달
+  </div>
+
+  <div class="concept-box">
+    <strong>활용</strong>
+    <span id="fp-application">무선 충전기, 인덕션 레인지, NFC, 변압기, 전기 기타 픽업</span>
+  </div>
+
+  <div class="badge-row">
+    <div class="badge">1차 코일: 송신</div>
+    <div class="badge">2차 코일: 수신</div>
+    <div class="badge">효율: 거리·정렬에 비례</div>
+  </div>
+</div>
+
+<div id="graph-panel" class="glass">
+  <h3>거리-효율 그래프</h3>
+  <canvas id="graph-canvas" width="360" height="220"></canvas>
+  <p id="graph-caption">현재 거리와 각도에서의 자기 결합 계수와 전달 효율을 함께 표시합니다.</p>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.Fog(0x1a1a2e, 18, 34);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(9.5, 6.4, 11);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.id = 'scene-canvas';
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 6;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.target.set(0, 1.2, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.6);
+keyLight.position.set(8, 10, 6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.left = -14;
+keyLight.shadow.camera.right = 14;
+keyLight.shadow.camera.top = 14;
+keyLight.shadow.camera.bottom = -14;
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 40;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x6e89ff, 0.32);
+fillLight.position.set(-6, 4, -8);
+scene.add(fillLight);
+
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const statusChip = document.getElementById('status-chip');
+const graphCanvas = document.getElementById('graph-canvas');
+const graphContext = graphCanvas.getContext('2d');
+const graphCaption = document.getElementById('graph-caption');
+
+const formulaScenario = document.getElementById('fp-scenario');
+const formulaPrimaryCurrent = document.getElementById('fp-primary-current');
+const formulaFrequency = document.getElementById('fp-frequency');
+const formulaDistance = document.getElementById('fp-distance');
+const formulaInducedCurrent = document.getElementById('fp-induced-current');
+const formulaEfficiency = document.getElementById('fp-efficiency');
+const formulaStatus = document.getElementById('fp-status');
+const formulaApplication = document.getElementById('fp-application');
+
+guideToggle.addEventListener('click', () => {
+  guidePanel.classList.toggle('open');
+});
+
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+const defaultState = {
+  scenario: '기본 원리',
+  primaryCurrent: 2,
+  frequency: 3,
+  distance: 1,
+  tilt: 0,
+  showField: true,
+  showEnergy: true
+};
+
+const state = { ...defaultState };
+
+const scenarioInfo = {
+  '기본 원리': {
+    application: '무선 충전기, 인덕션 레인지, NFC, 변압기, 전기 기타 픽업',
+    scenarioFactor: 1,
+    status(metrics) {
+      if (metrics.transferEfficiency > 0.7) return '정렬이 좋아 2차 코일의 LED가 밝게 켜집니다.';
+      if (metrics.transferEfficiency > 0.35) return '자기장이 2차 코일을 통과하며 유도 전류가 생깁니다.';
+      return '거리 또는 각도가 커져 상호 유도 효과가 약해졌습니다.';
+    },
+    chip(metrics) {
+      return `1차 코일의 <strong>교류 전류 변화</strong>가 2차 코일의 LED 밝기를 ${metrics.transferEfficiency > 0.5 ? '뚜렷하게' : '약하게'} 바꾸고 있습니다.`;
+    }
+  },
+  '무선 충전기': {
+    application: '스마트폰 무선 충전 패드, 전동칫솔 충전기, 무선 이어폰 케이스',
+    scenarioFactor: 0.95,
+    status(metrics) {
+      if (metrics.transferEfficiency > 0.62) return '충전 패드와 스마트폰 코일이 잘 맞아 충전 중입니다.';
+      if (metrics.transferEfficiency > 0.2) return '충전은 되지만 효율이 떨어집니다. 위치를 더 맞춰 보세요.';
+      return '코일 간 결합이 약해 충전이 거의 일어나지 않습니다.';
+    },
+    chip(metrics, extras) {
+      return `스마트폰 배터리: <strong>${Math.round(extras.batteryLevel * 100)}%</strong> · ${metrics.transferEfficiency > 0.2 ? '충전 에너지가 코일을 건너 전달되고 있습니다.' : '휴대전화를 패드에 더 가깝고 평평하게 놓아 보세요.'}`;
+    }
+  },
+  '인덕션 레인지': {
+    application: '인덕션 레인지, 유도가열 장치, 금속 가열 공정',
+    scenarioFactor: 0.9,
+    status(metrics, extras) {
+      if (extras.temperature > 110) return '냄비 바닥의 유도 전류가 커져 빠르게 가열됩니다.';
+      if (extras.temperature > 70) return '가열은 진행 중이지만 냄비 위치를 더 맞추면 더 빨라집니다.';
+      return '유도 전류가 약해 가열이 거의 일어나지 않습니다.';
+    },
+    chip(metrics, extras) {
+      return `불꽃 없이 <strong>${Math.round(extras.temperature)}°C</strong>까지 상승했습니다. 금속 냄비 바닥에서 생긴 유도 전류가 열로 바뀝니다.`;
+    }
+  },
+  NFC: {
+    application: '교통 카드, 스마트폰 결제, 출입 인증 태그, 근거리 데이터 교환',
+    scenarioFactor: 0.78,
+    status(metrics, extras) {
+      return extras.paymentReady ? '두 기기가 가까워져 전자기 유도로 인증 신호를 주고받습니다.' : 'NFC는 짧은 거리에서만 동작합니다. 기기를 더 가까이 가져가세요.';
+    },
+    chip(metrics, extras) {
+      return extras.paymentReady ? '<strong>결제 완료</strong> · 근거리 자기장 결합으로 태그 정보가 전달되었습니다.' : 'NFC는 가까운 거리에서만 안정적으로 동작합니다. 거리와 각도를 줄여 보세요.';
+    }
+  }
+};
+
+function clamp01(value) {
+  return THREE.MathUtils.clamp(value, 0, 1);
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function createTextSprite(text, options = {}) {
+  const {
+    fontSize = 44,
+    textColor = '#ffffff',
+    background = 'rgba(13, 22, 40, 0.88)',
+    paddingX = 20,
+    paddingY = 12
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  context.font = `700 ${fontSize}px sans-serif`;
+  const metrics = context.measureText(text);
+  const width = Math.ceil(metrics.width + paddingX * 2);
+  const height = Math.ceil(fontSize * 1.8 + paddingY * 2);
+  canvas.width = width;
+  canvas.height = height;
+
+  context.font = `700 ${fontSize}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  roundRect(context, 4, 4, width - 8, height - 8, 22);
+  context.fillStyle = background;
+  context.fill();
+  context.fillStyle = textColor;
+  context.fillText(text, width / 2, height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(width / 220, height / 220, 1);
+  return sprite;
+}
+
+function createDynamicSprite(draw, { width = 512, height = 256, scale = [2.3, 1.1] } = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale[0], scale[1], 1);
+
+  return {
+    sprite,
+    update(payload) {
+      context.clearRect(0, 0, width, height);
+      draw(context, width, height, payload);
+      texture.needsUpdate = true;
+    }
+  };
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  Object.values(material).forEach((value) => {
+    if (value && value.isTexture) value.dispose();
+  });
+  material.dispose();
+}
+
+function disposeHierarchy(root) {
+  if (!root) return;
+  root.traverse((object) => {
+    if (object.geometry) object.geometry.dispose();
+    if (object.material) {
+      if (Array.isArray(object.material)) {
+        object.material.forEach(disposeMaterial);
+      } else {
+        disposeMaterial(object.material);
+      }
+    }
+  });
+  if (root.parent) root.parent.remove(root);
+}
+
+function createTube(points, color, radius = 0.03, opacity = 1, radialSegments = 10, tubularSegments = 54) {
+  const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.2);
+  const geometry = new THREE.TubeGeometry(curve, tubularSegments, radius, radialSegments, false);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.2,
+    transparent: opacity < 1,
+    opacity
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function createArrowMesh(color = 0x64f0a7) {
+  const group = new THREE.Group();
+  const shaftMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.54
+  });
+  const headMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.88
+  });
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.34, 12), shaftMaterial);
+  shaft.rotation.z = -Math.PI / 2;
+  shaft.position.x = 0.15;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 14), headMaterial);
+  head.rotation.z = -Math.PI / 2;
+  head.position.x = 0.38;
+  group.add(shaft, head);
+  group.userData.materials = [shaftMaterial, headMaterial];
+  return group;
+}
+
+function createStage(width, depth, color = 0x232743) {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(Math.max(width, depth) * 0.52, Math.max(width, depth) * 0.56, 0.36, 48),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.55,
+      metalness: 0.18
+    })
+  );
+  base.receiveShadow = true;
+  base.position.y = -0.18;
+  group.add(base);
+
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(Math.max(width, depth) * 0.5, Math.max(width, depth) * 0.5, 0.06, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x2f355d,
+      roughness: 0.34,
+      metalness: 0.24
+    })
+  );
+  top.receiveShadow = true;
+  group.add(top);
+
+  return group;
+}
+
+function createGroundRing(radius = 6.5, color = 0x2a3158) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.78, radius, 80),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.DoubleSide
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -0.32;
+  return ring;
+}
+
+function createCoilAssembly({
+  color,
+  labelText,
+  labelColor = '#ffffff',
+  radius = 1.5,
+  loops = 10,
+  length = 1.3,
+  wireRadius = 0.06,
+  opacity = 1,
+  particleColor = 0xffea61,
+  particleCount = 14
+}) {
+  const root = new THREE.Group();
+  const orient = new THREE.Group();
+  root.add(orient);
+
+  const materials = [];
+  const ringPositions = [];
+
+  for (let i = 0; i < loops; i += 1) {
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.16,
+      roughness: 0.28,
+      metalness: 0.34,
+      transparent: opacity < 1,
+      opacity
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, wireRadius, 10, 64), material);
+    ring.rotation.y = Math.PI / 2;
+    ring.position.x = THREE.MathUtils.lerp(-length * 0.5, length * 0.5, loops === 1 ? 0.5 : i / (loops - 1));
+    ring.castShadow = true;
+    ring.receiveShadow = true;
+    orient.add(ring);
+    materials.push(material);
+    ringPositions.push(ring.position.x);
+  }
+
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.1
+  });
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.04, wireRadius * 1.9, 12, 80), haloMaterial);
+  halo.rotation.y = Math.PI / 2;
+  orient.add(halo);
+
+  const leadA = createTube([
+    new THREE.Vector3(-length * 0.6, radius * 0.68, 0),
+    new THREE.Vector3(-length * 0.92, radius * 0.68, 0),
+    new THREE.Vector3(-length * 0.92, radius * 1.08, 0)
+  ], color, 0.034, opacity);
+  const leadB = createTube([
+    new THREE.Vector3(length * 0.6, -radius * 0.68, 0),
+    new THREE.Vector3(length * 0.92, -radius * 0.68, 0),
+    new THREE.Vector3(length * 0.92, -radius * 1.08, 0)
+  ], color, 0.034, opacity);
+  orient.add(leadA, leadB);
+
+  const particleGeometry = new THREE.SphereGeometry(0.082, 12, 12);
+  const particles = [];
+  for (let i = 0; i < particleCount; i += 1) {
+    const particle = new THREE.Mesh(
+      particleGeometry,
+      new THREE.MeshBasicMaterial({
+        color: particleColor,
+        transparent: true,
+        opacity: 0.7
+      })
+    );
+    orient.add(particle);
+    particles.push(particle);
+  }
+
+  let flowOffset = 0;
+  const label = createTextSprite(labelText, {
+    fontSize: 36,
+    textColor: labelColor,
+    background: 'rgba(15, 21, 38, 0.86)'
+  });
+  label.position.set(0, -radius - 0.95, 0);
+  root.add(label);
+
+  return {
+    root,
+    setPose(position, axis = X_AXIS, tiltAxis = 'z', tiltRad = 0) {
+      root.position.copy(position);
+      const direction = axis.clone().normalize();
+      root.quaternion.setFromUnitVectors(X_AXIS, direction);
+      orient.rotation.set(0, 0, 0);
+      orient.rotation[tiltAxis] = tiltRad;
+    },
+    update(delta, direction, intensity) {
+      const level = clamp01(intensity);
+      flowOffset += delta * direction * (0.34 + level * 0.95);
+      haloMaterial.opacity = 0.06 + level * 0.32;
+      halo.scale.setScalar(1 + level * 0.1);
+      materials.forEach((material) => {
+        material.emissiveIntensity = 0.16 + level * 1.32;
+      });
+      particles.forEach((particle, index) => {
+        let progress = (index / particles.length + flowOffset) % 1;
+        if (progress < 0) progress += 1;
+        const theta = progress * Math.PI * 2 * loops;
+        const x = THREE.MathUtils.lerp(ringPositions[0], ringPositions[ringPositions.length - 1], progress);
+        particle.position.set(
+          x,
+          Math.cos(theta) * radius,
+          Math.sin(theta) * radius
+        );
+        particle.material.opacity = 0.12 + level * 0.88;
+        particle.scale.setScalar(0.45 + level * 0.75);
+      });
+    }
+  };
+}
+
+function createFieldBridge(color = 0x64f0a7) {
+  const root = new THREE.Group();
+  const tubes = [];
+  const arrows = [];
+  const offsets = [-0.42, -0.14, 0.14, 0.42];
+
+  offsets.forEach((offset) => {
+    const points = [
+      new THREE.Vector3(-0.5, offset * 0.72, 0),
+      new THREE.Vector3(-0.15, offset * 0.36, 0.26),
+      new THREE.Vector3(0.15, -offset * 0.36, -0.26),
+      new THREE.Vector3(0.5, -offset * 0.72, 0)
+    ];
+    const tube = createTube(points, color, 0.022, 0.4, 8, 40);
+    tube.material.transparent = true;
+    tube.material.opacity = 0.16;
+    root.add(tube);
+    tubes.push(tube);
+  });
+
+  for (let i = 0; i < 6; i += 1) {
+    const arrow = createArrowMesh(color);
+    arrow.position.x = -0.46 + i * 0.18;
+    root.add(arrow);
+    arrows.push(arrow);
+  }
+
+  return {
+    root,
+    setEndpoints(start, end) {
+      const delta = end.clone().sub(start);
+      const length = Math.max(delta.length(), 0.001);
+      root.position.copy(start).add(end).multiplyScalar(0.5);
+      root.quaternion.setFromUnitVectors(X_AXIS, delta.clone().normalize());
+      root.scale.set(length, 1, 1);
+    },
+    update(time, intensity) {
+      root.visible = state.showField;
+      const level = clamp01(intensity);
+      tubes.forEach((tube, index) => {
+        tube.material.opacity = 0.08 + level * 0.46;
+        tube.material.emissive = new THREE.Color(color);
+        tube.material.emissiveIntensity = 0.06 + level * 0.42;
+        tube.scale.setScalar(0.96 + Math.sin(time * 2.8 + index * 0.9) * 0.04 * level);
+      });
+      arrows.forEach((arrow, index) => {
+        arrow.position.x = -0.42 + (((time * 0.34 + index / arrows.length) % 1) * 0.84);
+        arrow.scale.setScalar(0.55 + level * 0.8);
+        arrow.userData.materials.forEach((material, materialIndex) => {
+          material.opacity = (materialIndex === 0 ? 0.18 : 0.26) + level * (materialIndex === 0 ? 0.48 : 0.62);
+        });
+      });
+    }
+  };
+}
+
+function createEnergyBridge(color = 0x8aff7d) {
+  const root = new THREE.Group();
+  const beams = [];
+  const beamOffsets = [0.16, -0.16];
+
+  beamOffsets.forEach((offset) => {
+    const beam = createTube([
+      new THREE.Vector3(-0.5, offset, 0),
+      new THREE.Vector3(-0.15, offset * 0.45, 0.08),
+      new THREE.Vector3(0.15, -offset * 0.45, -0.08),
+      new THREE.Vector3(0.5, -offset, 0)
+    ], 0x57df88, 0.018, 0.34, 8, 36);
+    beam.material.transparent = true;
+    beam.material.opacity = 0.08;
+    root.add(beam);
+    beams.push(beam);
+  });
+
+  const particleGeometry = new THREE.SphereGeometry(0.06, 10, 10);
+  const particles = [];
+  for (let i = 0; i < 14; i += 1) {
+    const particle = new THREE.Mesh(
+      particleGeometry,
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.84
+      })
+    );
+    root.add(particle);
+    particles.push(particle);
+  }
+
+  return {
+    root,
+    setEndpoints(start, end) {
+      const delta = end.clone().sub(start);
+      const length = Math.max(delta.length(), 0.001);
+      root.position.copy(start).add(end).multiplyScalar(0.5);
+      root.quaternion.setFromUnitVectors(X_AXIS, delta.clone().normalize());
+      root.scale.set(length, 1, 1);
+    },
+    update(time, intensity, direction = 1) {
+      root.visible = state.showEnergy;
+      const level = clamp01(intensity);
+      beams.forEach((beam) => {
+        beam.material.opacity = 0.04 + level * 0.34;
+        beam.material.emissive = new THREE.Color(0x5eea98);
+        beam.material.emissiveIntensity = 0.08 + level * 0.46;
+      });
+      particles.forEach((particle, index) => {
+        let progress = (index / particles.length + time * 0.34 * direction) % 1;
+        if (progress < 0) progress += 1;
+        const x = -0.48 + progress * 0.96;
+        const wave = Math.sin(progress * Math.PI * 4 + time * 3.4 + index * 0.3);
+        particle.position.set(
+          x,
+          wave * 0.1,
+          Math.cos(progress * Math.PI * 4 + index * 0.4) * 0.08
+        );
+        particle.material.opacity = 0.18 + level * 0.82;
+        particle.scale.setScalar(0.6 + level * 1.1);
+      });
+    }
+  };
+}
+
+function createLEDIndicator(size = 0.16) {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(size * 0.65, size * 0.8, size * 0.55, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0x596274,
+      metalness: 0.78,
+      roughness: 0.24
+    })
+  );
+  base.castShadow = true;
+  group.add(base);
+
+  const bulbMaterial = new THREE.MeshStandardMaterial({
+    color: 0xfff2a4,
+    emissive: 0xffdf5b,
+    emissiveIntensity: 0,
+    roughness: 0.24,
+    metalness: 0.12
+  });
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(size, 22, 22), bulbMaterial);
+  bulb.position.y = size * 0.86;
+  bulb.castShadow = true;
+  group.add(bulb);
+
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfff3aa,
+    transparent: true,
+    opacity: 0
+  });
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(size * 1.9, 18, 18), haloMaterial);
+  halo.position.copy(bulb.position);
+  group.add(halo);
+
+  return {
+    group,
+    setBrightness(value) {
+      const level = clamp01(value);
+      bulbMaterial.emissiveIntensity = level * 2.6;
+      haloMaterial.opacity = level * 0.28;
+      halo.scale.setScalar(1 + level * 0.38);
+    }
+  };
+}
+
+function createACSource() {
+  const group = new THREE.Group();
+  const shellMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2f344f,
+    roughness: 0.34,
+    metalness: 0.24
+  });
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 0.9), shellMaterial);
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  group.add(shell);
+
+  const display = createDynamicSprite((ctx, width, height, payload) => {
+    roundRect(ctx, 16, 16, width - 32, height - 32, 26);
+    ctx.fillStyle = 'rgba(12, 18, 34, 0.92)';
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 224, 122, 0.8)';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    for (let i = 0; i <= 160; i += 1) {
+      const t = i / 160;
+      const x = 48 + t * (width - 96);
+      const y = height * 0.5 + Math.sin(t * Math.PI * 2 + payload.phase) * 38;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 46px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('AC', width * 0.5, 62);
+    ctx.font = '600 32px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.84)';
+    ctx.fillText(`${payload.frequency.toFixed(1)} Hz`, width * 0.5, height - 42);
+  }, {
+    width: 420,
+    height: 240,
+    scale: [1.28, 0.82]
+  });
+  display.sprite.position.set(0, 0, 0.47);
+  group.add(display.sprite);
+
+  const label = createTextSprite('교류 전원', {
+    fontSize: 34,
+    background: 'rgba(13, 20, 38, 0.88)'
+  });
+  label.position.set(0, -1.1, 0);
+  group.add(label);
+
+  const glow = new THREE.PointLight(0xffc55f, 0.2, 3.2);
+  glow.position.set(0, 0.1, 0.8);
+  group.add(glow);
+
+  return {
+    group,
+    update(phase, level) {
+      display.update({
+        phase,
+        frequency: state.frequency
+      });
+      glow.intensity = 0.12 + level * 1.4;
+    }
+  };
+}
+
+function createPhoneDevice(labelText, bodyColor = 0x2a315b, screenColor = 0x0f172a) {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: bodyColor,
+    roughness: 0.3,
+    metalness: 0.18
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.78, 0.14), bodyMaterial);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const screenMaterial = new THREE.MeshStandardMaterial({
+    color: screenColor,
+    emissive: 0x2d4f8a,
+    emissiveIntensity: 0.12,
+    roughness: 0.2,
+    metalness: 0.12
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 1.42), screenMaterial);
+  screen.position.z = 0.072;
+  group.add(screen);
+
+  const cameraDot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.05, 20),
+    new THREE.MeshBasicMaterial({ color: 0x16233c })
+  );
+  cameraDot.position.set(0, 0.77, 0.073);
+  group.add(cameraDot);
+
+  const badge = createDynamicSprite((ctx, width, height, payload) => {
+    roundRect(ctx, 26, 24, width - 52, height - 48, 38);
+    ctx.fillStyle = payload.active ? 'rgba(39, 69, 140, 0.92)' : 'rgba(18, 24, 40, 0.92)';
+    ctx.fill();
+
+    ctx.fillStyle = payload.active ? '#ffe27d' : 'rgba(255,255,255,0.72)';
+    ctx.font = '700 72px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(payload.icon, width * 0.5, 102);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 42px sans-serif';
+    ctx.fillText(payload.title, width * 0.5, 170);
+    ctx.font = '600 30px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.fillText(payload.subtitle, width * 0.5, 218);
+  }, {
+    width: 480,
+    height: 260,
+    scale: [0.96, 0.56]
+  });
+  badge.sprite.position.set(0, 0, 0.09);
+  group.add(badge.sprite);
+
+  const label = createTextSprite(labelText, {
+    fontSize: 32,
+    background: 'rgba(13, 20, 38, 0.86)'
+  });
+  label.position.set(0, -1.22, 0);
+  group.add(label);
+
+  return {
+    group,
+    setGlow(level) {
+      screenMaterial.emissiveIntensity = 0.08 + clamp01(level) * 1.1;
+    },
+    updateBadge(payload) {
+      badge.update(payload);
+    }
+  };
+}
+
+function createWirelessPad() {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.28, 0.34, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0x2b2e3f,
+      roughness: 0.45,
+      metalness: 0.18
+    })
+  );
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.02, 2.02, 0.04, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0x111827,
+      roughness: 0.18,
+      metalness: 0.3
+    })
+  );
+  top.position.y = 0.19;
+  group.add(top);
+
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: 0x59d08a,
+    transparent: true,
+    opacity: 0.12
+  });
+  const halo = new THREE.Mesh(new THREE.RingGeometry(1.22, 1.6, 48), haloMaterial);
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.y = 0.21;
+  group.add(halo);
+
+  return {
+    group,
+    setActive(level) {
+      haloMaterial.opacity = 0.06 + clamp01(level) * 0.34;
+      halo.scale.setScalar(1 + clamp01(level) * 0.08);
+    }
+  };
+}
+
+function createInductionCooktop() {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(4.6, 0.28, 4.6),
+    new THREE.MeshStandardMaterial({
+      color: 0x171a22,
+      roughness: 0.3,
+      metalness: 0.22
+    })
+  );
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const top = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.2, 4.2),
+    new THREE.MeshStandardMaterial({
+      color: 0x0b0d13,
+      emissive: 0x0e1625,
+      emissiveIntensity: 0.26,
+      roughness: 0.12,
+      metalness: 0.28
+    })
+  );
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.145;
+  group.add(top);
+
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: 0xff874d,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.45, 60), ringMaterial);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.146;
+  group.add(ring);
+
+  return {
+    group,
+    setHeat(level) {
+      ringMaterial.opacity = 0.08 + clamp01(level) * 0.42;
+    }
+  };
+}
+
+function createPot() {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8c939d,
+    roughness: 0.24,
+    metalness: 0.72
+  });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.02, 0.88, 48, 1, true), bodyMaterial);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const bottomMaterial = new THREE.MeshStandardMaterial({
+    color: 0x5e6670,
+    emissive: 0xff874d,
+    emissiveIntensity: 0,
+    roughness: 0.18,
+    metalness: 0.74
+  });
+  const bottom = new THREE.Mesh(new THREE.CylinderGeometry(1.04, 1.04, 0.08, 48), bottomMaterial);
+  bottom.position.y = -0.44;
+  bottom.castShadow = true;
+  group.add(bottom);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.06, 0.05, 14, 56),
+    new THREE.MeshStandardMaterial({
+      color: 0xb8c0cc,
+      roughness: 0.2,
+      metalness: 0.78
+    })
+  );
+  rim.position.y = 0.44;
+  rim.rotation.x = Math.PI / 2;
+  group.add(rim);
+
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x41464d,
+    roughness: 0.4,
+    metalness: 0.2
+  });
+  const handleLeft = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, 0.18), handleMaterial);
+  handleLeft.position.set(-1.34, 0.08, 0);
+  const handleRight = handleLeft.clone();
+  handleRight.position.x = 1.34;
+  group.add(handleLeft, handleRight);
+
+  return {
+    group,
+    setHeat(level) {
+      bottomMaterial.emissiveIntensity = clamp01(level) * 1.8;
+    }
+  };
+}
+
+function createSteamSystem(count = 12) {
+  const group = new THREE.Group();
+  const particles = [];
+  for (let i = 0; i < count; i += 1) {
+    const particle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    group.add(particle);
+    particles.push({
+      mesh: particle,
+      seed: Math.random(),
+      radius: 0.18 + Math.random() * 0.22
+    });
+  }
+
+  return {
+    group,
+    update(time, level) {
+      const intensity = clamp01(level);
+      group.visible = intensity > 0.04;
+      particles.forEach(({ mesh, seed, radius }, index) => {
+        const cycle = (time * (0.26 + seed * 0.12) + index * 0.09) % 1;
+        mesh.position.set(
+          Math.cos(seed * Math.PI * 2 + cycle * 5.2) * radius,
+          cycle * 1.8,
+          Math.sin(seed * Math.PI * 2 + cycle * 4.4) * radius
+        );
+        mesh.material.opacity = (1 - cycle) * intensity * 0.52;
+        mesh.scale.setScalar(0.4 + cycle * 1.6);
+      });
+    }
+  };
+}
+
+function createPaymentBadge() {
+  const badge = createDynamicSprite((ctx, width, height, payload) => {
+    roundRect(ctx, 18, 18, width - 36, height - 36, 34);
+    ctx.fillStyle = payload.success ? 'rgba(21, 112, 73, 0.94)' : 'rgba(25, 52, 96, 0.94)';
+    ctx.fill();
+
+    ctx.fillStyle = payload.success ? '#d8ffe4' : '#dce6ff';
+    ctx.font = '700 56px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(payload.success ? '결제 완료 ✅' : 'NFC 대기 중', width * 0.5, 102);
+
+    ctx.font = '600 32px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.86)';
+    ctx.fillText(payload.message, width * 0.5, 170);
+  }, {
+    width: 520,
+    height: 220,
+    scale: [2.5, 1.05]
+  });
+
+  return badge;
+}
+
+function calculateBaseCoupling(distanceValue, tiltDeg, scenarioFactor) {
+  const distanceFactor = Math.exp(-0.66 * (distanceValue - 0.5));
+  const alignmentFactor = Math.pow(Math.max(Math.cos(THREE.MathUtils.degToRad(tiltDeg)), 0), 1.45);
+  return clamp01(distanceFactor * alignmentFactor * scenarioFactor);
+}
+
+function calculateMetrics(time) {
+  const info = scenarioInfo[state.scenario];
+  const phase = time * state.frequency * Math.PI * 2;
+  const primaryWave = Math.sin(phase);
+  const fluxWave = Math.cos(phase);
+  const currentMagnitude = Math.abs(primaryWave);
+  const coupling = calculateBaseCoupling(state.distance, state.tilt, info.scenarioFactor);
+  const primaryNormalized = clamp01((state.primaryCurrent - 0.5) / 4.5);
+  const fieldStrength = clamp01((0.28 + primaryNormalized * 0.72) * (0.26 + currentMagnitude * 0.74));
+  const inducedCurrent = state.primaryCurrent * coupling * (0.35 + state.frequency * 0.07) * (0.25 + Math.abs(fluxWave) * 0.75);
+  const transferEfficiency = clamp01(coupling);
+  const visualIntensity = clamp01(transferEfficiency * (0.35 + primaryNormalized * 0.65) * (0.35 + Math.abs(fluxWave) * 0.65));
+
+  return {
+    phase,
+    primaryWave,
+    fluxWave,
+    currentMagnitude,
+    coupling,
+    fieldStrength,
+    inducedCurrent,
+    transferEfficiency,
+    visualIntensity,
+    primaryNormalized
+  };
+}
+
+function drawGraph(metrics) {
+  const ctx = graphContext;
+  const width = graphCanvas.width;
+  const height = graphCanvas.height;
+  const padding = { left: 44, right: 18, top: 18, bottom: 36 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  roundRect(ctx, 2, 2, width - 4, height - 4, 18);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (innerHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+  }
+
+  for (let i = 0; i <= 5; i += 1) {
+    const x = padding.left + (innerWidth / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, height - padding.bottom);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(100, 240, 167, 0.88)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i <= 150; i += 1) {
+    const distanceValue = 0.5 + (i / 150) * 4.5;
+    const efficiency = calculateBaseCoupling(distanceValue, state.tilt, scenarioInfo[state.scenario].scenarioFactor);
+    const x = padding.left + (distanceValue - 0.5) / 4.5 * innerWidth;
+    const y = padding.top + (1 - efficiency) * innerHeight;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  const currentX = padding.left + (state.distance - 0.5) / 4.5 * innerWidth;
+  const currentY = padding.top + (1 - metrics.transferEfficiency) * innerHeight;
+  ctx.fillStyle = '#ffe07a';
+  ctx.beginPath();
+  ctx.arc(currentX, currentY, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 224, 122, 0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(currentX, padding.top);
+  ctx.lineTo(currentX, height - padding.bottom);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.76)';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('거리', width * 0.5, height - 12);
+
+  ctx.save();
+  ctx.translate(14, height * 0.5);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('효율', 0, 0);
+  ctx.restore();
+
+  ctx.textAlign = 'right';
+  [100, 75, 50, 25, 0].forEach((value, index) => {
+    const y = padding.top + (innerHeight / 4) * index + 4;
+    ctx.fillText(`${value}%`, padding.left - 8, y);
+  });
+
+  ctx.textAlign = 'center';
+  [0.5, 1.4, 2.3, 3.2, 4.1, 5.0].forEach((value, index) => {
+    const x = padding.left + (innerWidth / 5) * index;
+    ctx.fillText(value.toFixed(1), x, height - padding.bottom + 18);
+  });
+
+  graphCaption.textContent = `현재 거리 ${state.distance.toFixed(2)}, 각도 ${state.tilt.toFixed(0)}°에서 전달 효율은 ${Math.round(metrics.transferEfficiency * 100)}%입니다.`;
+}
+
+function updateFormula(metrics, extras) {
+  formulaScenario.textContent = state.scenario;
+  formulaPrimaryCurrent.textContent = `${state.primaryCurrent.toFixed(2)} A`;
+  formulaFrequency.textContent = `${state.frequency.toFixed(2)} Hz`;
+  formulaDistance.textContent = state.distance.toFixed(2);
+  formulaInducedCurrent.textContent = `${metrics.inducedCurrent.toFixed(2)} A`;
+  formulaEfficiency.textContent = `${(metrics.transferEfficiency * 100).toFixed(1)} %`;
+  formulaStatus.textContent = scenarioInfo[state.scenario].status(metrics, extras);
+  formulaApplication.textContent = scenarioInfo[state.scenario].application;
+  statusChip.innerHTML = scenarioInfo[state.scenario].chip(metrics, extras);
+}
+
+function createBasicScenario() {
+  const root = new THREE.Group();
+  root.add(createStage(10, 7.4, 0x242949));
+  root.add(createGroundRing(6.8, 0x44507d));
+
+  const transmitter = createCoilAssembly({
+    color: 0xff6644,
+    labelText: '1차 코일',
+    labelColor: '#ffd0c5'
+  });
+  const receiver = createCoilAssembly({
+    color: 0x4466ff,
+    labelText: '2차 코일',
+    labelColor: '#d5dcff'
+  });
+  root.add(transmitter.root, receiver.root);
+
+  const source = createACSource();
+  source.group.position.set(-5.1, 1.1, 0);
+  root.add(source.group);
+
+  const led = createLEDIndicator();
+  root.add(led.group);
+
+  const sourceLabel = createTextSprite('자기장 변화', {
+    fontSize: 34,
+    textColor: '#c3ffdf',
+    background: 'rgba(13, 20, 38, 0.82)'
+  });
+  sourceLabel.position.set(0, 3.38, 0);
+  root.add(sourceLabel);
+
+  const fieldBridge = createFieldBridge();
+  const energyBridge = createEnergyBridge();
+  root.add(fieldBridge.root, energyBridge.root);
+
+  let sourceWireA = null;
+  let sourceWireB = null;
+  let ledWireA = null;
+  let ledWireB = null;
+  let wireSignature = '';
+
+  function rebuildWires(primaryPos, secondaryPos) {
+    [sourceWireA, sourceWireB, ledWireA, ledWireB].forEach((mesh) => {
+      if (mesh && mesh.parent) mesh.parent.remove(mesh);
+      if (mesh) disposeHierarchy(mesh);
+    });
+
+    sourceWireA = createTube([
+      new THREE.Vector3(-4.55, 1.58, 0),
+      new THREE.Vector3(primaryPos.x - 1.12, 1.58, 0),
+      new THREE.Vector3(primaryPos.x - 1.12, 1.94, 0),
+      new THREE.Vector3(primaryPos.x - 0.78, 1.94, 0)
+    ], 0xffa15c, 0.038, 1);
+    sourceWireB = createTube([
+      new THREE.Vector3(-4.55, 0.62, 0),
+      new THREE.Vector3(primaryPos.x - 1.12, 0.62, 0),
+      new THREE.Vector3(primaryPos.x - 1.12, -0.02, 0),
+      new THREE.Vector3(primaryPos.x - 0.78, -0.02, 0)
+    ], 0xffa15c, 0.038, 1);
+    ledWireA = createTube([
+      new THREE.Vector3(secondaryPos.x + 0.82, 1.7, 0),
+      new THREE.Vector3(secondaryPos.x + 1.4, 1.7, 0),
+      new THREE.Vector3(secondaryPos.x + 1.4, 2.24, 0),
+      new THREE.Vector3(secondaryPos.x + 2.25, 2.24, 0)
+    ], 0x89a4ff, 0.034, 1);
+    ledWireB = createTube([
+      new THREE.Vector3(secondaryPos.x + 0.82, -0.12, 0),
+      new THREE.Vector3(secondaryPos.x + 1.4, -0.12, 0),
+      new THREE.Vector3(secondaryPos.x + 1.4, 0.28, 0),
+      new THREE.Vector3(secondaryPos.x + 2.25, 0.28, 0)
+    ], 0x89a4ff, 0.034, 1);
+    root.add(sourceWireA, sourceWireB, ledWireA, ledWireB);
+  }
+
+  return {
+    root,
+    update(time, delta, metrics) {
+      const separation = 2.2 + state.distance * 0.92;
+      const primaryPos = new THREE.Vector3(-separation * 0.5, 1.1, 0);
+      const secondaryPos = new THREE.Vector3(separation * 0.5, 1.1, 0);
+      transmitter.setPose(primaryPos, X_AXIS, 'z', 0);
+      receiver.setPose(secondaryPos, X_AXIS, 'z', THREE.MathUtils.degToRad(state.tilt));
+      transmitter.update(delta, metrics.primaryWave >= 0 ? 1 : -1, metrics.primaryNormalized * (0.3 + metrics.currentMagnitude * 0.7));
+      receiver.update(delta, metrics.fluxWave >= 0 ? 1 : -1, metrics.transferEfficiency * (0.35 + Math.abs(metrics.fluxWave) * 0.65));
+      source.update(metrics.phase, metrics.currentMagnitude);
+      led.group.position.set(secondaryPos.x + 2.45, 1.24, 0);
+      led.setBrightness(metrics.visualIntensity * 1.12);
+      fieldBridge.setEndpoints(primaryPos, secondaryPos);
+      fieldBridge.update(time, metrics.fieldStrength * (0.25 + metrics.transferEfficiency * 0.75));
+      energyBridge.setEndpoints(primaryPos, secondaryPos);
+      energyBridge.update(time, metrics.visualIntensity, 1);
+      const nextWireSignature = `${primaryPos.x.toFixed(2)}:${secondaryPos.x.toFixed(2)}`;
+      if (wireSignature !== nextWireSignature) {
+        wireSignature = nextWireSignature;
+        rebuildWires(primaryPos, secondaryPos);
+      }
+      return {};
+    }
+  };
+}
+
+function createWirelessScenario() {
+  const root = new THREE.Group();
+  root.add(createStage(8.4, 8.4, 0x262b4b));
+  root.add(createGroundRing(6.4, 0x43507d));
+
+  const pad = createWirelessPad();
+  pad.group.position.set(0, 0.2, 0);
+  root.add(pad.group);
+
+  const chargerLabel = createTextSprite('무선 충전 패드', {
+    fontSize: 34,
+    background: 'rgba(13, 20, 38, 0.86)'
+  });
+  chargerLabel.position.set(0, -1.1, 0);
+  root.add(chargerLabel);
+
+  const transmitter = createCoilAssembly({
+    color: 0xff6644,
+    labelText: '송신 코일',
+    labelColor: '#ffd0c5',
+    radius: 1.25,
+    length: 0.9,
+    opacity: 0.62
+  });
+  const receiver = createCoilAssembly({
+    color: 0x4466ff,
+    labelText: '수신 코일',
+    labelColor: '#d5dcff',
+    radius: 0.9,
+    length: 0.62,
+    opacity: 0.72
+  });
+  root.add(transmitter.root, receiver.root);
+
+  const phone = createPhoneDevice('스마트폰', 0x222744, 0x10264a);
+  root.add(phone.group);
+
+  const fieldBridge = createFieldBridge();
+  const energyBridge = createEnergyBridge();
+  root.add(fieldBridge.root, energyBridge.root);
+
+  let batteryLevel = 0.48;
+
+  return {
+    root,
+    update(time, delta, metrics) {
+      const gap = 0.22 + state.distance * 0.28;
+      const tiltRad = THREE.MathUtils.degToRad(state.tilt);
+      const primaryPos = new THREE.Vector3(0, 0.34, 0);
+      const secondaryPos = new THREE.Vector3(Math.sin(tiltRad) * 0.34, 0.48 + gap, 0);
+      transmitter.setPose(primaryPos, Y_AXIS, 'z', 0);
+      receiver.setPose(secondaryPos, Y_AXIS, 'x', tiltRad);
+      transmitter.update(delta, metrics.primaryWave >= 0 ? 1 : -1, metrics.fieldStrength);
+      receiver.update(delta, metrics.fluxWave >= 0 ? 1 : -1, metrics.visualIntensity);
+
+      pad.setActive(metrics.visualIntensity);
+
+      phone.group.position.copy(secondaryPos);
+      phone.group.rotation.set(-Math.PI / 2 + tiltRad * 0.72, 0, 0);
+      phone.setGlow(metrics.visualIntensity);
+
+      const charging = metrics.transferEfficiency > 0.18;
+      batteryLevel = THREE.MathUtils.clamp(
+        batteryLevel + (charging ? (0.015 + metrics.transferEfficiency * 0.055) : -0.008) * delta * 6,
+        0.18,
+        0.99
+      );
+      phone.updateBadge({
+        active: charging,
+        icon: charging ? '⚡' : '⌁',
+        title: charging ? '충전 중' : '충전 대기',
+        subtitle: `${Math.round(batteryLevel * 100)}%`
+      });
+
+      fieldBridge.setEndpoints(primaryPos, secondaryPos);
+      fieldBridge.update(time, metrics.fieldStrength * (0.3 + metrics.transferEfficiency * 0.7));
+      energyBridge.setEndpoints(primaryPos, secondaryPos);
+      energyBridge.update(time, metrics.visualIntensity, 1);
+
+      return { batteryLevel };
+    }
+  };
+}
+
+function createInductionScenario() {
+  const root = new THREE.Group();
+  root.add(createStage(9.2, 9.2, 0x252a49));
+  root.add(createGroundRing(6.6, 0x46537f));
+
+  const cooktop = createInductionCooktop();
+  cooktop.group.position.set(0, 0.14, 0);
+  root.add(cooktop.group);
+
+  const pot = createPot();
+  root.add(pot.group);
+
+  const transmitter = createCoilAssembly({
+    color: 0xff6644,
+    labelText: '가열 코일',
+    labelColor: '#ffd0c5',
+    radius: 1.22,
+    length: 0.86,
+    opacity: 0.58
+  });
+  const receiver = createCoilAssembly({
+    color: 0x9ba6b7,
+    labelText: '냄비 바닥',
+    labelColor: '#eef2ff',
+    radius: 0.9,
+    length: 0.3,
+    wireRadius: 0.05,
+    opacity: 0.52,
+    particleColor: 0xffcf7c,
+    particleCount: 10
+  });
+  root.add(transmitter.root, receiver.root);
+
+  const fieldBridge = createFieldBridge();
+  const energyBridge = createEnergyBridge();
+  root.add(fieldBridge.root, energyBridge.root);
+
+  const steam = createSteamSystem();
+  root.add(steam.group);
+
+  const flameFreeLabel = createTextSprite('불 없이 조리', {
+    fontSize: 34,
+    textColor: '#fff3bc',
+    background: 'rgba(58, 39, 16, 0.88)'
+  });
+  flameFreeLabel.position.set(0, 3.9, 0);
+  root.add(flameFreeLabel);
+
+  let temperature = 28;
+
+  return {
+    root,
+    update(time, delta, metrics) {
+      const gap = 0.24 + state.distance * 0.2;
+      const tiltRad = THREE.MathUtils.degToRad(state.tilt * 0.5);
+      const primaryPos = new THREE.Vector3(0, 0.28, 0);
+      const secondaryPos = new THREE.Vector3(0, 0.72 + gap, 0);
+      transmitter.setPose(primaryPos, Y_AXIS, 'z', 0);
+      receiver.setPose(secondaryPos, Y_AXIS, 'x', tiltRad);
+      transmitter.update(delta, metrics.primaryWave >= 0 ? 1 : -1, metrics.fieldStrength);
+      receiver.update(delta, metrics.fluxWave >= 0 ? 1 : -1, metrics.visualIntensity * 0.8);
+
+      cooktop.setHeat(metrics.visualIntensity);
+      pot.group.position.copy(secondaryPos);
+      pot.group.rotation.z = tiltRad;
+      pot.setHeat(metrics.visualIntensity);
+
+      temperature = THREE.MathUtils.clamp(
+        temperature + (metrics.transferEfficiency * 18 - 0.8) * delta * 6,
+        24,
+        180
+      );
+
+      steam.group.position.set(0, secondaryPos.y + 0.5, 0);
+      steam.update(time, clamp01((temperature - 48) / 85));
+
+      fieldBridge.setEndpoints(primaryPos, secondaryPos);
+      fieldBridge.update(time, metrics.fieldStrength * (0.32 + metrics.transferEfficiency * 0.68));
+      energyBridge.setEndpoints(primaryPos, secondaryPos);
+      energyBridge.update(time, metrics.visualIntensity, 1);
+
+      return { temperature };
+    }
+  };
+}
+
+function createNfcScenario() {
+  const root = new THREE.Group();
+  root.add(createStage(10.4, 7.4, 0x262b49));
+  root.add(createGroundRing(6.8, 0x43507d));
+
+  const terminal = createPhoneDevice('결제 단말기', 0x203152, 0x132a56);
+  const device = createPhoneDevice('카드/휴대전화', 0x2b2f47, 0x162644);
+  root.add(terminal.group, device.group);
+
+  const transmitter = createCoilAssembly({
+    color: 0xff6644,
+    labelText: '송신 안테나',
+    labelColor: '#ffd0c5',
+    radius: 0.66,
+    length: 0.18,
+    wireRadius: 0.04,
+    opacity: 0.62,
+    particleCount: 10
+  });
+  const receiver = createCoilAssembly({
+    color: 0x4466ff,
+    labelText: '수신 안테나',
+    labelColor: '#d5dcff',
+    radius: 0.66,
+    length: 0.18,
+    wireRadius: 0.04,
+    opacity: 0.62,
+    particleCount: 10
+  });
+  root.add(transmitter.root, receiver.root);
+
+  const fieldBridge = createFieldBridge();
+  const energyBridge = createEnergyBridge();
+  root.add(fieldBridge.root, energyBridge.root);
+
+  const paymentBadge = createPaymentBadge();
+  paymentBadge.sprite.position.set(0, 3.5, 0);
+  root.add(paymentBadge.sprite);
+
+  const terminalLabel = createTextSprite('근거리 무선 통신', {
+    fontSize: 34,
+    textColor: '#dbe3ff',
+    background: 'rgba(13, 20, 38, 0.86)'
+  });
+  terminalLabel.position.set(0, -1.24, 0);
+  root.add(terminalLabel);
+
+  return {
+    root,
+    update(time, delta, metrics) {
+      const separation = 1.1 + state.distance * 0.46;
+      const tiltRad = THREE.MathUtils.degToRad(state.tilt);
+      const primaryPos = new THREE.Vector3(-separation * 0.5, 1.2, 0);
+      const secondaryPos = new THREE.Vector3(separation * 0.5, 1.2, 0);
+      terminal.group.position.copy(primaryPos);
+      terminal.group.rotation.y = Math.PI / 2;
+      device.group.position.copy(secondaryPos);
+      device.group.rotation.y = -Math.PI / 2 + tiltRad * 0.45;
+      terminal.setGlow(metrics.visualIntensity * 0.9);
+      device.setGlow(metrics.visualIntensity * 0.9);
+      terminal.updateBadge({
+        active: metrics.transferEfficiency > 0.18,
+        icon: 'NFC',
+        title: '단말기',
+        subtitle: metrics.transferEfficiency > 0.18 ? '신호 송신' : '대기'
+      });
+      device.updateBadge({
+        active: metrics.transferEfficiency > 0.18,
+        icon: metrics.transferEfficiency > 0.18 ? '✓' : '⌁',
+        title: metrics.transferEfficiency > 0.18 ? '태그 감지' : '거리 부족',
+        subtitle: `${Math.round(metrics.transferEfficiency * 100)}%`
+      });
+
+      transmitter.setPose(primaryPos, X_AXIS, 'z', 0);
+      receiver.setPose(secondaryPos, X_AXIS, 'y', tiltRad);
+      transmitter.update(delta, metrics.primaryWave >= 0 ? 1 : -1, metrics.fieldStrength);
+      receiver.update(delta, metrics.fluxWave >= 0 ? 1 : -1, metrics.visualIntensity);
+
+      fieldBridge.setEndpoints(primaryPos, secondaryPos);
+      fieldBridge.update(time, metrics.fieldStrength * (0.26 + metrics.transferEfficiency * 0.74));
+      energyBridge.setEndpoints(primaryPos, secondaryPos);
+      energyBridge.update(time, metrics.visualIntensity, 1);
+
+      const paymentReady = metrics.transferEfficiency > 0.26 && state.distance < 1.8 && state.tilt < 45;
+      paymentBadge.update({
+        success: paymentReady,
+        message: paymentReady ? '전자기 유도로 인증 신호 전달' : '더 가까이 가져가면 결제가 가능합니다'
+      });
+
+      return { paymentReady };
+    }
+  };
+}
+
+const scenarioBuilders = {
+  '기본 원리': createBasicScenario,
+  '무선 충전기': createWirelessScenario,
+  '인덕션 레인지': createInductionScenario,
+  NFC: createNfcScenario
+};
+
+let activeScenario = null;
+
+function setScenario(name) {
+  if (activeScenario) {
+    disposeHierarchy(activeScenario.root);
+    activeScenario = null;
+  }
+  activeScenario = scenarioBuilders[name]();
+  scene.add(activeScenario.root);
+}
+
+function resetSimulation() {
+  Object.assign(state, defaultState);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  setScenario(state.scenario);
+}
+
+const gui = new GUI({ title: '상호 유도 컨트롤' });
+gui.add(state, 'scenario', ['기본 원리', '무선 충전기', '인덕션 레인지', 'NFC']).name('활용 사례').onChange((value) => {
+  state.scenario = value;
+  setScenario(value);
+});
+gui.add(state, 'primaryCurrent', 0.5, 5, 0.1).name('1차 전류 세기');
+gui.add(state, 'frequency', 1, 10, 0.1).name('교류 주파수');
+gui.add(state, 'distance', 0.5, 5, 0.1).name('코일 간 거리');
+gui.add(state, 'tilt', 0, 90, 1).name('2차 코일 각도');
+gui.add(state, 'showField').name('자기장 표시');
+gui.add(state, 'showEnergy').name('에너지 흐름 표시');
+gui.add({ reset: () => resetSimulation() }, 'reset').name('초기화');
+
+if (window.innerWidth < 720) {
+  gui.close();
+}
+
+const starGeometry = new THREE.BufferGeometry();
+const starCount = 84;
+const starPositions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i += 1) {
+  starPositions[i * 3] = (Math.random() - 0.5) * 26;
+  starPositions[i * 3 + 1] = Math.random() * 10 + 1.2;
+  starPositions[i * 3 + 2] = (Math.random() - 0.5) * 26;
+}
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const stars = new THREE.Points(
+  starGeometry,
+  new THREE.PointsMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.28,
+    size: 0.05
+  })
+);
+scene.add(stars);
+
+setScenario(state.scenario);
+
+let previousTime = performance.now() * 0.001;
+
+function animate(nowMs) {
+  requestAnimationFrame(animate);
+  const now = nowMs * 0.001;
+  const delta = Math.min(now - previousTime, 0.04);
+  previousTime = now;
+
+  controls.update();
+  stars.rotation.y = now * 0.015;
+
+  const metrics = calculateMetrics(now);
+  const extras = activeScenario ? activeScenario.update(now, delta, metrics) || {} : {};
+  drawGraph(metrics);
+  updateFormula(metrics, extras);
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(animate);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  if (window.innerWidth < 720) {
+    gui.close();
+  }
+});
+</script>
+</body>
+</html>

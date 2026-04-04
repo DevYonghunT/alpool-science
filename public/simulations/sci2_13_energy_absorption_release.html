@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에너지의 흡수와 방출 - 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f0e8;
+    --panel: rgba(255, 252, 247, 0.88);
+    --panel-strong: rgba(247, 242, 235, 0.94);
+    --panel-border: rgba(57, 55, 52, 0.12);
+    --text-main: #2d3436;
+    --text-dim: rgba(45, 52, 54, 0.72);
+    --cool: #4b9df8;
+    --cool-soft: #dff0ff;
+    --warm: #ef6a4a;
+    --warm-soft: #ffe6dc;
+    --mixed: #7f73d4;
+    --shadow: 0 18px 42px rgba(79, 67, 57, 0.12);
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background:
+      radial-gradient(circle at 14% 12%, rgba(116, 170, 255, 0.16), transparent 20%),
+      radial-gradient(circle at 84% 14%, rgba(255, 156, 110, 0.18), transparent 22%),
+      linear-gradient(180deg, #f7f2ea 0%, #f1ebe2 100%);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+  }
+
+  button,
+  select {
+    font: inherit;
+  }
+
+  #scene-container {
+    position: fixed;
+    inset: 0;
+    touch-action: none;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  .glass-panel {
+    position: fixed;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  #title-panel {
+    top: 16px;
+    left: 16px;
+    z-index: 18;
+    width: min(420px, calc(100vw - 32px));
+    padding: 16px 18px 15px;
+    border-radius: 22px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(45, 52, 54, 0.5);
+  }
+
+  #title-panel h1 {
+    margin-top: 6px;
+    font-size: 30px;
+    line-height: 1.05;
+    letter-spacing: -0.05em;
+  }
+
+  #title-panel p {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+
+  #mode-chip {
+    top: 22px;
+    left: 50%;
+    z-index: 18;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #20344f;
+    background: rgba(255, 255, 255, 0.82);
+  }
+
+  #guide-toggle {
+    position: fixed;
+    top: 68px;
+    left: 50%;
+    z-index: 18;
+    transform: translateX(-50%);
+    border: 0;
+    border-radius: 999px;
+    background: rgba(44, 58, 74, 0.88);
+    color: #fff;
+    padding: 8px 14px;
+    cursor: pointer;
+    box-shadow: 0 12px 24px rgba(24, 28, 34, 0.16);
+  }
+
+  #guide-panel {
+    top: 108px;
+    left: 50%;
+    z-index: 19;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 32px));
+    max-height: min(62vh, 720px);
+    padding: 18px 20px 18px;
+    border-radius: 24px;
+    overflow-y: auto;
+    display: none;
+    background: rgba(255, 251, 246, 0.96);
+  }
+
+  #guide-panel h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #614b3f;
+  }
+
+  #guide-panel p,
+  #guide-panel li,
+  #guide-panel .textbook-ref {
+    font-size: 13px;
+    line-height: 1.75;
+    color: #4a4f52;
+  }
+
+  #guide-panel ul {
+    padding-left: 18px;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(97, 75, 63, 0.06);
+  }
+
+  #pane-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 15;
+  }
+
+  .pane-slot {
+    position: fixed;
+    top: 116px;
+    min-height: 0;
+    pointer-events: none;
+  }
+
+  #slot-left {
+    left: 16px;
+    width: min(320px, calc(50vw - 28px));
+  }
+
+  #slot-center {
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(360px, calc(100vw - 32px));
+  }
+
+  #slot-right {
+    right: 16px;
+    width: min(320px, calc(50vw - 28px));
+  }
+
+  .pane-card {
+    pointer-events: auto;
+    padding: 15px 16px 14px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow: 0 18px 34px rgba(58, 52, 48, 0.12);
+    backdrop-filter: blur(16px);
+  }
+
+  .pane-card.absorption {
+    background: linear-gradient(180deg, rgba(246, 252, 255, 0.94), rgba(233, 246, 255, 0.9));
+  }
+
+  .pane-card.release {
+    background: linear-gradient(180deg, rgba(255, 247, 243, 0.94), rgba(255, 236, 228, 0.9));
+  }
+
+  .pane-card.mixed {
+    background: linear-gradient(180deg, rgba(247, 245, 255, 0.95), rgba(237, 232, 255, 0.9));
+  }
+
+  .pane-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+  }
+
+  .badge.absorption {
+    background: rgba(75, 157, 248, 0.12);
+    color: #1d6ed1;
+  }
+
+  .badge.release {
+    background: rgba(239, 106, 74, 0.14);
+    color: #cf4d31;
+  }
+
+  .badge.mixed {
+    background: rgba(127, 115, 212, 0.14);
+    color: #5d51b8;
+  }
+
+  .flow-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(45, 52, 54, 0.55);
+  }
+
+  .pane-card h2 {
+    margin-top: 12px;
+    font-size: 22px;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+  }
+
+  .pane-card p {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.68;
+    color: var(--text-dim);
+  }
+
+  .metric-box {
+    margin-top: 12px;
+    padding: 12px 13px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.64);
+    border: 1px solid rgba(65, 63, 61, 0.08);
+  }
+
+  .metric-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(45, 52, 54, 0.42);
+  }
+
+  .metric-value {
+    margin-top: 6px;
+    font-size: 30px;
+    line-height: 1;
+    letter-spacing: -0.06em;
+    font-weight: 800;
+  }
+
+  .metric-range {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(45, 52, 54, 0.58);
+  }
+
+  .thermal-wrap {
+    margin-top: 12px;
+  }
+
+  .thermal-wrap.hidden {
+    display: none;
+  }
+
+  .thermal-canvas {
+    width: 100%;
+    height: 124px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    background: linear-gradient(180deg, rgba(31, 44, 84, 0.96), rgba(17, 18, 31, 0.94));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .thermal-caption {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(45, 52, 54, 0.56);
+  }
+
+  .detail-chip {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    background: rgba(255, 255, 255, 0.58);
+    color: #3b4447;
+  }
+
+  #formula-panel {
+    left: 16px;
+    bottom: 16px;
+    z-index: 17;
+    width: min(400px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 24px;
+    background: rgba(251, 247, 241, 0.94);
+  }
+
+  #formula-panel h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .formula-grid {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 4px 10px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .formula-label {
+    color: rgba(45, 52, 54, 0.55);
+    font-weight: 700;
+  }
+
+  .formula-divider {
+    height: 1px;
+    margin: 12px 0;
+    background: rgba(45, 52, 54, 0.1);
+  }
+
+  .formula-section {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #444a4d;
+  }
+
+  .formula-section + .formula-section {
+    margin-top: 8px;
+  }
+
+  #context-panel {
+    right: 16px;
+    bottom: 16px;
+    z-index: 17;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 24px;
+    background: rgba(251, 247, 241, 0.94);
+  }
+
+  #context-panel h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+
+  #context-panel .context-item {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #485053;
+    padding: 8px 0;
+    border-top: 1px solid rgba(45, 52, 54, 0.08);
+  }
+
+  #context-panel .context-item:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  #context-panel .context-item strong {
+    color: #2d3436;
+  }
+
+  #split-divider {
+    position: fixed;
+    top: 112px;
+    bottom: 108px;
+    left: 50%;
+    z-index: 12;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(71, 81, 90, 0), rgba(71, 81, 90, 0.16) 12%, rgba(71, 81, 90, 0.16) 88%, rgba(71, 81, 90, 0));
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .lil-gui.root {
+    --background-color: rgba(247, 242, 235, 0.94);
+    --text-color: #2d3436;
+    --title-background-color: rgba(255, 255, 255, 0.88);
+    --title-text-color: #2d3436;
+    --widget-color: rgba(255, 255, 255, 0.84);
+    --hover-color: rgba(75, 157, 248, 0.1);
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 20;
+    box-shadow: 0 18px 32px rgba(64, 57, 50, 0.14);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  @media (max-width: 1100px) {
+    #slot-left,
+    #slot-right {
+      width: min(280px, calc(50vw - 24px));
+    }
+
+    #context-panel {
+      width: min(320px, calc(100vw - 32px));
+    }
+  }
+
+  @media (max-width: 820px) {
+    #title-panel {
+      width: calc(100vw - 32px);
+      padding-right: 84px;
+    }
+
+    #title-panel h1 {
+      font-size: 26px;
+    }
+
+    #guide-toggle {
+      top: auto;
+      bottom: 184px;
+      left: 16px;
+      transform: none;
+    }
+
+    #guide-panel {
+      top: 96px;
+      width: calc(100vw - 24px);
+    }
+
+    #mode-chip {
+      top: auto;
+      bottom: 144px;
+      left: 16px;
+      transform: none;
+      width: calc(100vw - 32px);
+      border-radius: 18px;
+    }
+
+    .pane-slot {
+      width: calc(100vw - 24px) !important;
+      left: 12px !important;
+      right: auto !important;
+      transform: none !important;
+    }
+
+    #slot-left { top: 104px; }
+    #slot-center { top: 354px; }
+    #slot-right { top: 604px; }
+
+    .pane-card {
+      min-height: 228px;
+    }
+
+    #split-divider {
+      display: none;
+    }
+
+    #formula-panel {
+      left: 12px;
+      bottom: 12px;
+      width: calc(100vw - 24px);
+    }
+
+    #context-panel {
+      display: none;
+    }
+
+    .lil-gui.root {
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      max-height: 42vh;
+      overflow-y: auto;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="scene-container"></div>
+
+<div id="title-panel" class="glass-panel">
+  <div class="eyebrow">통합과학2 · I. 변화와 다양성</div>
+  <h1>에너지의 흡수와 방출</h1>
+  <p>증발, 흡열 반응, 냉찜질 팩처럼 주변으로부터 에너지를 흡수하는 경우와, 발열 반응, 연소, 손난로처럼 주변으로 에너지를 방출하는 경우를 3D 장면과 열화상 뷰로 비교합니다.</p>
+</div>
+
+<div id="mode-chip" class="glass-panel">현재 보기 · 흡수 vs 방출 비교</div>
+<button id="guide-toggle" type="button">📖 학습 가이드</button>
+
+<div id="guide-panel" class="glass-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 원리</h4>
+  <p>우리 주변에서 물질이 변화할 때 에너지를 흡수하거나 방출하는 현상을 볼 수 있습니다. 에너지를 흡수하면 주변 온도가 낮아지고, 에너지를 방출하면 주변 온도가 높아집니다. 이러한 현상은 일상생활이나 자연에서 다양하게 일어나며 그 과정에서 출입하는 에너지를 이용할 수 있습니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>냉찜질 팩은 에너지를 흡수하는 현상을 이용한 것입니다. 그 까닭을 설명해 보세요.</li>
+    <li>식물이 광합성을 할 때 에너지를 흡수하고, 생명체의 세포호흡이 일어날 때 에너지를 방출합니다. (O, X)</li>
+    <li>냉장고 없이 음료수나 신선 식품을 차갑게 보관하려면 에너지를 흡수하거나 방출하는 현상 중에서 어떤 것을 이용해야 할까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 예시</h4>
+  <ul>
+    <li>냉찜질팩: 질산 암모늄이 물에 녹으면서 에너지를 흡수</li>
+    <li>손난로: 철 가루가 산소와 반응하면서 에너지를 방출</li>
+    <li>쿨링 포그: 물방울이 증발하면서 주변 열을 흡수</li>
+    <li>자가 발열 도시락: 발열 반응으로 음식 온도를 올림</li>
+  </ul>
+
+  <h4>📚 교과서 연계</h4>
+  <div class="textbook-ref">미래엔 통합과학2 I편 p54~59 — 에너지의 흡수와 방출, 그림 I-29~31</div>
+</div>
+
+<div id="pane-layer">
+  <div id="slot-left" class="pane-slot"></div>
+  <div id="slot-center" class="pane-slot"></div>
+  <div id="slot-right" class="pane-slot"></div>
+</div>
+
+<div id="split-divider"></div>
+
+<div id="formula-panel" class="glass-panel"></div>
+<div id="context-panel" class="glass-panel"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const VIEW_LABELS = {
+  compare: '흡수 vs 방출 비교',
+  absorptionOnly: '흡수 현상만',
+  releaseOnly: '방출 현상만',
+  realLife: '실생활 이용',
+  nature: '자연 현상'
+};
+
+const VIEW_OPTIONS = Object.fromEntries(Object.entries(VIEW_LABELS).map(([key, value]) => [value, key]));
+
+const ABSORPTION_EXAMPLES = {
+  barium: '수산화바륨+염화암모늄',
+  ice: '얼음 녹음',
+  alcohol: '알코올 증발'
+};
+
+const RELEASE_EXAMPLES = {
+  calcium: '염화칼슘+물',
+  burner: '연료 연소',
+  warmer: '손난로'
+};
+
+const ABSORPTION_OPTIONS = Object.fromEntries(Object.entries(ABSORPTION_EXAMPLES).map(([key, value]) => [value, key]));
+const RELEASE_OPTIONS = Object.fromEntries(Object.entries(RELEASE_EXAMPLES).map(([key, value]) => [value, key]));
+
+const container = document.getElementById('scene-container');
+const slotEls = {
+  left: document.getElementById('slot-left'),
+  center: document.getElementById('slot-center'),
+  right: document.getElementById('slot-right')
+};
+const formulaPanel = document.getElementById('formula-panel');
+const contextPanel = document.getElementById('context-panel');
+const modeChip = document.getElementById('mode-chip');
+const splitDivider = document.getElementById('split-divider');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf5f0e8);
+scene.fog = new THREE.Fog(0xf5f0e8, 26, 60);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 5.4, 26);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.target.set(0, 2.1, 0);
+controls.minDistance = 10;
+controls.maxDistance = 46;
+controls.maxPolarAngle = Math.PI / 2.04;
+controls.minPolarAngle = Math.PI / 5;
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+directionalLight.position.set(10, 16, 10);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(2048, 2048);
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 60;
+directionalLight.shadow.camera.left = -22;
+directionalLight.shadow.camera.right = 22;
+directionalLight.shadow.camera.top = 20;
+directionalLight.shadow.camera.bottom = -12;
+scene.add(directionalLight);
+
+const fillLight = new THREE.PointLight(0xfff6ea, 0.3, 48);
+fillLight.position.set(0, 9, 8);
+scene.add(fillLight);
+
+const worldRoot = new THREE.Group();
+scene.add(worldRoot);
+
+const state = {
+  viewMode: 'compare',
+  absorptionExample: 'barium',
+  releaseExample: 'calcium',
+  thermalView: true,
+  guideOpen: false,
+  reactionRunning: false,
+  reactionProgress: 0,
+  reactionStartTime: 0,
+  entries: [],
+  entryCardMap: new Map(),
+  frameTime: 0
+};
+
+const guiState = {
+  '보기 모드': VIEW_LABELS.compare,
+  '흡수 예시': ABSORPTION_EXAMPLES.barium,
+  '방출 예시': RELEASE_EXAMPLES.calcium,
+  '반응 시작': () => startReaction(),
+  '열화상 뷰': true,
+  '초기화': () => resetSimulation()
+};
+
+const gui = new GUI({ title: '실험 제어 패널' });
+gui.add(guiState, '보기 모드', Object.values(VIEW_LABELS)).onChange((value) => {
+  state.viewMode = VIEW_OPTIONS[value];
+  rebuildWorld();
+  syncGui();
+});
+gui.add(guiState, '흡수 예시', Object.values(ABSORPTION_EXAMPLES)).onChange((value) => {
+  state.absorptionExample = ABSORPTION_OPTIONS[value];
+  rebuildWorld();
+  syncGui();
+});
+gui.add(guiState, '방출 예시', Object.values(RELEASE_EXAMPLES)).onChange((value) => {
+  state.releaseExample = RELEASE_OPTIONS[value];
+  rebuildWorld();
+  syncGui();
+});
+gui.add(guiState, '반응 시작');
+gui.add(guiState, '열화상 뷰').onChange((value) => {
+  state.thermalView = value;
+  updatePaneCards();
+  syncGui();
+});
+gui.add(guiState, '초기화');
+
+if (window.innerWidth < 820) gui.close();
+
+guideToggle.addEventListener('click', () => {
+  state.guideOpen = !state.guideOpen;
+  guidePanel.style.display = state.guideOpen ? 'block' : 'none';
+  guideToggle.textContent = state.guideOpen ? '📖 학습 가이드 닫기' : '📖 학습 가이드';
+});
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function smoothPulse(time, speed = 1, offset = 0) {
+  return 0.5 + 0.5 * Math.sin(time * speed + offset);
+}
+
+function colorAtStops(stops, t) {
+  const safeT = clamp(t, 0, 1);
+  let i = 0;
+  while (i < stops.length - 1 && safeT > stops[i + 1].t) i += 1;
+  const a = stops[i];
+  const b = stops[Math.min(i + 1, stops.length - 1)];
+  if (a === b) return { r: a.r, g: a.g, b: a.b };
+  const local = (safeT - a.t) / (b.t - a.t);
+  return {
+    r: Math.round(lerp(a.r, b.r, local)),
+    g: Math.round(lerp(a.g, b.g, local)),
+    b: Math.round(lerp(a.b, b.b, local))
+  };
+}
+
+function thermalColor(level) {
+  return colorAtStops([
+    { t: 0, r: 53, g: 79, b: 182 },
+    { t: 0.25, r: 72, g: 157, b: 244 },
+    { t: 0.5, r: 74, g: 198, b: 188 },
+    { t: 0.72, r: 251, g: 201, b: 73 },
+    { t: 1, r: 233, g: 83, b: 55 }
+  ], level);
+}
+
+function thermalThreeColor(level) {
+  const c = thermalColor(level);
+  return new THREE.Color(c.r / 255, c.g / 255, c.b / 255);
+}
+
+function thermalCss(level, alpha = 1) {
+  const c = thermalColor(level);
+  return `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+}
+
+function temperatureToLevel(temp) {
+  return clamp((temp - 10) / 34, 0, 1);
+}
+
+function createShadowDisc(radius = 2.2, opacity = 0.18) {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 42), material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = 0.011;
+  return mesh;
+}
+
+function createBackdrop(width, height, color, opacity = 0.2) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  mesh.position.z = -2.4;
+  return mesh;
+}
+
+function createStation(position, accentColor) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(7.4, 0.28, 5.4),
+    new THREE.MeshStandardMaterial({ color: 0xe0d1bf, roughness: 0.82, metalness: 0.03 })
+  );
+  top.position.y = 0.78;
+  top.receiveShadow = true;
+  group.add(top);
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(7.0, 0.86, 4.6),
+    new THREE.MeshStandardMaterial({ color: 0xf8f5ef, roughness: 0.92, metalness: 0.02 })
+  );
+  base.position.y = 0.28;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+
+  const accentPanel = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.8, 4.2),
+    new THREE.MeshBasicMaterial({
+      color: accentColor,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    })
+  );
+  accentPanel.position.set(0, 3.1, -2.1);
+  group.add(accentPanel);
+
+  const shadow = createShadowDisc(2.7, 0.16);
+  shadow.position.set(0, 0.02, 0);
+  group.add(shadow);
+
+  return group;
+}
+
+function createGlassBeaker(radius = 1.18, height = 3.2) {
+  const group = new THREE.Group();
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf6fbff,
+    transparent: true,
+    opacity: 0.22,
+    roughness: 0.08,
+    metalness: 0.02,
+    transmission: 0.92,
+    thickness: 0.18,
+    side: THREE.DoubleSide
+  });
+
+  const shell = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, height, 42, 1, true),
+    glassMat
+  );
+  shell.castShadow = true;
+  group.add(shell);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, 0.045, 16, 48),
+    new THREE.MeshStandardMaterial({ color: 0xbcc8d6, roughness: 0.18, metalness: 0.35 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = height / 2;
+  group.add(rim);
+
+  const bottom = new THREE.Mesh(
+    new THREE.CircleGeometry(radius, 42),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf7fdff,
+      transparent: true,
+      opacity: 0.24,
+      roughness: 0.12,
+      transmission: 0.86,
+      side: THREE.DoubleSide
+    })
+  );
+  bottom.rotation.x = -Math.PI / 2;
+  bottom.position.y = -height / 2 + 0.02;
+  group.add(bottom);
+
+  return group;
+}
+
+function createCup(radius = 1.32, height = 2.8) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius * 0.92, height, 38, 1, true),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.2,
+      roughness: 0.08,
+      transmission: 0.88,
+      thickness: 0.2,
+      side: THREE.DoubleSide
+    })
+  );
+  body.castShadow = true;
+  group.add(body);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, 0.04, 14, 44),
+    new THREE.MeshStandardMaterial({ color: 0xcfd8e4, roughness: 0.24, metalness: 0.24 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = height / 2;
+  group.add(rim);
+
+  const handle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.055, 12, 32, Math.PI * 1.3),
+    new THREE.MeshStandardMaterial({ color: 0xd9e2eb, roughness: 0.28, metalness: 0.16 })
+  );
+  handle.position.set(radius - 0.04, 0.1, 0);
+  handle.rotation.z = Math.PI / 2;
+  handle.rotation.y = Math.PI / 2;
+  group.add(handle);
+
+  return group;
+}
+
+function createLiquid(radius, height, color, opacity = 0.45) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, height, 40),
+    new THREE.MeshPhysicalMaterial({
+      color,
+      transparent: true,
+      opacity,
+      roughness: 0.05,
+      metalness: 0.02,
+      transmission: 0.35
+    })
+  );
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function createParticleGroup(count, options = {}) {
+  const {
+    color = 0xffffff,
+    size = 0.08,
+    spreadX = 1,
+    spreadY = 1,
+    spreadZ = 1,
+    opacity = 0.8,
+    emissive = 0x000000,
+    shape = 'sphere'
+  } = options;
+
+  const group = new THREE.Group();
+
+  for (let i = 0; i < count; i += 1) {
+    const geometry = shape === 'box'
+      ? new THREE.BoxGeometry(size, size, size)
+      : shape === 'icosa'
+        ? new THREE.IcosahedronGeometry(size * 0.95, 0)
+        : new THREE.SphereGeometry(size, 10, 10);
+
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity,
+      roughness: 0.4,
+      metalness: 0.06,
+      emissive
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (Math.random() - 0.5) * spreadX,
+      (Math.random() - 0.5) * spreadY,
+      (Math.random() - 0.5) * spreadZ
+    );
+    mesh.userData.base = mesh.position.clone();
+    mesh.userData.phase = Math.random() * Math.PI * 2;
+    mesh.userData.seedScale = 0.72 + Math.random() * 0.68;
+    mesh.castShadow = true;
+    group.add(mesh);
+  }
+
+  return group;
+}
+
+function createAuraDisc(color, radius, opacity = 0.12) {
+  const mesh = new THREE.Mesh(
+    new THREE.CircleGeometry(radius, 48),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false
+    })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+
+function createFlowArrow(color, length = 4, direction = 'in') {
+  const group = new THREE.Group();
+  const arrowColor = new THREE.Color(color);
+
+  for (let i = 0; i < 3; i += 1) {
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, length / 3.6, 16),
+      new THREE.MeshStandardMaterial({
+        color: arrowColor,
+        emissive: arrowColor.clone().multiplyScalar(0.3),
+        roughness: 0.25,
+        metalness: 0.14
+      })
+    );
+    shaft.rotation.z = Math.PI / 2;
+    shaft.position.x = i * (length / 3.2);
+    group.add(shaft);
+
+    const head = new THREE.Mesh(
+      new THREE.ConeGeometry(0.14, 0.34, 18),
+      new THREE.MeshStandardMaterial({
+        color: arrowColor,
+        emissive: arrowColor.clone().multiplyScalar(0.3),
+        roughness: 0.2,
+        metalness: 0.12
+      })
+    );
+    head.rotation.z = -Math.PI / 2;
+    head.position.x = shaft.position.x + length / 6.8;
+    group.add(head);
+  }
+
+  group.position.x -= length * 0.5;
+  if (direction === 'in') {
+    group.rotation.y = Math.PI;
+  }
+  group.userData.arrowColor = arrowColor;
+  return group;
+}
+
+function pulseArrow(group, progress, time) {
+  group.children.forEach((child, index) => {
+    const pulse = 0.82 + smoothPulse(time, 4.2, index * 0.45 + progress * 2) * 0.45;
+    child.scale.setScalar(pulse);
+  });
+}
+
+function createThermometerProp(accent) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.42, 1.56, 0.24),
+    new THREE.MeshStandardMaterial({ color: 0x2f3a43, roughness: 0.34, metalness: 0.16 })
+  );
+  body.castShadow = true;
+  group.add(body);
+
+  const screenMaterial = new THREE.MeshStandardMaterial({
+    color: 0x10271e,
+    emissive: thermalThreeColor(temperatureToLevel(25)).multiplyScalar(0.6),
+    roughness: 0.18,
+    metalness: 0.08
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.58), screenMaterial);
+  screen.position.set(0, 0.12, 0.13);
+  group.add(screen);
+
+  const probe = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 1.2, 14),
+    new THREE.MeshStandardMaterial({ color: accent, roughness: 0.2, metalness: 0.48 })
+  );
+  probe.position.y = -1.1;
+  probe.castShadow = true;
+  group.add(probe);
+
+  group.userData.screenMaterial = screenMaterial;
+  return group;
+}
+
+function createFlameStack() {
+  const group = new THREE.Group();
+  const colors = [0xff6a2d, 0xff9340, 0xffc362];
+
+  colors.forEach((color, index) => {
+    const flame = new THREE.Mesh(
+      new THREE.SphereGeometry(0.36 + index * 0.08, 18, 18),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.52 - index * 0.1,
+        depthWrite: false
+      })
+    );
+    flame.scale.y = 1.6 + index * 0.18;
+    flame.position.y = 0.46 + index * 0.16;
+    group.add(flame);
+  });
+
+  return group;
+}
+
+function createBurner() {
+  const group = new THREE.Group();
+  const stand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.34, 0.4, 1.4, 22),
+    new THREE.MeshStandardMaterial({ color: 0x59636b, roughness: 0.38, metalness: 0.42 })
+  );
+  stand.castShadow = true;
+  group.add(stand);
+
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.28, 0.16, 22),
+    new THREE.MeshStandardMaterial({ color: 0x2d3438, roughness: 0.28, metalness: 0.5 })
+  );
+  cap.position.y = 0.78;
+  cap.castShadow = true;
+  group.add(cap);
+
+  return group;
+}
+
+function createHandModel() {
+  const group = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe8b998, roughness: 0.72, metalness: 0.02 });
+
+  const palm = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.46, 1.9), skin);
+  palm.castShadow = true;
+  group.add(palm);
+
+  for (let i = 0; i < 4; i += 1) {
+    const finger = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 1.1), skin.clone());
+    finger.position.set(-0.84 + i * 0.56, 0.06, 1.26);
+    finger.castShadow = true;
+    group.add(finger);
+  }
+
+  const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.92), skin.clone());
+  thumb.position.set(1.24, 0.02, -0.84);
+  thumb.rotation.y = -0.58;
+  thumb.castShadow = true;
+  group.add(thumb);
+
+  return group;
+}
+
+function createPacket(width = 2.8, height = 3.6, depth = 0.42, color = 0xe5edf5) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.76, metalness: 0.04 })
+  );
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(width * 0.72, height * 0.42),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.3,
+      metalness: 0.02
+    })
+  );
+  label.position.z = depth * 0.52;
+  group.add(label);
+
+  return group;
+}
+
+function createPlant() {
+  const group = new THREE.Group();
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.12, 2.2, 16),
+    new THREE.MeshStandardMaterial({ color: 0x4a8c45, roughness: 0.74, metalness: 0.02 })
+  );
+  stem.position.y = 1.1;
+  stem.castShadow = true;
+  group.add(stem);
+
+  for (let i = 0; i < 4; i += 1) {
+    const leaf = new THREE.Mesh(
+      new THREE.SphereGeometry(0.46, 18, 18),
+      new THREE.MeshStandardMaterial({ color: 0x5ab95d, roughness: 0.66, metalness: 0.02 })
+    );
+    leaf.scale.set(1.28, 0.34, 0.82);
+    leaf.position.set(i % 2 === 0 ? -0.42 : 0.42, 0.78 + i * 0.32, 0);
+    leaf.rotation.z = i % 2 === 0 ? 0.62 : -0.62;
+    leaf.castShadow = true;
+    group.add(leaf);
+  }
+
+  return group;
+}
+
+function createCloud() {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0.02 });
+  const offsets = [
+    [-0.68, 0, 0],
+    [-0.16, 0.22, 0.12],
+    [0.38, 0.12, 0],
+    [0.76, -0.02, 0.1]
+  ];
+  offsets.forEach(([x, y, z], index) => {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.54 + index * 0.05, 18, 18), material.clone());
+    puff.scale.set(1.18, 0.88, 0.9);
+    puff.position.set(x, y, z);
+    puff.castShadow = true;
+    group.add(puff);
+  });
+  return group;
+}
+
+function createSun() {
+  const group = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.56, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0xffcf52 })
+  );
+  group.add(core);
+
+  for (let i = 0; i < 8; i += 1) {
+    const ray = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.58, 0.04),
+      new THREE.MeshBasicMaterial({ color: 0xffdc75 })
+    );
+    ray.position.y = 0.92;
+    ray.rotation.z = (Math.PI / 4) * i;
+    group.add(ray);
+  }
+
+  return group;
+}
+
+function createCell() {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(1.1, 28, 28),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf0a9a1,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.28,
+      transmission: 0.18
+    })
+  );
+  body.castShadow = true;
+  group.add(body);
+
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 18, 18),
+    new THREE.MeshStandardMaterial({ color: 0xb54c68, roughness: 0.4, metalness: 0.04 })
+  );
+  nucleus.position.set(-0.1, 0.08, 0.24);
+  group.add(nucleus);
+
+  for (let i = 0; i < 3; i += 1) {
+    const mito = new THREE.Mesh(
+      new THREE.TorusGeometry(0.26, 0.08, 10, 24),
+      new THREE.MeshStandardMaterial({ color: 0xffb45e, roughness: 0.3, metalness: 0.04 })
+    );
+    mito.scale.set(1.2, 0.7, 0.6);
+    mito.position.set(-0.34 + i * 0.32, -0.18 + i * 0.18, -0.2 + i * 0.08);
+    mito.rotation.x = 0.8 + i * 0.4;
+    mito.rotation.y = i * 0.6;
+    group.add(mito);
+  }
+
+  return group;
+}
+
+function createEntry(config) {
+  return {
+    id: config.id,
+    slot: config.slot,
+    category: config.category,
+    badgeText: config.badgeText,
+    title: config.title,
+    subtitle: config.subtitle,
+    flowText: config.flowText,
+    metricLabel: config.metricLabel,
+    metricValue: config.metricValue,
+    rangeText: config.rangeText,
+    noteText: config.noteText,
+    thermalShape: config.thermalShape ?? 'generic',
+    root: config.root,
+    currentTemp: config.currentTemp ?? null,
+    thermalPrimaryLevel: config.thermalPrimaryLevel ?? 0.5,
+    thermalSecondaryLevel: config.thermalSecondaryLevel ?? null,
+    update: config.update
+  };
+}
+
+function buildBariumReaction(slot, position) {
+  const root = createStation(position, 0x9ec9ff);
+  worldRoot.add(root);
+
+  const beaker = createGlassBeaker(1.18, 3.2);
+  beaker.position.set(0, 2.45, 0);
+  root.add(beaker);
+
+  const powders = createParticleGroup(24, {
+    color: 0xfafcff,
+    size: 0.095,
+    spreadX: 1.2,
+    spreadY: 0.5,
+    spreadZ: 1.05,
+    opacity: 0.95,
+    shape: 'icosa'
+  });
+  powders.position.y = -1.1;
+  beaker.add(powders);
+
+  const frost = createParticleGroup(18, {
+    color: 0xa7deff,
+    size: 0.07,
+    spreadX: 2.2,
+    spreadY: 2.8,
+    spreadZ: 2.0,
+    opacity: 0.16
+  });
+  frost.position.set(0, 2.45, 0);
+  root.add(frost);
+
+  const droplets = createParticleGroup(10, {
+    color: 0xd7f4ff,
+    size: 0.05,
+    spreadX: 1.9,
+    spreadY: 2.1,
+    spreadZ: 1.8,
+    opacity: 0.1
+  });
+  droplets.position.set(0, 2.2, 0);
+  root.add(droplets);
+
+  const thermometer = createThermometerProp(0x8ecfff);
+  thermometer.position.set(2.25, 1.96, 0.7);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0x92d1ff, 2.28, 0.08);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0x4b9df8, 4.3, 'in');
+  arrow.position.set(-3.5, 3.0, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-barium`,
+    slot,
+    category: 'absorption',
+    badgeText: '에너지 흡수',
+    title: '수산화바륨 + 염화암모늄',
+    subtitle: '흡열 반응이 주변의 열을 빼앗아 비커 주변에 서리와 물방울이 맺힙니다.',
+    flowText: '주변 → 반응',
+    metricLabel: '주변 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 16°C',
+    noteText: '주변으로부터 에너지를 흡수 → 주변 온도 낮아짐',
+    thermalShape: 'beaker',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 16, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      powders.children.forEach((mesh) => {
+        const { base, phase } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.4 + phase) * 0.05,
+          base.y - eased * 0.22 + Math.sin(time * 2.2 + phase) * 0.03,
+          base.z + Math.cos(time * 1.1 + phase) * 0.05
+        );
+        mesh.rotation.x += 0.016;
+        mesh.rotation.y += 0.012;
+      });
+
+      frost.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        const drift = Math.sin(time * 1.6 + phase) * 0.06;
+        mesh.position.set(base.x, base.y + eased * 0.28 + drift, base.z);
+        mesh.scale.setScalar((0.42 + eased * 0.92) * seedScale);
+        mesh.material.opacity = 0.08 + eased * 0.46;
+      });
+
+      droplets.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.visible = eased > 0.12;
+        mesh.position.set(base.x, base.y - eased * 0.08 + Math.sin(time * 2.4 + phase) * 0.02, base.z);
+        mesh.scale.setScalar((0.5 + eased * 0.6) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.34;
+      });
+
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.6));
+      aura.material.opacity = 0.06 + eased * 0.22;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildIceMelting(slot, position) {
+  const root = createStation(position, 0xbde0ff);
+  worldRoot.add(root);
+
+  const cup = createCup(1.35, 2.8);
+  cup.position.set(0, 2.2, 0);
+  root.add(cup);
+
+  const water = createLiquid(1.06, 1.3, 0x8dd6ff, 0.4);
+  water.position.set(0, -0.68, 0);
+  cup.add(water);
+
+  const iceGroup = new THREE.Group();
+  cup.add(iceGroup);
+  for (let i = 0; i < 4; i += 1) {
+    const ice = new THREE.Mesh(
+      new THREE.BoxGeometry(0.56, 0.56, 0.56),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xaaddff,
+        transparent: true,
+        opacity: 0.74,
+        roughness: 0.1,
+        transmission: 0.5
+      })
+    );
+    ice.position.set(-0.52 + (i % 2) * 0.62, -0.14 + Math.floor(i / 2) * 0.54, -0.12 + (i % 3) * 0.14);
+    ice.rotation.set(i * 0.22, i * 0.32, i * 0.18);
+    ice.userData.base = ice.position.clone();
+    ice.castShadow = true;
+    iceGroup.add(ice);
+  }
+
+  const mist = createParticleGroup(16, {
+    color: 0xb9ecff,
+    size: 0.08,
+    spreadX: 2.2,
+    spreadY: 1.8,
+    spreadZ: 2,
+    opacity: 0.18
+  });
+  mist.position.set(0, 2.55, 0);
+  root.add(mist);
+
+  const thermometer = createThermometerProp(0x90d8ff);
+  thermometer.position.set(2.35, 1.9, 0.84);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0x99d5ff, 2.35, 0.08);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0x4b9df8, 4.1, 'in');
+  arrow.position.set(-3.45, 2.92, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-ice`,
+    slot,
+    category: 'absorption',
+    badgeText: '에너지 흡수',
+    title: '얼음이 녹음',
+    subtitle: '얼음이 물로 변하는 동안 주변 열을 흡수해 컵 주변이 차가워집니다.',
+    flowText: '주변 → 얼음',
+    metricLabel: '컵 주변 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 18°C',
+    noteText: '얼음의 융해는 주변 에너지를 흡수하는 대표적인 변화입니다.',
+    thermalShape: 'cup',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 18, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      iceGroup.children.forEach((mesh) => {
+        const { base } = mesh.userData;
+        const shrink = 1 - eased * 0.58;
+        mesh.scale.setScalar(Math.max(0.18, shrink));
+        mesh.position.set(
+          base.x,
+          base.y - eased * 0.22 + Math.sin(time * 1.6 + base.x * 2) * 0.04,
+          base.z
+        );
+        mesh.rotation.x += 0.01;
+        mesh.rotation.y += 0.013;
+      });
+
+      water.scale.y = 1 + eased * 0.18;
+      water.position.y = -0.68 + eased * 0.08;
+      water.material.color.copy(new THREE.Color(lerp(0.56, 0.44, eased), lerp(0.84, 0.78, eased), 1));
+
+      mist.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(base.x, base.y + Math.sin(time * 2 + phase) * 0.08 + eased * 0.2, base.z);
+        mesh.scale.setScalar((0.56 + eased * 0.5) * seedScale);
+        mesh.material.opacity = 0.05 + eased * 0.28;
+      });
+
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.6));
+      aura.material.opacity = 0.06 + eased * 0.2;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildAlcoholEvaporation(slot, position) {
+  const root = createStation(position, 0xc7e6ff);
+  worldRoot.add(root);
+
+  const hand = createHandModel();
+  hand.position.set(0, 1.35, 0);
+  root.add(hand);
+
+  const droplets = createParticleGroup(8, {
+    color: 0xe7fbff,
+    size: 0.12,
+    spreadX: 1.3,
+    spreadY: 0.25,
+    spreadZ: 0.9,
+    opacity: 0.54
+  });
+  droplets.position.set(0, 0.34, 0.18);
+  hand.add(droplets);
+
+  const vapor = createParticleGroup(18, {
+    color: 0x95d9ff,
+    size: 0.08,
+    spreadX: 1.8,
+    spreadY: 2.6,
+    spreadZ: 1.2,
+    opacity: 0.12
+  });
+  vapor.position.set(0, 1.3, 0);
+  root.add(vapor);
+
+  const thermometer = createThermometerProp(0x89d4ff);
+  thermometer.position.set(2.4, 1.78, 0.9);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0x9cdcff, 2.45, 0.06);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0x4b9df8, 4.2, 'in');
+  arrow.position.set(-3.55, 2.7, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-alcohol`,
+    slot,
+    category: 'absorption',
+    badgeText: '에너지 흡수',
+    title: '알코올 증발',
+    subtitle: '손 표면의 액체가 기화하면서 기화열을 흡수해 시원하게 느껴집니다.',
+    flowText: '주변 → 액체',
+    metricLabel: '손 표면 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 19°C',
+    noteText: '"기화열 흡수" 라벨에 해당하는 현상입니다.',
+    thermalShape: 'hand',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 19, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      droplets.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        const scale = Math.max(0.04, 1 - eased * 0.82);
+        mesh.scale.setScalar(scale * seedScale);
+        mesh.position.set(
+          base.x,
+          base.y + Math.sin(time * 2.2 + phase) * 0.02,
+          base.z + Math.cos(time * 1.7 + phase) * 0.02
+        );
+        mesh.material.opacity = 0.08 + (1 - eased) * 0.45;
+      });
+
+      vapor.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.5 + phase) * 0.08,
+          base.y + eased * 1.35 + Math.sin(time * 2 + phase) * 0.06,
+          base.z
+        );
+        mesh.scale.setScalar((0.3 + eased * 0.92) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.34;
+      });
+
+      hand.rotation.z = Math.sin(time * 0.9) * 0.04;
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.6));
+      aura.material.opacity = 0.05 + eased * 0.18;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildCalciumReaction(slot, position) {
+  const root = createStation(position, 0xffc9b3);
+  worldRoot.add(root);
+
+  const beaker = createGlassBeaker(1.18, 3.2);
+  beaker.position.set(0, 2.45, 0);
+  root.add(beaker);
+
+  const water = createLiquid(1.01, 1.82, 0x9acfff, 0.34);
+  water.position.set(0, -0.62, 0);
+  beaker.add(water);
+
+  const pellets = createParticleGroup(18, {
+    color: 0xdad9d5,
+    size: 0.09,
+    spreadX: 1.05,
+    spreadY: 0.4,
+    spreadZ: 1.05,
+    opacity: 0.92,
+    shape: 'box'
+  });
+  pellets.position.y = -0.24;
+  beaker.add(pellets);
+
+  const heat = createParticleGroup(18, {
+    color: 0xff8e65,
+    size: 0.08,
+    spreadX: 2.1,
+    spreadY: 2.8,
+    spreadZ: 1.8,
+    opacity: 0.14
+  });
+  heat.position.set(0, 2.35, 0);
+  root.add(heat);
+
+  const thermometer = createThermometerProp(0xff9a69);
+  thermometer.position.set(-2.3, 1.98, 0.86);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0xffb37c, 2.34, 0.06);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0xef6a4a, 4.3, 'out');
+  arrow.position.set(1.2, 3.0, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-calcium`,
+    slot,
+    category: 'release',
+    badgeText: '에너지 방출',
+    title: '염화칼슘 + 물',
+    subtitle: '용해 과정에서 주변으로 열이 방출되어 비커와 주변 공기가 따뜻해집니다.',
+    flowText: '반응 → 주변',
+    metricLabel: '주변 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 35°C',
+    noteText: '주변으로 에너지를 방출 → 주변 온도 높아짐',
+    thermalShape: 'beaker',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 35, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      pellets.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.1 + phase) * 0.03,
+          base.y - eased * 0.26,
+          base.z + Math.cos(time * 1.3 + phase) * 0.03
+        );
+        mesh.scale.setScalar((0.9 - eased * 0.45) * seedScale);
+        mesh.material.opacity = 0.18 + (1 - eased) * 0.72;
+      });
+
+      heat.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.3 + phase) * 0.05,
+          base.y + eased * 1.1 + Math.sin(time * 2 + phase) * 0.08,
+          base.z
+        );
+        mesh.scale.setScalar((0.44 + eased * 1.1) * seedScale);
+        mesh.material.opacity = 0.06 + eased * 0.4;
+      });
+
+      water.material.color.copy(new THREE.Color(lerp(0.6, 1, eased), lerp(0.82, 0.66, eased), lerp(1, 0.54, eased)));
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.7));
+      aura.material.opacity = 0.05 + eased * 0.24;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildFuelCombustion(slot, position) {
+  const root = createStation(position, 0xffcfb6);
+  worldRoot.add(root);
+
+  const burner = createBurner();
+  burner.position.set(0, 1.58, 0);
+  root.add(burner);
+
+  const flame = createFlameStack();
+  flame.position.set(0, 2.42, 0);
+  root.add(flame);
+
+  const sparks = createParticleGroup(18, {
+    color: 0xff8a4a,
+    size: 0.08,
+    spreadX: 2.4,
+    spreadY: 3.2,
+    spreadZ: 1.4,
+    opacity: 0.12
+  });
+  sparks.position.set(0, 2.5, 0);
+  root.add(sparks);
+
+  const thermometer = createThermometerProp(0xffaa5f);
+  thermometer.position.set(-2.38, 1.98, 0.92);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0xff9d57, 2.6, 0.06);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0xef6a4a, 4.2, 'out');
+  arrow.position.set(1.28, 3.0, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-burner`,
+    slot,
+    category: 'release',
+    badgeText: '에너지 방출',
+    title: '연료 연소',
+    subtitle: '뷰테인 가스가 타면서 밝은 불꽃과 함께 열에너지를 주변으로 내보냅니다.',
+    flowText: '불꽃 → 주변',
+    metricLabel: '주변 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 41°C',
+    noteText: '연소는 대표적인 에너지 방출 현상입니다.',
+    thermalShape: 'burner',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 41, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      flame.children.forEach((mesh, index) => {
+        const flicker = 0.8 + smoothPulse(time, 5.5, index * 0.7) * 0.65;
+        mesh.scale.set(1, 0.5 + eased * 1.2 * flicker, 1);
+        mesh.position.y = 0.36 + index * 0.18 + eased * 0.24;
+        mesh.material.opacity = 0.12 + eased * (0.48 - index * 0.08);
+      });
+
+      sparks.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.8 + phase) * 0.07,
+          base.y + eased * 1.7 + Math.sin(time * 2.3 + phase) * 0.08,
+          base.z
+        );
+        mesh.scale.setScalar((0.3 + eased * 1.25) * seedScale);
+        mesh.material.opacity = 0.05 + eased * 0.38;
+      });
+
+      burner.rotation.y = Math.sin(time * 0.8) * 0.05;
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.72));
+      aura.material.opacity = 0.05 + eased * 0.28;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildHandWarmer(slot, position) {
+  const root = createStation(position, 0xffccb8);
+  worldRoot.add(root);
+
+  const packet = createPacket(2.8, 3.9, 0.46, 0xf2ede4);
+  packet.position.set(0, 2.4, 0);
+  root.add(packet);
+
+  const powder = createParticleGroup(16, {
+    color: 0x8b6b52,
+    size: 0.09,
+    spreadX: 1.6,
+    spreadY: 2.2,
+    spreadZ: 0.18,
+    opacity: 0.68
+  });
+  powder.position.set(0, 0, 0.22);
+  packet.add(powder);
+
+  const oxygen = createParticleGroup(10, {
+    color: 0xb5d7ff,
+    size: 0.09,
+    spreadX: 3.8,
+    spreadY: 2.4,
+    spreadZ: 1.2,
+    opacity: 0.14
+  });
+  oxygen.position.set(0, 2.4, 0);
+  root.add(oxygen);
+
+  const heat = createParticleGroup(14, {
+    color: 0xff8f70,
+    size: 0.08,
+    spreadX: 2.6,
+    spreadY: 3.2,
+    spreadZ: 1.8,
+    opacity: 0.12
+  });
+  heat.position.set(0, 2.5, 0);
+  root.add(heat);
+
+  const thermometer = createThermometerProp(0xff9d72);
+  thermometer.position.set(-2.48, 1.98, 0.9);
+  root.add(thermometer);
+
+  const aura = createAuraDisc(0xffa97a, 2.5, 0.06);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  const arrow = createFlowArrow(0xef6a4a, 4.2, 'out');
+  arrow.position.set(1.26, 3.0, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-warmer`,
+    slot,
+    category: 'release',
+    badgeText: '에너지 방출',
+    title: '손난로',
+    subtitle: '철 가루가 산소와 반응하는 산화 반응으로 열에너지를 방출합니다.',
+    flowText: '반응 → 주변',
+    metricLabel: '팩 표면 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 38°C',
+    noteText: '"산화 반응으로 열에너지 방출" 예시입니다.',
+    thermalShape: 'packet',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 38, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      packet.rotation.z = eased > 0.01 ? Math.sin(time * 7.4) * 0.06 * (1 - eased * 0.55) : 0;
+
+      powder.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.4 + phase) * 0.04,
+          base.y + Math.cos(time * 1.1 + phase) * 0.04,
+          base.z
+        );
+        mesh.scale.setScalar((0.72 + eased * 0.22) * seedScale);
+        mesh.material.color.set(lerp(0.54, 0.72, eased), lerp(0.42, 0.36, eased), lerp(0.32, 0.22, eased));
+      });
+
+      oxygen.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x * (1 - eased * 0.5),
+          base.y - eased * 0.34 + Math.sin(time * 1.6 + phase) * 0.05,
+          base.z
+        );
+        mesh.scale.setScalar((0.4 + (1 - eased) * 0.6) * seedScale);
+        mesh.material.opacity = 0.05 + (1 - eased) * 0.18;
+      });
+
+      heat.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x,
+          base.y + eased * 1.3 + Math.sin(time * 2 + phase) * 0.08,
+          base.z
+        );
+        mesh.scale.setScalar((0.36 + eased * 1.05) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.36;
+      });
+
+      thermometer.userData.screenMaterial.emissive.copy(thermalThreeColor(entry.thermalPrimaryLevel).multiplyScalar(0.7));
+      aura.material.opacity = 0.05 + eased * 0.22;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildColdPack(slot, position) {
+  const root = createStation(position, 0xc6e5ff);
+  worldRoot.add(root);
+
+  const packet = createPacket(3.1, 4.0, 0.5, 0xeaf6ff);
+  packet.position.set(0, 2.35, 0);
+  root.add(packet);
+
+  const beads = createParticleGroup(14, {
+    color: 0x8bc2ff,
+    size: 0.1,
+    spreadX: 1.8,
+    spreadY: 2.4,
+    spreadZ: 0.18,
+    opacity: 0.58
+  });
+  beads.position.set(0, 0, 0.22);
+  packet.add(beads);
+
+  const frost = createParticleGroup(14, {
+    color: 0xb9edff,
+    size: 0.08,
+    spreadX: 2.4,
+    spreadY: 2.8,
+    spreadZ: 1.6,
+    opacity: 0.1
+  });
+  frost.position.set(0, 2.3, 0);
+  root.add(frost);
+
+  const arrow = createFlowArrow(0x4b9df8, 4.2, 'in');
+  arrow.position.set(-3.45, 2.9, 0);
+  root.add(arrow);
+
+  const aura = createAuraDisc(0x8fd4ff, 2.5, 0.06);
+  aura.position.set(0, 0.82, 0);
+  root.add(aura);
+
+  return createEntry({
+    id: `${slot}-cold-pack`,
+    slot,
+    category: 'absorption',
+    badgeText: '실생활 활용',
+    title: '냉찜질 팩',
+    subtitle: '주머니 속 물질이 물에 녹으며 에너지를 흡수해 차갑게 느껴집니다.',
+    flowText: '주변 → 팩',
+    metricLabel: '팩 표면 온도',
+    metricValue: '25.0°C',
+    rangeText: '25°C → 14°C',
+    noteText: '운동 후 냉찜질, 부기 완화 등에 활용됩니다.',
+    thermalShape: 'packet',
+    root,
+    currentTemp: 25,
+    thermalPrimaryLevel: temperatureToLevel(25),
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      const temp = lerp(25, 14, eased);
+      entry.currentTemp = temp;
+      entry.metricValue = `${temp.toFixed(1)}°C`;
+      entry.thermalPrimaryLevel = temperatureToLevel(temp);
+
+      beads.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(base.x, base.y - eased * 0.22, base.z);
+        mesh.scale.setScalar((0.78 + eased * 0.18) * seedScale);
+        mesh.rotation.y += 0.01;
+        mesh.material.opacity = 0.24 + (1 - eased) * 0.34;
+      });
+
+      frost.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(base.x, base.y + eased * 0.26 + Math.sin(time * 1.9 + phase) * 0.06, base.z);
+        mesh.scale.setScalar((0.4 + eased * 0.8) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.28;
+      });
+
+      aura.material.opacity = 0.05 + eased * 0.16;
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildWarmPack(slot, position) {
+  const entry = buildHandWarmer(slot, position);
+  entry.badgeText = '실생활 활용';
+  entry.title = '손난로';
+  entry.subtitle = '철 가루의 산화 반응으로 열이 방출되어 겨울철에 손을 따뜻하게 해 줍니다.';
+  entry.noteText = '휴대용 발열 팩, 자가 발열 도시락과 같은 응용으로 이어집니다.';
+  return entry;
+}
+
+function buildPhotosynthesis(slot, position) {
+  const root = createStation(position, 0xd9efc9);
+  worldRoot.add(root);
+
+  const plant = createPlant();
+  plant.position.set(0, 1.25, 0);
+  root.add(plant);
+
+  const sun = createSun();
+  sun.position.set(-1.9, 4.2, 0.4);
+  root.add(sun);
+
+  const photons = createParticleGroup(14, {
+    color: 0xffdd75,
+    size: 0.07,
+    spreadX: 2,
+    spreadY: 1.8,
+    spreadZ: 1.4,
+    opacity: 0.16
+  });
+  photons.position.set(-0.7, 3.1, 0);
+  root.add(photons);
+
+  const arrow = createFlowArrow(0x4b9df8, 3.6, 'in');
+  arrow.rotation.z = -0.62;
+  arrow.position.set(-1.7, 3.3, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-photosynthesis`,
+    slot,
+    category: 'absorption',
+    badgeText: '자연 속 흡수',
+    title: '광합성',
+    subtitle: '식물은 빛에너지를 흡수해 포도당을 만드는 데 사용합니다.',
+    flowText: '태양 → 식물',
+    metricLabel: '에너지 흐름',
+    metricValue: '흡수',
+    rangeText: '빛에너지 흡수',
+    noteText: '에너지를 받아 저장하는 과정이라는 점이 핵심입니다.',
+    thermalShape: 'plant',
+    root,
+    thermalPrimaryLevel: 0.24,
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      entry.metricValue = eased > 0.02 ? '흡수 중' : '준비';
+      entry.thermalPrimaryLevel = 0.22 + eased * 0.12;
+
+      sun.rotation.z += 0.005;
+      plant.children.forEach((child, index) => {
+        if (index === 0) return;
+        child.rotation.z += Math.sin(time * 0.8 + index) * 0.0009;
+      });
+
+      photons.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        const shift = eased * 1.15;
+        mesh.position.set(base.x + shift * 0.7, base.y - shift * 0.8 + Math.sin(time * 2.2 + phase) * 0.04, base.z);
+        mesh.scale.setScalar((0.36 + eased * 0.8) * seedScale);
+        mesh.material.opacity = 0.05 + eased * 0.26;
+      });
+
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildWaterCycle(slot, position) {
+  const root = createStation(position, 0xd8dbff);
+  worldRoot.add(root);
+
+  const sea = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.6, 1.9, 0.32, 42),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x63b7ff,
+      transparent: true,
+      opacity: 0.72,
+      roughness: 0.12,
+      transmission: 0.12
+    })
+  );
+  sea.position.set(0, 1.02, 0);
+  sea.castShadow = true;
+  root.add(sea);
+
+  const vapor = createParticleGroup(18, {
+    color: 0x9fdcff,
+    size: 0.08,
+    spreadX: 2.4,
+    spreadY: 3.2,
+    spreadZ: 1.8,
+    opacity: 0.1
+  });
+  vapor.position.set(0, 2.1, 0);
+  root.add(vapor);
+
+  const cloud = createCloud();
+  cloud.position.set(0, 4.2, 0);
+  root.add(cloud);
+
+  const rain = createParticleGroup(14, {
+    color: 0x7db9ff,
+    size: 0.055,
+    spreadX: 2.2,
+    spreadY: 1.7,
+    spreadZ: 1.4,
+    opacity: 0.16
+  });
+  rain.position.set(0, 3.4, 0);
+  root.add(rain);
+
+  const upArrow = createFlowArrow(0x4b9df8, 2.7, 'in');
+  upArrow.rotation.z = Math.PI / 2;
+  upArrow.position.set(-1.2, 2.8, 0);
+  root.add(upArrow);
+
+  const downArrow = createFlowArrow(0xef6a4a, 2.7, 'out');
+  downArrow.rotation.z = -Math.PI / 2;
+  downArrow.position.set(1.2, 4.0, 0);
+  root.add(downArrow);
+
+  return createEntry({
+    id: `${slot}-water-cycle`,
+    slot,
+    category: 'mixed',
+    badgeText: '흡수 후 방출',
+    title: '물의 증발 → 응결',
+    subtitle: '물은 증발할 때 에너지를 흡수하고, 구름이 될 때 다시 에너지를 방출합니다.',
+    flowText: '바다 ↗ 구름 ↘ 비',
+    metricLabel: '과정',
+    metricValue: '증발 → 응결',
+    rangeText: '에너지 흡수 후 방출',
+    noteText: '자연의 물 순환에는 두 종류의 에너지 이동이 모두 포함됩니다.',
+    thermalShape: 'cloud',
+    root,
+    thermalPrimaryLevel: 0.24,
+    thermalSecondaryLevel: 0.82,
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      entry.metricValue = eased > 0.12 ? '증발 → 응결' : '대기 중 순환';
+      entry.thermalPrimaryLevel = 0.18 + eased * 0.12;
+      entry.thermalSecondaryLevel = 0.72 + eased * 0.18;
+
+      sea.scale.y = 1 + Math.sin(time * 1.6) * 0.04;
+
+      vapor.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.5 + phase) * 0.06,
+          base.y + eased * 1.3 + Math.sin(time * 2 + phase) * 0.08,
+          base.z
+        );
+        mesh.scale.setScalar((0.26 + eased * 0.9) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.2;
+      });
+
+      cloud.position.y = 4.1 + Math.sin(time * 0.9) * 0.08;
+      rain.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        const fall = (time * 0.9 + phase) % 1;
+        mesh.position.set(base.x, base.y - fall * 1.8 - eased * 0.12, base.z);
+        mesh.scale.setScalar((0.4 + eased * 0.28) * seedScale);
+        mesh.material.opacity = 0.03 + eased * 0.22;
+      });
+
+      pulseArrow(upArrow, eased, time);
+      pulseArrow(downArrow, eased, time + 0.6);
+    }
+  });
+}
+
+function buildRespiration(slot, position) {
+  const root = createStation(position, 0xffdbc8);
+  worldRoot.add(root);
+
+  const cell = createCell();
+  cell.position.set(0, 2.35, 0);
+  root.add(cell);
+
+  const pulses = createParticleGroup(16, {
+    color: 0xff926f,
+    size: 0.08,
+    spreadX: 2.4,
+    spreadY: 2.4,
+    spreadZ: 2.4,
+    opacity: 0.1
+  });
+  pulses.position.set(0, 2.35, 0);
+  root.add(pulses);
+
+  const arrow = createFlowArrow(0xef6a4a, 4.1, 'out');
+  arrow.position.set(1.35, 2.9, 0);
+  root.add(arrow);
+
+  return createEntry({
+    id: `${slot}-respiration`,
+    slot,
+    category: 'release',
+    badgeText: '자연 속 방출',
+    title: '세포호흡',
+    subtitle: '생명체는 저장된 화학 에너지를 사용하면서 열에너지를 주변으로 방출합니다.',
+    flowText: '세포 → 주변',
+    metricLabel: '에너지 흐름',
+    metricValue: '방출',
+    rangeText: '열에너지 방출',
+    noteText: '호흡은 에너지를 꺼내 쓰고 일부를 열로 내보내는 과정입니다.',
+    thermalShape: 'cell',
+    root,
+    thermalPrimaryLevel: 0.76,
+    update: (progress, time, entry) => {
+      const eased = easeInOutCubic(progress);
+      entry.metricValue = eased > 0.02 ? '방출 중' : '준비';
+      entry.thermalPrimaryLevel = 0.68 + eased * 0.24;
+
+      cell.scale.setScalar(1 + Math.sin(time * 1.7) * 0.03);
+      pulses.children.forEach((mesh) => {
+        const { base, phase, seedScale } = mesh.userData;
+        mesh.position.set(
+          base.x + Math.sin(time * 1.3 + phase) * 0.1,
+          base.y + eased * 0.85 + Math.cos(time * 1.8 + phase) * 0.08,
+          base.z + Math.cos(time * 1.2 + phase) * 0.08
+        );
+        mesh.scale.setScalar((0.3 + eased * 1.1) * seedScale);
+        mesh.material.opacity = 0.04 + eased * 0.3;
+      });
+
+      pulseArrow(arrow, eased, time);
+    }
+  });
+}
+
+function buildAbsorptionExample(slot, position) {
+  switch (state.absorptionExample) {
+    case 'ice':
+      return buildIceMelting(slot, position);
+    case 'alcohol':
+      return buildAlcoholEvaporation(slot, position);
+    case 'barium':
+    default:
+      return buildBariumReaction(slot, position);
+  }
+}
+
+function buildReleaseExample(slot, position) {
+  switch (state.releaseExample) {
+    case 'burner':
+      return buildFuelCombustion(slot, position);
+    case 'warmer':
+      return buildHandWarmer(slot, position);
+    case 'calcium':
+    default:
+      return buildCalciumReaction(slot, position);
+  }
+}
+
+function disposeObject(object) {
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+}
+
+function clearWorld() {
+  while (worldRoot.children.length > 0) {
+    const child = worldRoot.children[0];
+    worldRoot.remove(child);
+    disposeObject(child);
+  }
+  state.entries = [];
+  state.entryCardMap.clear();
+}
+
+function addEnvironment(mode) {
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(120, 80),
+    new THREE.MeshStandardMaterial({
+      color: 0xe8decf,
+      roughness: 0.96,
+      metalness: 0.02
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  floor.position.y = 0;
+  worldRoot.add(floor);
+
+  const backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 22),
+    new THREE.MeshStandardMaterial({
+      color: 0xf1e7d9,
+      roughness: 0.92,
+      metalness: 0.02
+    })
+  );
+  backWall.position.set(0, 7.4, -7.2);
+  backWall.receiveShadow = true;
+  worldRoot.add(backWall);
+
+  if (mode === 'compare' || mode === 'realLife') {
+    const leftBackdrop = createBackdrop(8.8, 5.2, 0x73baff, 0.12);
+    leftBackdrop.position.set(-10, 3.2, -2.6);
+    worldRoot.add(leftBackdrop);
+
+    const rightBackdrop = createBackdrop(8.8, 5.2, 0xff9775, 0.12);
+    rightBackdrop.position.set(10, 3.2, -2.6);
+    worldRoot.add(rightBackdrop);
+  } else if (mode === 'absorptionOnly') {
+    const coolBackdrop = createBackdrop(10, 5.6, 0x73baff, 0.14);
+    coolBackdrop.position.set(0, 3.25, -2.6);
+    worldRoot.add(coolBackdrop);
+  } else if (mode === 'releaseOnly') {
+    const warmBackdrop = createBackdrop(10, 5.6, 0xff8d69, 0.14);
+    warmBackdrop.position.set(0, 3.25, -2.6);
+    worldRoot.add(warmBackdrop);
+  } else if (mode === 'nature') {
+    const left = createBackdrop(6.2, 5, 0x9dd46a, 0.12);
+    left.position.set(-11, 3.2, -2.6);
+    worldRoot.add(left);
+
+    const center = createBackdrop(6.8, 5.2, 0x8a84ee, 0.12);
+    center.position.set(0, 3.2, -2.6);
+    worldRoot.add(center);
+
+    const right = createBackdrop(6.2, 5, 0xff9775, 0.12);
+    right.position.set(11, 3.2, -2.6);
+    worldRoot.add(right);
+  }
+}
+
+function setCameraPreset(mode) {
+  const presets = {
+    compare: { position: new THREE.Vector3(0, 5.6, 28), target: new THREE.Vector3(0, 2.2, 0), maxDistance: 46 },
+    absorptionOnly: { position: new THREE.Vector3(0, 5.0, 16), target: new THREE.Vector3(0, 2.2, 0), maxDistance: 30 },
+    releaseOnly: { position: new THREE.Vector3(0, 5.0, 16), target: new THREE.Vector3(0, 2.2, 0), maxDistance: 30 },
+    realLife: { position: new THREE.Vector3(0, 5.3, 24), target: new THREE.Vector3(0, 2.2, 0), maxDistance: 38 },
+    nature: { position: new THREE.Vector3(0, 6.0, 29), target: new THREE.Vector3(0, 2.5, 0), maxDistance: 44 }
+  };
+
+  const preset = presets[mode];
+  camera.position.copy(preset.position);
+  controls.target.copy(preset.target);
+  controls.maxDistance = preset.maxDistance;
+  controls.update();
+}
+
+function createPaneCard(entry) {
+  const card = document.createElement('article');
+  card.className = `pane-card ${entry.category}`;
+  card.innerHTML = `
+    <div class="pane-head">
+      <span class="badge ${entry.category}">${entry.badgeText}</span>
+      <span class="flow-label">${entry.flowText}</span>
+    </div>
+    <h2>${entry.title}</h2>
+    <p>${entry.subtitle}</p>
+    <div class="metric-box">
+      <div class="metric-label">${entry.metricLabel}</div>
+      <div class="metric-value"></div>
+      <div class="metric-range"></div>
+    </div>
+    <div class="thermal-wrap">
+      <canvas class="thermal-canvas"></canvas>
+      <div class="thermal-caption">열화상 카메라 뷰</div>
+    </div>
+    <div class="detail-chip"></div>
+  `;
+
+  const refs = {
+    card,
+    metricValue: card.querySelector('.metric-value'),
+    metricRange: card.querySelector('.metric-range'),
+    thermalWrap: card.querySelector('.thermal-wrap'),
+    thermalCanvas: card.querySelector('.thermal-canvas'),
+    detailChip: card.querySelector('.detail-chip')
+  };
+
+  refs.metricValue.textContent = entry.metricValue;
+  refs.metricRange.textContent = entry.rangeText;
+  refs.detailChip.textContent = entry.noteText;
+  refs.thermalWrap.classList.toggle('hidden', !state.thermalView);
+
+  return refs;
+}
+
+function updatePaneCards() {
+  state.entries.forEach((entry) => {
+    const refs = state.entryCardMap.get(entry.id);
+    if (!refs) return;
+    refs.metricValue.textContent = entry.metricValue;
+    refs.metricRange.textContent = entry.rangeText;
+    refs.detailChip.textContent = entry.noteText;
+    refs.thermalWrap.classList.toggle('hidden', !state.thermalView);
+    drawThermalCanvas(refs.thermalCanvas, entry);
+  });
+}
+
+function roundedRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width * 0.5, height * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawOutline(ctx, shape, width, height) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+  ctx.lineWidth = Math.max(2, width * 0.008);
+  ctx.beginPath();
+
+  switch (shape) {
+    case 'beaker':
+      roundedRectPath(ctx, width * 0.34, height * 0.2, width * 0.32, height * 0.56, 14);
+      ctx.stroke();
+      break;
+    case 'cup':
+      roundedRectPath(ctx, width * 0.33, height * 0.2, width * 0.34, height * 0.54, 20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(width * 0.69, height * 0.48, width * 0.07, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      break;
+    case 'hand':
+      ctx.moveTo(width * 0.32, height * 0.72);
+      ctx.lineTo(width * 0.34, height * 0.38);
+      ctx.lineTo(width * 0.39, height * 0.26);
+      ctx.lineTo(width * 0.44, height * 0.3);
+      ctx.lineTo(width * 0.48, height * 0.22);
+      ctx.lineTo(width * 0.53, height * 0.28);
+      ctx.lineTo(width * 0.58, height * 0.22);
+      ctx.lineTo(width * 0.63, height * 0.28);
+      ctx.lineTo(width * 0.67, height * 0.36);
+      ctx.lineTo(width * 0.7, height * 0.62);
+      ctx.lineTo(width * 0.56, height * 0.72);
+      ctx.closePath();
+      ctx.stroke();
+      break;
+    case 'burner':
+      ctx.moveTo(width * 0.43, height * 0.78);
+      ctx.lineTo(width * 0.43, height * 0.48);
+      ctx.lineTo(width * 0.57, height * 0.48);
+      ctx.lineTo(width * 0.57, height * 0.78);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.22);
+      ctx.bezierCurveTo(width * 0.62, height * 0.4, width * 0.6, height * 0.52, width * 0.5, height * 0.58);
+      ctx.bezierCurveTo(width * 0.38, height * 0.46, width * 0.38, height * 0.34, width * 0.5, height * 0.22);
+      ctx.stroke();
+      break;
+    case 'packet':
+      roundedRectPath(ctx, width * 0.35, height * 0.18, width * 0.3, height * 0.62, 18);
+      ctx.stroke();
+      break;
+    case 'plant':
+      ctx.moveTo(width * 0.5, height * 0.78);
+      ctx.lineTo(width * 0.5, height * 0.34);
+      ctx.moveTo(width * 0.5, height * 0.48);
+      ctx.quadraticCurveTo(width * 0.38, height * 0.38, width * 0.3, height * 0.45);
+      ctx.moveTo(width * 0.5, height * 0.56);
+      ctx.quadraticCurveTo(width * 0.62, height * 0.44, width * 0.7, height * 0.5);
+      ctx.stroke();
+      break;
+    case 'cloud':
+      ctx.arc(width * 0.43, height * 0.46, width * 0.08, 0, Math.PI * 2);
+      ctx.arc(width * 0.54, height * 0.4, width * 0.1, 0, Math.PI * 2);
+      ctx.arc(width * 0.65, height * 0.46, width * 0.08, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 'cell':
+      ctx.ellipse(width * 0.5, height * 0.5, width * 0.14, height * 0.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    default:
+      roundedRectPath(ctx, width * 0.3, height * 0.22, width * 0.4, height * 0.5, 20);
+      ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawThermalBlob(ctx, width, height, x, y, radius, level, alpha = 1) {
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, thermalCss(level, 0.95 * alpha));
+  gradient.addColorStop(0.4, thermalCss(clamp(level - 0.08, 0, 1), 0.62 * alpha));
+  gradient.addColorStop(1, thermalCss(clamp(level - 0.18, 0, 1), 0));
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawThermalCanvas(canvas, entry) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(10, Math.round(canvas.clientWidth * dpr));
+  const height = Math.max(10, Math.round(canvas.clientHeight * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, width, height);
+
+  const baseGradient = ctx.createLinearGradient(0, height, width, 0);
+  baseGradient.addColorStop(0, 'rgba(21, 24, 44, 0.96)');
+  baseGradient.addColorStop(1, 'rgba(46, 55, 92, 0.92)');
+  ctx.fillStyle = baseGradient;
+  roundedRectPath(ctx, 0, 0, width, height, 22 * dpr);
+  ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  ctx.filter = `blur(${14 * dpr}px)`;
+
+  if (entry.thermalPrimaryLevel !== null && entry.thermalPrimaryLevel !== undefined) {
+    drawThermalBlob(ctx, width, height, width * 0.5, height * 0.52, width * 0.19, entry.thermalPrimaryLevel, 1);
+  }
+  if (entry.thermalSecondaryLevel !== null && entry.thermalSecondaryLevel !== undefined) {
+    drawThermalBlob(ctx, width, height, width * 0.72, height * 0.34, width * 0.16, entry.thermalSecondaryLevel, 0.92);
+  }
+  ctx.filter = 'none';
+  ctx.restore();
+
+  drawOutline(ctx, entry.thermalShape, width, height);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.font = `${Math.round(12 * dpr)}px Pretendard`;
+  ctx.fillText('THERMAL', 14 * dpr, 18 * dpr);
+}
+
+function renderPaneCards() {
+  Object.values(slotEls).forEach((slotEl) => {
+    slotEl.innerHTML = '';
+  });
+  state.entryCardMap.clear();
+
+  state.entries.forEach((entry) => {
+    const slotEl = slotEls[entry.slot];
+    if (!slotEl) return;
+    const refs = createPaneCard(entry);
+    slotEl.appendChild(refs.card);
+    state.entryCardMap.set(entry.id, refs);
+  });
+
+  arrangeSlots();
+  updatePaneCards();
+}
+
+function updateFormulaPanel() {
+  const currentView = VIEW_LABELS[state.viewMode];
+  const visibleTitles = state.entries.map((entry) => entry.title).join(' / ');
+
+  const changeText = state.entries
+    .map((entry) => `${entry.title}: ${entry.metricValue} (${entry.rangeText})`)
+    .join(' · ');
+
+  formulaPanel.innerHTML = `
+    <h3>🌡️ 에너지의 흡수와 방출</h3>
+    <div class="formula-grid">
+      <div class="formula-label">현재 보기</div>
+      <div>${currentView}</div>
+      <div class="formula-label">현재 예시</div>
+      <div>${visibleTitles}</div>
+      <div class="formula-label">온도 변화</div>
+      <div>${changeText}</div>
+    </div>
+    <div class="formula-divider"></div>
+    <div class="formula-section">
+      <strong>에너지 흡수:</strong><br>
+      주변으로부터 에너지를 흡수<br>
+      → 주변 온도 낮아짐<br>
+      예: 증발, 광합성, 냉찜질팩
+    </div>
+    <div class="formula-section">
+      <strong>에너지 방출:</strong><br>
+      주변으로 에너지를 방출<br>
+      → 주변 온도 높아짐<br>
+      예: 응결, 연소, 세포호흡, 손난로
+    </div>
+  `;
+}
+
+function updateContextPanel() {
+  let items = [];
+
+  if (state.viewMode === 'compare') {
+    items = [
+      `<strong>왼쪽 실험</strong>: ${state.entries[0].title}은(는) 주변의 열을 빼앗아 온도를 낮춥니다.`,
+      `<strong>오른쪽 실험</strong>: ${state.entries[1].title}은(는) 반응에서 나온 열이 주변으로 퍼집니다.`,
+      `<strong>핵심 비교</strong>: 화살표 방향이 에너지 이동 방향을 뜻하고, 열화상 색은 온도 변화 방향을 보여 줍니다.`
+    ];
+  } else if (state.viewMode === 'absorptionOnly') {
+    items = [
+      `<strong>현재 흡수 예시</strong>: ${state.entries[0].title}`,
+      `<strong>관찰 포인트</strong>: 파란 화살표와 차가운 열화상 색으로 바뀌는 과정을 보세요.`,
+      `<strong>교과 연결</strong>: 에너지를 흡수하면 주변 온도가 낮아진다는 문장을 실험 장치와 함께 연결합니다.`
+    ];
+  } else if (state.viewMode === 'releaseOnly') {
+    items = [
+      `<strong>현재 방출 예시</strong>: ${state.entries[0].title}`,
+      `<strong>관찰 포인트</strong>: 빨간 화살표와 따뜻한 열화상 색으로 바뀌는 과정을 보세요.`,
+      `<strong>교과 연결</strong>: 에너지를 방출하면 주변 온도가 높아진다는 문장을 실험 장치와 함께 연결합니다.`
+    ];
+  } else if (state.viewMode === 'realLife') {
+    items = [
+      `<strong>냉찜질 팩</strong>: 흡열 과정으로 차가워져 부기와 통증 완화에 쓰입니다.`,
+      `<strong>손난로</strong>: 산화 반응의 열 방출을 이용해 겨울철 보온에 쓰입니다.`,
+      `<strong>응용 생각</strong>: 자가 발열 도시락, 쿨링 포그처럼 에너지 출입을 제어하면 생활 기술로 이어집니다.`
+    ];
+  } else if (state.viewMode === 'nature') {
+    items = [
+      `<strong>물의 순환</strong>: 물은 증발할 때 에너지를 흡수하고 응결할 때 다시 방출합니다.`,
+      `<strong>광합성</strong>: 식물은 빛에너지를 흡수해 화학 에너지 형태로 저장합니다.`,
+      `<strong>세포호흡</strong>: 저장된 에너지를 사용하면서 일부를 열로 방출합니다.`
+    ];
+  }
+
+  contextPanel.innerHTML = `
+    <h3>장면 해설</h3>
+    ${items.map((item) => `<div class="context-item">${item}</div>`).join('')}
+  `;
+}
+
+function rebuildWorld() {
+  clearWorld();
+  addEnvironment(state.viewMode);
+
+  if (state.viewMode === 'compare') {
+    state.entries.push(buildAbsorptionExample('left', new THREE.Vector3(-10, 0, 0)));
+    state.entries.push(buildReleaseExample('right', new THREE.Vector3(10, 0, 0)));
+  } else if (state.viewMode === 'absorptionOnly') {
+    state.entries.push(buildAbsorptionExample('center', new THREE.Vector3(0, 0, 0)));
+  } else if (state.viewMode === 'releaseOnly') {
+    state.entries.push(buildReleaseExample('center', new THREE.Vector3(0, 0, 0)));
+  } else if (state.viewMode === 'realLife') {
+    state.entries.push(buildColdPack('left', new THREE.Vector3(-10, 0, 0)));
+    state.entries.push(buildWarmPack('right', new THREE.Vector3(10, 0, 0)));
+  } else if (state.viewMode === 'nature') {
+    state.entries.push(buildPhotosynthesis('left', new THREE.Vector3(-11, 0, 0)));
+    state.entries.push(buildWaterCycle('center', new THREE.Vector3(0, 0, 0)));
+    state.entries.push(buildRespiration('right', new THREE.Vector3(11, 0, 0)));
+  }
+
+  state.reactionRunning = false;
+  state.reactionProgress = 0;
+  setCameraPreset(state.viewMode);
+  renderPaneCards();
+  updateFormulaPanel();
+  updateContextPanel();
+  updateModeUi();
+}
+
+function arrangeSlots() {
+  if (window.innerWidth > 820) {
+    Object.values(slotEls).forEach((slotEl) => {
+      slotEl.style.top = '116px';
+    });
+    return;
+  }
+
+  const activeSlots = ['left', 'center', 'right'].filter((key) => slotEls[key].children.length > 0);
+  let activeIndex = 0;
+
+  ['left', 'center', 'right'].forEach((key) => {
+    const slotEl = slotEls[key];
+    if (slotEl.children.length === 0) {
+      slotEl.style.top = '-9999px';
+      return;
+    }
+
+    slotEl.style.top = `${104 + activeIndex * 248}px`;
+    activeIndex += 1;
+  });
+}
+
+function updateModeUi() {
+  modeChip.textContent = `현재 보기 · ${VIEW_LABELS[state.viewMode]}`;
+  splitDivider.style.opacity = (state.viewMode === 'compare' || state.viewMode === 'realLife') ? '1' : '0';
+}
+
+function syncGui() {
+  guiState['보기 모드'] = VIEW_LABELS[state.viewMode];
+  guiState['흡수 예시'] = ABSORPTION_EXAMPLES[state.absorptionExample];
+  guiState['방출 예시'] = RELEASE_EXAMPLES[state.releaseExample];
+  guiState['열화상 뷰'] = state.thermalView;
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function startReaction() {
+  state.reactionRunning = true;
+  state.reactionStartTime = performance.now();
+}
+
+function resetSimulation() {
+  state.reactionRunning = false;
+  state.reactionProgress = 0;
+  rebuildWorld();
+  syncGui();
+}
+
+function updateScene(timeMs) {
+  const time = timeMs * 0.001;
+  state.frameTime = time;
+
+  if (state.reactionRunning) {
+    const elapsed = (timeMs - state.reactionStartTime) / 1000;
+    const normalized = clamp(elapsed / 4.4, 0, 1);
+    state.reactionProgress = normalized;
+    if (normalized >= 1) {
+      state.reactionRunning = false;
+    }
+  }
+
+  state.entries.forEach((entry) => {
+    entry.update(state.reactionProgress, time, entry);
+  });
+
+  updatePaneCards();
+  updateFormulaPanel();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(updateScene);
+}
+
+function handleResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  arrangeSlots();
+  updatePaneCards();
+}
+
+window.addEventListener('resize', handleResize);
+
+rebuildWorld();
+syncGui();
+requestAnimationFrame(updateScene);
+</script>
+</body>
+</html>

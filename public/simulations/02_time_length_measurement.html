@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시간과 길이 측정의 발전 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  /* 전체 레이아웃 */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
+
+  /* ── 좌우 타임라인 패널 ── */
+  .timeline-panel {
+    position: fixed;
+    top: 0;
+    width: 190px;
+    height: 100vh;
+    background: rgba(10,10,25,0.88);
+    backdrop-filter: blur(14px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 10px;
+    transition: background 0.6s;
+  }
+  #timeline-time {
+    left: 0;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  #timeline-length {
+    right: 0;
+    border-left: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .timeline-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  #timeline-time .timeline-title { color: #7ecfff; }
+  #timeline-length .timeline-title { color: #ffcf7e; }
+
+  .timeline-line {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    position: relative;
+    padding-left: 22px;
+  }
+  .timeline-line::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 1px;
+  }
+
+  .timeline-item {
+    position: relative;
+    cursor: pointer;
+    padding: 10px 10px;
+    border-radius: 10px;
+    transition: all 0.35s;
+    opacity: 0.35;
+    filter: grayscale(0.8);
+    border: 1px solid transparent;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.1);
+    transition: all 0.35s;
+  }
+  .timeline-item.selected {
+    opacity: 1;
+    filter: none;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 0 20px rgba(126,207,255,0.08);
+  }
+  .timeline-item.selected::before {
+    background: #7ecfff;
+    border-color: #7ecfff;
+    box-shadow: 0 0 8px #7ecfff;
+    width: 12px;
+    height: 12px;
+  }
+  #timeline-length .timeline-item.selected::before {
+    background: #ffcf7e;
+    border-color: #ffcf7e;
+    box-shadow: 0 0 8px #ffcf7e;
+  }
+  .timeline-item:hover {
+    opacity: 0.75;
+    filter: grayscale(0.3);
+  }
+  .timeline-item .tool-icon {
+    font-size: 22px;
+    margin-bottom: 3px;
+  }
+  .timeline-item .tool-name {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .timeline-item .tool-era {
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 2px;
+  }
+
+  /* ── 중앙 도구 제목 ── */
+  #tool-title {
+    position: fixed;
+    left: 50%;
+    top: 22px;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 15;
+    transition: opacity 0.5s;
+  }
+  #tool-title .name {
+    font-size: 24px;
+    font-weight: 700;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.7);
+    letter-spacing: 1px;
+  }
+  #tool-title .era-badge {
+    display: inline-block;
+    margin-top: 5px;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(4px);
+  }
+
+  /* ── 수식 패널 (좌하단) — 프롬프트 사양: 도구별 실시간 업데이트 ── */
+  #formula-panel {
+    position: fixed;
+    left: 200px;
+    bottom: 16px;
+    width: 310px;
+    background: rgba(15,15,30,0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px;
+    z-index: 20;
+    font-size: 13px;
+    line-height: 1.7;
+    transition: transform 0.4s, opacity 0.4s;
+  }
+  #formula-panel h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: #ffcf7e;
+  }
+  #formula-panel .row { display: flex; margin-bottom: 4px; }
+  #formula-panel .row .label {
+    width: 75px;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.5);
+    font-size: 12px;
+  }
+  #formula-panel .row .value {
+    flex: 1;
+    font-size: 13px;
+  }
+  .formula-def {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .formula-item {
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    border-left: 3px solid rgba(255,207,126,0.4);
+  }
+  .formula-item strong { color: #ffcf7e; font-size: 12px; }
+
+  /* ── 정밀도 비교 차트 (하단 중앙) ── */
+  #precision-chart {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    width: 360px;
+    background: rgba(15,15,30,0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    z-index: 20;
+  }
+  #precision-chart h3 {
+    font-size: 12px;
+    margin-bottom: 8px;
+    color: #a0e8af;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 11px;
+    transition: opacity 0.3s;
+  }
+  .bar-label {
+    width: 90px;
+    flex-shrink: 0;
+    text-align: right;
+    padding-right: 8px;
+    color: rgba(255,255,255,0.7);
+    font-size: 10px;
+  }
+  .bar-track {
+    flex: 1;
+    height: 14px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1), opacity 0.3s;
+  }
+  .bar-value {
+    width: 85px;
+    padding-left: 8px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── 학습 가이드 ── */
+  #guide-toggle {
+    position: fixed;
+    left: 50%;
+    top: 70px;
+    transform: translateX(-50%);
+    background: rgba(15,15,30,0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 6px 14px;
+    color: #fff;
+    font-size: 12px;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    z-index: 30;
+    transition: background 0.2s;
+  }
+  #guide-toggle:hover { background: rgba(40,40,80,0.9); }
+
+  #guide-panel {
+    position: fixed;
+    left: 50%;
+    top: 100px;
+    transform: translateX(-50%);
+    width: 400px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: rgba(15,15,30,0.94);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 20px;
+    z-index: 25;
+    font-size: 13px;
+    line-height: 1.8;
+    display: none;
+  }
+  #guide-panel h3 { font-size: 15px; margin-bottom: 10px; color: #c8b6ff; }
+  #guide-panel h4 { font-size: 13px; margin-top: 12px; margin-bottom: 5px; color: #ffb4a2; }
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  /* ── 앙부일구 태양 슬라이더 ── */
+  #sun-slider-container {
+    position: fixed;
+    left: 50%;
+    bottom: 140px;
+    transform: translateX(-50%);
+    background: rgba(15,15,30,0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px 18px;
+    z-index: 20;
+    text-align: center;
+    display: none;
+    min-width: 280px;
+  }
+  #sun-slider-container label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    display: block;
+    margin-bottom: 6px;
+  }
+  #sun-slider {
+    width: 220px;
+    accent-color: #ffdd44;
+    cursor: pointer;
+  }
+  #sun-time-display {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffdd44;
+    margin-top: 6px;
+    text-shadow: 0 0 12px rgba(255,221,68,0.4);
+  }
+
+  /* ── 반응형 ── */
+  @media (max-width: 900px) {
+    .timeline-panel { width: 140px; padding: 12px 6px; }
+    .timeline-item .tool-icon { font-size: 18px; }
+    .timeline-item .tool-name { font-size: 10px; }
+    #formula-panel { left: 150px; width: 250px; font-size: 12px; }
+    #precision-chart { width: 280px; }
+    #guide-panel { width: calc(100vw - 320px); }
+  }
+  @media (max-width: 600px) {
+    .timeline-panel { width: 70px; padding: 8px 4px; }
+    .timeline-title { font-size: 10px; }
+    .timeline-item .tool-name { display: none; }
+    .timeline-item .tool-era { display: none; }
+    .timeline-line { padding-left: 16px; }
+    #formula-panel { left: 80px; width: 200px; padding: 10px; }
+    #precision-chart { width: 200px; }
+    #tool-title .name { font-size: 18px; }
+    #guide-panel { width: calc(100vw - 160px); }
+    #sun-slider-container { min-width: 200px; }
+    #sun-slider { width: 160px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 좌측 타임라인: 시간 측정의 발전 -->
+<div id="timeline-time" class="timeline-panel">
+  <div class="timeline-title">⏱ 시간 측정의 발전</div>
+  <div class="timeline-line" id="time-items"></div>
+</div>
+
+<!-- 우측 타임라인: 길이 측정의 발전 -->
+<div id="timeline-length" class="timeline-panel">
+  <div class="timeline-title">📏 길이 측정의 발전</div>
+  <div class="timeline-line" id="length-items"></div>
+</div>
+
+<!-- 중앙 도구 제목 -->
+<div id="tool-title">
+  <div class="name" id="tool-name">앙부일구</div>
+  <div class="era-badge" id="tool-era-badge">고대</div>
+</div>
+
+<!-- 학습 가이드 토글 -->
+<button id="guide-toggle">📖 학습 가이드</button>
+
+<!-- 학습 가이드 패널 -->
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>🔑 핵심 개념</h4>
+  <p>과학자들의 노력으로 측정할 수 있는 시간과 공간의 규모가 다양해지면서 인간이 경험할 수 있는 자연 세계가 크게 확장되었습니다.</p>
+
+  <h4>❓ 탐구 질문</h4>
+  <ul>
+    <li>앙부일구의 한계점은 무엇인가요? 흐린 날에는 어떻게 될까요?</li>
+    <li>세슘 원자시계가 일상의 시계보다 훨씬 정밀한 이유는 무엇인가요?</li>
+    <li>미터원기 대신 빛을 이용해 1m를 정의하면 어떤 장점이 있을까요?</li>
+  </ul>
+
+  <h4>🌍 실생활 사례</h4>
+  <ul>
+    <li><strong>GPS 위성</strong>: 세슘 원자시계 탑재 — 정밀 시각 동기화로 위치 오차 최소화</li>
+    <li><strong>내비게이션</strong>: 레이저 거리 측정 — 위성 간 거리를 빛으로 정밀 측정</li>
+    <li><strong>건축 현장</strong>: 레이저 수평기 — 나노미터 정밀도로 수평·수직 측정</li>
+  </ul>
+
+  <div class="textbook-ref">
+    📚 교과서 참고: 미래엔 통합과학1 I편 p16~17 (시간과 길이의 측정), p29 (미터원기)
+  </div>
+</div>
+
+<!-- 수식 패널 (좌하단) — 선택 도구별 실시간 업데이트 -->
+<div id="formula-panel">
+  <h3>⏱ 시간과 길이 측정</h3>
+  <div class="row"><span class="label">선택 도구:</span><span class="value" id="fp-tool">—</span></div>
+  <div class="row"><span class="label">시대:</span><span class="value" id="fp-era">—</span></div>
+  <div class="row"><span class="label">측정 원리:</span><span class="value" id="fp-principle">—</span></div>
+  <div class="row"><span class="label">측정 오차:</span><span class="value" id="fp-error">—</span></div>
+  <div class="formula-def">
+    <div class="formula-item">
+      <strong>1초</strong> = 세슘-133 원자가
+      <span style="color:#7ecfff; font-weight:600;">9,192,631,770</span>번 진동하는 시간
+    </div>
+    <div class="formula-item">
+      <strong>1m</strong> = 빛이
+      <span style="color:#7ecfff; font-weight:600;">1/299,792,458</span>초 동안 이동한 거리
+    </div>
+  </div>
+</div>
+
+<!-- 정밀도 비교 차트 (하단 중앙) -->
+<div id="precision-chart">
+  <h3>📊 측정 정밀도 비교 (로그 스케일)</h3>
+  <div id="chart-bars"></div>
+</div>
+
+<!-- 앙부일구 태양 위치 슬라이더 -->
+<div id="sun-slider-container">
+  <label>☀️ 태양 위치 조절 (동 → 서)</label>
+  <input type="range" id="sun-slider" min="0" max="100" value="50">
+  <div id="sun-time-display">정오 (12:00)</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+// ─── 상수 정의 ───
+const ERA_BG = {
+  ancient:  0xd4c5a0,
+  medieval: 0x3a2a1a,
+  modern:   0xf0f0f0,
+  cutting:  0x0a0a2e
+};
+
+const ERA_KEYS = ['ancient', 'medieval', 'modern', 'cutting'];
+const ERA_NAMES = ['고대', '근대', '현대', '최첨단'];
+
+// 시간 측정 도구
+const TIME_TOOLS = [
+  { id: 'sundial',  name: '앙부일구 (해시계)', era: '고대', eraIdx: 0, principle: '태양 그림자의 위치로 시각을 측정', error: '~수십 분 (흐린 날 사용 불가)', errorValue: 1800, color: 0x8B7355, icon: '☀️' },
+  { id: 'pendulum', name: '괘종시계 (진자시계)', era: '근대', eraIdx: 1, principle: '진자의 등시성을 이용한 기계식 시계', error: '~수 초/일', errorValue: 5, color: 0x6B4226, icon: '🕰️' },
+  { id: 'quartz',   name: '석영 시계 (쿼츠)', era: '현대', eraIdx: 2, principle: '석영 결정의 압전 효과로 정밀 진동', error: '~0.5초/일', errorValue: 0.5, color: 0xc0c0c0, icon: '⌚' },
+  { id: 'cesium',   name: '세슘 원자시계', era: '최첨단', eraIdx: 3, principle: 'Cs-133 원자의 초미세 전이 진동수 이용', error: '1초/3000만 년', errorValue: 0.000000001, color: 0x4488aa, icon: '⚛️' }
+];
+
+// 길이 측정 도구
+const LENGTH_TOOLS = [
+  { id: 'cubit', name: '막대자 / 큐빗', era: '고대', eraIdx: 0, principle: '팔꿈치~손끝 길이를 기준으로 측정', error: '~수 cm', errorValue: 50, color: 0xa0785a, icon: '📏' },
+  { id: 'metre', name: '미터원기', era: '근대', eraIdx: 1, principle: '백금-이리듐 합금 막대를 국제 기준으로 사용', error: '~0.1mm', errorValue: 0.1, color: 0xd0d0d0, icon: '📐' },
+  { id: 'laser', name: '레이저 거리 측정기', era: '현대', eraIdx: 2, principle: '빛의 왕복 시간으로 거리를 산출', error: '~나노미터', errorValue: 0.000001, color: 0x333333, icon: '🔴' }
+];
+
+// ─── Three.js 초기화 ───
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x1a1a2e, 0.012);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 3, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// 카메라 컨트롤
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxDistance = 25;
+controls.minDistance = 4;
+controls.maxPolarAngle = Math.PI * 0.85;
+
+// ─── 조명 ───
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 8, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight);
+
+const spotLight = new THREE.PointLight(0xffffff, 1.5, 15);
+spotLight.position.set(0, 5, 3);
+scene.add(spotLight);
+
+// ─── 바닥 (시대별 텍스처 변경) ───
+const gridHelper = new THREE.GridHelper(30, 30, 0x333355, 0x222244);
+gridHelper.position.y = -2;
+scene.add(gridHelper);
+
+const floorGeo = new THREE.PlaneGeometry(40, 40);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.9, metalness: 0.1 });
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -2.01;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// 바닥 텍스처 생성 (캔버스 기반)
+function createFloorTexture(type) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  if (type === 'ancient') {
+    // 모래/돌 질감
+    ctx.fillStyle = '#c4a86e';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 400; i++) {
+      const x = Math.random() * 256;
+      const y = Math.random() * 256;
+      const r = Math.random() * 3 + 1;
+      ctx.fillStyle = `rgba(${120 + Math.random()*60}, ${100 + Math.random()*50}, ${60 + Math.random()*40}, ${0.3 + Math.random()*0.4})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 돌 금 패턴
+    for (let i = 0; i < 8; i++) {
+      ctx.strokeStyle = `rgba(100,80,50,${0.1 + Math.random()*0.15})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * 256, Math.random() * 256);
+      ctx.lineTo(Math.random() * 256, Math.random() * 256);
+      ctx.stroke();
+    }
+  } else if (type === 'medieval') {
+    // 나무 질감
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 30; i++) {
+      const y = i * 8 + Math.random() * 4;
+      ctx.strokeStyle = `rgba(80,50,20,${0.2 + Math.random()*0.3})`;
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      let cx = 0;
+      while (cx < 256) {
+        cx += 10 + Math.random() * 20;
+        ctx.lineTo(cx, y + (Math.random() - 0.5) * 3);
+      }
+      ctx.stroke();
+    }
+    // 나무 결
+    for (let i = 0; i < 5; i++) {
+      const cx = Math.random() * 256;
+      const cy = Math.random() * 256;
+      ctx.strokeStyle = `rgba(100,60,25,0.15)`;
+      ctx.lineWidth = 8 + Math.random() * 15;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 20 + Math.random() * 40, 0, Math.PI * (0.5 + Math.random()));
+      ctx.stroke();
+    }
+  } else if (type === 'modern') {
+    // 깨끗한 타일
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    const tileSize = 64;
+    for (let x = 0; x <= 256; x += tileSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
+    }
+    for (let y = 0; y <= 256; y += tileSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+    }
+    // 살짝 그라데이션
+    for (let x = 0; x < 4; x++) {
+      for (let y = 0; y < 4; y++) {
+        const brightness = 228 + Math.random() * 10;
+        ctx.fillStyle = `rgb(${brightness},${brightness},${brightness})`;
+        ctx.fillRect(x * tileSize + 1, y * tileSize + 1, tileSize - 2, tileSize - 2);
+      }
+    }
+  } else {
+    // 최첨단 — 어두운 메탈릭 그리드
+    ctx.fillStyle = '#0a0a1e';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(60,60,120,0.3)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= 256; x += 32) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
+    }
+    for (let y = 0; y <= 256; y += 32) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(6, 6);
+  return texture;
+}
+
+// 바닥 텍스처 캐시
+const floorTextures = {
+  ancient: createFloorTexture('ancient'),
+  medieval: createFloorTexture('medieval'),
+  modern: createFloorTexture('modern'),
+  cutting: createFloorTexture('cutting')
+};
+
+// 바닥 색상 매핑
+const floorColors = {
+  ancient: 0xc4a86e,
+  medieval: 0x5a3a1a,
+  modern: 0xe0e0e0,
+  cutting: 0x0a0a1e
+};
+
+// ─── 상태 관리 ───
+const state = {
+  category: 'time',    // 'time' | 'length'
+  toolIndex: 0,        // 현재 선택된 도구 인덱스
+  currentGroup: null,
+  animationMixins: [],
+  clock: new THREE.Clock(),
+  sunAngle: 0.5,       // 앙부일구 태양 위치 (0~1)
+  timelineRunning: false
+};
+
+// ─── 현재 도구 가져오기 ───
+function getCurrentToolList() {
+  return state.category === 'time' ? TIME_TOOLS : LENGTH_TOOLS;
+}
+function getCurrentTool() {
+  return getCurrentToolList()[state.toolIndex];
+}
+
+// ─── DOM 참조 ───
+const toolNameEl = document.getElementById('tool-name');
+const toolEraBadgeEl = document.getElementById('tool-era-badge');
+const fpToolEl = document.getElementById('fp-tool');
+const fpEraEl = document.getElementById('fp-era');
+const fpPrincipleEl = document.getElementById('fp-principle');
+const fpErrorEl = document.getElementById('fp-error');
+const guideToggle = document.getElementById('guide-toggle');
+const guidePanel = document.getElementById('guide-panel');
+const precisionChart = document.getElementById('precision-chart');
+const sunSliderContainer = document.getElementById('sun-slider-container');
+const sunSlider = document.getElementById('sun-slider');
+const sunTimeDisplay = document.getElementById('sun-time-display');
+
+// 학습 가이드 토글
+let guideOpen = false;
+guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  guidePanel.style.display = guideOpen ? 'block' : 'none';
+});
+
+// 태양 슬라이더 이벤트
+sunSlider.addEventListener('input', (e) => {
+  state.sunAngle = parseInt(e.target.value) / 100;
+  updateSunTimeLabel();
+});
+
+function updateSunTimeLabel() {
+  // 0=오전 6시, 0.5=정오, 1=오후 6시
+  const hour = 6 + state.sunAngle * 12;
+  const h = Math.floor(hour);
+  const m = Math.floor((hour - h) * 60);
+  const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  const names = ['오전 6시 (일출)', '오전 7시', '오전 8시', '오전 9시', '오전 10시', '오전 11시', '정오 (12:00)', '오후 1시', '오후 2시', '오후 3시', '오후 4시', '오후 5시', '오후 6시 (일몰)'];
+  const idx = Math.round(state.sunAngle * 12);
+  sunTimeDisplay.textContent = names[Math.min(idx, 12)] || timeStr;
+}
+
+// ─── 타임라인 생성 ───
+function buildTimelines() {
+  const timeContainer = document.getElementById('time-items');
+  const lengthContainer = document.getElementById('length-items');
+
+  TIME_TOOLS.forEach((tool, i) => {
+    const el = document.createElement('div');
+    el.className = 'timeline-item' + (state.category === 'time' && state.toolIndex === i ? ' selected' : '');
+    el.dataset.category = 'time';
+    el.dataset.index = i;
+    el.innerHTML = `<div class="tool-icon">${tool.icon}</div><div class="tool-name">${tool.name.split('(')[0].trim()}</div><div class="tool-era">${tool.era}</div>`;
+    el.addEventListener('click', () => selectTool('time', i));
+    timeContainer.appendChild(el);
+  });
+
+  LENGTH_TOOLS.forEach((tool, i) => {
+    const el = document.createElement('div');
+    el.className = 'timeline-item' + (state.category === 'length' && state.toolIndex === i ? ' selected' : '');
+    el.dataset.category = 'length';
+    el.dataset.index = i;
+    el.innerHTML = `<div class="tool-icon">${tool.icon}</div><div class="tool-name">${tool.name.split('(')[0].trim()}</div><div class="tool-era">${tool.era}</div>`;
+    el.addEventListener('click', () => selectTool('length', i));
+    lengthContainer.appendChild(el);
+  });
+}
+
+function updateTimelineSelection() {
+  document.querySelectorAll('.timeline-item').forEach(el => {
+    const cat = el.dataset.category;
+    const idx = parseInt(el.dataset.index);
+    el.classList.toggle('selected', cat === state.category && idx === state.toolIndex);
+  });
+}
+
+function selectTool(category, index) {
+  state.category = category;
+  state.toolIndex = index;
+  switchTool();
+}
+
+// ─── UI 업데이트 ───
+function updateUI() {
+  const tool = getCurrentTool();
+
+  // 중앙 제목
+  toolNameEl.textContent = tool.name;
+  toolEraBadgeEl.textContent = tool.era;
+
+  // 수식 패널 — 도구별 실시간 업데이트
+  fpToolEl.textContent = tool.name;
+  fpEraEl.textContent = tool.era;
+  fpPrincipleEl.textContent = tool.principle;
+  fpErrorEl.textContent = tool.error;
+
+  // 배경색
+  const eraKey = ERA_KEYS[tool.eraIdx];
+  const bgColor = ERA_BG[eraKey];
+  scene.background = new THREE.Color(bgColor);
+  scene.fog.color.set(bgColor);
+
+  // 바닥 텍스처/색상 변경
+  floorMat.map = floorTextures[eraKey];
+  floorMat.color.set(floorColors[eraKey]);
+  floorMat.needsUpdate = true;
+
+  // 그리드 색상 조정
+  const isLight = tool.eraIdx === 0 || tool.eraIdx === 2;
+  const primaryGridColor = isLight ? 0x999977 : 0x333355;
+  const secondaryGridColor = isLight ? 0x888866 : 0x222244;
+  if (Array.isArray(gridHelper.material)) {
+    if (gridHelper.material[0]?.color) gridHelper.material[0].color.set(primaryGridColor);
+    if (gridHelper.material[1]?.color) gridHelper.material[1].color.set(secondaryGridColor);
+    gridHelper.material.forEach((material) => {
+      material.needsUpdate = true;
+    });
+  } else if (gridHelper.material?.color) {
+    gridHelper.material.color.set(primaryGridColor);
+    gridHelper.material.needsUpdate = true;
+  }
+
+  // 텍스트 색상 (밝은 배경)
+  document.body.style.color = isLight ? '#222' : '#fff';
+
+  // 타임라인 선택 갱신
+  updateTimelineSelection();
+
+  // 앙부일구 슬라이더 표시/숨김
+  sunSliderContainer.style.display = (tool.id === 'sundial') ? 'block' : 'none';
+
+  // GUI 동기화
+  const toolList = getCurrentToolList();
+  params.분야선택 = state.category === 'time' ? '시간 측정' : '길이 측정';
+  params.시대선택 = ERA_NAMES[tool.eraIdx];
+
+  // lil-gui 드롭다운 표시 동기화
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+}
+
+// ─── 이전 3D 오브젝트 정리 ───
+function disposeCurrentModel() {
+  state.animationMixins = [];
+  if (state.currentGroup) {
+    state.currentGroup.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    scene.remove(state.currentGroup);
+    state.currentGroup = null;
+  }
+}
+
+// ─── 헬퍼: 텍스트 스프라이트 ───
+function createTextSprite(text, scale) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 128;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 36px Pretendard, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(text, 256, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scale * 4, scale, 1);
+  sprite.userData.canvas = canvas;
+  sprite.userData.ctx = ctx;
+  sprite.userData.lastText = text;
+  return sprite;
+}
+
+// 스프라이트 텍스트 업데이트 (변경 시에만)
+function updateSpriteText(sprite, text) {
+  if (sprite.userData.lastText === text) return;
+  sprite.userData.lastText = text;
+  const ctx = sprite.userData.ctx;
+  const canvas = sprite.userData.canvas;
+  if (!ctx || !canvas) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 36px Pretendard, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(text, 256, 64);
+  sprite.material.map.needsUpdate = true;
+}
+
+// ─── 헬퍼: 화살표 ───
+function createArrow(color, direction, length) {
+  const group = new THREE.Group();
+  const dir = direction.clone().normalize();
+  const shaftGeo = new THREE.CylinderGeometry(0.015, 0.015, length * 0.8, 6);
+  const shaftMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+  const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+  const axis = new THREE.Vector3(0, 1, 0);
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, dir);
+  shaft.quaternion.copy(quaternion);
+  group.add(shaft);
+  const headGeo = new THREE.ConeGeometry(0.04, 0.12, 6);
+  const headMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.copy(dir.multiplyScalar(length * 0.45));
+  head.quaternion.copy(quaternion);
+  group.add(head);
+  return group;
+}
+
+function createDoubleArrow(color, length) {
+  const group = new THREE.Group();
+  const shaftGeo = new THREE.CylinderGeometry(0.01, 0.01, length, 6);
+  const shaftMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+  const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+  shaft.rotation.x = Math.PI / 2;
+  group.add(shaft);
+  const headGeo = new THREE.ConeGeometry(0.04, 0.1, 6);
+  const headMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+  const head1 = new THREE.Mesh(headGeo, headMat);
+  head1.position.set(0, 0, length / 2);
+  head1.rotation.x = Math.PI / 2;
+  group.add(head1);
+  const head2 = new THREE.Mesh(headGeo.clone(), headMat.clone());
+  head2.position.set(0, 0, -length / 2);
+  head2.rotation.x = -Math.PI / 2;
+  group.add(head2);
+  return group;
+}
+
+// ─── 공통: 받침대 ───
+function createPedestal() {
+  const group = new THREE.Group();
+  const baseGeo = new THREE.CylinderGeometry(1.2, 1.4, 0.3, 32);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.3 });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = -1.85;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+  return group;
+}
+
+// ═══════════════════════════════════════
+//  시간 측정 도구 3D 모델
+// ═══════════════════════════════════════
+
+// 1. 앙부일구 — 태양 슬라이더 + 시각 표시
+function createSundial() {
+  const group = createPedestal();
+
+  // 반구형 시계
+  const bowlGeo = new THREE.SphereGeometry(1.5, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+  const bowlMat = new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide });
+  const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+  bowl.rotation.x = Math.PI;
+  bowl.position.y = 0;
+  bowl.castShadow = true;
+  group.add(bowl);
+
+  // 시각 눈금선 (12개)
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const lineGeo = new THREE.BufferGeometry();
+    const points = [];
+    for (let j = 0; j <= 20; j++) {
+      const t = j / 20;
+      const phi = t * Math.PI / 2;
+      const r = 1.48;
+      points.push(new THREE.Vector3(
+        Math.cos(angle) * Math.sin(phi) * r,
+        -Math.cos(phi) * r,
+        Math.sin(angle) * Math.sin(phi) * r
+      ));
+    }
+    lineGeo.setFromPoints(points);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x5a4a3a });
+    group.add(new THREE.Line(lineGeo, lineMat));
+  }
+
+  // 영침
+  const gnomonGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.2, 8);
+  const gnomonMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, metalness: 0.8, roughness: 0.3 });
+  const gnomon = new THREE.Mesh(gnomonGeo, gnomonMat);
+  gnomon.position.y = -0.5;
+  gnomon.rotation.z = Math.PI * 0.15;
+  gnomon.castShadow = true;
+  group.add(gnomon);
+
+  // 그림자
+  const shadowGeo = new THREE.PlaneGeometry(0.06, 2);
+  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+  const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+  shadow.position.y = -1.44;
+  shadow.rotation.x = Math.PI / 2;
+  group.add(shadow);
+
+  // 태양
+  const sunGeo = new THREE.SphereGeometry(0.2, 16, 16);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sun.position.set(3, 3, 0);
+  group.add(sun);
+  const sunLight = new THREE.PointLight(0xffdd44, 0.5, 8);
+  sun.add(sunLight);
+
+  // 시각 텍스트 스프라이트
+  const timeLabel = createTextSprite('정오', 0.4);
+  timeLabel.position.set(0, -1.7, 0);
+  group.add(timeLabel);
+
+  // 애니메이션: 슬라이더로 태양 위치 조절
+  state.animationMixins.push(() => {
+    // 태양 위치: sunAngle 0(동)→1(서), 반원 경로
+    const a = state.sunAngle * Math.PI; // 0~PI
+    sun.position.x = Math.cos(a) * 4;
+    sun.position.y = Math.sin(a) * 3 + 1;
+    sun.position.z = Math.sin(a * 0.3) * 1.5;
+
+    // 그림자 방향
+    const shadowAngle = Math.atan2(-sun.position.x, sun.position.z);
+    shadow.rotation.z = shadowAngle;
+    shadow.position.x = Math.sin(shadowAngle) * 0.5;
+    shadow.position.z = Math.cos(shadowAngle) * 0.5;
+
+    // 시각 텍스트
+    const hour = 6 + state.sunAngle * 12;
+    const h = Math.floor(hour);
+    let label = '';
+    if (h <= 6) label = '오전 6시 (일출)';
+    else if (h < 10) label = `오전 ${h}시`;
+    else if (h === 10) label = '오전 10시';
+    else if (h === 11) label = '오전 11시';
+    else if (h === 12) label = '정오';
+    else if (h < 15) label = `오후 ${h - 12}시`;
+    else if (h === 15) label = '오후 3시';
+    else if (h < 18) label = `오후 ${h - 12}시`;
+    else label = '오후 6시 (일몰)';
+    updateSpriteText(timeLabel, label);
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// 2. 괘종시계
+function createPendulumClock() {
+  const group = createPedestal();
+
+  // 나무 케이스
+  const caseGeo = new THREE.BoxGeometry(1.8, 3, 0.8);
+  const caseMat = new THREE.MeshStandardMaterial({ color: 0x6B4226, roughness: 0.6, metalness: 0.1 });
+  const clockCase = new THREE.Mesh(caseGeo, caseMat);
+  clockCase.position.y = 0.5;
+  clockCase.castShadow = true;
+  group.add(clockCase);
+
+  // 상단 장식
+  const topGeo = new THREE.ConeGeometry(1.1, 0.6, 4);
+  const topMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.5 });
+  const top = new THREE.Mesh(topGeo, topMat);
+  top.position.y = 2.3;
+  top.rotation.y = Math.PI / 4;
+  group.add(top);
+
+  // 시계 면
+  const faceGeo = new THREE.CircleGeometry(0.6, 32);
+  const faceMat = new THREE.MeshStandardMaterial({ color: 0xfffff0, roughness: 0.3 });
+  const face = new THREE.Mesh(faceGeo, faceMat);
+  face.position.set(0, 1.2, 0.41);
+  group.add(face);
+
+  // 테두리
+  const rimGeo = new THREE.TorusGeometry(0.62, 0.04, 8, 32);
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0xaa8844, metalness: 0.7 });
+  group.add(new THREE.Mesh(rimGeo, rimMat)).position.set(0, 1.2, 0.41);
+
+  // 시각 표시
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const dotGeo = new THREE.CircleGeometry(0.03, 8);
+    const dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0x222222 }));
+    dot.position.set(Math.cos(ang) * 0.5, 1.2 + Math.sin(ang) * 0.5, 0.42);
+    group.add(dot);
+  }
+
+  // 시침
+  const hourGeo = new THREE.BoxGeometry(0.03, 0.3, 0.02);
+  hourGeo.translate(0, 0.15, 0);
+  const hourHand = new THREE.Mesh(hourGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+  hourHand.position.set(0, 1.2, 0.43);
+  group.add(hourHand);
+
+  // 분침
+  const minGeo = new THREE.BoxGeometry(0.02, 0.42, 0.02);
+  minGeo.translate(0, 0.21, 0);
+  const minHand = new THREE.Mesh(minGeo, new THREE.MeshBasicMaterial({ color: 0x222222 }));
+  minHand.position.set(0, 1.2, 0.44);
+  group.add(minHand);
+
+  // 진자
+  const rodGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.6, 8);
+  const rodMat = new THREE.MeshStandardMaterial({ color: 0xaa8844, metalness: 0.7 });
+  const rod = new THREE.Mesh(rodGeo, rodMat);
+  rod.geometry.translate(0, -0.8, 0);
+
+  const bobGeo = new THREE.SphereGeometry(0.15, 16, 16);
+  const bob = new THREE.Mesh(bobGeo, new THREE.MeshStandardMaterial({ color: 0xccaa44, metalness: 0.8, roughness: 0.2 }));
+  bob.position.y = -1.6;
+  rod.add(bob);
+
+  const pendulumPivot = new THREE.Group();
+  pendulumPivot.position.set(0, 0.2, 0.5);
+  pendulumPivot.add(rod);
+  group.add(pendulumPivot);
+
+  // 진자 궤적
+  const arcGeo = new THREE.BufferGeometry();
+  const arcPoints = [];
+  for (let i = -20; i <= 20; i++) {
+    const a = (i / 20) * 0.3;
+    arcPoints.push(new THREE.Vector3(Math.sin(a) * 1.6, -1.6 + (1 - Math.cos(a)) * 1.6, 0));
+  }
+  arcGeo.setFromPoints(arcPoints);
+  const arc = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.3 }));
+  arc.position.copy(pendulumPivot.position);
+  group.add(arc);
+
+  let secondCount = 0;
+  state.animationMixins.push((t, dt) => {
+    const swing = Math.sin(t * Math.PI * 2) * 0.26;
+    pendulumPivot.rotation.z = swing;
+    secondCount += dt;
+    minHand.rotation.z = -secondCount * (Math.PI * 2 / 60);
+    hourHand.rotation.z = -secondCount * (Math.PI * 2 / 720);
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// 3. 석영 시계
+function createQuartzWatch() {
+  const group = createPedestal();
+
+  // 시계 몸체
+  const bodyGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.25, 32);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.8, roughness: 0.2 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.5;
+  body.castShadow = true;
+  group.add(body);
+
+  // 시계 면
+  const dialGeo = new THREE.CircleGeometry(0.78, 32);
+  const dial = new THREE.Mesh(dialGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
+  dial.position.set(0, 0.63, 0);
+  dial.rotation.x = -Math.PI / 2;
+  group.add(dial);
+
+  // 눈금
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    const tickGeo = new THREE.BoxGeometry(0.02, 0.001, i % 3 === 0 ? 0.12 : 0.06);
+    const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({ color: 0x222222 }));
+    const r = 0.65;
+    tick.position.set(Math.sin(ang) * r, 0.631, Math.cos(ang) * r);
+    tick.rotation.y = -ang;
+    group.add(tick);
+  }
+
+  // 바늘
+  const makeHand = (width, length, color, y) => {
+    const geo = new THREE.BoxGeometry(width, 0.005, length);
+    geo.translate(0, 0, -length / 2);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
+    mesh.position.y = y;
+    mesh.rotation.x = -Math.PI / 2;
+    return mesh;
+  };
+  const secondHand = makeHand(0.01, 0.65, 0xff2222, 0.64);
+  const minuteHand = makeHand(0.025, 0.55, 0x222222, 0.635);
+  const hourHandQ = makeHand(0.03, 0.35, 0x222222, 0.635);
+  group.add(secondHand, minuteHand, hourHandQ);
+
+  // 밴드
+  const bandMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+  const bandGeo = new THREE.BoxGeometry(0.6, 0.08, 2.5);
+  const band1 = new THREE.Mesh(bandGeo, bandMat);
+  band1.position.set(0, 0.5, 1.5);
+  const band2 = band1.clone();
+  band2.position.z = -1.5;
+  group.add(band1, band2);
+
+  // 석영 결정
+  const quartzGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.8, 6);
+  const quartzMat = new THREE.MeshStandardMaterial({ color: 0xeeeeff, transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.3 });
+  const quartz = new THREE.Mesh(quartzGeo, quartzMat);
+  quartz.position.set(2.2, 0.5, 0);
+  group.add(quartz);
+
+  const arrowUp = createArrow(0x7ecfff, new THREE.Vector3(0, 0.5, 0), 0.4);
+  arrowUp.position.set(2.2, 1.2, 0);
+  group.add(arrowUp);
+  const arrowDown = createArrow(0x7ecfff, new THREE.Vector3(0, -0.5, 0), 0.4);
+  arrowDown.position.set(2.2, -0.2, 0);
+  group.add(arrowDown);
+
+  const flowArrow = createArrow(0xffcc44, new THREE.Vector3(-0.5, 0, 0), 0.6);
+  flowArrow.position.set(1.5, 0.8, 0);
+  group.add(flowArrow);
+
+  const labelSprite = createTextSprite('32,768 Hz', 0.5);
+  labelSprite.position.set(2.2, 1.6, 0);
+  group.add(labelSprite);
+
+  let sCount = 0;
+  state.animationMixins.push((t, dt) => {
+    quartz.scale.y = 1 + Math.sin(t * 60) * 0.08;
+    quartz.scale.x = 1 - Math.sin(t * 60) * 0.04;
+    sCount += dt;
+    secondHand.rotation.z = sCount * (Math.PI * 2 / 60);
+    minuteHand.rotation.z = sCount * (Math.PI * 2 / 3600);
+    hourHandQ.rotation.z = sCount * (Math.PI * 2 / 43200);
+    arrowUp.visible = Math.sin(t * 30) > 0;
+    arrowDown.visible = Math.sin(t * 30) < 0;
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// 4. 세슘 원자시계
+function createCesiumClock() {
+  const group = createPedestal();
+
+  // 금속 상자
+  const boxGeo = new THREE.BoxGeometry(2.5, 1.8, 1.2);
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x556677, metalness: 0.7, roughness: 0.3 });
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  box.position.y = 0.3;
+  box.castShadow = true;
+  group.add(box);
+
+  // 전면 패널
+  const panelGeo = new THREE.PlaneGeometry(2.2, 1.0);
+  const panel = new THREE.Mesh(panelGeo, new THREE.MeshStandardMaterial({ color: 0x112233, roughness: 0.2 }));
+  panel.position.set(0, 0.45, 0.61);
+  group.add(panel);
+
+  const ledSprite = createTextSprite('9,192,631,770 Hz', 0.65);
+  ledSprite.position.set(0, 0.55, 0.65);
+  group.add(ledSprite);
+
+  // 안테나
+  const antennaMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9 });
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.5, 8), antennaMat);
+  antenna.position.set(0.8, 1.9, 0);
+  group.add(antenna);
+  const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), antennaMat);
+  antTip.position.set(0.8, 2.7, 0);
+  group.add(antTip);
+
+  // LED 상태등
+  const ledColors = [0x00ff44, 0x00ff44, 0xffaa00, 0xff4444];
+  for (let i = 0; i < 4; i++) {
+    const led = new THREE.Mesh(new THREE.CircleGeometry(0.04, 8), new THREE.MeshBasicMaterial({ color: ledColors[i] }));
+    led.position.set(-0.9 + i * 0.15, 0.85, 0.62);
+    group.add(led);
+  }
+
+  // 세슘 원자 모델
+  const atomGroup = new THREE.Group();
+  atomGroup.position.set(0, 3.0, 0);
+
+  const nucleusGeo = new THREE.SphereGeometry(0.2, 16, 16);
+  const nucleusMat = new THREE.MeshStandardMaterial({ color: 0xff6644, emissive: 0xff3322, emissiveIntensity: 0.3 });
+  const nucleus = new THREE.Mesh(nucleusGeo, nucleusMat);
+  atomGroup.add(nucleus);
+
+  const orbitColors = [0x44aaff, 0x44ffaa, 0xffaa44];
+  const electrons = [];
+  for (let i = 0; i < 3; i++) {
+    const orbitGeo = new THREE.TorusGeometry(0.5 + i * 0.25, 0.008, 8, 64);
+    const orbit = new THREE.Mesh(orbitGeo, new THREE.MeshBasicMaterial({ color: orbitColors[i], transparent: true, opacity: 0.3 }));
+    orbit.rotation.x = Math.PI / 2 + (i - 1) * 0.5;
+    orbit.rotation.y = i * 0.8;
+    atomGroup.add(orbit);
+
+    const electron = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshBasicMaterial({ color: orbitColors[i] }));
+    electrons.push({ mesh: electron, radius: 0.5 + i * 0.25, speed: 3 + i * 1.5, rotX: orbit.rotation.x, rotY: orbit.rotation.y });
+    atomGroup.add(electron);
+  }
+  group.add(atomGroup);
+
+  const csLabel = createTextSprite('Cs-133', 0.4);
+  csLabel.position.set(0, 3.8, 0);
+  group.add(csLabel);
+
+  // 카운터
+  const counterSprite = createTextSprite('0', 0.5);
+  counterSprite.position.set(0, 0.1, 0.65);
+  group.add(counterSprite);
+
+  // 캐시된 Vector3 (성능 최적화)
+  const _tmpVec = new THREE.Vector3();
+
+  let counter = 0;
+  let lastCounterFloor = 0;
+
+  state.animationMixins.push((t, dt) => {
+    electrons.forEach((e) => {
+      const angle = t * e.speed;
+      _tmpVec.set(Math.cos(angle) * e.radius, 0, Math.sin(angle) * e.radius);
+      _tmpVec.applyAxisAngle(new THREE.Vector3(1, 0, 0), e.rotX);
+      _tmpVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), e.rotY);
+      e.mesh.position.copy(_tmpVec);
+    });
+
+    nucleus.scale.setScalar(1 + Math.sin(t * 20) * 0.05);
+
+    counter += dt * 9192631.770;
+    const currentFloor = Math.floor(counter);
+    if (currentFloor !== lastCounterFloor) {
+      lastCounterFloor = currentFloor;
+      updateSpriteText(counterSprite, currentFloor.toLocaleString());
+    }
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// ═══════════════════════════════════════
+//  길이 측정 도구 3D 모델
+// ═══════════════════════════════════════
+
+// 1. 큐빗 / 막대자
+function createCubit() {
+  const group = createPedestal();
+
+  const stickGeo = new THREE.BoxGeometry(0.15, 0.08, 3.5);
+  const stickMat = new THREE.MeshStandardMaterial({ color: 0xa0785a, roughness: 0.7 });
+  const stick = new THREE.Mesh(stickGeo, stickMat);
+  stick.castShadow = true;
+  group.add(stick);
+
+  // 눈금
+  for (let i = 0; i <= 28; i++) {
+    const tickH = i % 7 === 0 ? 0.12 : i % 2 === 0 ? 0.06 : 0.03;
+    const tickGeo = new THREE.BoxGeometry(0.16, tickH, 0.008);
+    const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({ color: 0x4a3a2a }));
+    tick.position.set(0, 0.04 + tickH / 2, -1.75 + (i / 28) * 3.5);
+    group.add(tick);
+  }
+
+  // 팔 실루엣
+  const armGroup = new THREE.Group();
+  armGroup.position.set(0, 1.2, 0);
+  const armMat = new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.8 });
+
+  const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 1.5, 8), armMat);
+  upperArm.rotation.z = Math.PI / 2;
+  upperArm.position.set(-0.75, 0, 0);
+  armGroup.add(upperArm);
+
+  const foreArm = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 1.5, 8), armMat);
+  foreArm.rotation.z = Math.PI / 2;
+  foreArm.position.set(0.75, 0, 0);
+  armGroup.add(foreArm);
+
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), armMat);
+  hand.position.set(1.55, 0, 0);
+  hand.scale.set(1, 0.6, 0.8);
+  armGroup.add(hand);
+
+  const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), armMat);
+  armGroup.add(elbow);
+
+  group.add(armGroup);
+
+  const compArrow = createDoubleArrow(0xffaa44, 3.2);
+  compArrow.position.set(0, 0.5, 0);
+  compArrow.rotation.y = Math.PI / 2;
+  group.add(compArrow);
+
+  const cubitLabel = createTextSprite('1 큐빗 ≈ 45cm', 0.5);
+  cubitLabel.position.set(0, 1.8, 0);
+  group.add(cubitLabel);
+
+  state.animationMixins.push((t) => {
+    armGroup.position.y = 1.2 + Math.sin(t * 1.5) * 0.1;
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// 2. 미터원기 — "1875년 미터 협약, 17개국" 라벨 추가
+function createMetrePrototype() {
+  const group = createPedestal();
+
+  // 유리 케이스
+  const caseGeo = new THREE.BoxGeometry(3.5, 1.2, 0.8);
+  const caseMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.15, roughness: 0.05, metalness: 0.1 });
+  const glassCase = new THREE.Mesh(caseGeo, caseMat);
+  glassCase.position.y = 0.2;
+  group.add(glassCase);
+
+  const edgesGeo = new THREE.EdgesGeometry(caseGeo);
+  const edges = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.3 }));
+  edges.position.y = 0.2;
+  group.add(edges);
+
+  // 백금-이리듐 막대
+  const barGeo = new THREE.BoxGeometry(3.0, 0.15, 0.15);
+  const barMat = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, metalness: 0.9, roughness: 0.15 });
+  const bar = new THREE.Mesh(barGeo, barMat);
+  bar.position.y = 0.2;
+  bar.castShadow = true;
+  group.add(bar);
+
+  // X 단면
+  const diagGeo = new THREE.BoxGeometry(3.0, 0.08, 0.08);
+  const diag1 = new THREE.Mesh(diagGeo, barMat.clone());
+  diag1.rotation.x = Math.PI / 4;
+  diag1.position.y = 0.2;
+  group.add(diag1);
+  const diag2 = diag1.clone();
+  diag2.rotation.x = -Math.PI / 4;
+  group.add(diag2);
+
+  // 양 끝 마크
+  const leftMark = createTextSprite('|', 0.3);
+  leftMark.position.set(-1.5, 0.5, 0);
+  group.add(leftMark);
+
+  const rightMark = createTextSprite('|', 0.3);
+  rightMark.position.set(1.5, 0.5, 0);
+  group.add(rightMark);
+
+  const mLabel = createTextSprite('1 m', 0.45);
+  mLabel.position.set(0, 0.7, 0);
+  group.add(mLabel);
+
+  const tempLabel = createTextSprite('0°C 보관', 0.35);
+  tempLabel.position.set(0, -0.3, 0.5);
+  group.add(tempLabel);
+
+  // 🔴 수정: 17개국 라벨 추가
+  const yearLabel = createTextSprite('1875년 미터 협약, 17개국', 0.4);
+  yearLabel.position.set(0, 1.2, 0);
+  group.add(yearLabel);
+
+  // 캐싱된 Color (🟡 최적화)
+  const _emissiveColor = new THREE.Color();
+
+  state.animationMixins.push((t) => {
+    caseMat.opacity = 0.12 + Math.sin(t * 2) * 0.05;
+    _emissiveColor.set(0x222222).multiplyScalar(0.3 + Math.sin(t * 3) * 0.1);
+    barMat.emissive.copy(_emissiveColor);
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// 3. 레이저 거리 측정기
+function createLaserMeasurer() {
+  const group = createPedestal();
+
+  const deviceMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.5 });
+  const device = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 1.0), deviceMat);
+  device.position.set(-3, 0, 0);
+  device.castShadow = true;
+  group.add(device);
+
+  // 렌즈
+  const lens = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.1, 16),
+    new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 })
+  );
+  lens.rotation.z = Math.PI / 2;
+  lens.position.set(-2.7, 0.05, 0);
+  group.add(lens);
+
+  // 반사판
+  const target = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.8, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.9, roughness: 0.1 })
+  );
+  target.position.set(3, 0, 0);
+  group.add(target);
+
+  // 레이저 빔
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 5.7, 8), beamMat);
+  beam.rotation.z = Math.PI / 2;
+  beam.position.set(0, 0.05, 0);
+  group.add(beam);
+
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.15 });
+  const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 5.7, 8), glowMat);
+  glow.rotation.z = Math.PI / 2;
+  glow.position.set(0, 0.05, 0);
+  group.add(glow);
+
+  // 반사 지점
+  const reflectMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.6 });
+  const reflectPoint = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), reflectMat);
+  reflectPoint.position.set(3, 0.05, 0);
+  group.add(reflectPoint);
+
+  // 광자
+  const photon = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff6666 }));
+  photon.position.set(-2.7, 0.05, 0);
+  group.add(photon);
+
+  // 라벨
+  const distLabel = createTextSprite('1m = 빛이 1/299,792,458초 동안 이동', 0.55);
+  distLabel.position.set(0, 1.5, 0);
+  group.add(distLabel);
+
+  const arrowR = createArrow(0xff4444, new THREE.Vector3(1, 0, 0), 0.8);
+  arrowR.position.set(-1, 0.6, 0);
+  group.add(arrowR);
+  const arrowL = createArrow(0xff8888, new THREE.Vector3(-1, 0, 0), 0.8);
+  arrowL.position.set(1, 0.8, 0);
+  group.add(arrowL);
+
+  state.animationMixins.push((t) => {
+    const cycle = (t * 2) % 2;
+    photon.position.x = cycle < 1 ? -2.7 + cycle * 5.7 : 3 - (cycle - 1) * 5.7;
+    beamMat.opacity = 0.6 + Math.sin(t * 10) * 0.3;
+    glowMat.opacity = 0.1 + Math.sin(t * 10) * 0.08;
+    reflectPoint.scale.setScalar(1 + Math.sin(t * 8) * 0.3);
+    reflectMat.opacity = 0.4 + Math.sin(t * 8) * 0.3;
+  });
+
+  group.position.y = 0.5;
+  return group;
+}
+
+// ─── 모델 팩토리 ───
+const MODEL_FACTORY = {
+  sundial: createSundial,
+  pendulum: createPendulumClock,
+  quartz: createQuartzWatch,
+  cesium: createCesiumClock,
+  cubit: createCubit,
+  metre: createMetrePrototype,
+  laser: createLaserMeasurer
+};
+
+// ─── 도구 전환 ───
+function switchTool() {
+  disposeCurrentModel();
+
+  const tool = getCurrentTool();
+  const factory = MODEL_FACTORY[tool.id];
+  if (factory) {
+    const group = factory();
+    scene.add(group);
+    state.currentGroup = group;
+    group.scale.set(0.01, 0.01, 0.01);
+    animateScale(group, 1.0, 0.6);
+  }
+
+  updateUI();
+  updatePrecisionChart();
+  smoothCameraReset();
+}
+
+function animateScale(obj, targetScale, duration) {
+  const start = performance.now();
+  const startScale = obj.scale.x;
+  function tick() {
+    const elapsed = (performance.now() - start) / 1000;
+    const progress = Math.min(elapsed / duration, 1);
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    const t = 1 + c3 * Math.pow(progress - 1, 3) + c1 * Math.pow(progress - 1, 2);
+    const s = startScale + (targetScale - startScale) * t;
+    obj.scale.set(s, s, s);
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function smoothCameraReset() {
+  const targetPos = new THREE.Vector3(0, 3, 10);
+  const targetLook = new THREE.Vector3(0, 0.5, 0);
+  const startPos = camera.position.clone();
+  const start = performance.now();
+  function tick() {
+    const elapsed = (performance.now() - start) / 1000;
+    const progress = Math.min(elapsed / 0.8, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    camera.position.lerpVectors(startPos, targetPos, ease);
+    controls.target.lerp(targetLook, ease * 0.5);
+    controls.update();
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ─── 정밀도 비교 차트 (🔴 선택 도구 강조) ───
+function updatePrecisionChart() {
+  const chartBars = document.getElementById('chart-bars');
+  // innerHTML 대신 DOM 조작 (🟡 보안 개선)
+  while (chartBars.firstChild) chartBars.removeChild(chartBars.firstChild);
+
+  const tools = getCurrentToolList();
+  const maxLog = Math.log10(Math.max(...tools.map(t => t.errorValue)));
+  const minLog = Math.log10(Math.min(...tools.map(t => t.errorValue)));
+  const range = maxLog - minLog || 1;
+
+  const colors = ['#e8a87c', '#d6a2e8', '#7ecfff', '#a0e8af'];
+  const currentTool = getCurrentTool();
+
+  tools.forEach((tool, i) => {
+    const logVal = Math.log10(tool.errorValue);
+    const pct = ((logVal - minLog) / range) * 100;
+    const width = Math.max(pct, 3);
+    const isSelected = tool.id === currentTool.id;
+
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.style.opacity = isSelected ? '1' : '0.4';
+
+    const label = document.createElement('span');
+    label.className = 'bar-label';
+    label.textContent = tool.name.split('(')[0].trim();
+
+    const track = document.createElement('div');
+    track.className = 'bar-track';
+
+    const fill = document.createElement('div');
+    fill.className = 'bar-fill';
+    fill.style.width = `${width}%`;
+    fill.style.background = colors[i % colors.length];
+    fill.style.opacity = isSelected ? '1' : '0.35';
+
+    const value = document.createElement('span');
+    value.className = 'bar-value';
+    value.textContent = tool.error;
+
+    track.appendChild(fill);
+    row.appendChild(label);
+    row.appendChild(track);
+    row.appendChild(value);
+    chartBars.appendChild(row);
+  });
+}
+
+// ─── lil-gui ───
+const gui = new GUI({ title: '측정의 발전 컨트롤' });
+
+const params = {
+  분야선택: '시간 측정',
+  시대선택: '고대',
+  전체타임라인: () => { startTimeline(); },
+  초기화: () => { resetAll(); }
+};
+
+gui.add(params, '분야선택', ['시간 측정', '길이 측정']).name('분야 선택').onChange(val => {
+  state.category = val === '시간 측정' ? 'time' : 'length';
+  const maxIdx = getCurrentToolList().length - 1;
+  if (state.toolIndex > maxIdx) state.toolIndex = maxIdx;
+  switchTool();
+});
+
+const eraController = gui.add(params, '시대선택', ERA_NAMES).name('시대 선택').onChange(val => {
+  const idx = ERA_NAMES.indexOf(val);
+  if (idx < 0) return;
+  const tools = getCurrentToolList();
+  // 해당 시대에 맞는 도구 찾기
+  const toolIdx = tools.findIndex(t => t.eraIdx === idx);
+  if (toolIdx >= 0) {
+    state.toolIndex = toolIdx;
+    switchTool();
+  }
+});
+
+gui.add(params, '전체타임라인').name('🔄 전체 타임라인');
+gui.add(params, '초기화').name('↩ 초기화');
+
+if (window.innerWidth < 768) gui.close();
+
+// ─── 전체 타임라인 자동 재생 ───
+function startTimeline() {
+  if (state.timelineRunning) return;
+  state.timelineRunning = true;
+
+  const sequence = [];
+  TIME_TOOLS.forEach((_, i) => sequence.push({ category: 'time', index: i }));
+  LENGTH_TOOLS.forEach((_, i) => sequence.push({ category: 'length', index: i }));
+
+  let idx = 0;
+  function playNext() {
+    if (idx >= sequence.length) {
+      state.timelineRunning = false;
+      return;
+    }
+    const step = sequence[idx];
+    selectTool(step.category, step.index);
+    idx++;
+    setTimeout(playNext, 4000);
+  }
+  playNext();
+}
+
+function resetAll() {
+  state.category = 'time';
+  state.toolIndex = 0;
+  state.timelineRunning = false;
+  params.분야선택 = '시간 측정';
+  params.시대선택 = '고대';
+  switchTool();
+}
+
+// ─── 파티클 배경 ───
+function createParticles() {
+  const count = 200;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 40;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, transparent: true, opacity: 0.4 }));
+}
+const particles = createParticles();
+scene.add(particles);
+
+// ─── 애니메이션 루프 ───
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = state.clock.getDelta();
+  const elapsed = state.clock.elapsedTime;
+  state.animationMixins.forEach(fn => fn(elapsed, delta));
+  particles.rotation.y = elapsed * 0.02;
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ─── 리사이즈 ───
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (window.innerWidth < 768) gui.close();
+});
+
+// ─── 시작 ───
+buildTimelines();
+switchTool();
+animate();
+
+</script>
+</body>
+</html>

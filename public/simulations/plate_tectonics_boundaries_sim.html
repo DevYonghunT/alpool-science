@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>판 구조론과 판의 경계 — 3D 시뮬레이션</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+
+  :root {
+    --panel-bg: rgba(9, 16, 30, 0.88);
+    --panel-stroke: rgba(255, 255, 255, 0.12);
+    --text-main: #f6fbff;
+    --text-dim: rgba(246, 251, 255, 0.68);
+    --accent-hot: #ff8b63;
+    --accent-cool: #77d9ff;
+    --accent-warm: #ffbf73;
+  }
+
+  body {
+    overflow: hidden;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-main);
+    background:
+      radial-gradient(circle at 18% 14%, rgba(80, 128, 255, 0.15), transparent 28%),
+      radial-gradient(circle at 82% 16%, rgba(255, 128, 80, 0.08), transparent 24%),
+      linear-gradient(180deg, #01040d 0%, #020816 50%, #050b15 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #layout {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-rows: 60vh 40vh;
+  }
+
+  .panel {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #globe-panel {
+    background:
+      radial-gradient(circle at 52% 18%, rgba(81, 126, 255, 0.18), transparent 26%),
+      radial-gradient(circle at 48% 72%, rgba(255, 102, 66, 0.08), transparent 24%),
+      linear-gradient(180deg, rgba(3, 8, 20, 0.98), rgba(2, 6, 18, 1));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  #section-panel {
+    background:
+      radial-gradient(circle at 12% 20%, rgba(255, 132, 88, 0.08), transparent 26%),
+      radial-gradient(circle at 88% 15%, rgba(89, 183, 255, 0.08), transparent 28%),
+      linear-gradient(180deg, rgba(16, 12, 18, 0.97), rgba(8, 8, 15, 1));
+  }
+
+  #scene-title {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #scene-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+  }
+
+  #scene-title h1 {
+    margin-top: 4px;
+    font-size: 23px;
+    font-weight: 700;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.38);
+  }
+
+  #scene-title p {
+    margin-top: 5px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .panel-copy {
+    position: absolute;
+    left: 20px;
+    top: 18px;
+    z-index: 8;
+    pointer-events: none;
+    max-width: min(420px, calc(100vw - 48px));
+  }
+
+  .panel-copy h2 {
+    font-size: 18px;
+    font-weight: 700;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.42);
+  }
+
+  .panel-copy p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  #marker-legend {
+    position: absolute;
+    left: 20px;
+    bottom: 18px;
+    z-index: 8;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: min(520px, calc(100vw - 40px));
+    pointer-events: none;
+  }
+
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(9, 16, 30, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.28);
+  }
+
+  #formula-panel {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    width: min(360px, calc(100vw - 28px));
+    padding: 18px 18px 16px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-stroke);
+    border-radius: 18px;
+    backdrop-filter: blur(15px);
+    z-index: 40;
+    font-size: 11px;
+    line-height: 1.7;
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
+  }
+
+  #formula-panel h3 {
+    font-size: 15px;
+    color: var(--accent-warm);
+    margin-bottom: 10px;
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 3px;
+  }
+
+  .row .label {
+    width: 82px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.56);
+  }
+
+  .row .value {
+    flex: 1;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .divider {
+    height: 1px;
+    margin: 9px 0 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.02));
+  }
+
+  .type-grid {
+    display: grid;
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .type-card {
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .type-card strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+
+  .type-card.convergent strong { color: var(--accent-hot); }
+  .type-card.divergent strong { color: var(--accent-cool); }
+  .type-card.transform strong { color: var(--accent-warm); }
+
+  .focus-card,
+  .driver-card {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  #focus-title,
+  .driver-card strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #a8e0ff;
+  }
+
+  .textbook-ref {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 10px;
+  }
+
+  #guide-toggle {
+    position: fixed;
+    right: 14px;
+    top: 14px;
+    z-index: 46;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 8px 13px;
+    background: rgba(9, 16, 30, 0.84);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  #guide-panel {
+    position: fixed;
+    right: 14px;
+    top: 52px;
+    width: min(430px, calc(100vw - 28px));
+    max-height: 68vh;
+    overflow-y: auto;
+    z-index: 45;
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(9, 16, 30, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(15px);
+    display: none;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  #guide-panel.open { display: block; }
+
+  #guide-panel h3 {
+    font-size: 15px;
+    color: #b9e7ff;
+    margin-bottom: 8px;
+  }
+
+  #guide-panel h4 {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #ffc18a;
+  }
+
+  #guide-panel ul { padding-left: 18px; }
+  #guide-panel li { margin-bottom: 4px; }
+
+  #hint-chip {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    max-width: 340px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(9, 16, 30, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    line-height: 1.45;
+    backdrop-filter: blur(10px);
+    z-index: 38;
+    pointer-events: none;
+  }
+
+  .lil-gui {
+    z-index: 50 !important;
+    --background-color: rgba(8, 15, 28, 0.93);
+    --title-background-color: rgba(255, 255, 255, 0.05);
+    --widget-color: rgba(255, 255, 255, 0.12);
+    --text-color: #f3fbff;
+  }
+
+  @media (max-width: 900px) {
+    #scene-title h1 { font-size: 20px; }
+
+    .panel-copy {
+      left: 14px;
+      top: 14px;
+    }
+
+    #marker-legend {
+      left: 14px;
+      bottom: 12px;
+      max-width: calc(100vw - 28px);
+    }
+
+    #guide-panel {
+      max-height: 60vh;
+    }
+  }
+
+  @media (max-width: 768px) {
+    #layout {
+      grid-template-rows: 56vh 44vh;
+    }
+
+    #scene-title {
+      top: 12px;
+      width: calc(100vw - 84px);
+    }
+
+    #scene-title .eyebrow { font-size: 10px; }
+    #scene-title p { font-size: 10px; }
+
+    #formula-panel {
+      font-size: 10px;
+      line-height: 1.65;
+    }
+
+    .row .label {
+      width: 76px;
+      font-size: 10px;
+    }
+
+    #hint-chip {
+      left: 14px;
+      right: auto;
+      max-width: calc(100vw - 28px);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="layout">
+  <section id="globe-panel" class="panel">
+    <canvas id="globe-canvas"></canvas>
+    <div class="panel-copy">
+      <h2>상단 3D 지구</h2>
+      <p>판 경계, 지진대, 화산대, 그리고 각 판의 이동 방향을 한 번에 비교합니다.</p>
+    </div>
+    <div id="marker-legend"></div>
+  </section>
+  <section id="section-panel" class="panel">
+    <canvas id="section-canvas"></canvas>
+    <div class="panel-copy">
+      <h2 id="section-title">① 히말라야산맥 단면</h2>
+      <p id="section-detail">대륙판과 대륙판이 충돌하면서 습곡 산맥이 형성되는 모습을 단면으로 보여 줍니다.</p>
+    </div>
+  </section>
+</div>
+
+<div id="scene-title">
+  <div class="eyebrow">Earth System</div>
+  <h1>판 구조론과 판의 경계</h1>
+  <p>지구 위의 ①~⑥ 마커를 클릭하거나 GUI에서 사례를 바꾸며 판 경계와 단면도를 연결해 보세요.</p>
+</div>
+
+<div id="formula-panel" aria-live="polite">
+  <h3>🌍 판 구조론</h3>
+  <div class="row"><span class="label">선택 경계:</span><span class="value" id="fp-case">① 히말라야산맥</span></div>
+  <div class="row"><span class="label">경계 유형:</span><span class="value" id="fp-type">수렴형</span></div>
+  <div class="row"><span class="label">관련 판:</span><span class="value" id="fp-plates">인도-오스트레일리아판 ↔ 유라시아판</span></div>
+  <div class="row"><span class="label">대표 현상:</span><span class="value" id="fp-feature">습곡 산맥 형성, 지진 자주 발생</span></div>
+  <div class="divider"></div>
+  <div class="type-grid">
+    <div class="type-card divergent">
+      <strong>발산형</strong>
+      판↔판이 멀어지며 새 지각이 생성됩니다. 해령과 열곡대가 대표적입니다.
+    </div>
+    <div class="type-card convergent">
+      <strong>수렴형</strong>
+      판↔판이 충돌하거나 한 판이 섭입하며 해구, 습곡 산맥, 호상열도가 형성됩니다.
+    </div>
+    <div class="type-card transform">
+      <strong>보존형</strong>
+      판↔판이 어긋나게 지나가며 지각의 생성·소멸 없이 지진이 자주 발생합니다.
+    </div>
+  </div>
+  <div class="driver-card">
+    <strong>판 운동 원동력: 맨틀 대류</strong>
+    암석권(판)은 단단한 고체층이고, 그 아래 연약권은 오랜 시간에 걸쳐 흐르며 대류합니다. 이 대류가 판을 밀고 당기며 판 경계에서 다양한 지각 변동을 일으킵니다.
+  </div>
+  <div class="focus-card">
+    <div id="focus-title">관찰 포인트</div>
+    <div id="focus-body">대륙판끼리 충돌하는 히말라야에서는 높은 습곡 산맥이 발달하지만, 해양판의 섭입이 없어 화산 활동은 거의 나타나지 않습니다.</div>
+  </div>
+  <div class="textbook-ref">📚 교과서 연계: 미래엔 통합과학1 III편 p112~115 — 판 구조론, 판의 경계(그림 III-12), 다양한 판의 경계 사례</div>
+</div>
+
+<button id="guide-toggle">📖 학습 가이드</button>
+<div id="guide-panel">
+  <h3>학습 가이드</h3>
+  <h4>핵심 원리</h4>
+  <p>지구 표면은 크고 작은 여러 판으로 이루어져 있으며, 판의 경계에서는 지진, 화산 활동, 해구 형성, 습곡 산맥 형성처럼 다양한 지각 변동이 집중적으로 일어납니다.</p>
+  <h4>어떻게 관찰하나요?</h4>
+  <ul>
+    <li>상단 지구에서 판 경계선과 지진대, 화산대의 띠 모양 분포를 먼저 확인합니다.</li>
+    <li>①~⑥ 마커를 클릭해 실제 위치와 하단 단면도를 연결합니다.</li>
+    <li>발산형, 수렴형, 보존형 필터로 경계 유형별 특징을 비교합니다.</li>
+    <li>판 이동 애니메이션을 켜서 단면에서 판이 어떻게 움직이는지 확인합니다.</li>
+  </ul>
+  <h4>탐구 질문</h4>
+  <ul>
+    <li>히말라야산맥이 수렴형 경계에서 형성된 습곡 산맥인데, 화산이 없는 까닭은 무엇일까요?</li>
+    <li>동태평양 해령은 발산형 경계입니다. 이곳에서는 어떤 일이 일어나나요?</li>
+    <li>지진대와 화산대가 판의 경계를 따라 분포하는 까닭은 무엇일까요?</li>
+  </ul>
+  <h4>관찰 팁</h4>
+  <ul>
+    <li>수렴형은 충돌과 섭입, 발산형은 갈라짐과 새 지각 생성, 보존형은 엇갈림에 집중해 보세요.</li>
+    <li>화산은 주로 섭입대와 발산대에, 강한 지진은 세 종류의 경계 모두에 나타난다는 점을 비교해 보세요.</li>
+  </ul>
+</div>
+
+<div id="hint-chip">드래그로 지구 회전 · 휠/핀치로 확대 · 우측 GUI로 경계 유형과 표시 요소를 조절할 수 있습니다.</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'https://unpkg.com/lil-gui@0.19.2/dist/lil-gui.esm.js';
+
+const EARTH_RADIUS = 4;
+const TYPE_META = {
+  convergent: { label: '수렴형', color: 0xff6a4b, css: '#ff8d6d', filter: '수렴형만' },
+  divergent: { label: '발산형', color: 0x67d7ff, css: '#67d7ff', filter: '발산형만' },
+  transform: { label: '보존형', color: 0xffbb6a, css: '#ffbb6a', filter: '보존형만' }
+};
+
+const BOUNDARIES = [
+  {
+    id: 'himalaya',
+    name: '히말라야 수렴대',
+    type: 'convergent',
+    points: [[35, 70], [32, 77], [28, 85], [26, 90], [25, 95]]
+  },
+  {
+    id: 'mariana',
+    name: '마리아나 해구',
+    type: 'convergent',
+    points: [[26, 140], [20, 144], [14, 146], [8, 146], [2, 145], [-4, 144]]
+  },
+  {
+    id: 'andes',
+    name: '안데스 섭입대',
+    type: 'convergent',
+    points: [[8, -81], [-5, -79], [-18, -75], [-30, -73], [-42, -72], [-52, -72]]
+  },
+  {
+    id: 'sanAndreas',
+    name: '산안드레아스 단층',
+    type: 'transform',
+    points: [[40, -124], [37, -122], [35, -120], [33, -118], [32, -115]]
+  },
+  {
+    id: 'eastPacificRise',
+    name: '동태평양 해령',
+    type: 'divergent',
+    points: [[25, -110], [12, -108], [0, -106], [-15, -111], [-30, -114], [-45, -116]]
+  },
+  {
+    id: 'midAtlantic',
+    name: '대서양 중앙 해령',
+    type: 'divergent',
+    points: [[65, -18], [40, -30], [20, -45], [0, -25], [-20, -12], [-40, -15], [-55, 0]]
+  },
+  {
+    id: 'eastAfrica',
+    name: '동아프리카 열곡',
+    type: 'divergent',
+    points: [[10, 40], [2, 37], [-6, 35], [-12, 35], [-20, 35]]
+  }
+];
+
+const CASES = [
+  {
+    id: 'himalaya',
+    label: '① 히말라야',
+    title: '① 히말라야산맥',
+    type: 'convergent',
+    plates: '인도-오스트레일리아판 ↔ 유라시아판',
+    feature: '습곡 산맥 형성, 지진 자주 발생',
+    focus: '대륙판끼리 충돌하는 히말라야에서는 높은 습곡 산맥이 발달하지만, 해양판의 섭입이 없어 화산 활동은 거의 나타나지 않습니다.',
+    sectionTitle: '① 히말라야산맥 단면',
+    sectionDetail: '대륙판과 대륙판이 충돌하면서 습곡 산맥이 형성되는 모습을 단면으로 보여 줍니다.',
+    location: { lat: 29, lon: 84 },
+    boundaryIds: ['himalaya']
+  },
+  {
+    id: 'mariana',
+    label: '② 마리아나',
+    title: '② 마리아나 해구',
+    type: 'convergent',
+    plates: '태평양판 ↔ 필리핀판',
+    feature: '해구, 섭입, 호상열도, 화산 활동',
+    focus: '해양판이 다른 해양판 아래로 섭입하면 깊은 해구와 함께 화산섬이 줄지어 생기는 호상열도가 발달합니다.',
+    sectionTitle: '② 마리아나 해구 단면',
+    sectionDetail: '태평양판이 필리핀판 아래로 섭입하며 해구와 호상열도가 나타나는 모습을 보여 줍니다.',
+    location: { lat: 15, lon: 145 },
+    boundaryIds: ['mariana']
+  },
+  {
+    id: 'andes',
+    label: '③ 안데스',
+    title: '③ 안데스산맥',
+    type: 'convergent',
+    plates: '나스카판 ↔ 남아메리카판',
+    feature: '해구, 습곡 산맥, 대륙 화산호',
+    focus: '해양판이 대륙판 아래로 섭입하면 해구가 생기고, 대륙 쪽에는 높은 산맥과 화산대가 함께 발달합니다.',
+    sectionTitle: '③ 안데스산맥 단면',
+    sectionDetail: '해양판이 대륙판 아래로 섭입하면서 해구와 산맥, 화산이 함께 형성되는 모습을 확인합니다.',
+    location: { lat: -22, lon: -72 },
+    boundaryIds: ['andes']
+  },
+  {
+    id: 'sanAndreas',
+    label: '④ 산안드레아스',
+    title: '④ 산안드레아스 단층',
+    type: 'transform',
+    plates: '태평양판 ↔ 북아메리카판',
+    feature: '변환 단층, 지진 빈발, 화산 거의 없음',
+    focus: '보존형 경계에서는 판이 서로 어긋나게 지나가므로 지각이 만들어지거나 사라지지 않고, 대신 큰 지진이 자주 발생합니다.',
+    sectionTitle: '④ 산안드레아스 단층 단면',
+    sectionDetail: '두 판이 서로 반대 방향으로 스쳐 지나가며 변환 단층과 지진대를 만드는 모습을 나타냅니다.',
+    location: { lat: 35, lon: -120 },
+    boundaryIds: ['sanAndreas']
+  },
+  {
+    id: 'eastPacificRise',
+    label: '⑤ 동태평양 해령',
+    title: '⑤ 동태평양 해령',
+    type: 'divergent',
+    plates: '태평양판 동쪽 해양판 경계',
+    feature: '해령, 마그마 상승, 새로운 해양 지각 생성',
+    focus: '발산형 해양 경계에서는 판이 벌어지는 틈 사이로 마그마가 솟아올라 식으면서 새로운 해양 지각이 만들어집니다.',
+    sectionTitle: '⑤ 동태평양 해령 단면',
+    sectionDetail: '두 해양판이 멀어지는 틈 사이로 마그마가 올라와 새로운 해양 지각을 만드는 과정을 보여 줍니다.',
+    location: { lat: 4, lon: -106 },
+    boundaryIds: ['eastPacificRise']
+  },
+  {
+    id: 'eastAfrica',
+    label: '⑥ 동아프리카 열곡대',
+    title: '⑥ 동아프리카 열곡대',
+    type: 'divergent',
+    plates: '아프리카판 동부 열곡대',
+    feature: '열곡, 호수, 화산, 대륙 분리의 시작',
+    focus: '대륙판이 갈라지는 발산형 경계에서는 길고 깊은 열곡과 호수가 나타나며, 장기적으로는 새로운 바다가 만들어질 수 있습니다.',
+    sectionTitle: '⑥ 동아프리카 열곡대 단면',
+    sectionDetail: '대륙판이 갈라지며 열곡과 호수, 화산이 발달하는 미래의 대륙 분리 초기 단계를 나타냅니다.',
+    location: { lat: -5, lon: 36 },
+    boundaryIds: ['eastAfrica']
+  }
+];
+
+const PLATES = [
+  { name: '유라시아판', lat: 48, lon: 72, heading: 92 },
+  { name: '태평양판', lat: 2, lon: -155, heading: 305 },
+  { name: '북아메리카판', lat: 44, lon: -105, heading: 235 },
+  { name: '남아메리카판', lat: -18, lon: -58, heading: 275 },
+  { name: '아프리카판', lat: 3, lon: 22, heading: 35 },
+  { name: '인도-오스트레일리아판', lat: -20, lon: 92, heading: 18 },
+  { name: '남극판', lat: -70, lon: 20, heading: 12 },
+  { name: '나스카판', lat: -12, lon: -104, heading: 78 },
+  { name: '필리핀판', lat: 16, lon: 132, heading: 290 },
+  { name: '코코스판', lat: 12, lon: -100, heading: 42 },
+  { name: '카리브판', lat: 16, lon: -74, heading: 88 },
+  { name: '아라비아판', lat: 24, lon: 45, heading: 25 },
+  { name: '스코샤판', lat: -55, lon: -40, heading: 95 }
+];
+
+const globeCanvas = document.getElementById('globe-canvas');
+const sectionCanvas = document.getElementById('section-canvas');
+const globePanel = document.getElementById('globe-panel');
+const sectionPanel = document.getElementById('section-panel');
+const markerLegend = document.getElementById('marker-legend');
+
+const dom = {
+  sectionTitle: document.getElementById('section-title'),
+  sectionDetail: document.getElementById('section-detail'),
+  fpCase: document.getElementById('fp-case'),
+  fpType: document.getElementById('fp-type'),
+  fpPlates: document.getElementById('fp-plates'),
+  fpFeature: document.getElementById('fp-feature'),
+  focusTitle: document.getElementById('focus-title'),
+  focusBody: document.getElementById('focus-body'),
+  guideToggle: document.getElementById('guide-toggle'),
+  guidePanel: document.getElementById('guide-panel')
+};
+
+let guideOpen = false;
+dom.guideToggle.addEventListener('click', () => {
+  guideOpen = !guideOpen;
+  dom.guidePanel.classList.toggle('open', guideOpen);
+});
+
+const caseLabels = CASES.map((entry) => entry.label);
+const params = {
+  caseStudy: CASES[0].label,
+  boundaryView: '전체',
+  showEarthquakes: true,
+  showVolcanoes: true,
+  showMotionArrows: true,
+  plateAnimation: false,
+  reset: () => resetSimulation()
+};
+
+const runtime = {
+  disposed: false,
+  hoveredMarker: null
+};
+
+const clock = new THREE.Clock();
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const caseMap = new Map(CASES.map((entry) => [entry.id, entry]));
+
+function latLonToVector3(lat, lon, radius = EARTH_RADIUS) {
+  const latRad = THREE.MathUtils.degToRad(lat);
+  const lonRad = THREE.MathUtils.degToRad(lon);
+  return new THREE.Vector3(
+    radius * Math.cos(latRad) * Math.cos(lonRad),
+    radius * Math.sin(latRad),
+    radius * Math.cos(latRad) * Math.sin(lonRad)
+  );
+}
+
+function localEast(lat, lon) {
+  const lonRad = THREE.MathUtils.degToRad(lon);
+  return new THREE.Vector3(-Math.sin(lonRad), 0, Math.cos(lonRad)).normalize();
+}
+
+function localNorth(lat, lon) {
+  const latRad = THREE.MathUtils.degToRad(lat);
+  const lonRad = THREE.MathUtils.degToRad(lon);
+  return new THREE.Vector3(
+    -Math.sin(latRad) * Math.cos(lonRad),
+    Math.cos(latRad),
+    -Math.sin(latRad) * Math.sin(lonRad)
+  ).normalize();
+}
+
+function headingToDirection(lat, lon, headingDeg) {
+  const headingRad = THREE.MathUtils.degToRad(headingDeg);
+  const east = localEast(lat, lon);
+  const north = localNorth(lat, lon);
+  return north.multiplyScalar(Math.cos(headingRad)).add(east.multiplyScalar(Math.sin(headingRad))).normalize();
+}
+
+function getPolylineLengths(points) {
+  const lengths = [0];
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const [latA, lonA] = points[i];
+    const [latB, lonB] = points[i + 1];
+    total += Math.hypot(latB - latA, lonB - lonA);
+    lengths.push(total);
+  }
+  return { lengths, total };
+}
+
+function sampleLatLonOnPolyline(points, t) {
+  const { lengths, total } = getPolylineLengths(points);
+  const target = THREE.MathUtils.clamp(t, 0, 1) * total;
+  for (let i = 0; i < lengths.length - 1; i += 1) {
+    if (target <= lengths[i + 1]) {
+      const [latA, lonA] = points[i];
+      const [latB, lonB] = points[i + 1];
+      const span = lengths[i + 1] - lengths[i] || 1;
+      const localT = (target - lengths[i]) / span;
+      return {
+        lat: THREE.MathUtils.lerp(latA, latB, localT),
+        lon: THREE.MathUtils.lerp(lonA, lonB, localT)
+      };
+    }
+  }
+  const last = points[points.length - 1];
+  return { lat: last[0], lon: last[1] };
+}
+
+function createLabel(text, scale = 0.42, color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const lines = String(text).split('\n');
+  canvas.width = 512;
+  canvas.height = 128;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '700 28px Pretendard, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = 10;
+  lines.forEach((line, index) => {
+    const y = canvas.height / 2 + (index - (lines.length - 1) / 2) * 32;
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(scale * 4.2, scale * 1.1 * Math.max(lines.length, 1), 1);
+  return sprite;
+}
+
+function createRingSprite(color = '#ffffff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 256;
+  canvas.height = 256;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 16;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(128, 128, 74, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(128, 128, 98, 0, Math.PI * 2);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.3, 1.3, 1);
+  return sprite;
+}
+
+function createEarthTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  const ocean = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  ocean.addColorStop(0, '#14305f');
+  ocean.addColorStop(0.42, '#2255aa');
+  ocean.addColorStop(1, '#0f2350');
+  ctx.fillStyle = ocean;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < canvas.height; y += 4) {
+    const latNorm = (y / canvas.height) * 2 - 1;
+    for (let x = 0; x < canvas.width; x += 4) {
+      const lon = (x / canvas.width) * Math.PI * 2;
+      const terrain =
+        Math.sin(lon * 1.2) * 0.48 +
+        Math.cos(lon * 2.8 + latNorm * 2.4) * 0.42 +
+        Math.sin((lon + latNorm) * 4.4) * 0.36 +
+        Math.cos(latNorm * 10.2) * 0.18;
+
+      if (terrain > 0.62 && Math.abs(latNorm) < 0.86) {
+        const green = Math.floor(108 + (terrain - 0.62) * 100);
+        const red = Math.floor(66 + (terrain - 0.62) * 68);
+        ctx.fillStyle = `rgb(${red}, ${green}, 98)`;
+        ctx.fillRect(x, y, 4, 4);
+      } else if (terrain > 0.48 && Math.abs(latNorm) < 0.76) {
+        ctx.fillStyle = 'rgba(124, 170, 104, 0.68)';
+        ctx.fillRect(x, y, 4, 4);
+      } else if (Math.random() > 0.996) {
+        ctx.fillStyle = 'rgba(180, 220, 255, 0.12)';
+        ctx.fillRect(x, y, 4, 4);
+      }
+    }
+  }
+
+  const iceGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  iceGradient.addColorStop(0, 'rgba(240, 248, 255, 0.88)');
+  iceGradient.addColorStop(0.12, 'rgba(240, 248, 255, 0.15)');
+  iceGradient.addColorStop(0.88, 'rgba(240, 248, 255, 0.15)');
+  iceGradient.addColorStop(1, 'rgba(240, 248, 255, 0.82)');
+  ctx.fillStyle = iceGradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 18; i += 1) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1 + Math.random() * 1.5;
+    ctx.beginPath();
+    const y = Math.random() * canvas.height;
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(canvas.width * 0.25, y - 8, canvas.width * 0.75, y + 8, canvas.width, y - 4);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function createStarField(count, radiusMin, radiusMax, size, opacity) {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    const radius = THREE.MathUtils.lerp(radiusMin, radiusMax, Math.random());
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = radius * Math.cos(phi);
+    positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  return new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: 0xffffff,
+      size,
+      transparent: true,
+      opacity,
+      depthWrite: false
+    })
+  );
+}
+
+function createPlateArrow(lat, lon, heading, color = 0xdceeff) {
+  const origin = latLonToVector3(lat, lon, EARTH_RADIUS * 1.08);
+  const direction = headingToDirection(lat, lon, heading);
+  const arrow = new THREE.ArrowHelper(direction, origin, 0.62, color, 0.18, 0.12);
+  arrow.line.material.transparent = true;
+  arrow.line.material.opacity = 0.85;
+  arrow.cone.material.transparent = true;
+  arrow.cone.material.opacity = 0.85;
+  return arrow;
+}
+
+function createPlateLabel(name, lat, lon) {
+  const sprite = createLabel(name, 0.34, '#f6fbff');
+  sprite.position.copy(latLonToVector3(lat, lon, EARTH_RADIUS * 1.16));
+  return sprite;
+}
+
+function chooseBoundaryByLength(boundaries) {
+  const lengths = boundaries.map((boundary) => getPolylineLengths(boundary.points).total);
+  const total = lengths.reduce((sum, value) => sum + value, 0);
+  const threshold = Math.random() * total;
+  let cursor = 0;
+  for (let i = 0; i < boundaries.length; i += 1) {
+    cursor += lengths[i];
+    if (threshold <= cursor) return boundaries[i];
+  }
+  return boundaries[boundaries.length - 1];
+}
+
+function createBoundaryPointCloud(boundaries, count, color, size, offset = 0.12) {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    const boundary = chooseBoundaryByLength(boundaries);
+    const sample = sampleLatLonOnPolyline(boundary.points, Math.random());
+    const lat = sample.lat + (Math.random() - 0.5) * 0.8;
+    const lon = sample.lon + (Math.random() - 0.5) * 0.8;
+    const point = latLonToVector3(lat, lon, EARTH_RADIUS + offset);
+    positions[i * 3] = point.x;
+    positions[i * 3 + 1] = point.y;
+    positions[i * 3 + 2] = point.z;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  return new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color,
+      size,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false
+    })
+  );
+}
+
+function createVolcanoGroup(boundaries, count, color) {
+  const group = new THREE.Group();
+  for (let i = 0; i < count; i += 1) {
+    const boundary = chooseBoundaryByLength(boundaries);
+    const sample = sampleLatLonOnPolyline(boundary.points, Math.random());
+    const normal = latLonToVector3(sample.lat, sample.lon, 1).normalize();
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.045, 0.11, 10),
+      new THREE.MeshPhongMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.2
+      })
+    );
+    cone.position.copy(normal.clone().multiplyScalar(EARTH_RADIUS + 0.16));
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    group.add(cone);
+  }
+  return group;
+}
+
+function createMotionArrow3D(direction, color, length = 1.3) {
+  const arrow = new THREE.ArrowHelper(direction.clone().normalize(), new THREE.Vector3(), length, color, 0.28, 0.16);
+  arrow.line.material.transparent = true;
+  arrow.line.material.opacity = 0.9;
+  arrow.cone.material.transparent = true;
+  arrow.cone.material.opacity = 0.9;
+  return arrow;
+}
+
+function createPlateBlock(width, height, depth, color, labelText) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshPhongMaterial({
+      color,
+      shininess: 12
+    })
+  );
+  group.add(body);
+  if (labelText) {
+    const label = createLabel(labelText, 0.34, '#ffffff');
+    label.position.set(0, height * 0.8, depth * 0.32);
+    group.add(label);
+  }
+  return group;
+}
+
+function createSeaSurface(width, depth) {
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth),
+    new THREE.MeshBasicMaterial({
+      color: 0x2f7dc8,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide
+    })
+  );
+  plane.rotation.x = -Math.PI / 2;
+  return plane;
+}
+
+function createConvectionPair(root, leftX = -3.8, rightX = 3.8) {
+  const upArrow = createMotionArrow3D(new THREE.Vector3(0, 1, 0), 0xff5533, 1.25);
+  upArrow.position.set(leftX, -2.95, -1.5);
+  root.add(upArrow);
+  const upLabel = createLabel('상승\n맨틀 대류', 0.28, '#ffb39a');
+  upLabel.position.set(leftX, -1.4, -1.45);
+  root.add(upLabel);
+
+  const downArrow = createMotionArrow3D(new THREE.Vector3(0, -1, 0), 0x4fa8ff, 1.25);
+  downArrow.position.set(rightX, -1.7, 1.45);
+  root.add(downArrow);
+  const downLabel = createLabel('하강\n맨틀 대류', 0.28, '#a8d7ff');
+  downLabel.position.set(rightX, -1.15, 1.35);
+  root.add(downLabel);
+
+  return { upArrow, downArrow, upLabel, downLabel };
+}
+
+function createSectionBase() {
+  const root = new THREE.Group();
+  const mantle = new THREE.Mesh(
+    new THREE.BoxGeometry(14.6, 1.85, 6.2),
+    new THREE.MeshPhongMaterial({
+      color: 0xa63d24,
+      emissive: 0x471107,
+      emissiveIntensity: 0.22,
+      transparent: true,
+      opacity: 0.92
+    })
+  );
+  mantle.position.y = -2.55;
+  root.add(mantle);
+
+  const asthenosphere = new THREE.Mesh(
+    new THREE.BoxGeometry(14.6, 0.34, 6.1),
+    new THREE.MeshPhongMaterial({
+      color: 0x4c2a25,
+      emissive: 0x1a0b08,
+      emissiveIntensity: 0.08
+    })
+  );
+  asthenosphere.position.y = -1.52;
+  root.add(asthenosphere);
+
+  const label = createLabel('연약권', 0.34, '#ffd3a8');
+  label.position.set(0, -1.2, -2.5);
+  root.add(label);
+
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry(16, 8),
+    new THREE.MeshBasicMaterial({
+      color: 0xffa15a,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  glow.position.set(0, -1.4, -3.15);
+  root.add(glow);
+
+  const convection = createConvectionPair(root);
+  return { root, mantle, convection };
+}
+
+function createMountainChain(count, color, spacing = 0.75, heightBase = 1.2, radius = 0.36) {
+  const group = new THREE.Group();
+  for (let i = 0; i < count; i += 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.ConeGeometry(radius * (0.8 + Math.random() * 0.35), heightBase * (0.9 + Math.random() * 0.5), 9),
+      new THREE.MeshPhongMaterial({ color })
+    );
+    mesh.position.set((i - (count - 1) / 2) * spacing, 0.75 + Math.random() * 0.2, (Math.random() - 0.5) * 0.7);
+    group.add(mesh);
+  }
+  return group;
+}
+
+function createVolcanoCluster(count, color, glow = 0xff5522) {
+  const group = new THREE.Group();
+  for (let i = 0; i < count; i += 1) {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22 + Math.random() * 0.06, 0.65 + Math.random() * 0.18, 10),
+      new THREE.MeshPhongMaterial({
+        color,
+        emissive: glow,
+        emissiveIntensity: 0.18
+      })
+    );
+    cone.position.set(i * 0.9, 0.3, (Math.random() - 0.5) * 0.6);
+    group.add(cone);
+  }
+  return group;
+}
+
+function addSectionArrow(group, dir, color, pos, labelText) {
+  const arrow = createMotionArrow3D(dir, color, 1.25);
+  arrow.position.copy(pos);
+  group.add(arrow);
+  if (labelText) {
+    const label = createLabel(labelText, 0.26, color === 0xff8844 ? '#ffd1a0' : '#c8efff');
+    label.position.copy(pos).add(new THREE.Vector3(0, 0.55, 0));
+    group.add(label);
+  }
+  return arrow;
+}
+
+function buildHimalayaSection() {
+  const { root, mantle, convection } = createSectionBase();
+
+  const leftPlate = createPlateBlock(5.2, 1.0, 3.8, 0xaa8866, '인도판');
+  leftPlate.position.set(-2.9, -0.1, 0);
+  root.add(leftPlate);
+
+  const rightPlate = createPlateBlock(5.2, 1.0, 3.8, 0xb3926e, '유라시아판');
+  rightPlate.position.set(2.9, -0.1, 0);
+  root.add(rightPlate);
+
+  const foldLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.65, 3.4),
+    new THREE.MeshPhongMaterial({ color: 0x996d48 })
+  );
+  foldLeft.position.set(-0.7, 0.6, 0);
+  foldLeft.rotation.z = 0.22;
+  root.add(foldLeft);
+
+  const foldRight = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.65, 3.4),
+    new THREE.MeshPhongMaterial({ color: 0x996d48 })
+  );
+  foldRight.position.set(0.7, 0.62, 0);
+  foldRight.rotation.z = -0.22;
+  root.add(foldRight);
+
+  const mountains = createMountainChain(5, 0x8b6641, 0.82, 1.5, 0.34);
+  mountains.position.set(0, 1.3, 0);
+  root.add(mountains);
+
+  const mountainLabel = createLabel('히말라야\n습곡 산맥', 0.32, '#ffd7aa');
+  mountainLabel.position.set(0, 2.75, 0);
+  root.add(mountainLabel);
+
+  addSectionArrow(root, new THREE.Vector3(1, 0, 0), 0xff8844, new THREE.Vector3(-4.5, 1.15, 1.4), '충돌');
+  addSectionArrow(root, new THREE.Vector3(-1, 0, 0), 0xff8844, new THREE.Vector3(4.5, 1.15, -1.4));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const motion = params.plateAnimation ? Math.sin(elapsed * 1.4) * 0.12 : 0;
+      leftPlate.position.x = -2.9 + motion;
+      rightPlate.position.x = 2.9 - motion;
+      mountains.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 2.2) * 0.035 : 0);
+      mantle.material.emissiveIntensity = 0.2 + Math.sin(elapsed * 1.3) * 0.04;
+      convection.upArrow.line.material.opacity = 0.5 + Math.sin(elapsed * 2.1) * 0.2;
+      convection.downArrow.line.material.opacity = 0.5 + Math.cos(elapsed * 2.1) * 0.2;
+    }
+  };
+}
+
+function buildMarianaSection() {
+  const { root, mantle, convection } = createSectionBase();
+  const sea = createSeaSurface(14.8, 6.2);
+  sea.position.y = 0.7;
+  root.add(sea);
+
+  const leftPlate = createPlateBlock(4.8, 0.55, 3.4, 0x334466, '태평양판');
+  leftPlate.position.set(-4.2, 0.25, 0);
+  root.add(leftPlate);
+
+  const slab = createPlateBlock(6.4, 0.5, 3.0, 0x28415d, '');
+  slab.position.set(-0.6, -0.85, 0);
+  slab.rotation.z = -0.42;
+  root.add(slab);
+
+  const rightPlate = createPlateBlock(5.1, 0.62, 3.5, 0x43617d, '필리핀판');
+  rightPlate.position.set(3.4, 0.3, 0);
+  root.add(rightPlate);
+
+  const trenchLabel = createLabel('마리아나 해구', 0.28, '#9ed8ff');
+  trenchLabel.position.set(0.15, 0.25, 1.7);
+  root.add(trenchLabel);
+
+  const trenchShadow = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.22, 3.4),
+    new THREE.MeshPhongMaterial({ color: 0x001133 })
+  );
+  trenchShadow.position.set(0.2, 0.02, 0);
+  trenchShadow.rotation.z = -0.12;
+  root.add(trenchShadow);
+
+  const islands = createVolcanoCluster(4, 0x6f5b44);
+  islands.position.set(1.9, 0.95, 0);
+  root.add(islands);
+
+  const islandLabel = createLabel('호상열도', 0.28, '#ffcc8d');
+  islandLabel.position.set(3.05, 2.0, 0);
+  root.add(islandLabel);
+
+  addSectionArrow(root, new THREE.Vector3(1, 0, 0), 0xff8844, new THREE.Vector3(-4.8, 1.05, 1.3), '수렴');
+  addSectionArrow(root, new THREE.Vector3(-1, 0, 0), 0xff8844, new THREE.Vector3(4.2, 1.05, -1.2));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const motion = params.plateAnimation ? Math.sin(elapsed * 1.6) * 0.15 : 0;
+      leftPlate.position.x = -4.2 + motion;
+      slab.position.x = -0.6 + motion * 0.8;
+      slab.rotation.z = -0.42 - motion * 0.03;
+      rightPlate.position.x = 3.4 - motion * 0.35;
+      islands.children.forEach((child, index) => {
+        child.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 2.8 + index) * 0.07 : 0);
+      });
+      mantle.material.emissiveIntensity = 0.22 + Math.sin(elapsed * 1.1) * 0.05;
+      convection.upArrow.line.material.opacity = 0.52 + Math.sin(elapsed * 2.3) * 0.18;
+      convection.downArrow.line.material.opacity = 0.52 + Math.cos(elapsed * 2.3) * 0.18;
+    }
+  };
+}
+
+function buildAndesSection() {
+  const { root, mantle, convection } = createSectionBase();
+  const sea = createSeaSurface(14.8, 6.2);
+  sea.position.y = 0.66;
+  root.add(sea);
+
+  const oceanPlate = createPlateBlock(4.5, 0.52, 3.2, 0x334466, '나스카판');
+  oceanPlate.position.set(-4.1, 0.22, 0);
+  root.add(oceanPlate);
+
+  const slab = createPlateBlock(6.0, 0.5, 3.0, 0x2a435d, '');
+  slab.position.set(-0.85, -1.0, 0);
+  slab.rotation.z = -0.38;
+  root.add(slab);
+
+  const continent = createPlateBlock(5.7, 1.15, 3.9, 0xaa8866, '남아메리카판');
+  continent.position.set(3.1, -0.03, 0);
+  root.add(continent);
+
+  const trench = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.22, 3.1),
+    new THREE.MeshPhongMaterial({ color: 0x08172e })
+  );
+  trench.position.set(-0.15, 0.06, 0);
+  trench.rotation.z = -0.14;
+  root.add(trench);
+
+  const mountains = createMountainChain(5, 0x8f6842, 0.68, 1.6, 0.28);
+  mountains.position.set(2.3, 1.35, 0);
+  root.add(mountains);
+
+  const volcanoes = createVolcanoCluster(3, 0x7b5f47);
+  volcanoes.position.set(2.0, 1.8, 0);
+  root.add(volcanoes);
+
+  const label = createLabel('안데스 산맥\n대륙 화산호', 0.3, '#ffd3a4');
+  label.position.set(2.9, 3.0, 0);
+  root.add(label);
+
+  addSectionArrow(root, new THREE.Vector3(1, 0, 0), 0xff8844, new THREE.Vector3(-4.6, 1.02, 1.25), '섭입');
+  addSectionArrow(root, new THREE.Vector3(-1, 0, 0), 0xff8844, new THREE.Vector3(4.4, 1.02, -1.2));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const motion = params.plateAnimation ? Math.sin(elapsed * 1.45) * 0.14 : 0;
+      oceanPlate.position.x = -4.1 + motion;
+      slab.position.x = -0.85 + motion * 0.92;
+      continent.position.x = 3.1 - motion * 0.2;
+      slab.rotation.z = -0.38 - motion * 0.05;
+      volcanoes.children.forEach((child, index) => {
+        child.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 3 + index * 0.7) * 0.12 : 0);
+      });
+      mountains.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 1.8) * 0.03 : 0);
+      mantle.material.emissiveIntensity = 0.24 + Math.sin(elapsed * 1.15) * 0.05;
+      convection.upArrow.line.material.opacity = 0.54 + Math.sin(elapsed * 2.4) * 0.16;
+      convection.downArrow.line.material.opacity = 0.54 + Math.cos(elapsed * 2.4) * 0.16;
+    }
+  };
+}
+
+function buildSanAndreasSection() {
+  const { root, mantle, convection } = createSectionBase();
+
+  const leftPlate = createPlateBlock(6.2, 1.0, 2.6, 0x8b6d56, '태평양판');
+  leftPlate.position.set(-3.3, -0.05, 0);
+  root.add(leftPlate);
+
+  const rightPlate = createPlateBlock(6.2, 1.0, 2.6, 0x9b7a62, '북아메리카판');
+  rightPlate.position.set(3.3, -0.05, 0);
+  root.add(rightPlate);
+
+  for (let i = -3; i <= 3; i += 1) {
+    const dash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.14, 0.55),
+      new THREE.MeshBasicMaterial({ color: 0xffa45c })
+    );
+    dash.position.set(0, 0.5, i * 0.75);
+    root.add(dash);
+  }
+
+  const roadLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.05, 0.16),
+    new THREE.MeshBasicMaterial({ color: 0xf6e6b7 })
+  );
+  roadLeft.position.set(-1.4, 0.52, -0.25);
+  leftPlate.add(roadLeft);
+
+  const roadRight = new THREE.Mesh(
+    new THREE.BoxGeometry(2.6, 0.05, 0.16),
+    new THREE.MeshBasicMaterial({ color: 0xf6e6b7 })
+  );
+  roadRight.position.set(1.4, 0.52, 0.25);
+  rightPlate.add(roadRight);
+
+  const faultLabel = createLabel('산안드레아스\n변환 단층', 0.3, '#ffd3a0');
+  faultLabel.position.set(0, 2.1, 0);
+  root.add(faultLabel);
+
+  addSectionArrow(root, new THREE.Vector3(0, 0, 1), 0xffbb6a, new THREE.Vector3(-4.6, 1.0, -0.9), '어긋남');
+  addSectionArrow(root, new THREE.Vector3(0, 0, -1), 0xffbb6a, new THREE.Vector3(4.6, 1.0, 0.9));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const shift = params.plateAnimation ? Math.sin(elapsed * 1.8) * 0.4 : 0;
+      leftPlate.position.z = shift;
+      rightPlate.position.z = -shift;
+      mantle.material.emissiveIntensity = 0.18 + Math.sin(elapsed * 1.1) * 0.03;
+      convection.upArrow.line.material.opacity = 0.48 + Math.sin(elapsed * 1.9) * 0.14;
+      convection.downArrow.line.material.opacity = 0.48 + Math.cos(elapsed * 1.9) * 0.14;
+    }
+  };
+}
+
+function buildEastPacificSection() {
+  const { root, mantle, convection } = createSectionBase();
+  const sea = createSeaSurface(14.8, 6.2);
+  sea.position.y = 0.68;
+  root.add(sea);
+
+  const leftPlate = createPlateBlock(5.1, 0.55, 3.2, 0x395271, '해양판');
+  leftPlate.position.set(-3.5, 0.22, 0);
+  leftPlate.rotation.z = 0.05;
+  root.add(leftPlate);
+
+  const rightPlate = createPlateBlock(5.1, 0.55, 3.2, 0x395271, '해양판');
+  rightPlate.position.set(3.5, 0.22, 0);
+  rightPlate.rotation.z = -0.05;
+  root.add(rightPlate);
+
+  const ridge = new THREE.Group();
+  for (let i = -1; i <= 1; i += 1) {
+    const column = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28 + Math.abs(i) * 0.06, 0.42 + Math.abs(i) * 0.08, 1.0 + (1 - Math.abs(i)) * 0.3, 10),
+      new THREE.MeshPhongMaterial({ color: 0x5b7084 })
+    );
+    column.position.set(i * 0.55, 0.58 + (1 - Math.abs(i)) * 0.15, 0);
+    ridge.add(column);
+  }
+  root.add(ridge);
+
+  const magmaPlume = new THREE.Group();
+  const magmaParticles = [];
+  for (let i = 0; i < 10; i += 1) {
+    const particle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11 + Math.random() * 0.05, 10, 10),
+      new THREE.MeshPhongMaterial({
+        color: 0xff6d36,
+        emissive: 0xff521b,
+        emissiveIntensity: 0.7
+      })
+    );
+    magmaParticles.push({ mesh: particle, phase: Math.random() * Math.PI * 2, speed: 0.7 + Math.random() * 0.6 });
+    magmaPlume.add(particle);
+  }
+  root.add(magmaPlume);
+
+  const ridgeLabel = createLabel('동태평양 해령\n새로운 해양 지각', 0.32, '#ffd6ad');
+  ridgeLabel.position.set(0, 2.55, 0);
+  root.add(ridgeLabel);
+
+  addSectionArrow(root, new THREE.Vector3(-1, 0, 0), 0x67d7ff, new THREE.Vector3(-4.7, 1.02, 1.2), '벌어짐');
+  addSectionArrow(root, new THREE.Vector3(1, 0, 0), 0x67d7ff, new THREE.Vector3(4.7, 1.02, -1.2));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const spread = params.plateAnimation ? Math.sin(elapsed * 1.5) * 0.18 : 0;
+      leftPlate.position.x = -3.5 - spread;
+      rightPlate.position.x = 3.5 + spread;
+      magmaParticles.forEach((entry, index) => {
+        const wave = (elapsed * entry.speed + entry.phase) % (Math.PI * 2);
+        entry.mesh.position.set(
+          (Math.sin(entry.phase + index) * 0.35),
+          -1.9 + ((wave / (Math.PI * 2)) * 3.2),
+          (Math.cos(entry.phase + index * 1.7) * 0.3)
+        );
+        entry.mesh.scale.setScalar(0.8 + Math.sin(wave) * 0.15);
+      });
+      mantle.material.emissiveIntensity = 0.28 + Math.sin(elapsed * 1.8) * 0.06;
+      convection.upArrow.line.material.opacity = 0.58 + Math.sin(elapsed * 2.6) * 0.18;
+      convection.downArrow.line.material.opacity = 0.54 + Math.cos(elapsed * 2.2) * 0.16;
+    }
+  };
+}
+
+function buildEastAfricaSection() {
+  const { root, mantle, convection } = createSectionBase();
+
+  const leftContinent = createPlateBlock(5.4, 1.1, 3.8, 0xaa8866, '아프리카판');
+  leftContinent.position.set(-3.25, -0.03, 0);
+  leftContinent.rotation.z = 0.06;
+  root.add(leftContinent);
+
+  const rightContinent = createPlateBlock(5.4, 1.1, 3.8, 0xaa8866, '아프리카판');
+  rightContinent.position.set(3.25, -0.03, 0);
+  rightContinent.rotation.z = -0.06;
+  root.add(rightContinent);
+
+  const rift = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 0.38, 3.0),
+    new THREE.MeshPhongMaterial({ color: 0x49342f })
+  );
+  rift.position.set(0, -0.15, 0);
+  root.add(rift);
+
+  const lake = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.08, 2.2),
+    new THREE.MeshPhongMaterial({
+      color: 0x2d78bb,
+      emissive: 0x17395d,
+      emissiveIntensity: 0.24
+    })
+  );
+  lake.position.set(0, 0.03, 0);
+  root.add(lake);
+
+  const volcanoes = createVolcanoCluster(3, 0x7e6147);
+  volcanoes.position.set(-1.1, 1.15, 0);
+  root.add(volcanoes);
+
+  const volcanoesB = createVolcanoCluster(2, 0x7e6147);
+  volcanoesB.position.set(1.0, 1.05, 0.25);
+  root.add(volcanoesB);
+
+  const label = createLabel('동아프리카 열곡\n호수와 화산', 0.32, '#ffd7ab');
+  label.position.set(0, 2.55, 0);
+  root.add(label);
+
+  addSectionArrow(root, new THREE.Vector3(-1, 0, 0), 0x67d7ff, new THREE.Vector3(-4.6, 1.0, 1.2), '발산');
+  addSectionArrow(root, new THREE.Vector3(1, 0, 0), 0x67d7ff, new THREE.Vector3(4.6, 1.0, -1.2));
+
+  return {
+    root,
+    update(delta, elapsed) {
+      const spread = params.plateAnimation ? Math.sin(elapsed * 1.45) * 0.16 : 0;
+      leftContinent.position.x = -3.25 - spread;
+      rightContinent.position.x = 3.25 + spread;
+      leftContinent.rotation.z = 0.06 + spread * 0.02;
+      rightContinent.rotation.z = -0.06 - spread * 0.02;
+      lake.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 2.5) * 0.05 : 0);
+      [...volcanoes.children, ...volcanoesB.children].forEach((child, index) => {
+        child.scale.y = 1 + (params.plateAnimation ? Math.sin(elapsed * 2.8 + index * 0.6) * 0.1 : 0);
+      });
+      mantle.material.emissiveIntensity = 0.26 + Math.sin(elapsed * 1.6) * 0.05;
+      convection.upArrow.line.material.opacity = 0.56 + Math.sin(elapsed * 2.5) * 0.16;
+      convection.downArrow.line.material.opacity = 0.52 + Math.cos(elapsed * 2.1) * 0.16;
+    }
+  };
+}
+
+const SECTION_BUILDERS = {
+  himalaya: buildHimalayaSection,
+  mariana: buildMarianaSection,
+  andes: buildAndesSection,
+  sanAndreas: buildSanAndreasSection,
+  eastPacificRise: buildEastPacificSection,
+  eastAfrica: buildEastAfricaSection
+};
+
+function disposeMaterial(material) {
+  if (!material) return;
+  if (material.map) material.map.dispose();
+  material.dispose();
+}
+
+function disposeObject3D(object) {
+  object.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+      else disposeMaterial(child.material);
+    }
+  });
+}
+
+function typeMatchesFilter(type) {
+  if (params.boundaryView === '전체') return true;
+  return TYPE_META[type].filter === params.boundaryView;
+}
+
+function getCurrentCase() {
+  return CASES.find((entry) => entry.label === params.caseStudy) ?? CASES[0];
+}
+
+function buildMarkerLegend() {
+  markerLegend.innerHTML = '';
+  CASES.forEach((entry) => {
+    const chip = document.createElement('div');
+    chip.className = 'legend-chip';
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = TYPE_META[entry.type].css;
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(entry.label));
+    markerLegend.appendChild(chip);
+  });
+}
+
+buildMarkerLegend();
+
+const globeScene = new THREE.Scene();
+globeScene.background = new THREE.Color(0x01040d);
+const globeCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+globeCamera.position.set(0, 1.1, 13.8);
+
+const globeRenderer = new THREE.WebGLRenderer({
+  canvas: globeCanvas,
+  antialias: true,
+  alpha: true
+});
+globeRenderer.outputColorSpace = THREE.SRGBColorSpace;
+globeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+globeRenderer.toneMappingExposure = 1.05;
+globeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const globeControls = new OrbitControls(globeCamera, globeRenderer.domElement);
+globeControls.enableDamping = true;
+globeControls.dampingFactor = 0.08;
+globeControls.enablePan = false;
+globeControls.minDistance = 8.5;
+globeControls.maxDistance = 20;
+globeControls.target.set(0, 0, 0);
+globeControls.update();
+globeControls.saveState();
+
+globeScene.add(new THREE.AmbientLight(0xffffff, 0.32));
+const globeSun = new THREE.DirectionalLight(0xffffff, 0.72);
+globeSun.position.set(10, 8, 12);
+globeScene.add(globeSun);
+const globeRim = new THREE.DirectionalLight(0x7eb6ff, 0.25);
+globeRim.position.set(-10, -4, -12);
+globeScene.add(globeRim);
+globeScene.add(createStarField(1600, 22, 60, 0.16, 0.7));
+
+const globeRoot = new THREE.Group();
+globeScene.add(globeRoot);
+
+const earthTexture = createEarthTexture();
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_RADIUS, 128, 128),
+  new THREE.MeshPhongMaterial({
+    map: earthTexture,
+    shininess: 8,
+    specular: new THREE.Color(0x274f87)
+  })
+);
+globeRoot.add(earth);
+
+const earthGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_RADIUS * 1.03, 64, 64),
+  new THREE.MeshBasicMaterial({
+    color: 0x3d7dff,
+    transparent: true,
+    opacity: 0.08,
+    side: THREE.BackSide
+  })
+);
+globeRoot.add(earthGlow);
+
+const boundaryGroup = new THREE.Group();
+const boundaryObjects = [];
+globeRoot.add(boundaryGroup);
+
+BOUNDARIES.forEach((boundary) => {
+  const positions = [];
+  boundary.points.forEach(([lat, lon]) => {
+    const point = latLonToVector3(lat, lon, EARTH_RADIUS + 0.06);
+    positions.push(point.x, point.y, point.z);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({
+    color: TYPE_META[boundary.type].color,
+    transparent: true,
+    opacity: 0.6
+  });
+  const line = new THREE.Line(geometry, material);
+  boundaryGroup.add(line);
+  boundaryObjects.push({ ...boundary, line, material });
+});
+
+const plateLabels = new THREE.Group();
+const plateArrows = new THREE.Group();
+globeRoot.add(plateLabels);
+globeRoot.add(plateArrows);
+
+PLATES.forEach((plate) => {
+  plateLabels.add(createPlateLabel(plate.name, plate.lat, plate.lon));
+  plateArrows.add(createPlateArrow(plate.lat, plate.lon, plate.heading));
+});
+
+const boundariesByType = {
+  convergent: BOUNDARIES.filter((entry) => entry.type === 'convergent'),
+  divergent: BOUNDARIES.filter((entry) => entry.type === 'divergent'),
+  transform: BOUNDARIES.filter((entry) => entry.type === 'transform')
+};
+
+const earthquakeGroups = {
+  convergent: createBoundaryPointCloud(boundariesByType.convergent, 170, 0xffff66, 0.085),
+  divergent: createBoundaryPointCloud(boundariesByType.divergent, 90, 0xffe66a, 0.075),
+  transform: createBoundaryPointCloud(boundariesByType.transform, 40, 0xffdd55, 0.08)
+};
+
+Object.values(earthquakeGroups).forEach((group) => globeRoot.add(group));
+
+const volcanoGroups = {
+  convergent: createVolcanoGroup(boundariesByType.convergent, 34, 0xff3d1f),
+  divergent: createVolcanoGroup(boundariesByType.divergent, 16, 0xff6f2f),
+  transform: new THREE.Group()
+};
+
+Object.values(volcanoGroups).forEach((group) => globeRoot.add(group));
+
+const markerGroup = new THREE.Group();
+const markerTargets = [];
+globeRoot.add(markerGroup);
+
+const markerData = [];
+CASES.forEach((entry, index) => {
+  const marker = new THREE.Group();
+  const color = TYPE_META[entry.type].color;
+  const normal = latLonToVector3(entry.location.lat, entry.location.lon, 1).normalize();
+  const position = normal.clone().multiplyScalar(EARTH_RADIUS + 0.22);
+
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 18, 18),
+    new THREE.MeshPhongMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.4
+    })
+  );
+  marker.add(sphere);
+
+  const ring = createRingSprite(TYPE_META[entry.type].css);
+  ring.scale.set(0.75, 0.75, 1);
+  marker.add(ring);
+
+  const label = createLabel(String(index + 1), 0.26, '#ffffff');
+  label.position.set(0, 0.42, 0);
+  marker.add(label);
+
+  marker.position.copy(position);
+  marker.userData.caseId = entry.id;
+  sphere.userData.caseId = entry.id;
+  ring.userData.caseId = entry.id;
+  label.userData.caseId = entry.id;
+
+  markerGroup.add(marker);
+  markerTargets.push(sphere, ring);
+  markerData.push({ entry, marker, sphere, ring, label, normal, baseRadius: EARTH_RADIUS + 0.22 });
+});
+
+const selectedHalo = createRingSprite('#ffffff');
+selectedHalo.scale.set(1.05, 1.05, 1);
+globeRoot.add(selectedHalo);
+
+const selectedBeam = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.025, 0.025, 1.15, 12),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.35
+  })
+);
+globeRoot.add(selectedBeam);
+
+const sectionScene = new THREE.Scene();
+sectionScene.background = new THREE.Color(0x09070d);
+const sectionCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
+sectionCamera.position.set(0, 4.8, 12.2);
+
+const sectionRenderer = new THREE.WebGLRenderer({
+  canvas: sectionCanvas,
+  antialias: true,
+  alpha: true
+});
+sectionRenderer.outputColorSpace = THREE.SRGBColorSpace;
+sectionRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+sectionRenderer.toneMappingExposure = 1.04;
+sectionRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+sectionScene.add(new THREE.AmbientLight(0xffffff, 0.42));
+const sectionKey = new THREE.DirectionalLight(0xfff4e6, 0.82);
+sectionKey.position.set(7, 8, 6);
+sectionScene.add(sectionKey);
+const sectionFill = new THREE.DirectionalLight(0x74b5ff, 0.22);
+sectionFill.position.set(-8, 4, -6);
+sectionScene.add(sectionFill);
+const sectionCoreLight = new THREE.PointLight(0xff5a1f, 0.7, 18, 2);
+sectionCoreLight.position.set(0, -2.4, 0);
+sectionScene.add(sectionCoreLight);
+
+const sectionBackdrop = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 12),
+  new THREE.MeshBasicMaterial({
+    color: 0x251822,
+    transparent: true,
+    opacity: 0.32
+  })
+);
+sectionBackdrop.position.set(0, 0.4, -4.5);
+sectionScene.add(sectionBackdrop);
+
+let sectionRuntime = null;
+
+function rebuildSection() {
+  if (sectionRuntime?.root) {
+    sectionScene.remove(sectionRuntime.root);
+    disposeObject3D(sectionRuntime.root);
+  }
+  const current = getCurrentCase();
+  const builder = SECTION_BUILDERS[current.id];
+  sectionRuntime = builder();
+  sectionScene.add(sectionRuntime.root);
+}
+
+function updateInfoPanel() {
+  const current = getCurrentCase();
+  dom.fpCase.textContent = current.title;
+  dom.fpType.textContent = TYPE_META[current.type].label;
+  dom.fpPlates.textContent = current.plates;
+  dom.fpFeature.textContent = current.feature;
+  dom.focusTitle.textContent = `${current.title} 관찰 포인트`;
+  dom.focusBody.textContent = current.focus;
+  dom.sectionTitle.textContent = current.sectionTitle;
+  dom.sectionDetail.textContent = current.sectionDetail;
+}
+
+function updateSelectedHalo(elapsed = 0) {
+  const current = getCurrentCase();
+  const position = latLonToVector3(current.location.lat, current.location.lon, EARTH_RADIUS + 0.38);
+  const normal = position.clone().normalize();
+  selectedHalo.position.copy(position);
+  const pulse = 1.04 + Math.sin(elapsed * 2.4) * 0.1;
+  selectedHalo.scale.set(pulse, pulse, 1);
+  selectedHalo.material.opacity = 0.8 + Math.sin(elapsed * 2.4) * 0.08;
+
+  selectedBeam.position.copy(normal.clone().multiplyScalar(EARTH_RADIUS + 0.72));
+  selectedBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  selectedBeam.scale.set(1, 1 + Math.sin(elapsed * 2.2) * 0.08, 1);
+}
+
+function updateGlobeVisuals(elapsed = 0) {
+  const current = getCurrentCase();
+  boundaryObjects.forEach((boundary) => {
+    const filterVisible = typeMatchesFilter(boundary.type);
+    const isSelected = current.boundaryIds.includes(boundary.id);
+    boundary.line.visible = filterVisible || isSelected;
+    boundary.material.opacity = filterVisible ? (isSelected ? 1 : 0.5) : 0.16;
+    boundary.material.color.setHex(isSelected ? 0xffffff : TYPE_META[boundary.type].color);
+  });
+
+  Object.entries(earthquakeGroups).forEach(([type, group]) => {
+    group.visible = params.showEarthquakes && typeMatchesFilter(type);
+  });
+
+  Object.entries(volcanoGroups).forEach(([type, group]) => {
+    group.visible = params.showVolcanoes && typeMatchesFilter(type);
+  });
+
+  plateArrows.visible = params.showMotionArrows;
+
+  markerData.forEach((item, index) => {
+    const isSelected = item.entry.id === current.id;
+    const filterVisible = typeMatchesFilter(item.entry.type);
+    const pulse = 1 + Math.sin(elapsed * 3 + index * 0.8) * 0.06;
+    const radius = item.baseRadius + (isSelected ? 0.03 : 0);
+    item.marker.position.copy(item.normal.clone().multiplyScalar(radius));
+    item.marker.scale.setScalar((isSelected ? 1.22 : 1) * pulse * (filterVisible ? 1 : 0.78));
+    item.sphere.material.emissiveIntensity = isSelected ? 0.95 : 0.35;
+    item.ring.material.opacity = filterVisible ? (isSelected ? 0.95 : 0.45) : 0.22;
+    item.label.material.opacity = filterVisible ? 0.98 : 0.35;
+  });
+
+  updateSelectedHalo(elapsed);
+}
+
+function selectCase(caseId, syncGui = false) {
+  const nextCase = caseMap.get(caseId);
+  if (!nextCase) return;
+  params.caseStudy = nextCase.label;
+  updateInfoPanel();
+  rebuildSection();
+  updateGlobeVisuals(clock.elapsedTime);
+  if (syncGui) gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function resetSimulation() {
+  params.caseStudy = CASES[0].label;
+  params.boundaryView = '전체';
+  params.showEarthquakes = true;
+  params.showVolcanoes = true;
+  params.showMotionArrows = true;
+  params.plateAnimation = false;
+  globeControls.reset();
+  updateInfoPanel();
+  rebuildSection();
+  updateGlobeVisuals(clock.elapsedTime);
+  gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
+}
+
+function hitTestMarkers(event) {
+  const rect = globeCanvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, globeCamera);
+  return raycaster.intersectObjects(markerTargets, false);
+}
+
+function onGlobePointerMove(event) {
+  const hits = hitTestMarkers(event);
+  const next = hits[0]?.object?.userData?.caseId ?? null;
+  runtime.hoveredMarker = next;
+  globeCanvas.style.cursor = next ? 'pointer' : 'grab';
+}
+
+function onGlobeClick(event) {
+  const hits = hitTestMarkers(event);
+  const caseId = hits[0]?.object?.userData?.caseId;
+  if (caseId) selectCase(caseId, true);
+}
+
+function resize() {
+  const globeRect = globePanel.getBoundingClientRect();
+  globeCamera.aspect = globeRect.width / globeRect.height;
+  globeCamera.updateProjectionMatrix();
+  globeRenderer.setSize(globeRect.width, globeRect.height, false);
+  globeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const sectionRect = sectionPanel.getBoundingClientRect();
+  sectionCamera.aspect = sectionRect.width / sectionRect.height;
+  sectionCamera.updateProjectionMatrix();
+  sectionRenderer.setSize(sectionRect.width, sectionRect.height, false);
+  sectionRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  if (window.innerWidth <= 768) gui.close();
+}
+
+const gui = new GUI({ title: '판 경계 제어', width: 292 });
+gui.add(params, 'caseStudy', caseLabels).name('판 경계 사례').onChange((value) => {
+  const found = CASES.find((entry) => entry.label === value);
+  if (found) selectCase(found.id);
+});
+gui.add(params, 'boundaryView', ['전체', '발산형만', '수렴형만', '보존형만']).name('판 경계 유형').onChange(() => {
+  updateGlobeVisuals(clock.elapsedTime);
+});
+gui.add(params, 'showEarthquakes').name('지진대 표시').onChange(() => {
+  updateGlobeVisuals(clock.elapsedTime);
+});
+gui.add(params, 'showVolcanoes').name('화산대 표시').onChange(() => {
+  updateGlobeVisuals(clock.elapsedTime);
+});
+gui.add(params, 'showMotionArrows').name('판 이동 방향').onChange(() => {
+  updateGlobeVisuals(clock.elapsedTime);
+});
+gui.add(params, 'plateAnimation').name('판 이동 애니메이션');
+gui.add(params, 'reset').name('초기화');
+
+if (window.innerWidth <= 768) gui.close();
+
+function dispose() {
+  if (runtime.disposed) return;
+  runtime.disposed = true;
+  window.removeEventListener('resize', resize);
+  window.removeEventListener('beforeunload', dispose);
+  globeCanvas.removeEventListener('pointermove', onGlobePointerMove);
+  globeCanvas.removeEventListener('click', onGlobeClick);
+  globeControls.dispose();
+  gui.destroy();
+  disposeObject3D(globeRoot);
+  disposeObject3D(sectionBackdrop);
+  if (sectionRuntime?.root) disposeObject3D(sectionRuntime.root);
+  globeRenderer.dispose();
+  sectionRenderer.dispose();
+  earthTexture.dispose();
+}
+
+function animate() {
+  if (runtime.disposed) return;
+  requestAnimationFrame(animate);
+
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  earthGlow.rotation.y += delta * 0.08;
+  globeControls.update();
+  updateGlobeVisuals(elapsed);
+
+  if (sectionRuntime?.update) {
+    sectionRuntime.update(delta, elapsed);
+  }
+
+  sectionCamera.position.x = Math.sin(elapsed * 0.18) * 0.35;
+  sectionCamera.position.y = 4.8 + Math.sin(elapsed * 0.16) * 0.08;
+  sectionCamera.lookAt(0, -0.3, 0);
+
+  globeRenderer.render(globeScene, globeCamera);
+  sectionRenderer.render(sectionScene, sectionCamera);
+}
+
+globeCanvas.addEventListener('pointermove', onGlobePointerMove);
+globeCanvas.addEventListener('click', onGlobeClick);
+window.addEventListener('resize', resize);
+window.addEventListener('beforeunload', dispose);
+
+updateInfoPanel();
+rebuildSection();
+updateGlobeVisuals();
+resize();
+animate();
+</script>
+</body>
+</html>
