@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>알풀과학 RSS</title>
+    <link>https://www.alpool.org/</link>
+    <description>알풀과학의 대표 시뮬레이션과 사이트 업데이트를 제공하는 RSS 피드입니다.</description>
+    <language>ko-KR</language>
+    <lastBuildDate>Mon, 06 Apr 2026 22:34:22 +0900</lastBuildDate>
+    <generator>Codex</generator>
+    <ttl>1440</ttl>
+
+    <item>
+      <title><![CDATA[알풀과학 홈페이지]]></title>
+      <link>https://www.alpool.org/</link>
+      <guid>https://www.alpool.org/</guid>
+      <pubDate>Mon, 06 Apr 2026 22:34:22 +0900</pubDate>
+      <description><![CDATA[알풀과학 메인 페이지에서 과학 시뮬레이션과 학습 콘텐츠를 확인할 수 있습니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[미시 세계와 거시 세계 크기 비교]]></title>
+      <link>https://www.alpool.org/simulations/01_micro_macro_scale.html</link>
+      <guid>https://www.alpool.org/simulations/01_micro_macro_scale.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:33:22 +0900</pubDate>
+      <description><![CDATA[양성자부터 관측 가능한 우주까지 다양한 크기 스케일을 비교하는 3D 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[시간과 길이 측정의 발전]]></title>
+      <link>https://www.alpool.org/simulations/02_time_length_measurement.html</link>
+      <guid>https://www.alpool.org/simulations/02_time_length_measurement.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:32:22 +0900</pubDate>
+      <description><![CDATA[앙부일구부터 원자시계까지 시간과 길이 측정 도구의 발전을 살펴보는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[스펙트럼과 원소 분석]]></title>
+      <link>https://www.alpool.org/simulations/05_spectrum_element_analysis.html</link>
+      <guid>https://www.alpool.org/simulations/05_spectrum_element_analysis.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:31:22 +0900</pubDate>
+      <description><![CDATA[빛의 분산과 원소별 스펙트럼을 비교하며 원소 분석 원리를 탐구하는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[빅뱅과 우주 진화]]></title>
+      <link>https://www.alpool.org/simulations/06_bigbang_universe_evolution.html</link>
+      <guid>https://www.alpool.org/simulations/06_bigbang_universe_evolution.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:30:22 +0900</pubDate>
+      <description><![CDATA[빅뱅 이후 우주가 어떻게 진화해 왔는지 단계별로 체험하는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[태양계 형성 과정]]></title>
+      <link>https://www.alpool.org/simulations/08_solar_system_formation.html</link>
+      <guid>https://www.alpool.org/simulations/08_solar_system_formation.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:29:22 +0900</pubDate>
+      <description><![CDATA[태양계 성운의 수축부터 행성 형성까지 태양계 탄생 과정을 살펴보는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[기권의 층상 구조]]></title>
+      <link>https://www.alpool.org/simulations/atmosphere_layers_sim.html</link>
+      <guid>https://www.alpool.org/simulations/atmosphere_layers_sim.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:28:22 +0900</pubDate>
+      <description><![CDATA[대류권부터 열권까지 지구 대기의 층상 구조를 시각적으로 탐구하는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[물의 순환]]></title>
+      <link>https://www.alpool.org/simulations/water_cycle_sim.html</link>
+      <guid>https://www.alpool.org/simulations/water_cycle_sim.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:27:22 +0900</pubDate>
+      <description><![CDATA[증발, 응결, 강수, 지표 흐름으로 이어지는 물의 순환을 한 장면에서 확인하는 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[판 구조론과 판의 경계]]></title>
+      <link>https://www.alpool.org/simulations/plate_tectonics_boundaries_sim.html</link>
+      <guid>https://www.alpool.org/simulations/plate_tectonics_boundaries_sim.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:26:22 +0900</pubDate>
+      <description><![CDATA[판의 경계와 대표적인 지질 현상을 함께 비교해 보는 지구과학 시뮬레이션입니다.]]></description>
+    </item>
+
+    <item>
+      <title><![CDATA[자유 낙하 운동]]></title>
+      <link>https://www.alpool.org/simulations/free_fall_motion_sim.html</link>
+      <guid>https://www.alpool.org/simulations/free_fall_motion_sim.html</guid>
+      <pubDate>Mon, 06 Apr 2026 22:25:22 +0900</pubDate>
+      <description><![CDATA[진공과 공기 중에서의 자유 낙하 차이를 비교하며 운동 개념을 학습하는 시뮬레이션입니다.]]></description>
+    </item>
+  </channel>
+</rss>
